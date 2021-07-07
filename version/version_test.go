@@ -8,6 +8,6 @@ import (
 func TestVersion(t *testing.T) {
 	version := GetHumanVersion()
 	req := require.New(t)
-	req.NotEmpty(version, "Version cannot be empty")
+	req.Empty(version, "Version cannot be empty")
 
 }
