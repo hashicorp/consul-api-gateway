@@ -1,10 +1,10 @@
 package main
 
 import (
-	"github.com/hashicorp/polar/version"
-	"os"
 	cmdVersion "github.com/hashicorp/polar/subcommand/version"
+	"github.com/hashicorp/polar/version"
 	"github.com/mitchellh/cli"
+	"os"
 )
 
 // Commands is the mapping of all available polar commands.
