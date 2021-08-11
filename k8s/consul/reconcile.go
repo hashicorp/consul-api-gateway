@@ -11,6 +11,8 @@ import (
 	"github.com/hashicorp/go-hclog"
 )
 
+// GatewayReconcileManager manages a GatewayReconciler for each Gateway and is the interface by which Consul operations
+// should be invoked in a kubernetes controller.
 type GatewayReconcileManager struct {
 	ctx         context.Context
 	consul      *api.Client
@@ -91,8 +93,8 @@ func newReconcilerForGateway(ctx context.Context, c *api.Client, logger hclog.Lo
 	logger = logger.With("gateway", kubeGateway.Name, "namespace", kubeGateway.Namespace)
 	return &GatewayReconciler{
 		ctx:               ctx,
-		signalReconcileCh: make(chan struct{}, 1),
-		stopReconcileCh:   make(chan struct{}, 1),
+		signalReconcileCh: make(chan struct{}, 1), // buffered chan allow for a single pending reconcile signal
+		stopReconcileCh:   make(chan struct{}, 0),
 		consul:            &Client{Client: c, logger: logger},
 		kubeGateway:       kubeGateway,
 		kubeHTTPRoutes:    routes,
@@ -135,6 +137,7 @@ func (c *GatewayReconciler) stop() {
 	c.stopReconcileCh <- struct{}{}
 }
 
+// reconcile should never be called outside of loop() to ensure it is not invoked concurrently
 func (c *GatewayReconciler) reconcile() error {
 	c.logger.Trace("reconcile started")
 	igw := &api.IngressGatewayConfigEntry{

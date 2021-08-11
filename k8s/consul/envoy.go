@@ -3,8 +3,6 @@ package consul
 import (
 	"bytes"
 	"html/template"
-
-	"github.com/hashicorp/consul/api"
 )
 
 var (
@@ -18,27 +16,15 @@ var (
 	sdsClusterTemplate = template.New("sdsCluster")
 )
 
+const (
+	EnvoyExtraStaticClustersJSON = "envoy_extra_static_clusters_json"
+)
+
 func init() {
 	_, err := sdsClusterTemplate.Parse(sdsClusterJSONTemplate)
 	if err != nil {
 		panic(err)
 	}
-}
-
-func proxyDefaults(meta map[string]string, args sdsClusterArgs) (*api.ProxyConfigEntry, error) {
-	clusterJSON, err := generateSDSClusterJSON(args)
-	if err != nil {
-		return nil, err
-	}
-	return &api.ProxyConfigEntry{
-		Kind: api.ProxyDefaults,
-		Name: "global",
-		//Namespace: namespace, // TODO
-		Config: map[string]interface{}{
-			"envoy_extra_static_clusters_json": clusterJSON,
-		},
-		Meta: meta,
-	}, nil
 }
 
 type sdsClusterArgs struct {

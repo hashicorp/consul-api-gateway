@@ -22,8 +22,8 @@ func (l *logger) Error(err error, msg string, keys ...interface{}) {
 	l.Logger.Error(msg, "error", err, keys)
 }
 
-func (l *logger) V(level int) logr.Logger {
-	panic("implement me")
+func (l *logger) V(_ int) logr.Logger {
+	return l
 }
 
 func (l *logger) WithValues(keysAndValues ...interface{}) logr.Logger {

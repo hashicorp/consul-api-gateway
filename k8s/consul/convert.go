@@ -18,6 +18,8 @@ func GatewayToIngress(gateway *gw.Gateway) *api.IngressGatewayConfigEntry {
 	}
 }
 
+// HTTPRouteToServiceDiscoChain will convert a k8s HTTPRoute to a Consul service-router config entry and 0 or
+// more service-splitter config entries. A prefix can be given to prefix all config entry names with.
 func HTTPRouteToServiceDiscoChain(route *gw.HTTPRoute, prefix string) (*api.ServiceRouterConfigEntry, []*api.ServiceSplitterConfigEntry) {
 	var router *api.ServiceRouterConfigEntry
 	routeName := fmt.Sprintf("%s%s", prefix, route.Name)
@@ -27,8 +29,12 @@ func HTTPRouteToServiceDiscoChain(route *gw.HTTPRoute, prefix string) (*api.Serv
 		Routes: []api.ServiceRoute{},
 	}
 	splitters := []*api.ServiceSplitterConfigEntry{}
+
+	// All route rules are enumerated and a ServiceRoute created for each.
 	for idx, rule := range route.Spec.Rules {
 		var destService string
+		// If the rule only has 1 ForwardTo target defined a splitter does not need to be created and the
+		// ServiceRoute.Destination can be set to the ForwardTo service name
 		if len(rule.ForwardTo) == 1 && rule.ForwardTo[0].ServiceName != nil {
 			destService = *rule.ForwardTo[0].ServiceName
 		} else {
@@ -38,12 +44,17 @@ func HTTPRouteToServiceDiscoChain(route *gw.HTTPRoute, prefix string) (*api.Serv
 				Name:   destService,
 				Splits: []api.ServiceSplit{},
 			}
+
 			for _, forward := range rule.ForwardTo {
-				split := api.ServiceSplit{}
-				split.Weight = float32(1)
+				// if a forward rule does not define a weight it is defaulted to 1
+				split := api.ServiceSplit{
+					Weight: float32(1),
+				}
 				if forward.Weight != nil {
 					split.Weight = float32(*forward.Weight)
 				}
+
+				// The gateway api spec states that a weight of 0 must not be routed to, thus skip this split
 				if split.Weight == 0 {
 					continue
 				}
@@ -57,6 +68,7 @@ func HTTPRouteToServiceDiscoChain(route *gw.HTTPRoute, prefix string) (*api.Serv
 			}
 		}
 
+		// for each match rule a ServiceRoute is created for the service-router
 		for _, match := range rule.Matches {
 			router.Routes = append(router.Routes, api.ServiceRoute{
 				Match: &api.ServiceRouteMatch{HTTP: HTTPRouteMatchToServiceRouteHTTPMatch(match)},

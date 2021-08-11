@@ -57,8 +57,8 @@ func TestRouteMatches(t *testing.T) {
 
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			match := routeMatches(&tt.gateway, tt.selector, &tt.route)
-			require.Equal(t, tt.expected, match)
+			match, reason := routeMatches(&tt.gateway, tt.selector, &tt.route)
+			require.Equal(t, tt.expected, match, reason)
 		})
 	}
 }
