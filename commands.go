@@ -1,10 +1,13 @@
 package main
 
 import (
+	"os"
+
+	"github.com/mitchellh/cli"
+
+	cmdServer "github.com/hashicorp/polar/subcommand/server"
 	cmdVersion "github.com/hashicorp/polar/subcommand/version"
 	"github.com/hashicorp/polar/version"
-	"github.com/mitchellh/cli"
-	"os"
 )
 
 // Commands is the mapping of all available polar commands.
@@ -14,6 +17,9 @@ func init() {
 	ui := &cli.BasicUi{Writer: os.Stdout, ErrorWriter: os.Stderr}
 
 	Commands = map[string]cli.CommandFactory{
+		"server": func() (cli.Command, error) {
+			return &cmdServer.Command{UI: ui}, nil
+		},
 		"version": func() (cli.Command, error) {
 			return &cmdVersion.Command{UI: ui, Version: version.GetHumanVersion()}, nil
 		},
