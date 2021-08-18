@@ -52,7 +52,7 @@ type kubeObj interface {
 
 // routeMatches implements the logic to determine if a route should be associated to the given gateway by checking it
 // against a gateway listener's route binding selector.
-func routeMatches(gateway *gw.Gateway, selector gw.RouteBindingSelector, route kubeObj) (bool, string) {
+func routeMatches(gwName types.NamespacedName, selector gw.RouteBindingSelector, route kubeObj) (bool, string) {
 	gvk := route.GroupVersionKind()
 	// check selector kind and group
 	if selector.Kind != gvk.Kind {
@@ -94,7 +94,7 @@ func routeMatches(gateway *gw.Gateway, selector gw.RouteBindingSelector, route k
 	case gw.RouteSelectAll:
 	// matches continue
 	case gw.RouteSelectSame:
-		if gateway.Namespace != route.GetNamespace() {
+		if gwName.Namespace != route.GetNamespace() {
 			return false, "gateway namespace does not match route"
 		}
 	case gw.RouteSelectSelector:
@@ -124,8 +124,8 @@ func routeMatches(gateway *gw.Gateway, selector gw.RouteBindingSelector, route k
 		if gatewaySelector == nil {
 			return false, "route gateway selector is empty but gateway requires allow from list"
 		}
-		for _, gw := range gatewaySelector.GatewayRefs {
-			if gw.Name == gateway.Name && gw.Namespace == gateway.Namespace {
+		for _, ref := range gatewaySelector.GatewayRefs {
+			if ref.Name == gwName.Name && ref.Namespace == gwName.Namespace {
 				found = true
 				break
 			}
@@ -134,7 +134,7 @@ func routeMatches(gateway *gw.Gateway, selector gw.RouteBindingSelector, route k
 			return false, "route gateway selector did not match"
 		}
 	case gw.GatewayAllowSameNamespace:
-		if gateway.Namespace != route.GetNamespace() {
+		if gwName.Namespace != route.GetNamespace() {
 			return false, "gateway namespace does not match and is required by gateway selector"
 		}
 	}

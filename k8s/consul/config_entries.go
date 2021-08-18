@@ -23,6 +23,15 @@ func (i *ConfigEntryIndex) Add(entry api.ConfigEntry) {
 	i.idx[entry.GetName()] = entry
 }
 
+func (i *ConfigEntryIndex) Merge(other *ConfigEntryIndex) {
+	if i.kind != other.kind {
+		return
+	}
+	for k, v := range other.idx {
+		i.idx[k] = v
+	}
+}
+
 func (i *ConfigEntryIndex) Get(name string) (api.ConfigEntry, bool) {
 	c, ok := i.idx[name]
 	return c, ok

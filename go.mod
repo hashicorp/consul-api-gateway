@@ -13,6 +13,7 @@ require (
 	k8s.io/api v0.21.3
 	k8s.io/apimachinery v0.21.3
 	k8s.io/client-go v0.21.3
+	k8s.io/utils v0.0.0-20210802155522-efc7438f0176 // indirect
 	sigs.k8s.io/controller-runtime v0.9.6
 	sigs.k8s.io/gateway-api v0.3.0
 )

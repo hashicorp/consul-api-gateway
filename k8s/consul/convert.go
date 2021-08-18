@@ -8,27 +8,17 @@ import (
 	"github.com/hashicorp/consul/api"
 )
 
-func GatewayToIngress(gateway *gw.Gateway) *api.IngressGatewayConfigEntry {
-	return &api.IngressGatewayConfigEntry{
-		Kind:      api.IngressGateway,
-		Name:      "polar-" + gateway.Name,
-		TLS:       api.GatewayTLSConfig{},
-		Listeners: []api.IngressListener{},
-		Meta:      map[string]string{},
-	}
-}
-
 // HTTPRouteToServiceDiscoChain will convert a k8s HTTPRoute to a Consul service-router config entry and 0 or
 // more service-splitter config entries. A prefix can be given to prefix all config entry names with.
-func HTTPRouteToServiceDiscoChain(route *gw.HTTPRoute, prefix string) (*api.ServiceRouterConfigEntry, []*api.ServiceSplitterConfigEntry) {
+func HTTPRouteToServiceDiscoChain(route *gw.HTTPRoute, prefix string, meta map[string]string) (*api.ServiceRouterConfigEntry, []*api.ServiceSplitterConfigEntry) {
 	var router *api.ServiceRouterConfigEntry
 	routeName := fmt.Sprintf("%s%s", prefix, route.Name)
 	router = &api.ServiceRouterConfigEntry{
-		Kind:   api.ServiceRouter,
-		Name:   routeName,
-		Routes: []api.ServiceRoute{},
+		Kind: api.ServiceRouter,
+		Name: routeName,
+		Meta: meta,
 	}
-	splitters := []*api.ServiceSplitterConfigEntry{}
+	var splitters []*api.ServiceSplitterConfigEntry
 
 	// All route rules are enumerated and a ServiceRoute created for each.
 	for idx, rule := range route.Spec.Rules {
@@ -43,6 +33,7 @@ func HTTPRouteToServiceDiscoChain(route *gw.HTTPRoute, prefix string) (*api.Serv
 				Kind:   api.ServiceSplitter,
 				Name:   destService,
 				Splits: []api.ServiceSplit{},
+				Meta:   meta,
 			}
 
 			for _, forward := range rule.ForwardTo {
@@ -69,6 +60,14 @@ func HTTPRouteToServiceDiscoChain(route *gw.HTTPRoute, prefix string) (*api.Serv
 		}
 
 		// for each match rule a ServiceRoute is created for the service-router
+		// if there are no rules a single route with the destination is set
+		if len(rule.Matches) == 0 {
+			router.Routes = append(router.Routes, api.ServiceRoute{
+				Destination: &api.ServiceRouteDestination{
+					Service: destService,
+				},
+			})
+		}
 		for _, match := range rule.Matches {
 			router.Routes = append(router.Routes, api.ServiceRoute{
 				Match: &api.ServiceRouteMatch{HTTP: HTTPRouteMatchToServiceRouteHTTPMatch(match)},
@@ -83,10 +82,7 @@ func HTTPRouteToServiceDiscoChain(route *gw.HTTPRoute, prefix string) (*api.Serv
 }
 
 func HTTPRouteMatchToServiceRouteHTTPMatch(route gw.HTTPRouteMatch) *api.ServiceRouteHTTPMatch {
-	match := &api.ServiceRouteHTTPMatch{
-		Header:     []api.ServiceRouteHTTPMatchHeader{},
-		QueryParam: []api.ServiceRouteHTTPMatchQueryParam{},
-	}
+	var match api.ServiceRouteHTTPMatch
 	if route.Path != nil && route.Path.Type != nil && route.Path.Value != nil {
 		switch *route.Path.Type {
 		case gw.PathMatchExact:
@@ -125,14 +121,15 @@ func HTTPRouteMatchToServiceRouteHTTPMatch(route gw.HTTPRouteMatch) *api.Service
 		}
 	}
 
-	return match
+	return &match
 }
 
-func httpServiceDefault(entry api.ConfigEntry) *api.ServiceConfigEntry {
+func httpServiceDefault(entry api.ConfigEntry, meta map[string]string) *api.ServiceConfigEntry {
 	return &api.ServiceConfigEntry{
 		Kind:      api.ServiceDefaults,
 		Name:      entry.GetName(),
 		Namespace: entry.GetNamespace(),
 		Protocol:  "http",
+		Meta:      meta,
 	}
 }

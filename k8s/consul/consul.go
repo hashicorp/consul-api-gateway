@@ -5,6 +5,11 @@ import (
 	"github.com/hashicorp/go-hclog"
 )
 
+type ConfigEntriesClient interface {
+	SetConfigEntries(entries ...api.ConfigEntry)
+	DeleteConfigEntries(entries ...api.ConfigEntry)
+}
+
 type Client struct {
 	*api.Client
 	logger hclog.Logger
