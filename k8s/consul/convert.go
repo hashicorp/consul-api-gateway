@@ -3,7 +3,7 @@ package consul
 import (
 	"fmt"
 
-	gw "sigs.k8s.io/gateway-api/apis/v1alpha1"
+	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	"github.com/hashicorp/consul/api"
 )
@@ -25,8 +25,8 @@ func HTTPRouteToServiceDiscoChain(route *gw.HTTPRoute, prefix string, meta map[s
 		var destService string
 		// If the rule only has 1 ForwardTo target defined a splitter does not need to be created and the
 		// ServiceRoute.Destination can be set to the ForwardTo service name
-		if len(rule.ForwardTo) == 1 && rule.ForwardTo[0].ServiceName != nil {
-			destService = *rule.ForwardTo[0].ServiceName
+		if len(rule.BackendRefs) == 1 {
+			destService = rule.BackendRefs[0].Name
 		} else {
 			destService = fmt.Sprintf("%s-%d", routeName, idx)
 			splitter := &api.ServiceSplitterConfigEntry{
@@ -36,7 +36,7 @@ func HTTPRouteToServiceDiscoChain(route *gw.HTTPRoute, prefix string, meta map[s
 				Meta:   meta,
 			}
 
-			for _, forward := range rule.ForwardTo {
+			for _, forward := range rule.BackendRefs {
 				// if a forward rule does not define a weight it is defaulted to 1
 				split := api.ServiceSplit{
 					Weight: float32(1),
@@ -49,9 +49,7 @@ func HTTPRouteToServiceDiscoChain(route *gw.HTTPRoute, prefix string, meta map[s
 				if split.Weight == 0 {
 					continue
 				}
-				if forward.ServiceName != nil {
-					split.Service = *forward.ServiceName
-				}
+				split.Service = forward.Name
 				splitter.Splits = append(splitter.Splits, split)
 			}
 			if len(splitter.Splits) > 0 {
@@ -97,27 +95,31 @@ func HTTPRouteMatchToServiceRouteHTTPMatch(route gw.HTTPRouteMatch) *api.Service
 		}
 	}
 
-	if route.Headers != nil && route.Headers.Type != nil && route.Headers.Values != nil {
-		for header, value := range route.Headers.Values {
-			switch *route.Headers.Type {
-			case gw.HeaderMatchExact:
-				match.Header = append(match.Header, api.ServiceRouteHTTPMatchHeader{
-					Name:  header,
-					Exact: value,
-				})
-			}
+	for _, header := range route.Headers {
+		if header.Type == nil {
+			t := gw.HeaderMatchExact
+			header.Type = &t
+		}
+		switch *header.Type {
+		case gw.HeaderMatchExact:
+			match.Header = append(match.Header, api.ServiceRouteHTTPMatchHeader{
+				Name:  header.Name,
+				Exact: header.Value,
+			})
 		}
 	}
 
-	if route.QueryParams != nil && route.QueryParams.Type != nil && route.QueryParams.Values != nil {
-		for param, value := range route.QueryParams.Values {
-			switch *route.QueryParams.Type {
-			case gw.QueryParamMatchExact:
-				match.QueryParam = append(match.QueryParam, api.ServiceRouteHTTPMatchQueryParam{
-					Name:  param,
-					Exact: value,
-				})
-			}
+	for _, param := range route.QueryParams {
+		if param.Type == nil {
+			t := gw.QueryParamMatchExact
+			param.Type = &t
+		}
+		switch *param.Type {
+		case gw.QueryParamMatchExact:
+			match.QueryParam = append(match.QueryParam, api.ServiceRouteHTTPMatchQueryParam{
+				Name:  param.Name,
+				Exact: param.Value,
+			})
 		}
 	}
 

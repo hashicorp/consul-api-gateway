@@ -11,9 +11,9 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	gateway "sigs.k8s.io/gateway-api/apis/v1alpha1"
+	gateway "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
-	"github.com/hashicorp/polar/k8s/consul"
+	"github.com/hashicorp/polar/k8s/reconciler"
 )
 
 // GatewayReconciler reconciles a Gateway object
@@ -22,7 +22,7 @@ type GatewayReconciler struct {
 	Log    logr.Logger
 	Scheme *runtime.Scheme
 
-	Manager *consul.GatewayReconcileManager
+	Manager *reconciler.GatewayReconcileManager
 
 	image string
 }

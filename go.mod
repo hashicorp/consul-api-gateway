@@ -10,10 +10,10 @@ require (
 	github.com/hashicorp/go-hclog v0.16.2
 	github.com/mitchellh/cli v1.1.2
 	github.com/stretchr/testify v1.7.0
-	k8s.io/api v0.21.3
-	k8s.io/apimachinery v0.21.3
-	k8s.io/client-go v0.21.3
-	k8s.io/utils v0.0.0-20210802155522-efc7438f0176 // indirect
+	k8s.io/api v0.22.0
+	k8s.io/apimachinery v0.22.0
+	k8s.io/client-go v0.22.0
+	k8s.io/utils v0.0.0-20210802155522-efc7438f0176
 	sigs.k8s.io/controller-runtime v0.9.6
-	sigs.k8s.io/gateway-api v0.3.0
+	sigs.k8s.io/gateway-api v0.3.1-0.20210817221314-e11957e9082b
 )

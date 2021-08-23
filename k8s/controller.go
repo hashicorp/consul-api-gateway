@@ -9,13 +9,14 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
-	gw "sigs.k8s.io/gateway-api/apis/v1alpha1"
+	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/polar/k8s/consul"
 	"github.com/hashicorp/polar/k8s/controllers"
 	"github.com/hashicorp/polar/k8s/log"
+	"github.com/hashicorp/polar/k8s/object"
+	"github.com/hashicorp/polar/k8s/reconciler"
 )
 
 var (
@@ -35,6 +36,7 @@ type Kubernetes struct {
 	k8sManager ctrl.Manager
 	consul     *api.Client
 	logger     hclog.Logger
+	k8sStatus  *object.StatusWorker
 
 	failed chan struct{}
 }
@@ -89,9 +91,13 @@ func New(client *api.Client, logger hclog.Logger, opts *Options) (*Kubernetes, e
 
 // Start will run the kubernetes controllers and return a startup error if occurred
 func (k *Kubernetes) Start(ctx context.Context) error {
+
+	status := object.NewStatusWorker(ctx, k.k8sManager.GetClient().Status(), k.logger)
+	k.k8sStatus = status
+
 	klogger := log.FromHCLogger(k.logger)
 
-	consulMgr := consul.NewReconcileManager(ctx, k.consul, k.logger.Named("consul"))
+	consulMgr := reconciler.NewReconcileManager(ctx, k.consul, k.k8sManager.GetClient().Status(), k.logger.Named("consul"))
 	err := (&controllers.GatewayReconciler{
 		Client:  k.k8sManager.GetClient(),
 		Log:     klogger.WithName("controllers").WithName("Gateway"),
