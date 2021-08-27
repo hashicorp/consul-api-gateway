@@ -5,6 +5,7 @@ import (
 
 	"github.com/mitchellh/cli"
 
+	cmdInit "github.com/hashicorp/polar/subcommand/init"
 	cmdServer "github.com/hashicorp/polar/subcommand/server"
 	cmdVersion "github.com/hashicorp/polar/subcommand/version"
 	"github.com/hashicorp/polar/version"
@@ -20,6 +21,9 @@ func init() {
 		"server": func() (cli.Command, error) {
 			return &cmdServer.Command{UI: ui}, nil
 		},
+		"init": func() (cli.Command, error) {
+			return &cmdInit.Command{UI: ui}, nil
+		},
 		"version": func() (cli.Command, error) {
 			return &cmdVersion.Command{UI: ui, Version: version.GetHumanVersion()}, nil
 		},
@@ -32,7 +36,7 @@ func helpFunc() cli.HelpFunc {
 	// aren't shown in any help output. We use this for prerelease functionality
 	// or advanced features.
 	hidden := map[string]struct{}{
-		"inject-connect": struct{}{},
+		"init": struct{}{},
 	}
 
 	var include []string

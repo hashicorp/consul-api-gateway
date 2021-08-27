@@ -3,6 +3,7 @@ module github.com/hashicorp/polar
 go 1.16
 
 require (
+	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/fatih/color v1.12.0 // indirect
 	github.com/go-logr/logr v0.4.0
