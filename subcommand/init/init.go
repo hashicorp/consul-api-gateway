@@ -18,6 +18,7 @@ import (
 // https://github.com/hashicorp/consul-k8s/blob/24be51c58461e71365ca39f113dae0379f7a1b7c/control-plane/connect-inject/container_init.go#L272-L306
 // https://github.com/hashicorp/consul-k8s/blob/24be51c58461e71365ca39f113dae0379f7a1b7c/control-plane/connect-inject/envoy_sidecar.go#L79
 // https://github.com/hashicorp/consul-k8s/blob/24be51c58461e71365ca39f113dae0379f7a1b7c/control-plane/subcommand/connect-init/command.go#L91
+// https://github.com/hashicorp/consul-k8s/blob/24be51c58461e71365ca39f113dae0379f7a1b7c/control-plane/connect-inject/endpoints_controller.go#L403
 
 const (
 	MetaKeyPodName = "pod-name"
@@ -29,24 +30,30 @@ const (
 	// The number of times to attempt ACL Login.
 	numLoginRetries = 3
 	// The number of times to attempt to read this service (120s).
-	defaultServicePollingRetries = 120
+	defaultServiceRegistrationRetries = 120
 )
 
 type Command struct {
 	UI cli.Ui
 
+	// Gateway params
+	flagGatewayID        string // Gateway iD.
+	flagGatewayIP        string // Gateway ip.
+	flagGatewayPort      int    // Gateway port.
+	flagGatewayName      string // Gateway name.
+	flagGatewayNamespace string // Gateway namespace.
+
+	// Auth
 	flagACLAuthMethod       string // Auth Method to use for ACLs, if enabled.
-	flagPodName             string // Pod name.
-	flagPodNamespace        string // Pod namespace.
 	flagAuthMethodNamespace string // Consul namespace the auth-method is defined in.
-	flagServiceAccountName  string // Service account name.
-	flagServiceName         string // Service name.
-	flagLogLevel            string
-	flagLogJSON             bool
 	flagBearerTokenFile     string // Location of the bearer token. Default is /var/run/secrets/kubernetes.io/serviceaccount/token.
 	flagTokenSinkFile       string // Location to write the output token. Default is defaultTokenSinkFile.
 
-	serviceRegistrationPollingAttempts uint64 // Number of times to poll for this service to be registered.
+	// Logging
+	flagLogLevel string
+	flagLogJSON  bool
+
+	serviceRegistrationAttempts uint64 // Number of times to poll for this service to be registered.
 
 	flagSet *flag.FlagSet
 
@@ -57,22 +64,23 @@ type Command struct {
 
 func (c *Command) init() {
 	c.flagSet = flag.NewFlagSet("", flag.ContinueOnError)
-	c.flagSet.StringVar(&c.flagACLAuthMethod, "acl-auth-method", "", "Name of the auth method to login to.")
-	c.flagSet.StringVar(&c.flagPodName, "pod-name", "", "Name of the pod.")
-	c.flagSet.StringVar(&c.flagPodNamespace, "pod-namespace", "", "Name of the pod namespace.")
+	c.flagSet.StringVar(&c.flagGatewayID, "gateway-id", "", "ID of the gateway.")
+	c.flagSet.StringVar(&c.flagGatewayIP, "gateway-ip", "", "IP of the gateway.")
+	c.flagSet.IntVar(&c.flagGatewayPort, "gateway-port", 0, "Port of the gateway.")
+	c.flagSet.StringVar(&c.flagGatewayName, "gateway-name", "", "Name of the gateway.")
+	c.flagSet.StringVar(&c.flagGatewayNamespace, "gateway-namespace", "", "Name of the gateway namespace.")
+	c.flagSet.StringVar(&c.flagACLAuthMethod, "acl-auth-method", "", "Name of the auth method to login with.")
 	c.flagSet.StringVar(&c.flagAuthMethodNamespace, "auth-method-namespace", "", "Consul namespace the auth-method is defined in")
 	c.flagSet.StringVar(&c.flagBearerTokenFile, "bearer-token-file", defaultBearerTokenFile, "Location of the bearer token.")
 	c.flagSet.StringVar(&c.flagTokenSinkFile, "token-sink-file", defaultTokenSinkFile, "Location to write the output token.")
-	c.flagSet.StringVar(&c.flagServiceAccountName, "service-account-name", "", "Service account name on the pod.")
-	c.flagSet.StringVar(&c.flagServiceName, "service-name", "", "Service name as specified via the pod annotation.")
 	c.flagSet.StringVar(&c.flagLogLevel, "log-level", "info",
 		"Log verbosity level. Supported values (in order of detail) are \"trace\", "+
 			"\"debug\", \"info\", \"warn\", and \"error\".")
 	c.flagSet.BoolVar(&c.flagLogJSON, "log-json", false,
 		"Enable or disable JSON output format for logging.")
 
-	if c.serviceRegistrationPollingAttempts == 0 {
-		c.serviceRegistrationPollingAttempts = defaultServicePollingRetries
+	if c.serviceRegistrationAttempts == 0 {
+		c.serviceRegistrationAttempts = defaultServiceRegistrationRetries
 	}
 }
 
@@ -83,16 +91,24 @@ func (c *Command) Run(args []string) int {
 		return 1
 	}
 
-	if c.flagPodName == "" {
-		c.UI.Error("-pod-name must be set")
+	if c.flagGatewayID == "" {
+		c.UI.Error("-gateway-id must be set")
 		return 1
 	}
-	if c.flagPodNamespace == "" {
-		c.UI.Error("-pod-namespace must be set")
+	if c.flagGatewayIP == "" {
+		c.UI.Error("-gateway-ip must be set")
 		return 1
 	}
-	if c.flagACLAuthMethod != "" && c.flagServiceAccountName == "" {
-		c.UI.Error("-service-account-name must be set when ACLs are enabled")
+	if c.flagGatewayPort == 0 {
+		c.UI.Error("-gateway-port must be set")
+		return 1
+	}
+	if c.flagGatewayName == "" {
+		c.UI.Error("-gateway-name must be set")
+		return 1
+	}
+	if c.flagGatewayNamespace == "" {
+		c.UI.Error("-gateway-namespace must be set")
 		return 1
 	}
 
@@ -111,7 +127,7 @@ func (c *Command) Run(args []string) int {
 	// First do the ACL Login, if necessary.
 	if c.flagACLAuthMethod != "" {
 		// loginMeta is the default metadata that we pass to the consul login API.
-		loginMeta := map[string]string{"pod": fmt.Sprintf("%s/%s", c.flagPodNamespace, c.flagPodName)}
+		loginMeta := map[string]string{"polar": fmt.Sprintf("%s/%s", c.flagGatewayNamespace, c.flagGatewayName)}
 		err = backoff.Retry(func() error {
 			err := ConsulLogin(consulClient, c.flagBearerTokenFile, c.flagACLAuthMethod, c.flagTokenSinkFile, c.flagAuthMethodNamespace, loginMeta)
 			if err != nil {
@@ -133,65 +149,32 @@ func (c *Command) Run(args []string) int {
 		c.logger.Info("Consul login complete")
 	}
 
-	// Now wait for the service to be registered. Do this by querying the Agent for a service
-	// which maps to this pod+namespace.
-	var proxyID string
-	registrationRetryCount := 0
-	var errServiceNameMismatch error
+	// Now register the envoy service in Consul.
 	err = backoff.Retry(func() error {
-		registrationRetryCount++
-		filter := fmt.Sprintf("Meta[%q] == %q and Meta[%q] == %q", MetaKeyPodName, c.flagPodName, MetaKeyKubeNS, c.flagPodNamespace)
-		serviceList, err := consulClient.Agent().ServicesWithFilter(filter)
+		registration := &api.AgentServiceRegistration{
+			ID:        c.flagGatewayID,
+			Name:      c.flagGatewayName,
+			Port:      c.flagGatewayPort,
+			Address:   c.flagGatewayIP,
+			Namespace: c.flagGatewayNamespace,
+			Checks: api.AgentServiceChecks{
+				{
+					Name:                           "Gateway Public Listener",
+					TCP:                            fmt.Sprintf("%s:%d", c.flagGatewayIP, c.flagGatewayPort),
+					Interval:                       "10s",
+					DeregisterCriticalServiceAfter: "10m",
+				},
+			},
+		}
+		err = consulClient.Agent().ServiceRegister(registration)
 		if err != nil {
-			c.logger.Error("Unable to get Agent services", "error", err)
+			c.logger.Error("failed to register gateway service '%s': %v", registration.Name, err)
 			return err
 		}
-		// Wait for the service and the connect-proxy service to be registered.
-		if len(serviceList) != 2 {
-			c.logger.Info("Unable to find registered services; retrying")
-			// Once every 10 times we're going to print this informational message to the pod logs so that
-			// it is not "lost" to the user at the end of the retries when the pod enters a CrashLoop.
-			if registrationRetryCount%10 == 0 {
-				c.logger.Info("Check to ensure a Kubernetes service has been created for this application." +
-					" If your pod is not starting also check the connect-inject deployment logs.")
-			}
-			return fmt.Errorf("did not find correct number of services: %d", len(serviceList))
-		}
-		for _, svc := range serviceList {
-			c.logger.Info("Registered service has been detected", "service", svc.Service)
-			if c.flagACLAuthMethod != "" {
-				if c.flagServiceName != "" && c.flagServiceAccountName != c.flagServiceName {
-					// Set the error but return nil so we don't retry.
-					errServiceNameMismatch = fmt.Errorf("service account name %s doesn't match annotation service name %s", c.flagServiceAccountName, c.flagServiceName)
-					return nil
-				}
-
-				if c.flagServiceName == "" && svc.Kind != api.ServiceKindConnectProxy && c.flagServiceAccountName != svc.Service {
-					// Set the error but return nil so we don't retry.
-					errServiceNameMismatch = fmt.Errorf("service account name %s doesn't match Consul service name %s", c.flagServiceAccountName, svc.Service)
-					return nil
-				}
-			}
-			if svc.Kind == api.ServiceKindConnectProxy {
-				// This is the proxy service ID.
-				proxyID = svc.ID
-			}
-		}
-
-		if proxyID == "" {
-			// In theory we can't reach this point unless we have 2 services registered against
-			// this pod and neither are the connect-proxy. We don't support this case anyway, but it
-			// is necessary to return from the function.
-			return fmt.Errorf("unable to find registered connect-proxy service")
-		}
 		return nil
-	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(1*time.Second), c.serviceRegistrationPollingAttempts))
+	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(1*time.Second), c.serviceRegistrationAttempts))
 	if err != nil {
 		c.logger.Error("Timed out waiting for service registration", "error", err)
-		return 1
-	}
-	if errServiceNameMismatch != nil {
-		c.logger.Error(errServiceNameMismatch.Error())
 		return 1
 	}
 	return 0
