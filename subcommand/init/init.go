@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff"
+	"github.com/google/uuid"
 	"github.com/mitchellh/cli"
 
 	"github.com/hashicorp/consul/api"
@@ -25,7 +26,8 @@ const (
 	MetaKeyKubeNS  = "k8s-namespace"
 
 	defaultBearerTokenFile = "/var/run/secrets/kubernetes.io/serviceaccount/token"
-	defaultTokenSinkFile   = "/consul/polar-inject/acl-token"
+	defaultTokenSinkFile   = "/polar/acl-token"
+	defaultServiceIDFile   = "/polar/id"
 
 	// The number of times to attempt ACL Login.
 	numLoginRetries = 3
@@ -35,6 +37,9 @@ const (
 
 type Command struct {
 	UI cli.Ui
+
+	// Consul params
+	flagConsulHTTPAddress string // Address for Consul HTTP API.
 
 	// Gateway params
 	flagGatewayID        string // Gateway iD.
@@ -53,6 +58,9 @@ type Command struct {
 	flagLogLevel string
 	flagLogJSON  bool
 
+	// Deregistration
+	flagDeregister bool
+
 	serviceRegistrationAttempts uint64 // Number of times to poll for this service to be registered.
 
 	flagSet *flag.FlagSet
@@ -64,13 +72,15 @@ type Command struct {
 
 func (c *Command) init() {
 	c.flagSet = flag.NewFlagSet("", flag.ContinueOnError)
+	c.flagSet.BoolVar(&c.flagDeregister, "deregister", false, "Deregister instead of bootstrapping.")
+	c.flagSet.StringVar(&c.flagConsulHTTPAddress, "consul-http-address", "", "Address of Consul.")
 	c.flagSet.StringVar(&c.flagGatewayID, "gateway-id", "", "ID of the gateway.")
 	c.flagSet.StringVar(&c.flagGatewayIP, "gateway-ip", "", "IP of the gateway.")
 	c.flagSet.IntVar(&c.flagGatewayPort, "gateway-port", 0, "Port of the gateway.")
 	c.flagSet.StringVar(&c.flagGatewayName, "gateway-name", "", "Name of the gateway.")
-	c.flagSet.StringVar(&c.flagGatewayNamespace, "gateway-namespace", "", "Name of the gateway namespace.")
+	c.flagSet.StringVar(&c.flagGatewayNamespace, "gateway-namespace", "default", "Name of the gateway namespace.")
 	c.flagSet.StringVar(&c.flagACLAuthMethod, "acl-auth-method", "", "Name of the auth method to login with.")
-	c.flagSet.StringVar(&c.flagAuthMethodNamespace, "auth-method-namespace", "", "Consul namespace the auth-method is defined in")
+	c.flagSet.StringVar(&c.flagAuthMethodNamespace, "auth-method-namespace", "default", "Consul namespace the auth-method is defined in")
 	c.flagSet.StringVar(&c.flagBearerTokenFile, "bearer-token-file", defaultBearerTokenFile, "Location of the bearer token.")
 	c.flagSet.StringVar(&c.flagTokenSinkFile, "token-sink-file", defaultTokenSinkFile, "Location to write the output token.")
 	c.flagSet.StringVar(&c.flagLogLevel, "log-level", "info",
@@ -91,8 +101,8 @@ func (c *Command) Run(args []string) int {
 		return 1
 	}
 
-	if c.flagGatewayID == "" {
-		c.UI.Error("-gateway-id must be set")
+	if c.flagConsulHTTPAddress == "" {
+		c.UI.Error("-consul-http-address must be set")
 		return 1
 	}
 	if c.flagGatewayIP == "" {
@@ -107,17 +117,18 @@ func (c *Command) Run(args []string) int {
 		c.UI.Error("-gateway-name must be set")
 		return 1
 	}
-	if c.flagGatewayNamespace == "" {
-		c.UI.Error("-gateway-namespace must be set")
-		return 1
-	}
 
 	if c.logger == nil {
 		c.logger = hclog.Default().Named("polar-init")
 		c.logger.SetLevel(hclog.Trace)
 	}
 
+	if c.flagGatewayID == "" {
+		c.flagGatewayID = uuid.New().String()
+	}
+
 	cfg := api.DefaultConfig()
+	cfg.Address = c.flagConsulHTTPAddress
 	consulClient, err := api.NewClient(cfg)
 	if err != nil {
 		c.UI.Error("An error occurred creating a Consul API client:\n\t" + err.Error())
@@ -149,26 +160,62 @@ func (c *Command) Run(args []string) int {
 		c.logger.Info("Consul login complete")
 	}
 
-	// Now register the envoy service in Consul.
+	if c.flagDeregister {
+		return c.deregister(consulClient)
+	}
+	return c.register(consulClient)
+}
+
+func (c *Command) deregister(consulClient *api.Client) int {
+	data, err := os.ReadFile(defaultServiceIDFile)
+	if err != nil {
+		c.logger.Error("Unable to read service ID file", "error", err)
+		return 1
+	}
+
+	serviceID := strings.TrimSpace(string(data))
+
+	// Now deregister the envoy service in Consul.
 	err = backoff.Retry(func() error {
+		err := consulClient.Agent().ServiceDeregister(serviceID)
+		if err != nil {
+			c.logger.Error("failed to deregister gateway service", "error", err)
+			return err
+		}
+		return nil
+	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(1*time.Second), c.serviceRegistrationAttempts))
+	if err != nil {
+		c.logger.Error("Timed out waiting for service deregistration", "error", err)
+		return 1
+	}
+
+	c.logger.Info("Service deregistration complete")
+	return 0
+}
+
+func (c *Command) register(consulClient *api.Client) int {
+	// Now register the envoy service in Consul.
+	err := backoff.Retry(func() error {
 		registration := &api.AgentServiceRegistration{
-			ID:        c.flagGatewayID,
-			Name:      c.flagGatewayName,
-			Port:      c.flagGatewayPort,
-			Address:   c.flagGatewayIP,
-			Namespace: c.flagGatewayNamespace,
+			ID:      c.flagGatewayID,
+			Name:    c.flagGatewayName,
+			Port:    c.flagGatewayPort,
+			Address: c.flagGatewayIP,
 			Checks: api.AgentServiceChecks{
 				{
-					Name:                           "Gateway Public Listener",
+					Name:                           "Gateway Listener",
 					TCP:                            fmt.Sprintf("%s:%d", c.flagGatewayIP, c.flagGatewayPort),
 					Interval:                       "10s",
-					DeregisterCriticalServiceAfter: "10m",
+					DeregisterCriticalServiceAfter: "1m",
 				},
 			},
 		}
-		err = consulClient.Agent().ServiceRegister(registration)
+		if c.flagGatewayNamespace != "default" {
+			registration.Namespace = "default"
+		}
+		err := consulClient.Agent().ServiceRegister(registration)
 		if err != nil {
-			c.logger.Error("failed to register gateway service '%s': %v", registration.Name, err)
+			c.logger.Error("failed to register gateway service", "name", registration.Name, "error", err)
 			return err
 		}
 		return nil
@@ -177,6 +224,13 @@ func (c *Command) Run(args []string) int {
 		c.logger.Error("Timed out waiting for service registration", "error", err)
 		return 1
 	}
+
+	if err := WriteFileWithPerms(defaultServiceIDFile, c.flagGatewayID, 0444); err != nil {
+		c.logger.Error("failed to write service id file", "error", err)
+		return 1
+	}
+
+	c.logger.Info("Service registration complete")
 	return 0
 }
 
@@ -213,7 +267,11 @@ func ConsulLogin(client *api.Client, bearerTokenFile, authMethodName, tokenSinkF
 		BearerToken: bearerToken,
 		Meta:        meta,
 	}
-	tok, _, err := client.ACL().Login(req, &api.WriteOptions{Namespace: namespace})
+	opts := &api.WriteOptions{}
+	if namespace != "default" {
+		opts.Namespace = namespace
+	}
+	tok, _, err := client.ACL().Login(req, opts)
 	if err != nil {
 		return fmt.Errorf("error logging in: %s", err)
 	}

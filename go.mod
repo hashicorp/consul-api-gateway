@@ -7,9 +7,11 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/fatih/color v1.12.0 // indirect
 	github.com/go-logr/logr v0.4.0
+	github.com/google/uuid v1.1.2
 	github.com/hashicorp/consul/api v1.9.1
 	github.com/hashicorp/go-hclog v0.16.2
 	github.com/mitchellh/cli v1.1.2
+	github.com/prometheus/common v0.26.0
 	github.com/stretchr/testify v1.7.0
 	k8s.io/api v0.22.0
 	k8s.io/apimachinery v0.22.0
