@@ -40,6 +40,7 @@ type Command struct {
 
 	// Consul params
 	flagConsulHTTPAddress string // Address for Consul HTTP API.
+	flagConsulCACertFile  string // Root CA file for Consul
 
 	// Gateway params
 	flagGatewayID        string // Gateway iD.
@@ -74,6 +75,7 @@ func (c *Command) init() {
 	c.flagSet = flag.NewFlagSet("", flag.ContinueOnError)
 	c.flagSet.BoolVar(&c.flagDeregister, "deregister", false, "Deregister instead of bootstrapping.")
 	c.flagSet.StringVar(&c.flagConsulHTTPAddress, "consul-http-address", "", "Address of Consul.")
+	c.flagSet.StringVar(&c.flagConsulCACertFile, "consul-ca-cert-file", "", "CA Root file for Consul.")
 	c.flagSet.StringVar(&c.flagGatewayID, "gateway-id", "", "ID of the gateway.")
 	c.flagSet.StringVar(&c.flagGatewayIP, "gateway-ip", "", "IP of the gateway.")
 	c.flagSet.IntVar(&c.flagGatewayPort, "gateway-port", 0, "Port of the gateway.")
@@ -129,6 +131,10 @@ func (c *Command) Run(args []string) int {
 
 	cfg := api.DefaultConfig()
 	cfg.Address = c.flagConsulHTTPAddress
+	if c.flagConsulCACertFile != "" {
+		cfg.Scheme = "https"
+		cfg.TLSConfig.CAFile = c.flagConsulCACertFile
+	}
 	consulClient, err := api.NewClient(cfg)
 	if err != nil {
 		c.UI.Error("An error occurred creating a Consul API client:\n\t" + err.Error())

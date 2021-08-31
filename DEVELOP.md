@@ -16,7 +16,7 @@ kind: Gateway
 metadata:
   name: polar-test
   annotations:
-    "polar.hashicorp.com/consul-http-address": "host.docker.internal:8500"
+    "polar.hashicorp.com/consul-http-address": "host.docker.internal:443"
     "polar.hashicorp.com/image": "polar:1"
     "polar.hashicorp.com/auth-method": "polar"
     "polar.hashicorp.com/service-account": "polar"

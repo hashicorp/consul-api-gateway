@@ -3,11 +3,14 @@ package k8s
 import (
 	"context"
 	"fmt"
+	"os"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
+	clientruntime "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
@@ -34,15 +37,18 @@ func init() {
 }
 
 type Kubernetes struct {
-	k8sManager ctrl.Manager
-	consul     *api.Client
-	logger     hclog.Logger
-	k8sStatus  *object.StatusWorker
+	k8sManager   ctrl.Manager
+	consul       *api.Client
+	logger       hclog.Logger
+	k8sStatus    *object.StatusWorker
+	caCertSecret string
 
 	failed chan struct{}
 }
 
 type Options struct {
+	CACertSecret        string
+	CACertFile          string
 	MetricsBindAddr     string
 	HealthProbeBindAddr string
 	WebhookPort         int
@@ -50,13 +56,25 @@ type Options struct {
 
 func Defaults() *Options {
 	return &Options{
+		CACertSecret:        "",
+		CACertFile:          "",
 		MetricsBindAddr:     ":8080",
 		HealthProbeBindAddr: ":8081",
 		WebhookPort:         8443,
 	}
 }
 
-func New(client *api.Client, logger hclog.Logger, opts *Options) (*Kubernetes, error) {
+func (o *Options) SetCACertSecret(secret string) *Options {
+	o.CACertSecret = secret
+	return o
+}
+
+func (o *Options) SetCACertFile(file string) *Options {
+	o.CACertFile = file
+	return o
+}
+
+func New(logger hclog.Logger, opts *Options) (*Kubernetes, error) {
 	if opts == nil {
 		opts = Defaults()
 	}
@@ -81,13 +99,35 @@ func New(client *api.Client, logger hclog.Logger, opts *Options) (*Kubernetes, e
 		return nil, fmt.Errorf("unable to set up ready check: %w", err)
 	}
 
-	return &Kubernetes{
-		k8sManager: mgr,
-		consul:     client,
-		logger:     logger.Named("k8s"),
-		failed:     make(chan struct{}),
-	}, nil
+	if opts.CACertSecret != "" && opts.CACertFile != "" {
+		client, err := clientruntime.New(ctrl.GetConfigOrDie(), clientruntime.Options{
+			Scheme: scheme,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to get k8s client: %w", err)
+		}
+		secret := &corev1.Secret{}
+		err = client.Get(context.Background(), clientruntime.ObjectKey{
+			Namespace: "default",
+			Name:      opts.CACertSecret,
+		}, secret)
+		if err != nil {
+			return nil, fmt.Errorf("unable to pull Consul CA cert from secret: %w", err)
+		}
+		cert := secret.Data["tls.crt"]
+		os.WriteFile(opts.CACertFile, cert, 0444)
+	}
 
+	return &Kubernetes{
+		caCertSecret: opts.CACertSecret,
+		k8sManager:   mgr,
+		logger:       logger.Named("k8s"),
+		failed:       make(chan struct{}),
+	}, nil
+}
+
+func (k *Kubernetes) SetConsul(consul *api.Client) {
+	k.consul = consul
 }
 
 // Start will run the kubernetes controllers and return a startup error if occurred
@@ -106,6 +146,7 @@ func (k *Kubernetes) Start(ctx context.Context) error {
 		Scheme:        k.k8sManager.GetScheme(),
 		Manager:       consulMgr,
 		CertGenerator: certGenerator,
+		CACertSecret:  k.caCertSecret,
 	}).SetupWithManager(k.k8sManager)
 	if err != nil {
 		return fmt.Errorf("failed to create gateway controller: %w", err)

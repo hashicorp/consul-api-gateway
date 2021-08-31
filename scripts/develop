@@ -32,8 +32,8 @@ nodes:
       kubeletExtraArgs:
         node-labels: "ingress-ready=true"
   extraPortMappings:
-  - containerPort: 80
-    hostPort: 8500
+  - containerPort: 443
+    hostPort: 443
     protocol: TCP
 EOF
 }
@@ -106,7 +106,23 @@ EOF
 
 createNginxIngress() {
   echo "Creating nginx ingress"
-  kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml 2>&1 > /dev/null
+  cat <<EOF > tmp/kustomization.yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - https://github.com/kubernetes/ingress-nginx/deploy/static/provider/kind
+patchesJSON6902:
+- target:
+    group: apps
+    version: v1
+    kind: Deployment
+    name: ingress-nginx-controller
+  patch: |-
+    - op: add
+      path: "/spec/template/spec/containers/0/args/-"
+      value: "--enable-ssl-passthrough"
+EOF
+  kubectl kustomize tmp | kubectl apply -f - 2>&1 > /dev/null
   echo "Waiting for ingress pod to start"
   sleep 10
   kubectl wait --namespace ingress-nginx --for=condition=ready pod --selector=app.kubernetes.io/component=controller --timeout=90s
@@ -117,6 +133,11 @@ installConsul() {
   cat <<EOF | helm install consul hashicorp/consul --version 0.32.0 -f - 2>&1 > /dev/null
 global:
   name: consul
+  tls:
+    enabled: true
+    serverAdditionalDNSSANs:
+    - host.docker.internal
+    - localhost
 server:
   replicas: 1
   extraConfig: |
@@ -129,25 +150,23 @@ server:
     }
 ui:
   enabled: true
-EOF
-  echo "Adding consul ui ingress"
-  cat <<EOF | kubectl apply -f - 2>&1 > /dev/null
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: consul-ingress
-spec:
-  ingressClassName: nginx
-  defaultBackend:
-    service:
-      name: consul-server
-      port:
-        number: 8500
+  ingress:
+    enabled: true
+    hosts:
+    - host: "host.docker.internal"
+      paths:
+      - "/"
+    - host: "localhost"
+      paths:
+      - "/"
+    annotations: |
+      "kubernetes.io/ingress.class": "nginx"
+      "nginx.ingress.kubernetes.io/ssl-passthrough": "true"
 EOF
   echo "Waiting for consul to stabilize"
   sleep 10
   kubectl wait --for=condition=ready pod --selector=app=consul,component=server,release=consul --timeout=90s
-  echo "Consul is now accessible at http://localhost:8500"
+  echo "Consul is now accessible at https://localhost"
 }
 
 setupAuthMethod() {
@@ -168,6 +187,8 @@ EOF
   export K8S_HOST=$(kind get kubeconfig --name polar --internal | grep server | tr -s ' '| cut -d' ' -f3)
   export K8S_CERT=$(kubectl config view -o jsonpath='{.clusters[].cluster.certificate-authority-data}' --raw | base64 -d)
   echo "Bootstrapping ACLs"
+  export CONSUL_HTTP_ADDR="https://localhost"
+  export CONSUL_HTTP_SSL_VERIFY=false
   export CONSUL_HTTP_TOKEN=$(consul acl bootstrap -format json | jq '.SecretID' -r)
   export CONSUL_POLICY_ID=$(consul acl policy create -name policy -rules "$consul_policy" -format json | jq '.ID' -r)
   consul acl role create -name "polar" -policy-id "${CONSUL_POLICY_ID}" > /dev/null
@@ -218,7 +239,7 @@ main() {
   if [[ "${start}" == "TRUE" ]]; then
     export CONSUL_HTTP_TOKEN=$(cat token)
     go build
-    ./polar server
+    ./polar server -ca-secret consul-server-cert -consul-address https://localhost
     echo "To re-run the server run './scripts/develop -s'"
   fi
 }

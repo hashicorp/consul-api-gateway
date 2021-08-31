@@ -37,8 +37,9 @@ const (
 // GatewayReconciler reconciles a Gateway object
 type GatewayReconciler struct {
 	client.Client
-	Log    logr.Logger
-	Scheme *runtime.Scheme
+	Log          logr.Logger
+	Scheme       *runtime.Scheme
+	CACertSecret string
 
 	image string
 
@@ -138,21 +139,56 @@ func (r *GatewayReconciler) deploymentForGateway(ctx context.Context, gw *gatewa
 		image = r.image
 	}
 
+	volumes := []corev1.Volume{{
+		Name: "bootstrap",
+		VolumeSource: corev1.VolumeSource{
+			EmptyDir: &corev1.EmptyDirVolumeSource{},
+		},
+	}, {
+		Name: "certs",
+		VolumeSource: corev1.VolumeSource{
+			Secret: &corev1.SecretVolumeSource{
+				SecretName: certName,
+			},
+		},
+	}}
+
+	mounts := []corev1.VolumeMount{{
+		Name:      "bootstrap",
+		MountPath: "/polar",
+	}, {
+		Name:      "certs",
+		MountPath: "/certs",
+		ReadOnly:  true,
+	}}
+
+	cmd := initCommandForGateway(gw)
+
+	if r.CACertSecret != "" {
+		volumes = append(volumes, corev1.Volume{
+			Name: "ca",
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: r.CACertSecret,
+				},
+			},
+		})
+		mounts = append(mounts, corev1.VolumeMount{
+			Name:      "ca",
+			MountPath: "/ca",
+			ReadOnly:  true,
+		})
+		cmd = append(cmd, "-consul-ca-cert-file", "/ca/tls.crt")
+	}
+
 	port := strconv.Itoa(int(gw.Spec.Listeners[0].Port))
 	listener := fmt.Sprintf("while true; do printf 'HTTP/1.1 200 OK\n\nOK' | nc -l %s; done", port)
 	podSpec := corev1.PodSpec{
 		ServiceAccountName: "polar",
 		InitContainers: []corev1.Container{{
-			Image: image,
-			Name:  "polar-init",
-			VolumeMounts: []corev1.VolumeMount{{
-				Name:      "bootstrap",
-				MountPath: "/polar",
-			}, {
-				Name:      "certs",
-				MountPath: "/certs",
-				ReadOnly:  true,
-			}},
+			Image:        image,
+			Name:         "polar-init",
+			VolumeMounts: mounts,
 			Env: []corev1.EnvVar{
 				{
 					Name: "IP",
@@ -171,7 +207,7 @@ func (r *GatewayReconciler) deploymentForGateway(ctx context.Context, gw *gatewa
 					},
 				},
 			},
-			Command: initCommandForGateway(gw),
+			Command: cmd,
 		}},
 		Containers: []corev1.Container{{
 			Image: image,
@@ -195,19 +231,7 @@ func (r *GatewayReconciler) deploymentForGateway(ctx context.Context, gw *gatewa
 				},
 			},
 		}},
-		Volumes: []corev1.Volume{{
-			Name: "bootstrap",
-			VolumeSource: corev1.VolumeSource{
-				EmptyDir: &corev1.EmptyDirVolumeSource{},
-			},
-		}, {
-			Name: "certs",
-			VolumeSource: corev1.VolumeSource{
-				Secret: &corev1.SecretVolumeSource{
-					SecretName: certName,
-				},
-			},
-		}},
+		Volumes: volumes,
 	}
 
 	serviceAccount := gw.Annotations[annotationServiceAccount]
