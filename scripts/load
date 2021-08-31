@@ -1,5 +1,0 @@
-#!/bin/sh
-
-GOOS=linux go build
-docker build . -t polar:2
-kind load docker-image polar:2 polar:2 --name polar

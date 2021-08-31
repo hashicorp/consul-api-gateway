@@ -163,6 +163,9 @@ func (c *Command) Run(args []string) int {
 	if c.flagDeregister {
 		return c.deregister(consulClient)
 	}
+	// Envoy will watch these references and reload the tls context when changed. When the kubernetes deployment is created, a config map for these files will be created and mounted in the expected locations. The certificates and keys they reference will also be created as kubernetes secrets and mounted to their expected locations on the pod.
+	// When the leaf certificate needs to be rotated, the polar controller will update the kubernetes secret which will update the file on disk in the pod, triggering envoy to reload the tls context with the updated credentials.
+	// http://127.0.0.1:8500/v1/agent/connect/ca/leaf/web
 	return c.register(consulClient)
 }
 

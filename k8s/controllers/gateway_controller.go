@@ -139,7 +139,7 @@ func (r *GatewayReconciler) deploymentForGateway(ctx context.Context, gw *gatewa
 	}
 
 	port := strconv.Itoa(int(gw.Spec.Listeners[0].Port))
-
+	listener := fmt.Sprintf("while true; do printf 'HTTP/1.1 200 OK\n\nOK' | nc -l %s; done", port)
 	podSpec := corev1.PodSpec{
 		ServiceAccountName: "polar",
 		InitContainers: []corev1.Container{{
@@ -185,7 +185,7 @@ func (r *GatewayReconciler) deploymentForGateway(ctx context.Context, gw *gatewa
 				ReadOnly:  true,
 			}},
 			Command: []string{
-				"nc", "-l", port,
+				"/bin/sh", "-c", listener,
 			},
 			Lifecycle: &corev1.Lifecycle{
 				PreStop: &corev1.Handler{

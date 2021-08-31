@@ -1,3 +1,0 @@
-#!/bin/sh
-
-consul agent -dev -config-file ./testing/config.hcl

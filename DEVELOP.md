@@ -1,23 +1,33 @@
-https://gateway-api.sigs.k8s.io/v1alpha2/guides/simple-gateway/
+# Quick Start
 
+Install Docker for Mac. Execute the following:
+
+```/bin/bash
+brew install kubectl kind helm consul jq go
 ./scripts/develop
+```
 
-overmind s
+Test out the Gateway controller:
 
-./scripts/bootstrap
-
+```/bin/bash
 cat <<EOF | kubectl apply -f -
 apiVersion: gateway.networking.k8s.io/v1alpha2
 kind: Gateway
 metadata:
-  name: prod-web
+  name: polar-test
+  annotations:
+    "polar.hashicorp.com/consul-http-address": "host.docker.internal:8500"
+    "polar.hashicorp.com/image": "polar:1"
+    "polar.hashicorp.com/auth-method": "polar"
+    "polar.hashicorp.com/service-account": "polar"
 spec:
-  gatewayClassName: acme-lb
+  gatewayClassName: polar
   listeners:  
   - protocol: HTTP
     port: 80
-    name: prod-web-gw
+    name: http
     allowedRoutes:
       namespaces:
         from: Same
 EOF
+```
