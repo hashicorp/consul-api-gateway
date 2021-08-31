@@ -17,6 +17,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gateway "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
+	"github.com/hashicorp/polar/k8s/consul"
 	"github.com/hashicorp/polar/k8s/reconciler"
 )
 
@@ -41,7 +42,8 @@ type GatewayReconciler struct {
 
 	image string
 
-	Manager *reconciler.GatewayReconcileManager
+	Manager       *reconciler.GatewayReconcileManager
+	CertGenerator *consul.CertGenerator
 }
 
 //+kubebuilder:rbac:groups=polar.hashicorp.com,resources=gateways,verbs=get;list;watch;create;update;patch;delete
@@ -76,7 +78,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	err = r.Get(ctx, types.NamespacedName{Name: gw.Name, Namespace: gw.Namespace}, found)
 	if err != nil && k8serrors.IsNotFound(err) {
 		// Define a new deployment
-		dep, err := r.deploymentForGateway(gw)
+		dep, err := r.deploymentForGateway(ctx, gw)
 		if err != nil {
 			log.Error(err, "Failed to create new Deployment", "error", err)
 			return ctrl.Result{}, err
@@ -96,13 +98,39 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	return ctrl.Result{}, nil
 }
 
-func (r *GatewayReconciler) deploymentForGateway(gw *gateway.Gateway) (*appsv1.Deployment, error) {
+func (r *GatewayReconciler) deploymentForGateway(ctx context.Context, gw *gateway.Gateway) (*appsv1.Deployment, error) {
 	replicas := int32(3)
 	ls := labelsForGateway(gw)
 
 	// we only support a single listener for now due to service registration constraints
 	if len(gw.Spec.Listeners) != 1 {
 		return nil, fmt.Errorf("invalid number of listeners '%d', only 1 supported", len(gw.Spec.Listeners))
+	}
+
+	cert, err := r.CertGenerator.GenerateFor(gw.Name)
+	if err != nil {
+		return nil, err
+	}
+
+	certName := fmt.Sprintf("%s-cert", gw.Name)
+
+	// do we need to GC this?
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      certName,
+			Namespace: gw.Namespace,
+		},
+		StringData: map[string]string{
+			"root-ca.pem":     cert.Root.RootCertPEM,
+			"client-key.pem":  cert.Client.PrivateKeyPEM,
+			"client-cert.pem": cert.Client.PrivateKeyPEM,
+		},
+	}
+
+	ctrl.SetControllerReference(gw, secret, r.Scheme)
+
+	if err := r.Create(ctx, secret); err != nil {
+		return nil, err
 	}
 
 	image := gw.Annotations[annotationImage]
@@ -120,6 +148,10 @@ func (r *GatewayReconciler) deploymentForGateway(gw *gateway.Gateway) (*appsv1.D
 			VolumeMounts: []corev1.VolumeMount{{
 				Name:      "bootstrap",
 				MountPath: "/polar",
+			}, {
+				Name:      "certs",
+				MountPath: "/certs",
+				ReadOnly:  true,
 			}},
 			Env: []corev1.EnvVar{
 				{
@@ -147,6 +179,10 @@ func (r *GatewayReconciler) deploymentForGateway(gw *gateway.Gateway) (*appsv1.D
 			VolumeMounts: []corev1.VolumeMount{{
 				Name:      "bootstrap",
 				MountPath: "/polar",
+			}, {
+				Name:      "certs",
+				MountPath: "/certs",
+				ReadOnly:  true,
 			}},
 			Command: []string{
 				"nc", "-l", port,
@@ -163,6 +199,13 @@ func (r *GatewayReconciler) deploymentForGateway(gw *gateway.Gateway) (*appsv1.D
 			Name: "bootstrap",
 			VolumeSource: corev1.VolumeSource{
 				EmptyDir: &corev1.EmptyDirVolumeSource{},
+			},
+		}, {
+			Name: "certs",
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: certName,
+				},
 			},
 		}},
 	}
@@ -231,5 +274,6 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		// For()
 		For(&gateway.Gateway{}).
 		Owns(&appsv1.Deployment{}).
+		Owns(&corev1.Secret{}).
 		Complete(r)
 }
