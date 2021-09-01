@@ -17,7 +17,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gateway "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
-	"github.com/hashicorp/polar/k8s/consul"
 	"github.com/hashicorp/polar/k8s/reconciler"
 )
 
@@ -43,8 +42,7 @@ type GatewayReconciler struct {
 
 	image string
 
-	Manager       *reconciler.GatewayReconcileManager
-	CertGenerator *consul.CertGenerator
+	Manager *reconciler.GatewayReconcileManager
 }
 
 //+kubebuilder:rbac:groups=polar.hashicorp.com,resources=gateways,verbs=get;list;watch;create;update;patch;delete
@@ -108,32 +106,6 @@ func (r *GatewayReconciler) deploymentForGateway(ctx context.Context, gw *gatewa
 		return nil, fmt.Errorf("invalid number of listeners '%d', only 1 supported", len(gw.Spec.Listeners))
 	}
 
-	cert, err := r.CertGenerator.GenerateFor(gw.Name)
-	if err != nil {
-		return nil, err
-	}
-
-	certName := fmt.Sprintf("%s-cert", gw.Name)
-
-	// do we need to GC this?
-	secret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      certName,
-			Namespace: gw.Namespace,
-		},
-		StringData: map[string]string{
-			"root-ca.pem":     cert.Root.RootCertPEM,
-			"client-key.pem":  cert.Client.PrivateKeyPEM,
-			"client-cert.pem": cert.Client.PrivateKeyPEM,
-		},
-	}
-
-	ctrl.SetControllerReference(gw, secret, r.Scheme)
-
-	if err := r.Create(ctx, secret); err != nil {
-		return nil, err
-	}
-
 	image := gw.Annotations[annotationImage]
 	if image == "" {
 		image = r.image
@@ -147,9 +119,7 @@ func (r *GatewayReconciler) deploymentForGateway(ctx context.Context, gw *gatewa
 	}, {
 		Name: "certs",
 		VolumeSource: corev1.VolumeSource{
-			Secret: &corev1.SecretVolumeSource{
-				SecretName: certName,
-			},
+			EmptyDir: &corev1.EmptyDirVolumeSource{},
 		},
 	}}
 
@@ -159,10 +129,9 @@ func (r *GatewayReconciler) deploymentForGateway(ctx context.Context, gw *gatewa
 	}, {
 		Name:      "certs",
 		MountPath: "/certs",
-		ReadOnly:  true,
 	}}
 
-	cmd := initCommandForGateway(gw)
+	cmd := execCommandForGateway(gw)
 
 	if r.CACertSecret != "" {
 		volumes = append(volumes, corev1.Volume{
@@ -181,13 +150,11 @@ func (r *GatewayReconciler) deploymentForGateway(ctx context.Context, gw *gatewa
 		cmd = append(cmd, "-consul-ca-cert-file", "/ca/tls.crt")
 	}
 
-	port := strconv.Itoa(int(gw.Spec.Listeners[0].Port))
-	listener := fmt.Sprintf("while true; do printf 'HTTP/1.1 200 OK\n\nOK' | nc -l %s; done", port)
 	podSpec := corev1.PodSpec{
 		ServiceAccountName: "polar",
-		InitContainers: []corev1.Container{{
+		Containers: []corev1.Container{{
 			Image:        image,
-			Name:         "polar-init",
+			Name:         "polar",
 			VolumeMounts: mounts,
 			Env: []corev1.EnvVar{
 				{
@@ -208,28 +175,6 @@ func (r *GatewayReconciler) deploymentForGateway(ctx context.Context, gw *gatewa
 				},
 			},
 			Command: cmd,
-		}},
-		Containers: []corev1.Container{{
-			Image: image,
-			Name:  "polar",
-			VolumeMounts: []corev1.VolumeMount{{
-				Name:      "bootstrap",
-				MountPath: "/polar",
-			}, {
-				Name:      "certs",
-				MountPath: "/certs",
-				ReadOnly:  true,
-			}},
-			Command: []string{
-				"/bin/sh", "-c", listener,
-			},
-			Lifecycle: &corev1.Lifecycle{
-				PreStop: &corev1.Handler{
-					Exec: &corev1.ExecAction{
-						Command: append(initCommandForGateway(gw), "-deregister"),
-					},
-				},
-			},
 		}},
 		Volumes: volumes,
 	}
@@ -263,13 +208,12 @@ func (r *GatewayReconciler) deploymentForGateway(ctx context.Context, gw *gatewa
 	return dep, nil
 }
 
-func initCommandForGateway(gw *gateway.Gateway) []string {
+func execCommandForGateway(gw *gateway.Gateway) []string {
 	port := strconv.Itoa(int(gw.Spec.Listeners[0].Port))
-
+	hostPort := fmt.Sprintf("$(IP):%s", port)
 	initCommand := []string{
-		"polar", "init",
-		"-gateway-ip", "$(IP)",
-		"-gateway-port", port,
+		"polar", "exec",
+		"-gateway-host-port", hostPort,
 		"-gateway-name", gw.Name,
 	}
 	consulHTTPAddress := gw.Annotations[annotationConsulHTTPAddress]
@@ -298,6 +242,5 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		// For()
 		For(&gateway.Gateway{}).
 		Owns(&appsv1.Deployment{}).
-		Owns(&corev1.Secret{}).
 		Complete(r)
 }

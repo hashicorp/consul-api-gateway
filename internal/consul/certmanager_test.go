@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/consul/api"
+	"github.com/hashicorp/go-hclog"
 	"github.com/stretchr/testify/require"
 )
 
@@ -77,7 +78,7 @@ func TestManage(t *testing.T) {
 				options.SignalOnNWrites = test.writes
 			}
 
-			manager := NewCertManager(server.consul, service, options)
+			manager := NewCertManager(hclog.NewNullLogger(), server.consul, service, options)
 			manager.backoffInterval = 0
 
 			ctx, cancel := context.WithCancel(context.Background())
@@ -92,7 +93,7 @@ func TestManage(t *testing.T) {
 
 			initialized := make(chan struct{})
 			go func() {
-				manager.Wait()
+				manager.Wait(context.Background())
 				close(initialized)
 			}()
 
@@ -122,6 +123,14 @@ func TestManage(t *testing.T) {
 			require.Equal(t, server.fakeClientPrivateKey, string(clientPrivateKey))
 		})
 	}
+}
+
+func TestManage_WaitCancel(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Millisecond)
+	defer cancel()
+
+	err := NewCertManager(hclog.NewNullLogger(), nil, "", nil).Wait(ctx)
+	require.Error(t, err)
 }
 
 type certServer struct {

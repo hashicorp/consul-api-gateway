@@ -16,7 +16,6 @@ import (
 
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/polar/k8s/consul"
 	"github.com/hashicorp/polar/k8s/controllers"
 	"github.com/hashicorp/polar/k8s/log"
 	"github.com/hashicorp/polar/k8s/object"
@@ -139,14 +138,12 @@ func (k *Kubernetes) Start(ctx context.Context) error {
 	klogger := log.FromHCLogger(k.logger)
 
 	consulMgr := reconciler.NewReconcileManager(ctx, k.consul, k.k8sManager.GetClient().Status(), k.logger.Named("consul"))
-	certGenerator := consul.NewCertGenerator(k.consul)
 	err := (&controllers.GatewayReconciler{
-		Client:        k.k8sManager.GetClient(),
-		Log:           klogger.WithName("controllers").WithName("Gateway"),
-		Scheme:        k.k8sManager.GetScheme(),
-		Manager:       consulMgr,
-		CertGenerator: certGenerator,
-		CACertSecret:  k.caCertSecret,
+		Client:       k.k8sManager.GetClient(),
+		Log:          klogger.WithName("controllers").WithName("Gateway"),
+		Scheme:       k.k8sManager.GetScheme(),
+		Manager:      consulMgr,
+		CACertSecret: k.caCertSecret,
 	}).SetupWithManager(k.k8sManager)
 	if err != nil {
 		return fmt.Errorf("failed to create gateway controller: %w", err)

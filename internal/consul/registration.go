@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/hashicorp/consul/api"
+	"github.com/hashicorp/go-hclog"
 )
 
 const (
@@ -21,7 +22,9 @@ const (
 
 // ServiceRegistry handles the logic for registering a Polar service in Consul.
 type ServiceRegistry struct {
-	consul    *api.Client
+	consul *api.Client
+	logger hclog.Logger
+
 	id        string
 	name      string
 	namespace string
@@ -32,8 +35,9 @@ type ServiceRegistry struct {
 }
 
 // NewServiceRegistry creates a new service registry instance
-func NewServiceRegistry(consul *api.Client, service, namespace, hostPort string) *ServiceRegistry {
+func NewServiceRegistry(logger hclog.Logger, consul *api.Client, service, namespace, hostPort string) *ServiceRegistry {
 	return &ServiceRegistry{
+		logger:          logger,
 		consul:          consul,
 		id:              uuid.New().String(),
 		name:            service,
@@ -53,7 +57,11 @@ func (s *ServiceRegistry) WithTries(tries uint64) *ServiceRegistry {
 // Register registers a service with Consul.
 func (s *ServiceRegistry) Register(ctx context.Context) error {
 	return backoff.Retry(func() error {
-		return s.register(ctx)
+		err := s.register(ctx)
+		if err != nil {
+			s.logger.Error("error registering service", "error", err)
+		}
+		return err
 	}, backoff.WithContext(backoff.WithMaxRetries(backoff.NewConstantBackOff(s.backoffInterval), s.tries), ctx))
 }
 
@@ -78,7 +86,7 @@ func (s *ServiceRegistry) register(ctx context.Context) error {
 			DeregisterCriticalServiceAfter: serviceDeregistrationTime,
 		}},
 	}
-	if s.namespace != "" {
+	if s.namespace != "" && s.namespace != "default" {
 		registration.Namespace = s.namespace
 	}
 
@@ -88,7 +96,11 @@ func (s *ServiceRegistry) register(ctx context.Context) error {
 // Deregister de-registers a service from Consul.
 func (s *ServiceRegistry) Deregister(ctx context.Context) error {
 	return backoff.Retry(func() error {
-		return s.deregister(ctx)
+		err := s.deregister(ctx)
+		if err != nil {
+			s.logger.Error("error deregistering service", "error", err)
+		}
+		return err
 	}, backoff.WithContext(backoff.WithMaxRetries(backoff.NewConstantBackOff(s.backoffInterval), s.tries), ctx))
 }
 

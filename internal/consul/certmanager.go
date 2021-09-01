@@ -11,6 +11,7 @@ import (
 
 	"github.com/cenkalti/backoff"
 	"github.com/hashicorp/consul/api"
+	"github.com/hashicorp/go-hclog"
 )
 
 const (
@@ -43,6 +44,7 @@ func DefaultCertManagerOptions() *CertManagerOptions {
 // it to the location given in the configuration options with which it was created.
 type CertManager struct {
 	consul *api.Client
+	logger hclog.Logger
 
 	service   string
 	directory string
@@ -56,17 +58,18 @@ type CertManager struct {
 }
 
 // NewCertManager creates a new CertManager instance.
-func NewCertManager(consul *api.Client, service string, options *CertManagerOptions) *CertManager {
+func NewCertManager(logger hclog.Logger, consul *api.Client, service string, options *CertManagerOptions) *CertManager {
 	if options == nil {
 		options = DefaultCertManagerOptions()
 	}
 	return &CertManager{
 		consul:          consul,
+		logger:          logger,
 		service:         service,
 		directory:       options.Directory,
 		signalWrites:    options.SignalOnNWrites,
 		writesLeft:      options.SignalOnNWrites,
-		writes:          make(chan struct{}),
+		writes:          make(chan struct{}, options.SignalOnNWrites),
 		tries:           options.Tries,
 		backoffInterval: defaultBackoffInterval,
 	}
@@ -77,7 +80,11 @@ func NewCertManager(consul *api.Client, service string, options *CertManagerOpti
 // stop and return. If it receives an unexpected error the loop exits.
 func (c *CertManager) Manage(ctx context.Context) error {
 	err := backoff.Retry(func() error {
-		return c.manage(ctx)
+		err := c.manage(ctx)
+		if err != nil {
+			c.logger.Error("error requesting certificates", "error", err)
+		}
+		return err
 	}, backoff.WithContext(backoff.WithMaxRetries(backoff.NewConstantBackOff(c.backoffInterval), c.tries), ctx))
 	if errors.Is(err, context.Canceled) {
 		// we intentionally canceled the context, just return
@@ -149,12 +156,17 @@ func (c *CertManager) persist(root *api.CARoot, client *api.LeafCert) error {
 // Wait acts as a signalling mechanism for when the certificates are
 // written to disk. It is intended to be used for use-cases where initial certificates
 // must be in place prior to being referenced by a consumer.
-func (c *CertManager) Wait() {
+func (c *CertManager) Wait(ctx context.Context) error {
 	for {
 		if c.signalWrites <= 0 {
 			break
 		}
-		<-c.writes
-		c.signalWrites--
+		select {
+		case <-c.writes:
+			c.signalWrites--
+		case <-ctx.Done():
+			return errors.New("wait canceled")
+		}
 	}
+	return nil
 }

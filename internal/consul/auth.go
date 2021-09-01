@@ -7,6 +7,7 @@ import (
 
 	"github.com/cenkalti/backoff"
 	"github.com/hashicorp/consul/api"
+	"github.com/hashicorp/go-hclog"
 )
 
 const (
@@ -15,7 +16,9 @@ const (
 
 // Authenticator handles Consul auth login logic.
 type Authenticator struct {
-	consul          *api.Client
+	consul *api.Client
+	logger hclog.Logger
+
 	method          string
 	namespace       string
 	tries           uint64
@@ -23,9 +26,10 @@ type Authenticator struct {
 }
 
 // NewAuthenticator initializes a new Authenticator instance.
-func NewAuthenticator(consul *api.Client, method, namespace string) *Authenticator {
+func NewAuthenticator(logger hclog.Logger, consul *api.Client, method, namespace string) *Authenticator {
 	return &Authenticator{
 		consul:          consul,
+		logger:          logger,
 		method:          method,
 		namespace:       namespace,
 		tries:           defaultMaxAttempts,
@@ -46,6 +50,9 @@ func (a *Authenticator) Authenticate(ctx context.Context, service, bearerToken s
 
 	err = backoff.Retry(func() error {
 		token, err = a.authenticate(ctx, service, bearerToken)
+		if err != nil {
+			a.logger.Error("error authenticating", "error", err)
+		}
 		return err
 	}, backoff.WithContext(backoff.WithMaxRetries(backoff.NewConstantBackOff(a.backoffInterval), a.tries), ctx))
 	return token, err
@@ -55,7 +62,7 @@ func (a *Authenticator) authenticate(ctx context.Context, service, bearerToken s
 	polarName := service
 
 	opts := &api.WriteOptions{}
-	if a.namespace != "" {
+	if a.namespace != "" && a.namespace != "default" {
 		opts.Namespace = a.namespace
 		polarName = fmt.Sprintf("%s/%s", a.namespace, service)
 	}

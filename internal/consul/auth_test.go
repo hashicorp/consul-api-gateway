@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/hashicorp/consul/api"
+	"github.com/hashicorp/go-hclog"
 	"github.com/stretchr/testify/require"
 )
 
@@ -57,7 +58,7 @@ func TestAuthenticate(t *testing.T) {
 				maxAttempts = test.maxAttempts
 			}
 
-			auth := NewAuthenticator(server.consul, method, test.namespace).WithTries(maxAttempts)
+			auth := NewAuthenticator(hclog.NewNullLogger(), server.consul, method, test.namespace).WithTries(maxAttempts)
 			auth.backoffInterval = 0
 			consulToken, err := auth.Authenticate(context.Background(), test.service, token)
 

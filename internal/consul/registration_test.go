@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/consul/api"
+	"github.com/hashicorp/go-hclog"
 	"github.com/stretchr/testify/require"
 )
 
@@ -67,7 +68,7 @@ func TestRegister(t *testing.T) {
 				hostPort = test.hostPort
 			}
 			server := runRegistryServer(t, test.failures, id)
-			registry := NewServiceRegistry(server.consul, service, namespace, hostPort).WithTries(maxAttempts)
+			registry := NewServiceRegistry(hclog.NewNullLogger(), server.consul, service, namespace, hostPort).WithTries(maxAttempts)
 			registry.backoffInterval = 0
 			registry.id = id
 
@@ -117,7 +118,7 @@ func TestDeregister(t *testing.T) {
 			}
 
 			server := runRegistryServer(t, test.failures, id)
-			registry := NewServiceRegistry(server.consul, service, "", "").WithTries(maxAttempts)
+			registry := NewServiceRegistry(hclog.NewNullLogger(), server.consul, service, "", "").WithTries(maxAttempts)
 			registry.backoffInterval = 0
 			registry.id = id
 
