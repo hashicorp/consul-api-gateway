@@ -79,49 +79,32 @@ func NewCertManager(logger hclog.Logger, consul *api.Client, service string, opt
 // It should be passed a cancellable context that signals when the manager should
 // stop and return. If it receives an unexpected error the loop exits.
 func (c *CertManager) Manage(ctx context.Context) error {
-	err := backoff.Retry(func() error {
-		err := c.manage(ctx)
-		if err != nil {
-			c.logger.Error("error requesting certificates", "error", err)
-		}
-		return err
-	}, backoff.WithContext(backoff.WithMaxRetries(backoff.NewConstantBackOff(c.backoffInterval), c.tries), ctx))
-	if errors.Is(err, context.Canceled) {
-		// we intentionally canceled the context, just return
-		return nil
-	}
-	return err
-}
-
-func (c *CertManager) manage(ctx context.Context) error {
 	for {
-		options := &api.QueryOptions{}
-		clientCert, _, err := c.consul.Agent().ConnectCALeaf(c.service, options.WithContext(ctx))
+		var root *api.CARoot
+		var clientCert *api.LeafCert
+		var err error
+
+		err = backoff.Retry(func() error {
+			root, clientCert, err = c.getCerts(ctx)
+			if err != nil {
+				c.logger.Error("error requesting certificates", "error", err)
+			}
+			return err
+		}, backoff.WithContext(backoff.WithMaxRetries(backoff.NewConstantBackOff(c.backoffInterval), c.tries), ctx))
 		if err != nil {
 			if errors.Is(err, context.Canceled) {
 				// we intentionally canceled the context, just return
 				return nil
 			}
-			return fmt.Errorf("error generating client leaf certificate: %w", err)
+			return err
 		}
+
+		err = c.persist(root, clientCert)
+		if err != nil {
+			return err
+		}
+
 		expiresIn := time.Until(clientCert.ValidBefore)
-		roots, _, err := c.consul.Agent().ConnectCARoots(options.WithContext(ctx))
-		if err != nil {
-			if errors.Is(err, context.Canceled) {
-				// we intentionally canceled the context, just return
-				return nil
-			}
-			return fmt.Errorf("error retrieving root CA: %w", err)
-		}
-		for _, root := range roots.Roots {
-			if root.Active {
-				err := c.persist(root, clientCert)
-				if err != nil {
-					return err
-				}
-				break
-			}
-		}
 		select {
 		case <-time.After(expiresIn):
 			// loop
@@ -129,6 +112,24 @@ func (c *CertManager) manage(ctx context.Context) error {
 			return nil
 		}
 	}
+}
+
+func (c *CertManager) getCerts(ctx context.Context) (*api.CARoot, *api.LeafCert, error) {
+	options := &api.QueryOptions{}
+	clientCert, _, err := c.consul.Agent().ConnectCALeaf(c.service, options.WithContext(ctx))
+	if err != nil {
+		return nil, nil, fmt.Errorf("error generating client leaf certificate: %w", err)
+	}
+	roots, _, err := c.consul.Agent().ConnectCARoots(options.WithContext(ctx))
+	if err != nil {
+		return nil, nil, fmt.Errorf("error retrieving root CA: %w", err)
+	}
+	for _, root := range roots.Roots {
+		if root.Active {
+			return root, clientCert, nil
+		}
+	}
+	return nil, nil, errors.New("root CA not found")
 }
 
 func (c *CertManager) persist(root *api.CARoot, client *api.LeafCert) error {
