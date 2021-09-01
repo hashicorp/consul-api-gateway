@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path"
-	"sync/atomic"
 	"time"
 
 	"github.com/cenkalti/backoff"
@@ -26,7 +25,7 @@ const (
 // CertManagerOptions contains the optional configuration used to initialize a CertManager.
 type CertManagerOptions struct {
 	Directory       string
-	SignalOnNWrites int32
+	SignalOnNWrites int
 	Tries           uint64
 }
 
@@ -49,8 +48,8 @@ type CertManager struct {
 	service   string
 	directory string
 
-	signalWrites int32
-	writesLeft   int32
+	signalWrites int
+	writesLeft   int
 	writes       chan struct{}
 
 	tries           uint64
@@ -146,9 +145,9 @@ func (c *CertManager) persist(root *api.CARoot, client *api.LeafCert) error {
 		return fmt.Errorf("error writing client private key fiile: %w", err)
 	}
 
-	writesLeft := atomic.AddInt32(&c.writesLeft, -1)
-	if writesLeft >= 0 {
+	if c.writesLeft > 0 {
 		c.writes <- struct{}{}
+		c.writesLeft--
 	}
 
 	return nil

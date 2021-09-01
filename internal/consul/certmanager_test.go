@@ -24,7 +24,7 @@ func TestManage(t *testing.T) {
 		leafFailures uint64
 		rootFailures uint64
 		maxRetries   uint64
-		writes       int32
+		writes       int
 		fail         bool
 	}{{
 		name: "test-basic",
@@ -141,7 +141,7 @@ type certServer struct {
 	fakeClientPrivateKey string
 }
 
-func runCertServer(t *testing.T, leafFailures, rootFailures uint64, service string, expirations int32) *certServer {
+func runCertServer(t *testing.T, leafFailures, rootFailures uint64, service string, expirations int) *certServer {
 	t.Helper()
 
 	server := &certServer{
