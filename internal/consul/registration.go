@@ -71,10 +71,7 @@ func (s *ServiceRegistry) register(ctx context.Context) error {
 		checks = append(checks, s.checkFor(port))
 	}
 	registration := &api.AgentServiceRegistration{
-		Kind: api.ServiceKind(api.IngressGateway),
-		Connect: &api.AgentServiceConnect{
-			Native: true,
-		},
+		Kind:    api.ServiceKind(api.IngressGateway),
 		ID:      s.id,
 		Name:    s.name,
 		Address: s.host,
