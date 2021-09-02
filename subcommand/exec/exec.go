@@ -45,10 +45,11 @@ type Command struct {
 	flagConsulCACertFile  string // Root CA file for Consul
 
 	// Gateway params
-	flagGatewayID        string // Gateway iD.
-	flagGatewayHostPort  string // Gateway host:port.
-	flagGatewayName      string // Gateway name.
-	flagGatewayNamespace string // Gateway namespace.
+	flagGatewayID          string // Gateway iD.
+	flagGatewayHost        string // Gateway host.
+	flagGatewayPortsString string // Gateway ports.
+	flagGatewayName        string // Gateway name.
+	flagGatewayNamespace   string // Gateway namespace.
 
 	// Auth
 	flagACLAuthMethod       string // Auth Method to use for ACLs, if enabled.
@@ -61,8 +62,8 @@ type Command struct {
 
 	flagSet *flag.FlagSet
 
-	logger hclog.Logger
-	port   int
+	logger       hclog.Logger
+	gatewayPorts []int // Gateway ports.
 
 	once sync.Once
 }
@@ -72,7 +73,8 @@ func (c *Command) init() {
 	c.flagSet.StringVar(&c.flagConsulHTTPAddress, "consul-http-address", "", "Address of Consul.")
 	c.flagSet.StringVar(&c.flagConsulCACertFile, "consul-ca-cert-file", "", "CA Root file for Consul.")
 	c.flagSet.StringVar(&c.flagGatewayID, "gateway-id", "", "ID of the gateway.")
-	c.flagSet.StringVar(&c.flagGatewayHostPort, "gateway-host-port", "", "Host:Port of the gateway.")
+	c.flagSet.StringVar(&c.flagGatewayHost, "gateway-host", "", "Host of the gateway.")
+	c.flagSet.StringVar(&c.flagGatewayPortsString, "gateway-ports", "", "Ports of the gateway.")
 	c.flagSet.StringVar(&c.flagGatewayName, "gateway-name", "", "Name of the gateway.")
 	c.flagSet.StringVar(&c.flagGatewayNamespace, "gateway-namespace", "default", "Name of the gateway namespace.")
 	c.flagSet.StringVar(&c.flagACLAuthMethod, "acl-auth-method", "", "Name of the auth method to login with.")
@@ -152,7 +154,8 @@ func (c *Command) Run(args []string) (ret int) {
 		consulClient,
 		c.flagGatewayName,
 		c.flagGatewayNamespace,
-		c.flagGatewayHostPort,
+		c.flagGatewayHost,
+		c.gatewayPorts,
 	)
 
 	c.logger.Debug("registering service")
@@ -173,8 +176,7 @@ func (c *Command) Run(args []string) (ret int) {
 
 	envoyManager := consul.NewEnvoyManager(
 		c.logger.Named("envoy-manager"),
-		// TODO: replace this with something that makes sense
-		fmt.Sprintf("while true; do printf 'HTTP/1.1 200 OK\n\nOK' | nc -l %d; done", c.port),
+		c.gatewayPorts,
 	)
 	certManager := consul.NewCertManager(
 		c.logger.Named("cert-manager"),
@@ -217,8 +219,11 @@ func (c *Command) validateFlags() error {
 	if c.flagConsulHTTPAddress == "" {
 		return errors.New("-consul-http-address must be set")
 	}
-	if c.flagGatewayHostPort == "" {
-		return errors.New("-gateway-host-port must be set")
+	if c.flagGatewayHost == "" {
+		return errors.New("-gateway-host must be set")
+	}
+	if c.flagGatewayPortsString == "" {
+		return errors.New("-gateway-ports must be set")
 	}
 	if c.flagGatewayName == "" {
 		return errors.New("-gateway-name must be set")
@@ -226,15 +231,14 @@ func (c *Command) validateFlags() error {
 	if c.flagGatewayID == "" {
 		c.flagGatewayID = uuid.New().String()
 	}
-	tokens := strings.SplitN(c.flagGatewayHostPort, ":", 2)
-	if len(tokens) != 2 {
-		return fmt.Errorf("invalid host/port pair: '%s'", c.flagGatewayHostPort)
+	ports := strings.Split(c.flagGatewayPortsString, ",")
+	for _, port := range ports {
+		parsedPort, err := strconv.Atoi(port)
+		if err != nil {
+			return fmt.Errorf("invalid port: %w", err)
+		}
+		c.gatewayPorts = append(c.gatewayPorts, parsedPort)
 	}
-	port, err := strconv.Atoi(tokens[1])
-	if err != nil {
-		return fmt.Errorf("invalid port: %w", err)
-	}
-	c.port = port
 	return nil
 }
 

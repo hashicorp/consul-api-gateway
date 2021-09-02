@@ -1,0 +1,95 @@
+metadata:
+  creationTimestamp: null
+  labels:
+    managedBy: polar
+    name: polar-test-gateway
+  name: test-gateway
+spec:
+  selector:
+    matchLabels:
+      managedBy: polar
+      name: polar-test-gateway
+  strategy: {}
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        managedBy: polar
+        name: polar-test-gateway
+    spec:
+      containers:
+      - command:
+        - /bootstrap/polar
+        - exec
+        - -log-json
+        - -log-level
+        - info
+        - -gateway-host
+        - $(IP)
+        - -gateway-ports
+        - 8083,8443
+        - -gateway-name
+        - test-gateway
+        - -consul-http-address
+        - host.docker.internal:443
+        - -acl-auth-method
+        - polar
+        - -consul-ca-cert-file
+        - /ca/tls.crt
+        env:
+        - name: IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: HOST_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP
+        image: polar:1
+        name: polar
+        ports:
+        - containerPort: 8083
+          hostPort: 8083
+          name: http
+          protocol: TCP
+        - containerPort: 8443
+          hostPort: 8443
+          name: https
+          protocol: TCP
+        resources: {}
+        volumeMounts:
+        - mountPath: /bootstrap
+          name: bootstrap
+        - mountPath: /certs
+          name: certs
+        - mountPath: /ca
+          name: ca
+          readOnly: true
+      initContainers:
+      - command:
+        - cp
+        - /bin/polar
+        - /bootstrap/polar
+        image: polar:1
+        name: polar-init
+        resources: {}
+        volumeMounts:
+        - mountPath: /bootstrap
+          name: bootstrap
+        - mountPath: /certs
+          name: certs
+        - mountPath: /ca
+          name: ca
+          readOnly: true
+      nodeSelector:
+        ingress-ready: "true"
+      serviceAccountName: polar
+      volumes:
+      - emptyDir: {}
+        name: bootstrap
+      - emptyDir: {}
+        name: certs
+      - name: ca
+        secret:
+          secretName: consul-ca-cert
+status: {}

@@ -2,8 +2,10 @@ package controllers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/go-logr/logr"
 	"github.com/prometheus/common/log"
@@ -30,6 +32,11 @@ func init() {
 }
 
 const (
+	// An optional service type to expose the gateway
+	annotationServiceType = "polar.hashicorp.com/service-type"
+	// If the service type specified is 'NodePort' and this is 'true'
+	// then nodePort is set to the container port
+	annotationHostPortStatic = "polar.hashicorp.com/use-host-ports"
 	// An optional service account to run the gateway as
 	annotationServiceAccount = "polar.hashicorp.com/service-account"
 	// The auth method used for consul kubernetes-based auth
@@ -40,6 +47,8 @@ const (
 	annotationEnvoyImage = "polar.hashicorp.com/envoy"
 	// The log-level to enable in polar
 	annotationLogLevel = "polar.hashicorp.com/log-level"
+	// The node selector for scheduling the gateway
+	annotationNodeSelector = "polar.hashicorp.com/node-selector"
 	// The address to inject for initial service registration
 	// if not specified, the init container will attempt to
 	// use a local agent on the host on which it is running
@@ -100,19 +109,37 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			log.Error(err, "Failed to validate gateway", "error", err)
 			return ctrl.Result{}, err
 		}
-		// Create a deployment for the gateway
-		dep := DeploymentFor(gw)
+		// Create deployment for the gateway
+		deployment := DeploymentFor(gw)
+		// Create service for the gateway
+		service := ServiceFor(gw)
+
 		// Set Gateway instance as the owner and controller
-		if err := ctrl.SetControllerReference(gw, dep, r.Scheme); err != nil {
-			log.Error(err, "Failed to initialize gateway")
+		if err := ctrl.SetControllerReference(gw, deployment, r.Scheme); err != nil {
+			log.Error(err, "Failed to initialize gateway deployment")
 			return ctrl.Result{}, err
 		}
-		r.Log.Info("Creating a new Deployment", "Deployment.Namespace", dep.Namespace, "Deployment.Name", dep.Name)
-		err = r.Create(ctx, dep)
+		r.Log.Info("Creating a new Deployment", "Deployment.Namespace", deployment.Namespace, "Deployment.Name", deployment.Name)
+		err = r.Create(ctx, deployment)
 		if err != nil {
-			log.Error(err, "Failed to create new Deployment", "Deployment.Namespace", dep.Namespace, "Deployment.Name", dep.Name)
+			log.Error(err, "Failed to create new Deployment", "Deployment.Namespace", deployment.Namespace, "Deployment.Name", deployment.Name)
 			return ctrl.Result{}, err
 		}
+
+		if service != nil {
+			// Set Service instance as the owner and controller
+			if err := ctrl.SetControllerReference(gw, service, r.Scheme); err != nil {
+				log.Error(err, "Failed to initialize gateway service")
+				return ctrl.Result{}, err
+			}
+			r.Log.Info("Creating a new Service", "Service.Namespace", service.Namespace, "Service.Name", service.Name)
+			err = r.Create(ctx, service)
+			if err != nil {
+				log.Error(err, "Failed to create new Service", "Service.Namespace", service.Namespace, "Service.Name", service.Name)
+				return ctrl.Result{}, err
+			}
+		}
+
 		// Deployment created successfully - return and requeue
 		return ctrl.Result{Requeue: true}, nil
 	} else if err != nil {
@@ -132,30 +159,65 @@ func (r *GatewayReconciler) Validate(ctx context.Context, gw *gateway.Gateway) e
 		}
 	}
 
-	// we only support a single listener for now due to service registration constraints
-	if len(gw.Spec.Listeners) != 1 {
-		return fmt.Errorf("invalid number of listeners '%d', only 1 supported", len(gw.Spec.Listeners))
+	// validate that the listeners don't conflict with names or ports
+	seenPorts := make(map[gateway.PortNumber]struct{})
+	seenNames := make(map[string]struct{})
+	for _, listener := range gw.Spec.Listeners {
+		if _, ok := seenNames[listener.Name]; ok {
+			return fmt.Errorf("gateway listeners must have unique names, more than one listener has the name '%s'", listener.Name)
+		}
+		if _, ok := seenPorts[listener.Port]; ok {
+			return fmt.Errorf("gateway listeners must bind to unique ports, more than one listener has the port '%d'", listener.Port)
+		}
+		seenNames[listener.Name] = struct{}{}
+		seenPorts[listener.Port] = struct{}{}
 	}
 	return nil
 }
 
-// DeploymentFor returns the deployment configuration for the given gateway
+// ServicesFor returns the service configuration for the given gateway.
+// The gateway should be marked with the polar.hashicorp.com/service-type
+// annotation and marked with 'ClusterIP', `NodePort` or `LoadBalancer` to
+// expose the gateway listeners. Any other value does not expose the gateway.
+func ServiceFor(gw *gateway.Gateway) *corev1.Service {
+	serviceType := serviceTypeFor(gw)
+	if serviceType == "" {
+		return nil
+	}
+	labels := labelsFor(gw)
+	return &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      gw.Name,
+			Namespace: gw.Namespace,
+			Labels:    labels,
+		},
+		Spec: corev1.ServiceSpec{
+			Selector: labels,
+			Type:     serviceType,
+			Ports:    servicePortsFor(gw),
+		},
+	}
+}
+
+// DeploymentsFor returns the deployment configuration for the given gateway.
+// For each listener on a given gateway, we create a deployment to allow for
+// specific port binding. Similar to:
+// 		https://github.com/istio/istio/blob/9d6cf8e08db63a310ab7573f5229abe106fd6ded/pilot/pkg/config/kube/gateway/conversion.go#L1027
 func DeploymentFor(gw *gateway.Gateway) *appsv1.Deployment {
-	replicas := int32(3)
-	ls := labelsFor(gw)
+	labels := labelsFor(gw)
 	return &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      gw.Name,
 			Namespace: gw.Namespace,
+			Labels:    labels,
 		},
 		Spec: appsv1.DeploymentSpec{
-			Replicas: &replicas,
 			Selector: &metav1.LabelSelector{
-				MatchLabels: ls,
+				MatchLabels: labels,
 			},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
-					Labels: ls,
+					Labels: labels,
 				},
 				Spec: podSpecFor(gw),
 			},
@@ -166,6 +228,7 @@ func DeploymentFor(gw *gateway.Gateway) *appsv1.Deployment {
 func podSpecFor(gw *gateway.Gateway) corev1.PodSpec {
 	volumes, mounts := volumesFor(gw)
 	return corev1.PodSpec{
+		NodeSelector:       nodeSelectorFor(gw),
 		ServiceAccountName: serviceAccountFor(gw),
 		// the init container copies the binary into the
 		// next envoy container so we can decouple the envoy
@@ -182,6 +245,7 @@ func podSpecFor(gw *gateway.Gateway) corev1.PodSpec {
 			Image:        envoyImageFor(gw),
 			Name:         "polar",
 			VolumeMounts: mounts,
+			Ports:        containerPortsFor(gw),
 			Env: []corev1.EnvVar{
 				{
 					Name: "IP",
@@ -207,13 +271,16 @@ func podSpecFor(gw *gateway.Gateway) corev1.PodSpec {
 }
 
 func execCommandFor(gw *gateway.Gateway) []string {
-	port := strconv.Itoa(int(gw.Spec.Listeners[0].Port))
-	hostPort := fmt.Sprintf("$(IP):%s", port)
+	ports := []string{}
+	for _, listener := range gw.Spec.Listeners {
+		ports = append(ports, strconv.Itoa(int(listener.Port)))
+	}
 	initCommand := []string{
 		"/bootstrap/polar", "exec",
 		"-log-json",
 		"-log-level", logLevelFor(gw),
-		"-gateway-host-port", hostPort,
+		"-gateway-host", "$(IP)",
+		"-gateway-ports", strings.Join(ports, ","),
 		"-gateway-name", gw.Name,
 	}
 	consulHTTPAddress := gw.Annotations[annotationConsulHTTPAddress]
@@ -325,9 +392,69 @@ func logLevelFor(gw *gateway.Gateway) string {
 	return logLevel
 }
 
+func serviceTypeFor(gw *gateway.Gateway) corev1.ServiceType {
+	switch serviceType := corev1.ServiceType(gw.Annotations[annotationServiceType]); serviceType {
+	case corev1.ServiceTypeClusterIP:
+		fallthrough
+	case corev1.ServiceTypeNodePort:
+		fallthrough
+	case corev1.ServiceTypeLoadBalancer:
+		return serviceType
+	default:
+		return ""
+	}
+}
+
+func servicePortsFor(gw *gateway.Gateway) []corev1.ServicePort {
+	ports := []corev1.ServicePort{}
+	for _, listener := range gw.Spec.Listeners {
+		ports = append(ports, corev1.ServicePort{
+			Name:     listener.Name,
+			Protocol: "TCP",
+			Port:     int32(listener.Port),
+		})
+	}
+	return ports
+}
+
+func containerPortsFor(gw *gateway.Gateway) []corev1.ContainerPort {
+	useStaticMapping := hostPortIsStatic(gw)
+	ports := []corev1.ContainerPort{}
+	for _, listener := range gw.Spec.Listeners {
+		port := corev1.ContainerPort{
+			Name:          listener.Name,
+			Protocol:      "TCP",
+			ContainerPort: int32(listener.Port),
+		}
+		if useStaticMapping {
+			port.HostPort = int32(listener.Port)
+		}
+		ports = append(ports, port)
+	}
+	return ports
+}
+
+func hostPortIsStatic(gw *gateway.Gateway) bool {
+	return gw.Annotations[annotationHostPortStatic] == "true"
+}
+
+func nodeSelectorFor(gw *gateway.Gateway) map[string]string {
+	selector := make(map[string]string)
+	nodeSelector := gw.Annotations[annotationNodeSelector]
+	if nodeSelector == "" {
+		return nil
+	}
+	if err := json.Unmarshal([]byte(nodeSelector), &selector); err != nil {
+		// if we encounter an error, just ignore the annotation
+		return nil
+	}
+	return selector
+}
+
 func labelsFor(gw *gateway.Gateway) map[string]string {
 	return map[string]string{
-		"name": "polar",
+		"name":      "polar-" + gw.Name,
+		"managedBy": "polar",
 	}
 }
 
@@ -342,5 +469,6 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		// For()
 		For(&gateway.Gateway{}).
 		Owns(&appsv1.Deployment{}).
+		Owns(&corev1.Service{}).
 		Complete(r)
 }

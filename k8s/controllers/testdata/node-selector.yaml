@@ -1,24 +1,11 @@
-# Quick Start
-
-Install Docker for Mac. Execute the following:
-
-```/bin/bash
-brew install kubectl kind helm consul jq go
-./scripts/develop
-```
-
-Test out the Gateway controller:
-
-```/bin/bash
-cat <<EOF | kubectl apply -f -
 apiVersion: gateway.networking.k8s.io/v1alpha2
 kind: Gateway
 metadata:
-  name: test-gateway
+  name: node-selector
   annotations:
     "polar.hashicorp.com/node-selector": >
       {"ingress-ready":"true"}
-    "polar.hashicorp.com/use-host-ports": "true"
+    "polar.hashicorp.com/service-type": "NodePort"
     "polar.hashicorp.com/consul-http-address": "host.docker.internal:443"
     "polar.hashicorp.com/image": "polar:1"
     "polar.hashicorp.com/auth-method": "polar"
@@ -28,7 +15,7 @@ spec:
   gatewayClassName: polar
   listeners:
   - protocol: HTTP
-    port: 8083
+    port: 8080
     name: http
     allowedRoutes:
       namespaces:
@@ -39,5 +26,3 @@ spec:
     allowedRoutes:
       namespaces:
         from: Same
-EOF
-```

@@ -3,8 +3,6 @@ package consul
 import (
 	"context"
 	"fmt"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/cenkalti/backoff"
@@ -28,21 +26,23 @@ type ServiceRegistry struct {
 	id        string
 	name      string
 	namespace string
-	hostPort  string
+	host      string
+	ports     []int
 
 	tries           uint64
 	backoffInterval time.Duration
 }
 
 // NewServiceRegistry creates a new service registry instance
-func NewServiceRegistry(logger hclog.Logger, consul *api.Client, service, namespace, hostPort string) *ServiceRegistry {
+func NewServiceRegistry(logger hclog.Logger, consul *api.Client, service, namespace, host string, ports []int) *ServiceRegistry {
 	return &ServiceRegistry{
 		logger:          logger,
 		consul:          consul,
 		id:              uuid.New().String(),
 		name:            service,
 		namespace:       namespace,
-		hostPort:        hostPort,
+		host:            host,
+		ports:           ports,
 		tries:           defaultMaxAttempts,
 		backoffInterval: defaultBackoffInterval,
 	}
@@ -66,31 +66,34 @@ func (s *ServiceRegistry) Register(ctx context.Context) error {
 }
 
 func (s *ServiceRegistry) register(ctx context.Context) error {
-	tokens := strings.SplitN(s.hostPort, ":", 2)
-	if len(tokens) != 2 {
-		return fmt.Errorf("invalid port/ip pair: '%v'", s.hostPort)
-	}
-	port, err := strconv.Atoi(tokens[1])
-	if err != nil {
-		return fmt.Errorf("invalid port: %w", err)
+	var checks api.AgentServiceChecks
+	for _, port := range s.ports {
+		checks = append(checks, s.checkFor(port))
 	}
 	registration := &api.AgentServiceRegistration{
+		Kind: api.ServiceKind(api.IngressGateway),
+		Connect: &api.AgentServiceConnect{
+			Native: true,
+		},
 		ID:      s.id,
 		Name:    s.name,
-		Port:    port,
-		Address: tokens[0],
-		Checks: api.AgentServiceChecks{{
-			Name:                           serviceCheckName,
-			TCP:                            s.hostPort,
-			Interval:                       serviceCheckInterval,
-			DeregisterCriticalServiceAfter: serviceDeregistrationTime,
-		}},
+		Address: s.host,
+		Checks:  checks,
 	}
 	if s.namespace != "" && s.namespace != "default" {
 		registration.Namespace = s.namespace
 	}
 
 	return s.consul.Agent().ServiceRegisterOpts(registration, (&api.ServiceRegisterOpts{}).WithContext(ctx))
+}
+
+func (s *ServiceRegistry) checkFor(port int) *api.AgentServiceCheck {
+	return &api.AgentServiceCheck{
+		Name:                           fmt.Sprintf("%s - %d", serviceCheckName, port),
+		TCP:                            fmt.Sprintf("%s:%d", s.host, port),
+		Interval:                       serviceCheckInterval,
+		DeregisterCriticalServiceAfter: serviceDeregistrationTime,
+	}
 }
 
 // Deregister de-registers a service from Consul.

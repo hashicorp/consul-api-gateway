@@ -23,7 +23,6 @@ func TestRegister(t *testing.T) {
 		name        string
 		host        string
 		port        int
-		hostPort    string
 		failures    uint64
 		maxAttempts uint64
 		fail        bool
@@ -44,14 +43,6 @@ func TestRegister(t *testing.T) {
 		failures:    3,
 		maxAttempts: 2,
 		fail:        true,
-	}, {
-		name:     "test-bad-host-port",
-		hostPort: "foo",
-		fail:     true,
-	}, {
-		name:     "test-bad-port",
-		hostPort: "foo:bar",
-		fail:     true,
 	}} {
 		t.Run(test.name, func(t *testing.T) {
 			id := uuid.New().String()
@@ -63,12 +54,8 @@ func TestRegister(t *testing.T) {
 				maxAttempts = test.maxAttempts
 			}
 
-			hostPort := fmt.Sprintf("%s:%d", test.host, test.port)
-			if test.hostPort != "" {
-				hostPort = test.hostPort
-			}
 			server := runRegistryServer(t, test.failures, id)
-			registry := NewServiceRegistry(hclog.NewNullLogger(), server.consul, service, namespace, hostPort).WithTries(maxAttempts)
+			registry := NewServiceRegistry(hclog.NewNullLogger(), server.consul, service, namespace, test.host, []int{test.port}).WithTries(maxAttempts)
 			registry.backoffInterval = 0
 			registry.id = id
 
@@ -82,9 +69,8 @@ func TestRegister(t *testing.T) {
 			require.Equal(t, service, server.lastRegistrationRequest.Name)
 			require.Equal(t, namespace, server.lastRegistrationRequest.Namespace)
 			require.Equal(t, test.host, server.lastRegistrationRequest.Address)
-			require.Equal(t, test.port, server.lastRegistrationRequest.Port)
 			require.Len(t, server.lastRegistrationRequest.Checks, 1)
-			require.Equal(t, hostPort, server.lastRegistrationRequest.Checks[0].TCP)
+			require.Equal(t, fmt.Sprintf("%s:%d", test.host, test.port), server.lastRegistrationRequest.Checks[0].TCP)
 		})
 	}
 }
@@ -118,7 +104,7 @@ func TestDeregister(t *testing.T) {
 			}
 
 			server := runRegistryServer(t, test.failures, id)
-			registry := NewServiceRegistry(hclog.NewNullLogger(), server.consul, service, "", "").WithTries(maxAttempts)
+			registry := NewServiceRegistry(hclog.NewNullLogger(), server.consul, service, "", "", []int{0}).WithTries(maxAttempts)
 			registry.backoffInterval = 0
 			registry.id = id
 

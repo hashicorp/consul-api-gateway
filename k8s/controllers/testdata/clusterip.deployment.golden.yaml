@@ -1,17 +1,21 @@
 metadata:
   creationTimestamp: null
-  name: basic
+  labels:
+    managedBy: polar
+    name: polar-clusterip
+  name: clusterip
 spec:
-  replicas: 3
   selector:
     matchLabels:
-      name: polar
+      managedBy: polar
+      name: polar-clusterip
   strategy: {}
   template:
     metadata:
       creationTimestamp: null
       labels:
-        name: polar
+        managedBy: polar
+        name: polar-clusterip
     spec:
       containers:
       - command:
@@ -20,10 +24,12 @@ spec:
         - -log-json
         - -log-level
         - info
-        - -gateway-host-port
-        - $(IP):80
+        - -gateway-host
+        - $(IP)
+        - -gateway-ports
+        - 8080,8443
         - -gateway-name
-        - basic
+        - clusterip
         - -consul-http-address
         - $(HOST_IP):8500
         - -consul-ca-cert-file
@@ -39,6 +45,13 @@ spec:
               fieldPath: status.hostIP
         image: envoyproxy/envoy:v1.18-latest
         name: polar
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+        - containerPort: 8443
+          name: https
+          protocol: TCP
         resources: {}
         volumeMounts:
         - mountPath: /bootstrap

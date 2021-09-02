@@ -1,17 +1,21 @@
 metadata:
   creationTimestamp: null
+  labels:
+    managedBy: polar
+    name: polar-annotations
   name: annotations
 spec:
-  replicas: 3
   selector:
     matchLabels:
-      name: polar
+      managedBy: polar
+      name: polar-annotations
   strategy: {}
   template:
     metadata:
       creationTimestamp: null
       labels:
-        name: polar
+        managedBy: polar
+        name: polar-annotations
     spec:
       containers:
       - command:
@@ -20,8 +24,10 @@ spec:
         - -log-json
         - -log-level
         - info
-        - -gateway-host-port
-        - $(IP):80
+        - -gateway-host
+        - $(IP)
+        - -gateway-ports
+        - "80"
         - -gateway-name
         - annotations
         - -consul-http-address
@@ -39,6 +45,10 @@ spec:
               fieldPath: status.hostIP
         image: envoyproxy/envoy:v1.18-latest
         name: polar
+        ports:
+        - containerPort: 80
+          name: http
+          protocol: TCP
         resources: {}
         volumeMounts:
         - mountPath: /bootstrap

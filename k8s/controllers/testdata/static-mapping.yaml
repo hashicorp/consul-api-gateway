@@ -1,16 +1,3 @@
-# Quick Start
-
-Install Docker for Mac. Execute the following:
-
-```/bin/bash
-brew install kubectl kind helm consul jq go
-./scripts/develop
-```
-
-Test out the Gateway controller:
-
-```/bin/bash
-cat <<EOF | kubectl apply -f -
 apiVersion: gateway.networking.k8s.io/v1alpha2
 kind: Gateway
 metadata:
@@ -39,5 +26,3 @@ spec:
     allowedRoutes:
       namespaces:
         from: Same
-EOF
-```
