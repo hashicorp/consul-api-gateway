@@ -36,41 +36,32 @@ func init() {
 }
 
 type Kubernetes struct {
-	k8sManager   ctrl.Manager
-	consul       *api.Client
-	logger       hclog.Logger
-	k8sStatus    *object.StatusWorker
-	caCertSecret string
+	k8sManager ctrl.Manager
+	consul     *api.Client
+	logger     hclog.Logger
+	k8sStatus  *object.StatusWorker
 
 	failed chan struct{}
 }
 
 type Options struct {
-	CACertSecret        string
-	CACertFile          string
-	MetricsBindAddr     string
-	HealthProbeBindAddr string
-	WebhookPort         int
+	CACertSecretNamespace string
+	CACertSecret          string
+	CACertFile            string
+	MetricsBindAddr       string
+	HealthProbeBindAddr   string
+	WebhookPort           int
 }
 
 func Defaults() *Options {
 	return &Options{
-		CACertSecret:        "",
-		CACertFile:          "",
-		MetricsBindAddr:     ":8080",
-		HealthProbeBindAddr: ":8081",
-		WebhookPort:         8443,
+		CACertSecretNamespace: "default",
+		CACertSecret:          "",
+		CACertFile:            "",
+		MetricsBindAddr:       ":8080",
+		HealthProbeBindAddr:   ":8081",
+		WebhookPort:           8443,
 	}
-}
-
-func (o *Options) SetCACertSecret(secret string) *Options {
-	o.CACertSecret = secret
-	return o
-}
-
-func (o *Options) SetCACertFile(file string) *Options {
-	o.CACertFile = file
-	return o
 }
 
 func New(logger hclog.Logger, opts *Options) (*Kubernetes, error) {
@@ -107,7 +98,7 @@ func New(logger hclog.Logger, opts *Options) (*Kubernetes, error) {
 		}
 		secret := &corev1.Secret{}
 		err = client.Get(context.Background(), clientruntime.ObjectKey{
-			Namespace: "default",
+			Namespace: opts.CACertSecretNamespace,
 			Name:      opts.CACertSecret,
 		}, secret)
 		if err != nil {
@@ -118,10 +109,9 @@ func New(logger hclog.Logger, opts *Options) (*Kubernetes, error) {
 	}
 
 	return &Kubernetes{
-		caCertSecret: opts.CACertSecret,
-		k8sManager:   mgr,
-		logger:       logger.Named("k8s"),
-		failed:       make(chan struct{}),
+		k8sManager: mgr,
+		logger:     logger.Named("k8s"),
+		failed:     make(chan struct{}),
 	}, nil
 }
 
@@ -139,11 +129,10 @@ func (k *Kubernetes) Start(ctx context.Context) error {
 
 	consulMgr := reconciler.NewReconcileManager(ctx, k.consul, k.k8sManager.GetClient().Status(), k.logger.Named("consul"))
 	err := (&controllers.GatewayReconciler{
-		Client:       k.k8sManager.GetClient(),
-		Log:          klogger.WithName("controllers").WithName("Gateway"),
-		Scheme:       k.k8sManager.GetScheme(),
-		Manager:      consulMgr,
-		CACertSecret: k.caCertSecret,
+		Client:  k.k8sManager.GetClient(),
+		Log:     klogger.WithName("controllers").WithName("Gateway"),
+		Scheme:  k.k8sManager.GetScheme(),
+		Manager: consulMgr,
 	}).SetupWithManager(k.k8sManager)
 	if err != nil {
 		return fmt.Errorf("failed to create gateway controller: %w", err)

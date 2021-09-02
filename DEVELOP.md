@@ -20,6 +20,7 @@ metadata:
     "polar.hashicorp.com/image": "polar:1"
     "polar.hashicorp.com/auth-method": "polar"
     "polar.hashicorp.com/service-account": "polar"
+    "polar.hashicorp.com/envoy": "polar:1"
 spec:
   gatewayClassName: polar
   listeners:  

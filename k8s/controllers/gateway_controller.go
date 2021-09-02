@@ -14,11 +14,20 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
+	clientruntime "sigs.k8s.io/controller-runtime/pkg/client"
 	gateway "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	"github.com/hashicorp/polar/k8s/reconciler"
+	"github.com/hashicorp/polar/version"
 )
+
+var (
+	defaultImage string
+)
+
+func init() {
+	defaultImage = fmt.Sprintf("hashicorp/polar:%s", version.Version)
+}
 
 const (
 	// An optional service account to run the gateway as
@@ -35,16 +44,22 @@ const (
 	// if not specified, the init container will attempt to
 	// use a local agent on the host on which it is running
 	annotationConsulHTTPAddress = "polar.hashicorp.com/consul-http-address"
+	// The scheme to use for connecting to consul
+	annotationConsulScheme = "polar.hashicorp.com/consul-http-scheme"
+	// The location of a secret to mount with the consul root CA information
+	annotationConsulCASecret = "polar.hashicorp.com/consul-ca-secret"
+
+	defaultEnvoyImage   = "envoyproxy/envoy:v1.18-latest"
+	defaultLogLevel     = "info"
+	defaultCASecret     = "consul-ca-cert"
+	defaultConsulScheme = "https"
 )
 
 // GatewayReconciler reconciles a Gateway object
 type GatewayReconciler struct {
-	client.Client
-	Log          logr.Logger
-	Scheme       *runtime.Scheme
-	CACertSecret string
-
-	image string
+	clientruntime.Client
+	Log    logr.Logger
+	Scheme *runtime.Scheme
 
 	Manager *reconciler.GatewayReconcileManager
 }
@@ -80,13 +95,15 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	found := &appsv1.Deployment{}
 	err = r.Get(ctx, types.NamespacedName{Name: gw.Name, Namespace: gw.Namespace}, found)
 	if err != nil && k8serrors.IsNotFound(err) {
-		// Define a new deployment
-		if err := r.validateGateway(gw); err != nil {
+		// Validate the gateway before attempting to construct the deployment
+		if err := r.Validate(ctx, gw); err != nil {
 			log.Error(err, "Failed to validate gateway", "error", err)
 			return ctrl.Result{}, err
 		}
-		dep, err := r.deploymentForGateway(gw)
-		if err != nil {
+		// Create a deployment for the gateway
+		dep := DeploymentFor(gw)
+		// Set Gateway instance as the owner and controller
+		if err := ctrl.SetControllerReference(gw, dep, r.Scheme); err != nil {
 			log.Error(err, "Failed to initialize gateway")
 			return ctrl.Result{}, err
 		}
@@ -105,7 +122,16 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	return ctrl.Result{}, nil
 }
 
-func (r *GatewayReconciler) validateGateway(gw *gateway.Gateway) error {
+// Validate does some basic validations on the gateway
+func (r *GatewayReconciler) Validate(ctx context.Context, gw *gateway.Gateway) error {
+	// check if the gateway requires a CA to inject
+	if requiresCA(gw) {
+		// if it does, make sure the secret exists
+		if err := r.Get(ctx, namespacedCASecretFor(gw), &corev1.Secret{}); err != nil {
+			return err
+		}
+	}
+
 	// we only support a single listener for now due to service registration constraints
 	if len(gw.Spec.Listeners) != 1 {
 		return fmt.Errorf("invalid number of listeners '%d', only 1 supported", len(gw.Spec.Listeners))
@@ -113,10 +139,11 @@ func (r *GatewayReconciler) validateGateway(gw *gateway.Gateway) error {
 	return nil
 }
 
-func (r *GatewayReconciler) deploymentForGateway(gw *gateway.Gateway) (*appsv1.Deployment, error) {
+// DeploymentFor returns the deployment configuration for the given gateway
+func DeploymentFor(gw *gateway.Gateway) *appsv1.Deployment {
 	replicas := int32(3)
-	ls := labelsForGateway(gw)
-	dep := &appsv1.Deployment{
+	ls := labelsFor(gw)
+	return &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      gw.Name,
 			Namespace: gw.Namespace,
@@ -130,27 +157,29 @@ func (r *GatewayReconciler) deploymentForGateway(gw *gateway.Gateway) (*appsv1.D
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: ls,
 				},
-				Spec: podSpecForGateway(gw, r.CACertSecret, r.image),
+				Spec: podSpecFor(gw),
 			},
 		},
 	}
-
-	// Set Gateway instance as the owner and controller
-	if err := ctrl.SetControllerReference(gw, dep, r.Scheme); err != nil {
-		return nil, err
-	}
-	return dep, nil
 }
 
-func podSpecForGateway(gw *gateway.Gateway, caCertSecret, defaultImage string) corev1.PodSpec {
-	image := imageForGateway(gw, defaultImage)
-	cmd := execCommandForGateway(gw, caCertSecret)
-	volumes, mounts := volumesForGateway(gw, caCertSecret)
-	serviceAccount := serviceAccountForGateway(gw)
+func podSpecFor(gw *gateway.Gateway) corev1.PodSpec {
+	volumes, mounts := volumesFor(gw)
 	return corev1.PodSpec{
-		ServiceAccountName: serviceAccount,
+		ServiceAccountName: serviceAccountFor(gw),
+		// the init container copies the binary into the
+		// next envoy container so we can decouple the envoy
+		// versions from our version of polar.
+		InitContainers: []corev1.Container{{
+			Image:        imageFor(gw),
+			Name:         "polar-init",
+			VolumeMounts: mounts,
+			Command: []string{
+				"cp", "/bin/polar", "/bootstrap/polar",
+			},
+		}},
 		Containers: []corev1.Container{{
-			Image:        image,
+			Image:        envoyImageFor(gw),
 			Name:         "polar",
 			VolumeMounts: mounts,
 			Env: []corev1.EnvVar{
@@ -171,17 +200,19 @@ func podSpecForGateway(gw *gateway.Gateway, caCertSecret, defaultImage string) c
 					},
 				},
 			},
-			Command: cmd,
+			Command: execCommandFor(gw),
 		}},
 		Volumes: volumes,
 	}
 }
 
-func execCommandForGateway(gw *gateway.Gateway, caCertSecret string) []string {
+func execCommandFor(gw *gateway.Gateway) []string {
 	port := strconv.Itoa(int(gw.Spec.Listeners[0].Port))
 	hostPort := fmt.Sprintf("$(IP):%s", port)
 	initCommand := []string{
-		"polar", "exec",
+		"/bootstrap/polar", "exec",
+		"-log-json",
+		"-log-level", logLevelFor(gw),
 		"-gateway-host-port", hostPort,
 		"-gateway-name", gw.Name,
 	}
@@ -195,13 +226,14 @@ func execCommandForGateway(gw *gateway.Gateway, caCertSecret string) []string {
 	if authMethod != "" {
 		initCommand = append(initCommand, "-acl-auth-method", authMethod)
 	}
-	if caCertSecret != "" {
+
+	if requiresCA(gw) {
 		initCommand = append(initCommand, "-consul-ca-cert-file", "/ca/tls.crt")
 	}
 	return initCommand
 }
 
-func volumesForGateway(gw *gateway.Gateway, caCertSecret string) ([]corev1.Volume, []corev1.VolumeMount) {
+func volumesFor(gw *gateway.Gateway) ([]corev1.Volume, []corev1.VolumeMount) {
 	volumes := []corev1.Volume{{
 		Name: "bootstrap",
 		VolumeSource: corev1.VolumeSource{
@@ -215,12 +247,13 @@ func volumesForGateway(gw *gateway.Gateway, caCertSecret string) ([]corev1.Volum
 	}}
 	mounts := []corev1.VolumeMount{{
 		Name:      "bootstrap",
-		MountPath: "/polar",
+		MountPath: "/bootstrap",
 	}, {
 		Name:      "certs",
 		MountPath: "/certs",
 	}}
-	if caCertSecret != "" {
+	if requiresCA(gw) {
+		caCertSecret := caSecretFor(gw)
 		volumes = append(volumes, corev1.Volume{
 			Name: "ca",
 			VolumeSource: corev1.VolumeSource{
@@ -238,7 +271,7 @@ func volumesForGateway(gw *gateway.Gateway, caCertSecret string) ([]corev1.Volum
 	return volumes, mounts
 }
 
-func imageForGateway(gw *gateway.Gateway, defaultImage string) string {
+func imageFor(gw *gateway.Gateway) string {
 	image := gw.Annotations[annotationImage]
 	if image == "" {
 		return defaultImage
@@ -246,14 +279,60 @@ func imageForGateway(gw *gateway.Gateway, defaultImage string) string {
 	return image
 }
 
-func serviceAccountForGateway(gw *gateway.Gateway) string {
+func envoyImageFor(gw *gateway.Gateway) string {
+	image := gw.Annotations[annotationEnvoyImage]
+	if image == "" {
+		return defaultEnvoyImage
+	}
+	return image
+}
+
+func serviceAccountFor(gw *gateway.Gateway) string {
 	return gw.Annotations[annotationServiceAccount]
 }
 
-func labelsForGateway(gw *gateway.Gateway) map[string]string {
+func consulSchemeFor(gw *gateway.Gateway) string {
+	if gw.Annotations[annotationConsulScheme] != "http" {
+		return "https"
+	}
+	return "http"
+}
+
+func namespacedCASecretFor(gw *gateway.Gateway) clientruntime.ObjectKey {
+	name := gw.Annotations[annotationConsulCASecret]
+	if name == "" {
+		name = defaultCASecret
+	}
+	return clientruntime.ObjectKey{
+		Namespace: gw.Namespace,
+		Name:      name,
+	}
+}
+
+func caSecretFor(gw *gateway.Gateway) string {
+	name := gw.Annotations[annotationConsulCASecret]
+	if name == "" {
+		return defaultCASecret
+	}
+	return name
+}
+
+func logLevelFor(gw *gateway.Gateway) string {
+	logLevel := gw.Annotations[annotationLogLevel]
+	if logLevel == "" {
+		return defaultLogLevel
+	}
+	return logLevel
+}
+
+func labelsFor(gw *gateway.Gateway) map[string]string {
 	return map[string]string{
 		"name": "polar",
 	}
+}
+
+func requiresCA(gw *gateway.Gateway) bool {
+	return consulSchemeFor(gw) == "https"
 }
 
 // SetupWithManager sets up the controller with the Manager.

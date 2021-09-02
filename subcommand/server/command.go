@@ -20,8 +20,10 @@ type Command struct {
 	UI     cli.Ui
 	logger hclog.Logger
 
-	flagCASecret      string // CA Secret for Consul server
-	flagConsulAddress string // Consul server address
+	flagCAFile            string // CA File for CA for Consul server
+	flagCASecret          string // CA Secret for Consul server
+	flagCASecretNamespace string // CA Secret namespace for Consul server
+	flagConsulAddress     string // Consul server address
 
 	flagSet *flag.FlagSet
 	once    sync.Once
@@ -29,7 +31,9 @@ type Command struct {
 
 func (c *Command) init() {
 	c.flagSet = flag.NewFlagSet("", flag.ContinueOnError)
+	c.flagSet.StringVar(&c.flagCAFile, "ca-file", "", "Path to CA for Consul server.")
 	c.flagSet.StringVar(&c.flagCASecret, "ca-secret", "", "CA Secret for Consul server.")
+	c.flagSet.StringVar(&c.flagCASecretNamespace, "ca-secret-namespace", "", "CA Secret namespace for Consul server.")
 	c.flagSet.StringVar(&c.flagConsulAddress, "consul-address", "", "Consul Address.")
 }
 
@@ -46,13 +50,28 @@ func (c *Command) Run(args []string) int {
 	consulCfg := api.DefaultConfig()
 	cfg := k8s.Defaults()
 
-	file, err := ioutil.TempFile("", "polar")
-	if c.flagCASecret != "" {
-		consulCfg.TLSConfig.CAFile = file.Name()
-		cfg.CACertFile = file.Name()
-		cfg.CACertSecret = c.flagCASecret
+	if c.flagCAFile != "" {
+		consulCfg.TLSConfig.CAFile = c.flagCAFile
+		cfg.CACertFile = c.flagCAFile
 	}
-	defer os.Remove(file.Name())
+
+	if c.flagCASecret != "" {
+		cfg.CACertSecret = c.flagCASecret
+		if c.flagCASecretNamespace != "" {
+			cfg.CACertSecretNamespace = c.flagCASecretNamespace
+		}
+
+		// if we're pulling the cert from a secret, then we override the location
+		// where we store it
+		file, err := ioutil.TempFile("", "polar")
+		if err != nil {
+			c.UI.Error("An error occurred creating the kubernetes controller:\n\t" + err.Error())
+			return 1
+		}
+		defer os.Remove(file.Name())
+		cfg.CACertFile = file.Name()
+		consulCfg.TLSConfig.CAFile = file.Name()
+	}
 
 	if c.flagConsulAddress != "" {
 		consulCfg.Address = c.flagConsulAddress
