@@ -27,7 +27,7 @@ spec:
         - -gateway-host
         - $(IP)
         - -gateway-ports
-        - 8080,8443
+        - http:8080,https:8443
         - -gateway-name
         - invalid-node-selector
         - -consul-http-address

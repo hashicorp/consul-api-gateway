@@ -27,7 +27,7 @@ spec:
         - -gateway-host
         - $(IP)
         - -gateway-ports
-        - "80"
+        - http:80
         - -gateway-name
         - annotations
         - -consul-http-address

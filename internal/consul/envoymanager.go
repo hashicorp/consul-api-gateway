@@ -12,10 +12,10 @@ import (
 
 type EnvoyManager struct {
 	logger hclog.Logger
-	ports  []int
+	ports  []NamedPort
 }
 
-func NewEnvoyManager(logger hclog.Logger, ports []int) *EnvoyManager {
+func NewEnvoyManager(logger hclog.Logger, ports []NamedPort) *EnvoyManager {
 	// fmt.Sprintf("while true; do printf 'HTTP/1.1 200 OK\n\nOK' | nc -l %s; done", port)
 	return &EnvoyManager{
 		logger: logger,
@@ -35,10 +35,10 @@ func (m *EnvoyManager) Run(ctx context.Context) error {
 
 func (m *EnvoyManager) command() string {
 	// replace all this junk with something that actually uses envoy
-	template := "sh -c \"while true; do printf 'HTTP/1.1 200 OK\nConnection: close\nContent-Length: 3\n\nOK\n' | nc -l %d; done\" &"
+	template := "sh -c \"while true; do printf 'HTTP/1.1 200 OK\nConnection: close\nContent-Length: %d\n\n%s\n' | nc -l %d; done\" &"
 	commands := []string{}
 	for _, port := range m.ports {
-		commands = append(commands, fmt.Sprintf(template, port))
+		commands = append(commands, fmt.Sprintf(template, len(port.Name)+1, port.Name, port.Port))
 	}
 	commands = append(commands, "wait $(jobs -p)")
 	return strings.Join(commands, "\n")

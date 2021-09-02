@@ -18,6 +18,13 @@ const (
 	serviceDeregistrationTime = "1m"
 )
 
+// NamedPort is a tuple for ports with names
+type NamedPort struct {
+	Name    string
+	Address string
+	Port    int
+}
+
 // ServiceRegistry handles the logic for registering a Polar service in Consul.
 type ServiceRegistry struct {
 	consul *api.Client
@@ -27,14 +34,14 @@ type ServiceRegistry struct {
 	name      string
 	namespace string
 	host      string
-	ports     []int
+	ports     []NamedPort
 
 	tries           uint64
 	backoffInterval time.Duration
 }
 
 // NewServiceRegistry creates a new service registry instance
-func NewServiceRegistry(logger hclog.Logger, consul *api.Client, service, namespace, host string, ports []int) *ServiceRegistry {
+func NewServiceRegistry(logger hclog.Logger, consul *api.Client, service, namespace, host string, ports []NamedPort) *ServiceRegistry {
 	return &ServiceRegistry{
 		logger:          logger,
 		consul:          consul,
@@ -67,15 +74,22 @@ func (s *ServiceRegistry) Register(ctx context.Context) error {
 
 func (s *ServiceRegistry) register(ctx context.Context) error {
 	var checks api.AgentServiceChecks
+
+	taggedAddresses := map[string]api.ServiceAddress{}
 	for _, port := range s.ports {
 		checks = append(checks, s.checkFor(port))
+		taggedAddresses[port.Name] = api.ServiceAddress{
+			Port:    port.Port,
+			Address: port.Address,
+		}
 	}
 	registration := &api.AgentServiceRegistration{
-		Kind:    api.ServiceKind(api.IngressGateway),
-		ID:      s.id,
-		Name:    s.name,
-		Address: s.host,
-		Checks:  checks,
+		Kind:            api.ServiceKind(api.IngressGateway),
+		ID:              s.id,
+		Name:            s.name,
+		Address:         s.host,
+		Checks:          checks,
+		TaggedAddresses: taggedAddresses,
 	}
 	if s.namespace != "" && s.namespace != "default" {
 		registration.Namespace = s.namespace
@@ -84,10 +98,10 @@ func (s *ServiceRegistry) register(ctx context.Context) error {
 	return s.consul.Agent().ServiceRegisterOpts(registration, (&api.ServiceRegisterOpts{}).WithContext(ctx))
 }
 
-func (s *ServiceRegistry) checkFor(port int) *api.AgentServiceCheck {
+func (s *ServiceRegistry) checkFor(port NamedPort) *api.AgentServiceCheck {
 	return &api.AgentServiceCheck{
-		Name:                           fmt.Sprintf("%s - %d", serviceCheckName, port),
-		TCP:                            fmt.Sprintf("%s:%d", s.host, port),
+		Name:                           fmt.Sprintf("%s - %s", serviceCheckName, port.Name),
+		TCP:                            fmt.Sprintf("%s:%d", s.host, port.Port),
 		Interval:                       serviceCheckInterval,
 		DeregisterCriticalServiceAfter: serviceDeregistrationTime,
 	}

@@ -63,7 +63,7 @@ type Command struct {
 	flagSet *flag.FlagSet
 
 	logger       hclog.Logger
-	gatewayPorts []int // Gateway ports.
+	gatewayPorts []consul.NamedPort // Gateway ports.
 
 	once sync.Once
 }
@@ -233,11 +233,19 @@ func (c *Command) validateFlags() error {
 	}
 	ports := strings.Split(c.flagGatewayPortsString, ",")
 	for _, port := range ports {
-		parsedPort, err := strconv.Atoi(port)
+		tokens := strings.SplitN(port, ":", 2)
+		if len(tokens) != 2 {
+			return fmt.Errorf("invalid named port: %s", port)
+		}
+		parsedPort, err := strconv.Atoi(tokens[1])
 		if err != nil {
 			return fmt.Errorf("invalid port: %w", err)
 		}
-		c.gatewayPorts = append(c.gatewayPorts, parsedPort)
+		c.gatewayPorts = append(c.gatewayPorts, consul.NamedPort{
+			Address: c.flagGatewayHost,
+			Port:    parsedPort,
+			Name:    tokens[0],
+		})
 	}
 	return nil
 }

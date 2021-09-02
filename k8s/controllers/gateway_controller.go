@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/go-logr/logr"
@@ -270,7 +269,8 @@ func podSpecFor(gw *gateway.Gateway) corev1.PodSpec {
 func execCommandFor(gw *gateway.Gateway) []string {
 	ports := []string{}
 	for _, listener := range gw.Spec.Listeners {
-		ports = append(ports, strconv.Itoa(int(listener.Port)))
+		namedPort := fmt.Sprintf("%s:%d", listener.Name, listener.Port)
+		ports = append(ports, namedPort)
 	}
 	initCommand := []string{
 		"/bootstrap/polar", "exec",

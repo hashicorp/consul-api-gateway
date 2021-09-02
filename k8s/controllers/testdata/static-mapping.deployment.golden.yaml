@@ -27,7 +27,7 @@ spec:
         - -gateway-host
         - $(IP)
         - -gateway-ports
-        - 8083,8443
+        - http:8083,https:8443
         - -gateway-name
         - test-gateway
         - -consul-http-address
