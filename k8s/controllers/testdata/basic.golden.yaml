@@ -1,0 +1,75 @@
+metadata:
+  creationTimestamp: null
+  name: basic
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      name: polar
+  strategy: {}
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        name: polar
+    spec:
+      containers:
+      - command:
+        - /bootstrap/polar
+        - exec
+        - -log-json
+        - -log-level
+        - info
+        - -gateway-host-port
+        - $(IP):80
+        - -gateway-name
+        - basic
+        - -consul-http-address
+        - $(HOST_IP):8500
+        - -consul-ca-cert-file
+        - /ca/tls.crt
+        env:
+        - name: IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: HOST_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP
+        image: envoyproxy/envoy:v1.18-latest
+        name: polar
+        resources: {}
+        volumeMounts:
+        - mountPath: /bootstrap
+          name: bootstrap
+        - mountPath: /certs
+          name: certs
+        - mountPath: /ca
+          name: ca
+          readOnly: true
+      initContainers:
+      - command:
+        - cp
+        - /bin/polar
+        - /bootstrap/polar
+        image: hashicorp/polar:0.1.0
+        name: polar-init
+        resources: {}
+        volumeMounts:
+        - mountPath: /bootstrap
+          name: bootstrap
+        - mountPath: /certs
+          name: certs
+        - mountPath: /ca
+          name: ca
+          readOnly: true
+      volumes:
+      - emptyDir: {}
+        name: bootstrap
+      - emptyDir: {}
+        name: certs
+      - name: ca
+        secret:
+          secretName: consul-ca-cert
+status: {}
