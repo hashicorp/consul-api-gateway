@@ -200,9 +200,6 @@ func ServiceFor(gw *gateway.Gateway) *corev1.Service {
 }
 
 // DeploymentsFor returns the deployment configuration for the given gateway.
-// For each listener on a given gateway, we create a deployment to allow for
-// specific port binding. Similar to:
-// 		https://github.com/istio/istio/blob/9d6cf8e08db63a310ab7573f5229abe106fd6ded/pilot/pkg/config/kube/gateway/conversion.go#L1027
 func DeploymentFor(gw *gateway.Gateway) *appsv1.Deployment {
 	labels := labelsFor(gw)
 	return &appsv1.Deployment{
