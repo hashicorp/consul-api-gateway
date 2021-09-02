@@ -16,8 +16,6 @@ kind: Gateway
 metadata:
   name: test-gateway
   annotations:
-    "polar.hashicorp.com/node-selector": >
-      {"ingress-ready":"true"}
     "polar.hashicorp.com/use-host-ports": "true"
     "polar.hashicorp.com/consul-http-address": "host.docker.internal:443"
     "polar.hashicorp.com/image": "polar:1"
@@ -29,15 +27,28 @@ spec:
   listeners:
   - protocol: HTTP
     port: 8083
-    name: http
+    name: my-http
     allowedRoutes:
       namespaces:
         from: Same
   - protocol: HTTPS
     port: 8443
-    name: https
+    name: my-https
     allowedRoutes:
       namespaces:
         from: Same
 EOF
+```
+
+You should be able to hit the gateway from your local host:
+
+```
+curl localhost:8083
+curl localhost:8443
+```
+
+Clean up the gateway you just created:
+
+```
+kubectl delete gateway test-gateway
 ```

@@ -38,7 +38,8 @@ func (m *EnvoyManager) command() string {
 	template := "sh -c \"while true; do printf 'HTTP/1.1 200 OK\nConnection: close\nContent-Length: %d\n\n%s\n' | nc -l %d; done\" &"
 	commands := []string{}
 	for _, port := range m.ports {
-		commands = append(commands, fmt.Sprintf(template, len(port.Name)+1, port.Name, port.Port))
+		message := fmt.Sprintf("Protocol: %s, Name: %s, Port: %d", port.Protocol, port.Name, port.Port)
+		commands = append(commands, fmt.Sprintf(template, len(message)+1, message, port.Port))
 	}
 	commands = append(commands, "wait $(jobs -p)")
 	return strings.Join(commands, "\n")

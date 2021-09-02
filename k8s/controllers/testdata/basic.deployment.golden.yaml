@@ -27,7 +27,7 @@ spec:
         - -gateway-host
         - $(IP)
         - -gateway-ports
-        - http:80,tls:443,https:8443
+        - HTTP:http:80,TLS:tls:443,HTTPS:https:8443
         - -gateway-name
         - basic
         - -consul-http-address

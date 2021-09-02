@@ -269,7 +269,7 @@ func podSpecFor(gw *gateway.Gateway) corev1.PodSpec {
 func execCommandFor(gw *gateway.Gateway) []string {
 	ports := []string{}
 	for _, listener := range gw.Spec.Listeners {
-		namedPort := fmt.Sprintf("%s:%d", listener.Name, listener.Port)
+		namedPort := fmt.Sprintf("%s:%s:%d", listener.Protocol, listener.Name, listener.Port)
 		ports = append(ports, namedPort)
 	}
 	initCommand := []string{

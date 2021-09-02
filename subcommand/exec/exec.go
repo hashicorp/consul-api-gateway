@@ -233,18 +233,19 @@ func (c *Command) validateFlags() error {
 	}
 	ports := strings.Split(c.flagGatewayPortsString, ",")
 	for _, port := range ports {
-		tokens := strings.SplitN(port, ":", 2)
-		if len(tokens) != 2 {
+		tokens := strings.SplitN(port, ":", 3)
+		if len(tokens) != 3 {
 			return fmt.Errorf("invalid named port: %s", port)
 		}
-		parsedPort, err := strconv.Atoi(tokens[1])
+		parsedPort, err := strconv.Atoi(tokens[2])
 		if err != nil {
 			return fmt.Errorf("invalid port: %w", err)
 		}
 		c.gatewayPorts = append(c.gatewayPorts, consul.NamedPort{
-			Address: c.flagGatewayHost,
-			Port:    parsedPort,
-			Name:    tokens[0],
+			Address:  c.flagGatewayHost,
+			Port:     parsedPort,
+			Name:     tokens[1],
+			Protocol: tokens[0],
 		})
 	}
 	return nil
