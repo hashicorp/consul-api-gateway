@@ -34,26 +34,26 @@ func init() {
 const (
 	// An optional service type to expose the gateway
 	annotationServiceType = "polar.hashicorp.com/service-type"
-	// If the service type specified is 'NodePort' and this is 'true'
-	// then nodePort is set to the container port
+	// If this is set to true, then the container ports are mapped
+	// to host ports.
 	annotationHostPortStatic = "polar.hashicorp.com/use-host-ports"
-	// An optional service account to run the gateway as
+	// An optional service account to run the gateway as.
 	annotationServiceAccount = "polar.hashicorp.com/service-account"
-	// The auth method used for consul kubernetes-based auth
+	// The auth method used for consul kubernetes-based auth.
 	annotationServiceAuthMethod = "polar.hashicorp.com/auth-method"
-	// The image to use for polar
+	// The image to use for polar.
 	annotationImage = "polar.hashicorp.com/image"
-	// The image to use for envoy
+	// The image to use for envoy.
 	annotationEnvoyImage = "polar.hashicorp.com/envoy"
-	// The log-level to enable in polar
+	// The log-level to enable in polar.
 	annotationLogLevel = "polar.hashicorp.com/log-level"
-	// The node selector for scheduling the gateway
+	// The node selector (in JSON format) for scheduling the gateway pod.
 	annotationNodeSelector = "polar.hashicorp.com/node-selector"
-	// The address to inject for initial service registration
-	// if not specified, the init container will attempt to
-	// use a local agent on the host on which it is running
+	// The address of the consul server to communicate with in the gateway
+	// pod. If not specified, the pod will attempt to use a local agent on
+	// the host on which it is running.
 	annotationConsulHTTPAddress = "polar.hashicorp.com/consul-http-address"
-	// The scheme to use for connecting to consul
+	// The scheme to use for connecting to consul.
 	annotationConsulScheme = "polar.hashicorp.com/consul-http-scheme"
 	// The location of a secret to mount with the consul root CA information
 	annotationConsulCASecret = "polar.hashicorp.com/consul-ca-secret"
