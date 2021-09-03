@@ -68,14 +68,15 @@ const (
 	defaultConsulAddress  = "$(HOST_IP)"
 	defaultConsulScheme   = "https"
 	defaultConsulHTTPPort = "8500"
-	defaultConsulXDSPort  = "8083"
+	defaultConsulXDSPort  = "8502"
 )
 
 // GatewayReconciler reconciles a Gateway object
 type GatewayReconciler struct {
 	clientruntime.Client
-	Log    logr.Logger
-	Scheme *runtime.Scheme
+	Log                       logr.Logger
+	Scheme                    *runtime.Scheme
+	ServerAnnouncementAddress string
 
 	Manager *reconciler.GatewayReconcileManager
 }
@@ -117,7 +118,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			return ctrl.Result{}, err
 		}
 		// Create deployment for the gateway
-		deployment := DeploymentFor(gw)
+		deployment := DeploymentFor(gw, r.ServerAnnouncementAddress)
 		// Create service for the gateway
 		service := ServiceFor(gw)
 
@@ -207,7 +208,7 @@ func ServiceFor(gw *gateway.Gateway) *corev1.Service {
 }
 
 // DeploymentsFor returns the deployment configuration for the given gateway.
-func DeploymentFor(gw *gateway.Gateway) *appsv1.Deployment {
+func DeploymentFor(gw *gateway.Gateway, sdsServerAddress string) *appsv1.Deployment {
 	labels := labelsFor(gw)
 	return &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -223,13 +224,13 @@ func DeploymentFor(gw *gateway.Gateway) *appsv1.Deployment {
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: labels,
 				},
-				Spec: podSpecFor(gw),
+				Spec: podSpecFor(gw, sdsServerAddress),
 			},
 		},
 	}
 }
 
-func podSpecFor(gw *gateway.Gateway) corev1.PodSpec {
+func podSpecFor(gw *gateway.Gateway, sdsServerAddress string) corev1.PodSpec {
 	volumes, mounts := volumesFor(gw)
 	return corev1.PodSpec{
 		NodeSelector:       nodeSelectorFor(gw),
@@ -268,13 +269,13 @@ func podSpecFor(gw *gateway.Gateway) corev1.PodSpec {
 					},
 				},
 			},
-			Command: execCommandFor(gw),
+			Command: execCommandFor(gw, sdsServerAddress),
 		}},
 		Volumes: volumes,
 	}
 }
 
-func execCommandFor(gw *gateway.Gateway) []string {
+func execCommandFor(gw *gateway.Gateway, sdsServerAddress string) []string {
 	ports := []string{}
 	for _, listener := range gw.Spec.Listeners {
 		namedPort := fmt.Sprintf("%s:%s:%d", listener.Protocol, listener.Name, listener.Port)
@@ -291,6 +292,7 @@ func execCommandFor(gw *gateway.Gateway) []string {
 		"-consul-http-port", httpPortFor(gw),
 		"-consul-xds-port", xdsPortFor(gw),
 		"-envoy-bootstrap-path", "/bootstrap/envoy.json",
+		"-envoy-sds-address", sdsServerAddress,
 	}
 
 	authMethod := gw.Annotations[annotationServiceAuthMethod]

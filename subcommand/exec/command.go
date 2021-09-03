@@ -54,9 +54,11 @@ type Command struct {
 	flagGatewayNamespace   string // Gateway namespace.
 
 	// Envoy params
-	flagBootstrapPath string // Path for config file for bootstrapping envoy
+	flagBootstrapPath    string // Path for config file for bootstrapping envoy
+	flagSDSServerAddress string // Address for the SDS server
+	flagSDSServerPort    int    // Port for the SDS server
 
-	// Auth
+	// ACL Auth
 	flagACLAuthMethod       string // Auth Method to use for ACLs, if enabled.
 	flagAuthMethodNamespace string // Consul namespace the auth-method is defined in.
 	flagBearerTokenFile     string // Location of the bearer token. Default is /var/run/secrets/kubernetes.io/serviceaccount/token.
@@ -75,24 +77,41 @@ type Command struct {
 
 func (c *Command) init() {
 	c.flagSet = flag.NewFlagSet("", flag.ContinueOnError)
-	c.flagSet.StringVar(&c.flagConsulHTTPAddress, "consul-http-address", "", "Address of Consul.")
-	c.flagSet.IntVar(&c.flagConsulHTTPPort, "consul-http-port", 8500, "Port of Consul HTTP server.")
-	c.flagSet.IntVar(&c.flagConsulXDSPort, "consul-xds-port", 8082, "Port of Consul xDS server.")
-	c.flagSet.StringVar(&c.flagConsulCACertFile, "consul-ca-cert-file", "", "CA Root file for Consul.")
-	c.flagSet.StringVar(&c.flagBootstrapPath, "envoy-bootstrap-path", "", "Path to the config file for bootstrapping Envoy.")
-	c.flagSet.StringVar(&c.flagGatewayID, "gateway-id", "", "ID of the gateway.")
-	c.flagSet.StringVar(&c.flagGatewayHost, "gateway-host", "", "Host of the gateway.")
-	c.flagSet.StringVar(&c.flagGatewayPortsString, "gateway-ports", "", "Ports of the gateway.")
-	c.flagSet.StringVar(&c.flagGatewayName, "gateway-name", "", "Name of the gateway.")
-	c.flagSet.StringVar(&c.flagGatewayNamespace, "gateway-namespace", "default", "Name of the gateway namespace.")
-	c.flagSet.StringVar(&c.flagACLAuthMethod, "acl-auth-method", "", "Name of the auth method to login with.")
-	c.flagSet.StringVar(&c.flagAuthMethodNamespace, "auth-method-namespace", "default", "Consul namespace the auth-method is defined in")
-	c.flagSet.StringVar(&c.flagBearerTokenFile, "bearer-token-file", defaultBearerTokenFile, "Location of the bearer token.")
-	c.flagSet.StringVar(&c.flagLogLevel, "log-level", "info",
-		"Log verbosity level. Supported values (in order of detail) are \"trace\", "+
-			"\"debug\", \"info\", \"warn\", and \"error\".")
-	c.flagSet.BoolVar(&c.flagLogJSON, "log-json", false,
-		"Enable or disable JSON output format for logging.")
+	{
+		// Consul
+		c.flagSet.StringVar(&c.flagConsulHTTPAddress, "consul-http-address", "", "Address of Consul.")
+		c.flagSet.IntVar(&c.flagConsulHTTPPort, "consul-http-port", 8500, "Port of Consul HTTP server.")
+		c.flagSet.IntVar(&c.flagConsulXDSPort, "consul-xds-port", 8502, "Port of Consul xDS server.")
+		c.flagSet.StringVar(&c.flagConsulCACertFile, "consul-ca-cert-file", "", "CA Root file for Consul.")
+	}
+	{
+		// Envoy
+		c.flagSet.StringVar(&c.flagBootstrapPath, "envoy-bootstrap-path", "", "Path to the config file for bootstrapping Envoy.")
+		c.flagSet.StringVar(&c.flagSDSServerAddress, "envoy-sds-address", "", "Address of the SDS server.")
+		c.flagSet.IntVar(&c.flagSDSServerPort, "envoy-sds-port", 9090, "Port of the SDS server.")
+	}
+	{
+		// Gateway
+		c.flagSet.StringVar(&c.flagGatewayID, "gateway-id", "", "ID of the gateway.")
+		c.flagSet.StringVar(&c.flagGatewayHost, "gateway-host", "", "Host of the gateway.")
+		c.flagSet.StringVar(&c.flagGatewayPortsString, "gateway-ports", "", "Ports of the gateway.")
+		c.flagSet.StringVar(&c.flagGatewayName, "gateway-name", "", "Name of the gateway.")
+		c.flagSet.StringVar(&c.flagGatewayNamespace, "gateway-namespace", "default", "Name of the gateway namespace.")
+	}
+	{
+		// ACL Auth
+		c.flagSet.StringVar(&c.flagACLAuthMethod, "acl-auth-method", "", "Name of the auth method to login with.")
+		c.flagSet.StringVar(&c.flagAuthMethodNamespace, "acl-auth-method-namespace", "default", "Consul namespace the auth-method is defined in")
+		c.flagSet.StringVar(&c.flagBearerTokenFile, "acl-bearer-token-file", defaultBearerTokenFile, "Location of the bearer token.")
+	}
+	{
+		// Logging
+		c.flagSet.StringVar(&c.flagLogLevel, "log-level", "info",
+			"Log verbosity level. Supported values (in order of detail) are \"trace\", "+
+				"\"debug\", \"info\", \"warn\", and \"error\".")
+		c.flagSet.BoolVar(&c.flagLogJSON, "log-json", false,
+			"Enable or disable JSON output format for logging.")
+	}
 }
 
 func (c *Command) Run(args []string) (ret int) {
@@ -186,23 +205,35 @@ func (c *Command) Run(args []string) (ret int) {
 
 	envoyManager := consul.NewEnvoyManager(
 		c.logger.Named("envoy-manager"),
-		c.gatewayPorts,
 		consul.EnvoyManagerConfig{
 			ID:                registry.ID(),
 			ConsulCA:          c.flagConsulCACertFile,
 			ConsulAddress:     c.flagConsulHTTPAddress,
 			ConsulXDSPort:     c.flagConsulXDSPort,
 			BootstrapFilePath: c.flagBootstrapPath,
+			LogLevel:          c.flagLogLevel,
 			Token:             token,
 		},
 	)
+	options := consul.DefaultCertManagerOptions()
+	options.SDSAddress = c.flagSDSServerAddress
+	options.SDSPort = c.flagSDSServerPort
 	certManager := consul.NewCertManager(
 		c.logger.Named("cert-manager"),
 		consulClient,
 		c.flagGatewayName,
-		nil,
+		options,
 	)
-	envoyManager.RenderBootstrap(certManager)
+	sdsConfig, err := certManager.RenderSDSConfig()
+	if err != nil {
+		c.logger.Error("error rendering SDS configuration files", "error", err)
+		return 1
+	}
+	err = envoyManager.RenderBootstrap(sdsConfig)
+	if err != nil {
+		c.logger.Error("error rendering Envoy configuration file", "error", err)
+		return 1
+	}
 
 	group, groupCtx := errgroup.WithContext(ctx)
 	group.Go(func() error {
@@ -249,6 +280,9 @@ func (c *Command) validateFlags() error {
 	}
 	if c.flagBootstrapPath == "" {
 		return errors.New("-envoy-bootstrap-path must be set")
+	}
+	if c.flagSDSServerAddress == "" {
+		return errors.New("-envoy-sds-address must be set")
 	}
 	if c.flagGatewayID == "" {
 		c.flagGatewayID = uuid.New().String()

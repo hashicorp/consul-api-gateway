@@ -41,6 +41,9 @@ nodes:
   - containerPort: 8443
     hostPort: 8443
     protocol: TCP
+  - containerPort: 8502
+    hostPort: 8502
+    protocol: TCP
 EOF
 }
 
@@ -245,7 +248,7 @@ main() {
   if [[ "${start}" == "TRUE" ]]; then
     export CONSUL_HTTP_TOKEN=$(cat token)
     go build
-    ./polar server -ca-secret consul-ca-cert -consul-address https://localhost
+    ./polar server -ca-secret consul-ca-cert -consul-address https://localhost -address host.docker.internal
     echo "To re-run the server run './scripts/develop -s'"
   fi
 }

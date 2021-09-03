@@ -5,6 +5,7 @@ go 1.16
 require (
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/envoyproxy/go-control-plane v0.9.9 // indirect
 	github.com/fatih/color v1.12.0 // indirect
 	github.com/go-logr/logr v0.4.0
 	github.com/google/uuid v1.1.2
@@ -14,6 +15,7 @@ require (
 	github.com/prometheus/common v0.26.0
 	github.com/stretchr/testify v1.7.0
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
+	google.golang.org/grpc v1.40.0 // indirect
 	k8s.io/api v0.22.0
 	k8s.io/apimachinery v0.22.0
 	k8s.io/client-go v0.22.0

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"sync"
 	"text/template"
 	"time"
 
@@ -24,6 +25,8 @@ const (
 
 	defaultCertificateDirectory = "/certs"
 	defaultSignalOnNWrites      = 1
+	defaultSDSAddress           = "localhost"
+	defaultSDSPort              = 9090
 )
 
 var (
@@ -36,6 +39,7 @@ type sdsClusterArgs struct {
 	Name              string
 	CertSDSConfigPath string
 	CASDSConfigPath   string
+	AddressType       string
 	SDSAddress        string
 	SDSPort           int
 }
@@ -69,6 +73,8 @@ type CertManagerOptions struct {
 	Directory       string
 	SignalOnNWrites int
 	Tries           uint64
+	SDSAddress      string
+	SDSPort         int
 }
 
 // DefaultCertManagerOptions returns the default options for a CertManager instance.
@@ -77,6 +83,8 @@ func DefaultCertManagerOptions() *CertManagerOptions {
 		Directory:       defaultCertificateDirectory,
 		SignalOnNWrites: defaultSignalOnNWrites,
 		Tries:           defaultMaxAttempts,
+		SDSAddress:      defaultSDSAddress,
+		SDSPort:         defaultSDSPort,
 	}
 }
 
@@ -87,8 +95,10 @@ type CertManager struct {
 	consul *api.Client
 	logger hclog.Logger
 
-	service   string
-	directory string
+	service    string
+	directory  string
+	sdsAddress string
+	sdsPort    int
 
 	signalWrites int
 	writesLeft   int
@@ -96,6 +106,8 @@ type CertManager struct {
 
 	tries           uint64
 	backoffInterval time.Duration
+
+	lock sync.RWMutex
 }
 
 // NewCertManager creates a new CertManager instance.
@@ -106,6 +118,8 @@ func NewCertManager(logger hclog.Logger, consul *api.Client, service string, opt
 	return &CertManager{
 		consul:          consul,
 		logger:          logger,
+		sdsAddress:      options.SDSAddress,
+		sdsPort:         options.SDSPort,
 		service:         service,
 		directory:       options.Directory,
 		signalWrites:    options.SignalOnNWrites,
@@ -177,6 +191,10 @@ func (c *CertManager) persist(root *api.CARoot, client *api.LeafCert) error {
 	rootCAFile := path.Join(c.directory, RootCAFile)
 	clientCertFile := path.Join(c.directory, ClientCertFile)
 	clientPrivateKeyFile := path.Join(c.directory, ClientPrivateKeyFile)
+
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
 	if err := os.WriteFile(rootCAFile, []byte(root.RootCertPEM), 0600); err != nil {
 		return fmt.Errorf("error writing root CA fiile: %w", err)
 	}
@@ -193,6 +211,30 @@ func (c *CertManager) persist(root *api.CARoot, client *api.LeafCert) error {
 	}
 
 	return nil
+}
+
+// RootCA returns the current CA cert
+func (c *CertManager) RootCA() ([]byte, error) {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+
+	return os.ReadFile(path.Join(c.directory, RootCAFile))
+}
+
+// Certificate returns the current leaf cert
+func (c *CertManager) Certificate() ([]byte, error) {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+
+	return os.ReadFile(path.Join(c.directory, ClientCertFile))
+}
+
+// PrivateKey returns the current leaf cert private key
+func (c *CertManager) PrivateKey() ([]byte, error) {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+
+	return os.ReadFile(path.Join(c.directory, ClientPrivateKeyFile))
 }
 
 // Wait acts as a signalling mechanism for when the certificates are
@@ -213,7 +255,7 @@ func (c *CertManager) Wait(ctx context.Context) error {
 	return nil
 }
 
-func (c *CertManager) SDSConfig() (string, error) {
+func (c *CertManager) RenderSDSConfig() (string, error) {
 	var (
 		sdsCertConfig bytes.Buffer
 		sdsCAConfig   bytes.Buffer
@@ -253,8 +295,9 @@ func (c *CertManager) SDSConfig() (string, error) {
 		Name:              "sds-cluster",
 		CertSDSConfigPath: sdsCertConfigPath,
 		CASDSConfigPath:   sdsCAConfigPath,
-		SDSAddress:        "host.docker.internal",
-		SDSPort:           9090,
+		AddressType:       addressTypeForAddress(c.sdsAddress),
+		SDSAddress:        c.sdsAddress,
+		SDSPort:           c.sdsPort,
 	}); err != nil {
 		return "", err
 	}
@@ -266,7 +309,7 @@ const sdsClusterJSONTemplate = `
 {
   "name":"{{ .Name }}",
   "connect_timeout":"5s",
-  "type":"STATIC",
+  "type":"{{ .AddressType }}",
   "transport_socket":{
      "name":"tls",
      "typed_config":{
