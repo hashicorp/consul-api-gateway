@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/go-logr/logr"
@@ -52,15 +53,22 @@ const (
 	// pod. If not specified, the pod will attempt to use a local agent on
 	// the host on which it is running.
 	annotationConsulHTTPAddress = "polar.hashicorp.com/consul-http-address"
+	// The port for Consul's xDS server.
+	annotationConsulXDSPort = "polar.hashicorp.com/consul-xds-port"
+	// The port for Consul's HTTP server.
+	annotationConsulHTTPPort = "polar.hashicorp.com/consul-http-port"
 	// The scheme to use for connecting to consul.
 	annotationConsulScheme = "polar.hashicorp.com/consul-http-scheme"
 	// The location of a secret to mount with the consul root CA information
 	annotationConsulCASecret = "polar.hashicorp.com/consul-ca-secret"
 
-	defaultEnvoyImage   = "envoyproxy/envoy:v1.18-latest"
-	defaultLogLevel     = "info"
-	defaultCASecret     = "consul-ca-cert"
-	defaultConsulScheme = "https"
+	defaultEnvoyImage     = "envoyproxy/envoy:v1.18-latest"
+	defaultLogLevel       = "info"
+	defaultCASecret       = "consul-ca-cert"
+	defaultConsulAddress  = "$(HOST_IP)"
+	defaultConsulScheme   = "https"
+	defaultConsulHTTPPort = "8500"
+	defaultConsulXDSPort  = "8083"
 )
 
 // GatewayReconciler reconciles a Gateway object
@@ -279,13 +287,12 @@ func execCommandFor(gw *gateway.Gateway) []string {
 		"-gateway-host", "$(IP)",
 		"-gateway-ports", strings.Join(ports, ","),
 		"-gateway-name", gw.Name,
+		"-consul-http-address", consulAddressFor(gw),
+		"-consul-http-port", httpPortFor(gw),
+		"-consul-xds-port", xdsPortFor(gw),
+		"-envoy-bootstrap-path", "/bootstrap/envoy.json",
 	}
-	consulHTTPAddress := gw.Annotations[annotationConsulHTTPAddress]
-	if consulHTTPAddress != "" {
-		initCommand = append(initCommand, "-consul-http-address", consulHTTPAddress)
-	} else {
-		initCommand = append(initCommand, "-consul-http-address", "$(HOST_IP):8500")
-	}
+
 	authMethod := gw.Annotations[annotationServiceAuthMethod]
 	if authMethod != "" {
 		initCommand = append(initCommand, "-acl-auth-method", authMethod)
@@ -429,6 +436,34 @@ func containerPortsFor(gw *gateway.Gateway) []corev1.ContainerPort {
 		ports = append(ports, port)
 	}
 	return ports
+}
+
+func consulAddressFor(gw *gateway.Gateway) string {
+	consulAddress := gw.Annotations[annotationConsulHTTPAddress]
+	if consulAddress == "" {
+		return defaultConsulAddress
+	}
+	return consulAddress
+}
+
+func xdsPortFor(gw *gateway.Gateway) string {
+	port := gw.Annotations[annotationConsulXDSPort]
+	_, err := strconv.Atoi(port)
+	if err != nil || port == "" {
+		// if we encounter an error, just ignore the annotation
+		return defaultConsulXDSPort
+	}
+	return port
+}
+
+func httpPortFor(gw *gateway.Gateway) string {
+	port := gw.Annotations[annotationConsulHTTPPort]
+	_, err := strconv.Atoi(port)
+	if err != nil || port == "" {
+		// if we encounter an error, just ignore the annotation
+		return defaultConsulHTTPPort
+	}
+	return port
 }
 
 func hostPortIsStatic(gw *gateway.Gateway) bool {

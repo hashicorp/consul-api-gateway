@@ -16,10 +16,9 @@ kind: Gateway
 metadata:
   name: test-gateway
   annotations:
-    "polar.hashicorp.com/node-selector": >
-      {"ingress-ready":"true"}
     "polar.hashicorp.com/use-host-ports": "true"
-    "polar.hashicorp.com/consul-http-address": "host.docker.internal:443"
+    "polar.hashicorp.com/consul-http-address": "host.docker.internal"
+    "polar.hashicorp.com/consul-http-port": "443"
     "polar.hashicorp.com/image": "polar:1"
     "polar.hashicorp.com/auth-method": "polar"
     "polar.hashicorp.com/service-account": "polar"

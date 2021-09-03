@@ -42,7 +42,9 @@ type Command struct {
 
 	// Consul params
 	flagConsulHTTPAddress string // Address for Consul HTTP API.
+	flagConsulHTTPPort    int    // Port for Consul HTTP communication
 	flagConsulCACertFile  string // Root CA file for Consul
+	flagConsulXDSPort     int    // Port for Consul xDS communication
 
 	// Gateway params
 	flagGatewayID          string // Gateway iD.
@@ -50,6 +52,9 @@ type Command struct {
 	flagGatewayPortsString string // Gateway ports.
 	flagGatewayName        string // Gateway name.
 	flagGatewayNamespace   string // Gateway namespace.
+
+	// Envoy params
+	flagBootstrapPath string // Path for config file for bootstrapping envoy
 
 	// Auth
 	flagACLAuthMethod       string // Auth Method to use for ACLs, if enabled.
@@ -71,7 +76,10 @@ type Command struct {
 func (c *Command) init() {
 	c.flagSet = flag.NewFlagSet("", flag.ContinueOnError)
 	c.flagSet.StringVar(&c.flagConsulHTTPAddress, "consul-http-address", "", "Address of Consul.")
+	c.flagSet.IntVar(&c.flagConsulHTTPPort, "consul-http-port", 8500, "Port of Consul HTTP server.")
+	c.flagSet.IntVar(&c.flagConsulXDSPort, "consul-xds-port", 8082, "Port of Consul xDS server.")
 	c.flagSet.StringVar(&c.flagConsulCACertFile, "consul-ca-cert-file", "", "CA Root file for Consul.")
+	c.flagSet.StringVar(&c.flagBootstrapPath, "envoy-bootstrap-path", "", "Path to the config file for bootstrapping Envoy.")
 	c.flagSet.StringVar(&c.flagGatewayID, "gateway-id", "", "ID of the gateway.")
 	c.flagSet.StringVar(&c.flagGatewayHost, "gateway-host", "", "Host of the gateway.")
 	c.flagSet.StringVar(&c.flagGatewayPortsString, "gateway-ports", "", "Ports of the gateway.")
@@ -126,8 +134,9 @@ func (c *Command) Run(args []string) (ret int) {
 		return 1
 	}
 
+	hostPort := fmt.Sprintf("%s:%d", c.flagConsulHTTPAddress, c.flagConsulHTTPPort)
 	cfg := api.DefaultConfig()
-	cfg.Address = c.flagConsulHTTPAddress
+	cfg.Address = hostPort
 	if c.flagConsulCACertFile != "" {
 		cfg.Scheme = "https"
 		cfg.TLSConfig.CAFile = c.flagConsulCACertFile
@@ -139,9 +148,10 @@ func (c *Command) Run(args []string) (ret int) {
 	}
 
 	// First do the ACL Login, if necessary.
+	var token string
 	if c.flagACLAuthMethod != "" {
 		c.logger.Debug("logging in to consul")
-		consulClient, err = c.login(ctx, consulClient, cfg)
+		consulClient, token, err = c.login(ctx, consulClient, cfg)
 		if err != nil {
 			c.logger.Error("error logging into consul", "error", err)
 			return 1
@@ -177,6 +187,14 @@ func (c *Command) Run(args []string) (ret int) {
 	envoyManager := consul.NewEnvoyManager(
 		c.logger.Named("envoy-manager"),
 		c.gatewayPorts,
+		consul.EnvoyManagerConfig{
+			ID:                registry.ID(),
+			ConsulCA:          c.flagConsulCACertFile,
+			ConsulAddress:     c.flagConsulHTTPAddress,
+			ConsulXDSPort:     c.flagConsulXDSPort,
+			BootstrapFilePath: c.flagBootstrapPath,
+			Token:             token,
+		},
 	)
 	certManager := consul.NewCertManager(
 		c.logger.Named("cert-manager"),
@@ -184,6 +202,7 @@ func (c *Command) Run(args []string) (ret int) {
 		c.flagGatewayName,
 		nil,
 	)
+	envoyManager.RenderBootstrap(certManager)
 
 	group, groupCtx := errgroup.WithContext(ctx)
 	group.Go(func() error {
@@ -228,6 +247,9 @@ func (c *Command) validateFlags() error {
 	if c.flagGatewayName == "" {
 		return errors.New("-gateway-name must be set")
 	}
+	if c.flagBootstrapPath == "" {
+		return errors.New("-envoy-bootstrap-path must be set")
+	}
 	if c.flagGatewayID == "" {
 		c.flagGatewayID = uuid.New().String()
 	}
@@ -251,10 +273,10 @@ func (c *Command) validateFlags() error {
 	return nil
 }
 
-func (c *Command) login(ctx context.Context, client *api.Client, cfg *api.Config) (*api.Client, error) {
+func (c *Command) login(ctx context.Context, client *api.Client, cfg *api.Config) (*api.Client, string, error) {
 	data, err := os.ReadFile(c.flagBearerTokenFile)
 	if err != nil {
-		return nil, fmt.Errorf("error reading bearer token: %w", err)
+		return nil, "", fmt.Errorf("error reading bearer token: %w", err)
 	}
 	bearerToken := strings.TrimSpace(string(data))
 
@@ -266,16 +288,16 @@ func (c *Command) login(ctx context.Context, client *api.Client, cfg *api.Config
 	).Authenticate(ctx, c.flagGatewayName, bearerToken)
 
 	if err != nil {
-		return nil, fmt.Errorf("error logging in to consul: %w", err)
+		return nil, "", fmt.Errorf("error logging in to consul: %w", err)
 	}
 
 	// Now update the client so that it will read the ACL token we just fetched.
 	cfg.Token = token
 	newClient, err := api.NewClient(cfg)
 	if err != nil {
-		return nil, fmt.Errorf("error updating client connection with token: %w", err)
+		return nil, "", fmt.Errorf("error updating client connection with token: %w", err)
 	}
-	return newClient, nil
+	return newClient, token, nil
 }
 
 func (c *Command) Synopsis() string {

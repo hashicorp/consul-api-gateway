@@ -1,11 +1,13 @@
 package consul
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"os"
 	"path"
+	"text/template"
 	"time"
 
 	"github.com/cenkalti/backoff"
@@ -17,10 +19,50 @@ const (
 	RootCAFile           = "root-ca.pem"
 	ClientCertFile       = "client.crt"
 	ClientPrivateKeyFile = "client.pem"
+	SDSCertConfigFile    = "tls-sds.json"
+	SDSCAConfigFile      = "validation-context-sds.json"
 
 	defaultCertificateDirectory = "/certs"
 	defaultSignalOnNWrites      = 1
 )
+
+var (
+	sdsClusterTemplate    = template.New("sdsCluster")
+	sdsCertConfigTemplate = template.New("sdsCert")
+	sdsCAConfigTemplate   = template.New("sdsCA")
+)
+
+type sdsClusterArgs struct {
+	Name              string
+	CertSDSConfigPath string
+	CASDSConfigPath   string
+	SDSAddress        string
+	SDSPort           int
+}
+
+type sdsCertConfigArgs struct {
+	CertPath           string
+	CertPrivateKeyPath string
+}
+
+type sdsCAConfigArgs struct {
+	CAPath string
+}
+
+func init() {
+	_, err := sdsClusterTemplate.Parse(sdsClusterJSONTemplate)
+	if err != nil {
+		panic(err)
+	}
+	_, err = sdsCertConfigTemplate.Parse(sdsCertConfigJSONTemplate)
+	if err != nil {
+		panic(err)
+	}
+	_, err = sdsCAConfigTemplate.Parse(sdsCAConfigJSONTemplate)
+	if err != nil {
+		panic(err)
+	}
+}
 
 // CertManagerOptions contains the optional configuration used to initialize a CertManager.
 type CertManagerOptions struct {
@@ -170,3 +212,137 @@ func (c *CertManager) Wait(ctx context.Context) error {
 	}
 	return nil
 }
+
+func (c *CertManager) SDSConfig() (string, error) {
+	var (
+		sdsCertConfig bytes.Buffer
+		sdsCAConfig   bytes.Buffer
+		sdsConfig     bytes.Buffer
+	)
+
+	rootCAFile := path.Join(c.directory, RootCAFile)
+	clientCertFile := path.Join(c.directory, ClientCertFile)
+	clientPrivateKeyFile := path.Join(c.directory, ClientPrivateKeyFile)
+
+	sdsCertConfigPath := path.Join(c.directory, SDSCertConfigFile)
+	sdsCAConfigPath := path.Join(c.directory, SDSCAConfigFile)
+
+	// write the cert and ca configs to disk first
+
+	if err := sdsCertConfigTemplate.Execute(&sdsCertConfig, &sdsCertConfigArgs{
+		CertPath:           clientCertFile,
+		CertPrivateKeyPath: clientPrivateKeyFile,
+	}); err != nil {
+		return "", err
+	}
+	if err := sdsCAConfigTemplate.Execute(&sdsCAConfig, &sdsCAConfigArgs{
+		CAPath: rootCAFile,
+	}); err != nil {
+		return "", err
+	}
+	if err := os.WriteFile(sdsCertConfigPath, sdsCertConfig.Bytes(), 0600); err != nil {
+		return "", err
+	}
+	if err := os.WriteFile(sdsCAConfigPath, sdsCAConfig.Bytes(), 0600); err != nil {
+		return "", err
+	}
+
+	// now render out the json for the sds config itself and return it
+
+	if err := sdsClusterTemplate.Execute(&sdsConfig, &sdsClusterArgs{
+		Name:              "sds-cluster",
+		CertSDSConfigPath: sdsCertConfigPath,
+		CASDSConfigPath:   sdsCAConfigPath,
+		SDSAddress:        "host.docker.internal",
+		SDSPort:           9090,
+	}); err != nil {
+		return "", err
+	}
+
+	return sdsConfig.String(), nil
+}
+
+const sdsClusterJSONTemplate = `
+{
+  "name":"{{ .Name }}",
+  "connect_timeout":"5s",
+  "type":"STATIC",
+  "transport_socket":{
+     "name":"tls",
+     "typed_config":{
+        "@type":"type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext",
+        "common_tls_context":{
+           "tls_certificate_sds_secret_configs":[
+              {
+                 "name":"tls_sds",
+                 "sds_config":{
+                    "path":"{{ .CertSDSConfigPath }}"
+                 }
+              }
+           ],
+           "validation_context_sds_secret_config":{
+              "name":"validation_context_sds",
+              "sds_config":{
+                 "path":"{{ .CASDSConfigPath }}"
+              }
+           }
+        }
+     }
+  },
+  "http2_protocol_options":{},
+  "loadAssignment":{
+     "clusterName":"{{ .Name }}",
+     "endpoints":[
+        {
+           "lbEndpoints":[
+              {
+                 "endpoint":{
+                    "address":{
+                       "socket_address":{
+                          "address":"{{ .SDSAddress }}",
+                          "port_value":{{ .SDSPort }}
+                       }
+                    }
+                 }
+              }
+           ]
+        }
+     ]
+  }
+}
+`
+
+const sdsCertConfigJSONTemplate = `
+{
+   "resources": [
+     {
+       "@type": "type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.Secret",
+       "name": "tls_sds",
+       "tls_certificate": {
+         "certificate_chain": {
+           "filename": "{{ .CertPath }}"
+         },
+         "private_key": {
+           "filename": "{{ .CertPrivateKeyPath }}"
+         }
+       }
+     }
+   ]
+ }
+ `
+
+const sdsCAConfigJSONTemplate = `
+ {
+   "resources": [
+     {
+       "@type": "type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.Secret",
+       "name": "validation_context_sds",
+       "validation_context": {
+         "trusted_ca": {
+           "filename": "{{ .CAPath }}"
+         }
+       }
+     }
+   ]
+ }
+ `
