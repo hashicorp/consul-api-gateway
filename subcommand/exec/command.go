@@ -20,6 +20,7 @@ import (
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/polar/internal/consul"
+	"github.com/hashicorp/polar/internal/envoy"
 )
 
 // https://github.com/hashicorp/consul-k8s/blob/24be51c58461e71365ca39f113dae0379f7a1b7c/control-plane/connect-inject/container_init.go#L272-L306
@@ -203,9 +204,9 @@ func (c *Command) Run(args []string) (ret int) {
 		}
 	}()
 
-	envoyManager := consul.NewEnvoyManager(
+	envoyManager := envoy.NewManager(
 		c.logger.Named("envoy-manager"),
-		consul.EnvoyManagerConfig{
+		envoy.ManagerConfig{
 			ID:                registry.ID(),
 			ConsulCA:          c.flagConsulCACertFile,
 			ConsulAddress:     c.flagConsulHTTPAddress,

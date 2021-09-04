@@ -4,17 +4,25 @@ import (
 	"context"
 	"flag"
 	"io/ioutil"
-	"net"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/mitchellh/cli"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
+	"github.com/hashicorp/polar/internal/consul"
+	"github.com/hashicorp/polar/internal/envoy"
 	"github.com/hashicorp/polar/k8s"
+)
+
+const (
+	// The amount of time to wait for the first cert write
+	defaultCertWaitTime = 1 * time.Minute
 )
 
 type Command struct {
@@ -25,7 +33,6 @@ type Command struct {
 	flagCASecret          string // CA Secret for Consul server
 	flagCASecretNamespace string // CA Secret namespace for Consul server
 	flagConsulAddress     string // Consul server address
-	flagAddress           string // Server address
 
 	flagSet *flag.FlagSet
 	once    sync.Once
@@ -37,11 +44,28 @@ func (c *Command) init() {
 	c.flagSet.StringVar(&c.flagCASecret, "ca-secret", "", "CA Secret for Consul server.")
 	c.flagSet.StringVar(&c.flagCASecretNamespace, "ca-secret-namespace", "", "CA Secret namespace for Consul server.")
 	c.flagSet.StringVar(&c.flagConsulAddress, "consul-address", "", "Consul Address.")
-	c.flagSet.StringVar(&c.flagAddress, "address", "", "Address for this server which can be injected into polar containers")
 }
 
 func (c *Command) Run(args []string) int {
 	c.once.Do(c.init)
+
+	// Set up signal handlers and global context
+	ctx := context.Background()
+	ctx, cancel := context.WithCancel(ctx)
+	interrupt := make(chan os.Signal, 1)
+	signal.Notify(interrupt, os.Interrupt, syscall.SIGTERM)
+	defer func() {
+		signal.Stop(interrupt)
+		cancel()
+	}()
+	go func() {
+		select {
+		case <-interrupt:
+			c.logger.Debug("received shutdown signal")
+			cancel()
+		case <-ctx.Done():
+		}
+	}()
 
 	if err := c.flagSet.Parse(args); err != nil {
 		return 1
@@ -52,16 +76,6 @@ func (c *Command) Run(args []string) int {
 
 	consulCfg := api.DefaultConfig()
 	cfg := k8s.Defaults()
-
-	if c.flagAddress == "" {
-		address, err := defaultIP()
-		if err != nil {
-			c.UI.Error("An error occurred getting the default IP address of the server:\n\t" + err.Error())
-			return 1
-		}
-		c.flagAddress = address
-	}
-	cfg.ServerAnnouncementAddress = c.flagAddress
 
 	if c.flagCAFile != "" {
 		consulCfg.TLSConfig.CAFile = c.flagCAFile
@@ -101,29 +115,53 @@ func (c *Command) Run(args []string) int {
 		c.UI.Error("An error occurred creating a Consul API client:\n\t" + err.Error())
 		return 1
 	}
-
 	controller.SetConsul(consulClient)
 
-	// wait for signal
-	signalCh := make(chan os.Signal, 10)
-	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)
+	directory, err := os.MkdirTemp("", "polar-controller")
+	if err != nil {
+		c.logger.Error("error making temporary directory", "error", err)
+		return 1
+	}
+	options := consul.DefaultCertManagerOptions()
+	options.Directory = directory
+	certManager := consul.NewCertManager(
+		c.logger.Named("cert-manager"),
+		consulClient,
+		"polar-controller",
+		options,
+	)
+	group, groupCtx := errgroup.WithContext(ctx)
+	group.Go(func() error {
+		c.logger.Debug("running cert manager")
+		return certManager.Manage(groupCtx)
+	})
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	if err := controller.Start(ctx); err != nil {
-		c.UI.Error("An error occurred starting the kubernetes controller:\n\t" + err.Error())
+	// wait until we've written once before booting envoy
+	waitCtx, waitCancel := context.WithTimeout(ctx, defaultCertWaitTime)
+	defer waitCancel()
+	c.logger.Debug("waiting for initial certs to be written")
+	if err := certManager.Wait(waitCtx); err != nil {
+		c.logger.Error("timeout waiting for certs to be written", "error", err)
+		return 1
 	}
 
-	for {
-		select {
-		case sig := <-signalCh:
-			c.logger.Info("Caught", "signal", sig)
-			c.logger.Info("Shutting down server...")
-			return 0
-		case <-controller.Failed():
-			return 1
-		}
+	server := envoy.NewSDSServer(c.logger.Named("sds-server"), certManager)
+	group.Go(func() error {
+		c.logger.Debug("running sds-server")
+		return server.Run(groupCtx)
+	})
+	group.Go(func() error {
+		c.logger.Debug("running controller")
+		return controller.Start(groupCtx)
+	})
+
+	if err := group.Wait(); err != nil {
+		c.logger.Error("unexpected error", "error", err)
+		return 1
 	}
+
+	c.logger.Info("shutting down")
+	return 0
 }
 
 func (c *Command) Synopsis() string {
@@ -132,13 +170,4 @@ func (c *Command) Synopsis() string {
 
 func (c *Command) Help() string {
 	return ""
-}
-
-func defaultIP() (string, error) {
-	conn, err := net.Dial("udp", "8.8.8.8:53")
-	if err != nil {
-		return "", err
-	}
-	defer conn.Close()
-	return conn.LocalAddr().(*net.UDPAddr).IP.String(), nil
 }

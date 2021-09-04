@@ -14,6 +14,7 @@ import (
 	"github.com/cenkalti/backoff"
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
+	"github.com/hashicorp/polar/internal/common"
 )
 
 const (
@@ -295,7 +296,7 @@ func (c *CertManager) RenderSDSConfig() (string, error) {
 		Name:              "sds-cluster",
 		CertSDSConfigPath: sdsCertConfigPath,
 		CASDSConfigPath:   sdsCAConfigPath,
-		AddressType:       addressTypeForAddress(c.sdsAddress),
+		AddressType:       common.AddressTypeForAddress(c.sdsAddress),
 		SDSAddress:        c.sdsAddress,
 		SDSPort:           c.sdsPort,
 	}); err != nil {

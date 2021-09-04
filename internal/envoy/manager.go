@@ -1,4 +1,4 @@
-package consul
+package envoy
 
 import (
 	"bytes"
@@ -7,6 +7,8 @@ import (
 	"os"
 	"os/exec"
 	"text/template"
+
+	"github.com/hashicorp/polar/internal/common"
 
 	"github.com/hashicorp/go-hclog"
 )
@@ -36,7 +38,7 @@ func init() {
 	}
 }
 
-type EnvoyManagerConfig struct {
+type ManagerConfig struct {
 	ID                string
 	ConsulCA          string
 	ConsulAddress     string
@@ -46,20 +48,20 @@ type EnvoyManagerConfig struct {
 	LogLevel          string
 }
 
-type EnvoyManager struct {
+type Manager struct {
 	logger hclog.Logger
 
-	EnvoyManagerConfig
+	ManagerConfig
 }
 
-func NewEnvoyManager(logger hclog.Logger, config EnvoyManagerConfig) *EnvoyManager {
-	return &EnvoyManager{
-		logger:             logger,
-		EnvoyManagerConfig: config,
+func NewManager(logger hclog.Logger, config ManagerConfig) *Manager {
+	return &Manager{
+		logger:        logger,
+		ManagerConfig: config,
 	}
 }
 
-func (m *EnvoyManager) Run(ctx context.Context) error {
+func (m *Manager) Run(ctx context.Context) error {
 	cmd := exec.CommandContext(ctx, "envoy", "-l", m.LogLevel, "--log-format", logFormatString, "-c", m.BootstrapFilePath)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -71,7 +73,7 @@ func (m *EnvoyManager) Run(ctx context.Context) error {
 	return err
 }
 
-func (m *EnvoyManager) RenderBootstrap(sdsConfig string) error {
+func (m *Manager) RenderBootstrap(sdsConfig string) error {
 	var bootstrapConfig bytes.Buffer
 	if err := bootstrapTemplate.Execute(&bootstrapConfig, &bootstrapArgs{
 		SDSCluster:    sdsConfig,
@@ -79,7 +81,7 @@ func (m *EnvoyManager) RenderBootstrap(sdsConfig string) error {
 		ConsulCA:      m.ConsulCA,
 		ConsulAddress: m.ConsulAddress,
 		ConsulXDSPort: m.ConsulXDSPort,
-		AddressType:   addressTypeForAddress(m.ConsulAddress),
+		AddressType:   common.AddressTypeForAddress(m.ConsulAddress),
 		Token:         m.Token,
 	}); err != nil {
 		return err

@@ -36,34 +36,31 @@ func init() {
 }
 
 type Kubernetes struct {
-	k8sManager                ctrl.Manager
-	consul                    *api.Client
-	logger                    hclog.Logger
-	k8sStatus                 *object.StatusWorker
-	serverAnnouncementAddress string
+	k8sManager ctrl.Manager
+	consul     *api.Client
+	logger     hclog.Logger
+	k8sStatus  *object.StatusWorker
 
 	failed chan struct{}
 }
 
 type Options struct {
-	CACertSecretNamespace     string
-	CACertSecret              string
-	CACertFile                string
-	ServerAnnouncementAddress string
-	MetricsBindAddr           string
-	HealthProbeBindAddr       string
-	WebhookPort               int
+	CACertSecretNamespace string
+	CACertSecret          string
+	CACertFile            string
+	MetricsBindAddr       string
+	HealthProbeBindAddr   string
+	WebhookPort           int
 }
 
 func Defaults() *Options {
 	return &Options{
-		CACertSecretNamespace:     "default",
-		CACertSecret:              "",
-		CACertFile:                "",
-		ServerAnnouncementAddress: "localhost",
-		MetricsBindAddr:           ":8080",
-		HealthProbeBindAddr:       ":8081",
-		WebhookPort:               8443,
+		CACertSecretNamespace: "default",
+		CACertSecret:          "",
+		CACertFile:            "",
+		MetricsBindAddr:       ":8080",
+		HealthProbeBindAddr:   ":8081",
+		WebhookPort:           8443,
 	}
 }
 
@@ -112,10 +109,9 @@ func New(logger hclog.Logger, opts *Options) (*Kubernetes, error) {
 	}
 
 	return &Kubernetes{
-		k8sManager:                mgr,
-		serverAnnouncementAddress: opts.ServerAnnouncementAddress,
-		logger:                    logger.Named("k8s"),
-		failed:                    make(chan struct{}),
+		k8sManager: mgr,
+		logger:     logger.Named("k8s"),
+		failed:     make(chan struct{}),
 	}, nil
 }
 
@@ -132,11 +128,10 @@ func (k *Kubernetes) Start(ctx context.Context) error {
 
 	consulMgr := reconciler.NewReconcileManager(ctx, k.consul, k.k8sManager.GetClient().Status(), k.logger.Named("consul"))
 	err := (&controllers.GatewayReconciler{
-		Client:                    k.k8sManager.GetClient(),
-		Log:                       klogger.WithName("controllers").WithName("Gateway"),
-		Scheme:                    k.k8sManager.GetScheme(),
-		Manager:                   consulMgr,
-		ServerAnnouncementAddress: k.serverAnnouncementAddress,
+		Client:  k.k8sManager.GetClient(),
+		Log:     klogger.WithName("controllers").WithName("Gateway"),
+		Scheme:  k.k8sManager.GetScheme(),
+		Manager: consulMgr,
 	}).SetupWithManager(k.k8sManager)
 	if err != nil {
 		return fmt.Errorf("failed to create gateway controller: %w", err)

@@ -61,6 +61,10 @@ const (
 	annotationConsulScheme = "polar.hashicorp.com/consul-http-scheme"
 	// The location of a secret to mount with the consul root CA information
 	annotationConsulCASecret = "polar.hashicorp.com/consul-ca-secret"
+	// The SDS server address for Envoy secrets
+	annotationSDSServerAddress = "polar.hashicorp.com/envoy-sds-server-address"
+	// The SDS server port for Envoy secrets
+	annotationSDSServerPort = "polar.hashicorp.com/envoy-sds-server-port"
 
 	defaultEnvoyImage     = "envoyproxy/envoy:v1.18-latest"
 	defaultLogLevel       = "info"
@@ -69,14 +73,15 @@ const (
 	defaultConsulScheme   = "https"
 	defaultConsulHTTPPort = "8500"
 	defaultConsulXDSPort  = "8502"
+	defaultSDSAddress     = "polar-controller.default.svc.cluster.local"
+	defaultSDSPort        = "9090"
 )
 
 // GatewayReconciler reconciles a Gateway object
 type GatewayReconciler struct {
 	clientruntime.Client
-	Log                       logr.Logger
-	Scheme                    *runtime.Scheme
-	ServerAnnouncementAddress string
+	Log    logr.Logger
+	Scheme *runtime.Scheme
 
 	Manager *reconciler.GatewayReconcileManager
 }
@@ -118,7 +123,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			return ctrl.Result{}, err
 		}
 		// Create deployment for the gateway
-		deployment := DeploymentFor(gw, r.ServerAnnouncementAddress)
+		deployment := DeploymentFor(gw)
 		// Create service for the gateway
 		service := ServiceFor(gw)
 
@@ -208,7 +213,7 @@ func ServiceFor(gw *gateway.Gateway) *corev1.Service {
 }
 
 // DeploymentsFor returns the deployment configuration for the given gateway.
-func DeploymentFor(gw *gateway.Gateway, sdsServerAddress string) *appsv1.Deployment {
+func DeploymentFor(gw *gateway.Gateway) *appsv1.Deployment {
 	labels := labelsFor(gw)
 	return &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -224,13 +229,13 @@ func DeploymentFor(gw *gateway.Gateway, sdsServerAddress string) *appsv1.Deploym
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: labels,
 				},
-				Spec: podSpecFor(gw, sdsServerAddress),
+				Spec: podSpecFor(gw),
 			},
 		},
 	}
 }
 
-func podSpecFor(gw *gateway.Gateway, sdsServerAddress string) corev1.PodSpec {
+func podSpecFor(gw *gateway.Gateway) corev1.PodSpec {
 	volumes, mounts := volumesFor(gw)
 	return corev1.PodSpec{
 		NodeSelector:       nodeSelectorFor(gw),
@@ -269,13 +274,13 @@ func podSpecFor(gw *gateway.Gateway, sdsServerAddress string) corev1.PodSpec {
 					},
 				},
 			},
-			Command: execCommandFor(gw, sdsServerAddress),
+			Command: execCommandFor(gw),
 		}},
 		Volumes: volumes,
 	}
 }
 
-func execCommandFor(gw *gateway.Gateway, sdsServerAddress string) []string {
+func execCommandFor(gw *gateway.Gateway) []string {
 	ports := []string{}
 	for _, listener := range gw.Spec.Listeners {
 		namedPort := fmt.Sprintf("%s:%s:%d", listener.Protocol, listener.Name, listener.Port)
@@ -292,7 +297,8 @@ func execCommandFor(gw *gateway.Gateway, sdsServerAddress string) []string {
 		"-consul-http-port", httpPortFor(gw),
 		"-consul-xds-port", xdsPortFor(gw),
 		"-envoy-bootstrap-path", "/bootstrap/envoy.json",
-		"-envoy-sds-address", sdsServerAddress,
+		"-envoy-sds-address", sdsServerAddressFor(gw),
+		"-envoy-sds-port", sdsServerPortFor(gw),
 	}
 
 	authMethod := gw.Annotations[annotationServiceAuthMethod]
@@ -446,6 +452,24 @@ func consulAddressFor(gw *gateway.Gateway) string {
 		return defaultConsulAddress
 	}
 	return consulAddress
+}
+
+func sdsServerAddressFor(gw *gateway.Gateway) string {
+	sdsAddress := gw.Annotations[annotationSDSServerAddress]
+	if sdsAddress == "" {
+		return defaultSDSAddress
+	}
+	return sdsAddress
+}
+
+func sdsServerPortFor(gw *gateway.Gateway) string {
+	port := gw.Annotations[annotationSDSServerPort]
+	_, err := strconv.Atoi(port)
+	if err != nil || port == "" {
+		// if we encounter an error, just ignore the annotation
+		return defaultSDSPort
+	}
+	return port
 }
 
 func xdsPortFor(gw *gateway.Gateway) string {

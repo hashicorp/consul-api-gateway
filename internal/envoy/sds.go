@@ -5,7 +5,9 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"net"
 	"os"
+	"time"
 
 	envoy_discovery_v3 "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
 	envoy_secret_v3 "github.com/envoyproxy/go-control-plane/envoy/service/secret/v3"
@@ -18,12 +20,18 @@ import (
 	"github.com/hashicorp/polar/internal/consul"
 )
 
+const (
+	defaultGRPCPort        = ":9090"
+	defaultShutdownTimeout = 10 * time.Second
+)
+
 type SDSStream = envoy_secret_v3.SecretDiscoveryService_StreamSecretsServer
 type SDSDelta = envoy_secret_v3.SecretDiscoveryService_DeltaSecretsServer
 
 type SDSServer struct {
 	logger  hclog.Logger
 	manager *consul.CertManager
+	server  *grpc.Server
 }
 
 func NewSDSServer(logger hclog.Logger, manager *consul.CertManager) *SDSServer {
@@ -49,17 +57,20 @@ func (s *SDSServer) FetchSecrets(context context.Context, request *envoy_discove
 }
 
 // GRPC returns a server instance that can handle xDS requests.
-func (s *SDSServer) GRPC() (*grpc.Server, error) {
+func (s *SDSServer) Run(ctx context.Context) error {
+	childCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	grpclog.SetLoggerV2(grpclog.NewLoggerV2WithVerbosity(os.Stdout, os.Stdout, os.Stdout, 2))
 
 	rootCA, err := s.manager.RootCA()
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	certPool := x509.NewCertPool()
 	if !certPool.AppendCertsFromPEM(rootCA) {
-		return nil, fmt.Errorf("failed to add server CA's certificate")
+		return fmt.Errorf("failed to add server CA's certificate")
 	}
 
 	opts := []grpc.ServerOption{
@@ -83,8 +94,35 @@ func (s *SDSServer) GRPC() (*grpc.Server, error) {
 			},
 		})),
 	}
-	srv := grpc.NewServer(opts...)
-	envoy_secret_v3.RegisterSecretDiscoveryServiceServer(srv, s)
+	s.server = grpc.NewServer(opts...)
+	envoy_secret_v3.RegisterSecretDiscoveryServiceServer(s.server, s)
 
-	return srv, nil
+	listener, err := net.Listen("tcp", defaultGRPCPort)
+	if err != nil {
+		return err
+	}
+
+	go func() {
+		<-childCtx.Done()
+		s.Shutdown()
+	}()
+	return s.server.Serve(listener)
+}
+
+func (s *SDSServer) Shutdown() {
+	if s.server != nil {
+		stopped := make(chan struct{})
+		go func() {
+			s.server.GracefulStop()
+			close(stopped)
+		}()
+
+		timer := time.NewTimer(defaultShutdownTimeout)
+		select {
+		case <-timer.C:
+			s.server.Stop()
+		case <-stopped:
+			timer.Stop()
+		}
+	}
 }
