@@ -40,8 +40,6 @@ type Kubernetes struct {
 	consul     *api.Client
 	logger     hclog.Logger
 	k8sStatus  *object.StatusWorker
-
-	failed chan struct{}
 }
 
 type Options struct {
@@ -111,7 +109,6 @@ func New(logger hclog.Logger, opts *Options) (*Kubernetes, error) {
 	return &Kubernetes{
 		k8sManager: mgr,
 		logger:     logger.Named("k8s"),
-		failed:     make(chan struct{}),
 	}, nil
 }
 
@@ -147,18 +144,5 @@ func (k *Kubernetes) Start(ctx context.Context) error {
 		return fmt.Errorf("failed to create http_route controller: %w", err)
 	}
 
-	go func() {
-		err := k.k8sManager.Start(ctx)
-		if err != nil {
-			k.logger.Error("fatal controller error occurred", "error", err)
-			close(k.failed)
-		}
-	}()
-
-	return nil
-}
-
-// Failed returns a channel which will be closed if a critical failure occurs with the controller
-func (k *Kubernetes) Failed() <-chan struct{} {
-	return k.failed
+	return k.k8sManager.Start(ctx)
 }
