@@ -32,6 +32,16 @@ spec:
         - annotations
         - -consul-http-address
         - consul.localhost
+        - -consul-http-port
+        - "8500"
+        - -consul-xds-port
+        - "8502"
+        - -envoy-bootstrap-path
+        - /bootstrap/envoy.json
+        - -envoy-sds-address
+        - polar-controller.default.svc.cluster.local
+        - -envoy-sds-port
+        - "9090"
         - -acl-auth-method
         - polar
         env:

@@ -31,7 +31,17 @@ spec:
         - -gateway-name
         - annotations
         - -consul-http-address
-        - $(HOST_IP):8500
+        - $(HOST_IP)
+        - -consul-http-port
+        - "8500"
+        - -consul-xds-port
+        - "8502"
+        - -envoy-bootstrap-path
+        - /bootstrap/envoy.json
+        - -envoy-sds-address
+        - polar-controller.default.svc.cluster.local
+        - -envoy-sds-port
+        - "9090"
         - -consul-ca-cert-file
         - /ca/tls.crt
         env:
