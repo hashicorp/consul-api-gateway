@@ -16,13 +16,11 @@ kind: Gateway
 metadata:
   name: test-gateway
   annotations:
-    "polar.hashicorp.com/use-host-ports": "true"
+    "polar.hashicorp.com/image": "polar:1"
+    "polar.hashicorp.com/envoy-sds-server-address": "host.docker.internal"
     "polar.hashicorp.com/consul-http-address": "host.docker.internal"
     "polar.hashicorp.com/consul-http-port": "443"
-    "polar.hashicorp.com/envoy-sds-server-address": "host.docker.internal"
-    "polar.hashicorp.com/image": "polar:1"
-    "polar.hashicorp.com/auth-method": "polar"
-    "polar.hashicorp.com/log-level": "debug"
+    "polar.hashicorp.com/consul-auth-method": "polar"
     "polar.hashicorp.com/service-account": "polar"
 spec:
   gatewayClassName: polar
@@ -40,13 +38,6 @@ spec:
       namespaces:
         from: Same
 EOF
-```
-
-You should be able to hit the gateway from your local host:
-
-```
-curl localhost:8083
-curl localhost:8443
 ```
 
 Clean up the gateway you just created:

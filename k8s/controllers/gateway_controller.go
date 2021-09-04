@@ -38,8 +38,6 @@ const (
 	annotationHostPortStatic = "polar.hashicorp.com/use-host-ports"
 	// An optional service account to run the gateway as.
 	annotationServiceAccount = "polar.hashicorp.com/service-account"
-	// The auth method used for consul kubernetes-based auth.
-	annotationServiceAuthMethod = "polar.hashicorp.com/auth-method"
 	// The image to use for polar.
 	annotationImage = "polar.hashicorp.com/image"
 	// The image to use for envoy.
@@ -60,12 +58,14 @@ const (
 	annotationConsulScheme = "polar.hashicorp.com/consul-http-scheme"
 	// The location of a secret to mount with the consul root CA information
 	annotationConsulCASecret = "polar.hashicorp.com/consul-ca-secret"
+	// The auth method used for consul kubernetes-based auth.
+	annotationServiceAuthMethod = "polar.hashicorp.com/consul-auth-method"
 	// The SDS server address for Envoy secrets
 	annotationSDSServerAddress = "polar.hashicorp.com/envoy-sds-server-address"
 	// The SDS server port for Envoy secrets
 	annotationSDSServerPort = "polar.hashicorp.com/envoy-sds-server-port"
 
-	defaultEnvoyImage     = "envoyproxy/envoy:v1.18-latest"
+	defaultEnvoyImage     = "envoyproxy/envoy:v1.19-latest"
 	defaultLogLevel       = "info"
 	defaultCASecret       = "consul-ca-cert"
 	defaultConsulAddress  = "$(HOST_IP)"

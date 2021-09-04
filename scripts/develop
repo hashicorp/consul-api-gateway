@@ -38,12 +38,6 @@ nodes:
   - containerPort: 8502
     hostPort: 8502
     protocol: TCP
-  - containerPort: 8083
-    hostPort: 8083
-    protocol: TCP
-  - containerPort: 8443
-    hostPort: 8443
-    protocol: TCP
 EOF
 }
 
