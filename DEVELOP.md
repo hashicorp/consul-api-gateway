@@ -19,7 +19,7 @@ metadata:
     "polar.hashicorp.com/use-host-ports": "true"
     "polar.hashicorp.com/consul-http-address": "host.docker.internal"
     "polar.hashicorp.com/consul-http-port": "443"
-    "polar.hashicorp.com/envoy-sds-address": "host.docker.internal"
+    "polar.hashicorp.com/envoy-sds-server-address": "host.docker.internal"
     "polar.hashicorp.com/image": "polar:1"
     "polar.hashicorp.com/auth-method": "polar"
     "polar.hashicorp.com/log-level": "debug"

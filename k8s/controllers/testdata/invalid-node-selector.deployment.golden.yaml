@@ -26,8 +26,6 @@ spec:
         - info
         - -gateway-host
         - $(IP)
-        - -gateway-ports
-        - HTTP:http:8080,HTTPS:https:8443
         - -gateway-name
         - invalid-node-selector
         - -consul-http-address
@@ -56,6 +54,9 @@ spec:
         image: envoyproxy/envoy:v1.18-latest
         name: polar
         ports:
+        - containerPort: 20000
+          name: ready
+          protocol: TCP
         - containerPort: 8080
           name: http
           protocol: TCP

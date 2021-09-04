@@ -26,8 +26,6 @@ spec:
         - info
         - -gateway-host
         - $(IP)
-        - -gateway-ports
-        - HTTP:http:8080,HTTPS:https:8443
         - -gateway-name
         - node-selector
         - -consul-http-address
@@ -58,6 +56,9 @@ spec:
         image: polar:1
         name: polar
         ports:
+        - containerPort: 20000
+          name: ready
+          protocol: TCP
         - containerPort: 8080
           name: http
           protocol: TCP

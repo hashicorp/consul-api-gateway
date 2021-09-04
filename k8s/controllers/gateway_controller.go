@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
-	"strings"
 
 	"github.com/go-logr/logr"
 	"github.com/prometheus/common/log"
@@ -281,17 +280,11 @@ func podSpecFor(gw *gateway.Gateway) corev1.PodSpec {
 }
 
 func execCommandFor(gw *gateway.Gateway) []string {
-	ports := []string{}
-	for _, listener := range gw.Spec.Listeners {
-		namedPort := fmt.Sprintf("%s:%s:%d", listener.Protocol, listener.Name, listener.Port)
-		ports = append(ports, namedPort)
-	}
 	initCommand := []string{
 		"/bootstrap/polar", "exec",
 		"-log-json",
 		"-log-level", logLevelFor(gw),
 		"-gateway-host", "$(IP)",
-		"-gateway-ports", strings.Join(ports, ","),
 		"-gateway-name", gw.Name,
 		"-consul-http-address", consulAddressFor(gw),
 		"-consul-http-port", httpPortFor(gw),
@@ -431,7 +424,11 @@ func servicePortsFor(gw *gateway.Gateway) []corev1.ServicePort {
 
 func containerPortsFor(gw *gateway.Gateway) []corev1.ContainerPort {
 	useStaticMapping := hostPortIsStatic(gw)
-	ports := []corev1.ContainerPort{}
+	ports := []corev1.ContainerPort{{
+		Name:          "ready",
+		Protocol:      "TCP",
+		ContainerPort: 20000,
+	}}
 	for _, listener := range gw.Spec.Listeners {
 		port := corev1.ContainerPort{
 			Name:          listener.Name,

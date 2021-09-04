@@ -26,8 +26,6 @@ spec:
         - info
         - -gateway-host
         - $(IP)
-        - -gateway-ports
-        - HTTP:http:80
         - -gateway-name
         - annotations
         - -consul-http-address
@@ -56,6 +54,9 @@ spec:
         image: envoyproxy/envoy:v1.18-latest
         name: polar
         ports:
+        - containerPort: 20000
+          name: ready
+          protocol: TCP
         - containerPort: 80
           name: http
           protocol: TCP

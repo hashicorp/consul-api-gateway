@@ -22,23 +22,19 @@ func TestRegister(t *testing.T) {
 	for _, test := range []struct {
 		name        string
 		host        string
-		port        int
 		failures    uint64
 		maxAttempts uint64
 		fail        bool
 	}{{
 		name: "basic-test",
-		port: 1234,
 		host: "localhost",
 	}, {
 		name:        "test-retries",
-		port:        1234,
 		host:        "localhost",
 		failures:    3,
 		maxAttempts: 3,
 	}, {
 		name:        "test-retries-fail",
-		port:        1234,
 		host:        "localhost",
 		failures:    3,
 		maxAttempts: 2,
@@ -55,8 +51,7 @@ func TestRegister(t *testing.T) {
 			}
 
 			server := runRegistryServer(t, test.failures, id)
-			ports := []NamedPort{{Port: test.port}}
-			registry := NewServiceRegistry(hclog.NewNullLogger(), server.consul, service, namespace, test.host, ports).WithTries(maxAttempts)
+			registry := NewServiceRegistry(hclog.NewNullLogger(), server.consul, service, namespace, test.host).WithTries(maxAttempts)
 			registry.backoffInterval = 0
 			registry.id = id
 
@@ -71,7 +66,7 @@ func TestRegister(t *testing.T) {
 			require.Equal(t, namespace, server.lastRegistrationRequest.Namespace)
 			require.Equal(t, test.host, server.lastRegistrationRequest.Address)
 			require.Len(t, server.lastRegistrationRequest.Checks, 1)
-			require.Equal(t, fmt.Sprintf("%s:%d", test.host, test.port), server.lastRegistrationRequest.Checks[0].TCP)
+			require.Equal(t, fmt.Sprintf("%s:20000", test.host), server.lastRegistrationRequest.Checks[0].TCP)
 		})
 	}
 }
@@ -105,7 +100,7 @@ func TestDeregister(t *testing.T) {
 			}
 
 			server := runRegistryServer(t, test.failures, id)
-			registry := NewServiceRegistry(hclog.NewNullLogger(), server.consul, service, "", "", []NamedPort{{}}).WithTries(maxAttempts)
+			registry := NewServiceRegistry(hclog.NewNullLogger(), server.consul, service, "", "").WithTries(maxAttempts)
 			registry.backoffInterval = 0
 			registry.id = id
 

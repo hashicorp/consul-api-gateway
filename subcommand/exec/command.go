@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -48,11 +47,10 @@ type Command struct {
 	flagConsulXDSPort     int    // Port for Consul xDS communication
 
 	// Gateway params
-	flagGatewayID          string // Gateway iD.
-	flagGatewayHost        string // Gateway host.
-	flagGatewayPortsString string // Gateway ports.
-	flagGatewayName        string // Gateway name.
-	flagGatewayNamespace   string // Gateway namespace.
+	flagGatewayID        string // Gateway iD.
+	flagGatewayHost      string // Gateway host.
+	flagGatewayName      string // Gateway name.
+	flagGatewayNamespace string // Gateway namespace.
 
 	// Envoy params
 	flagBootstrapPath    string // Path for config file for bootstrapping envoy
@@ -70,8 +68,7 @@ type Command struct {
 
 	flagSet *flag.FlagSet
 
-	logger       hclog.Logger
-	gatewayPorts []consul.NamedPort // Gateway ports.
+	logger hclog.Logger
 
 	once sync.Once
 }
@@ -95,7 +92,6 @@ func (c *Command) init() {
 		// Gateway
 		c.flagSet.StringVar(&c.flagGatewayID, "gateway-id", "", "ID of the gateway.")
 		c.flagSet.StringVar(&c.flagGatewayHost, "gateway-host", "", "Host of the gateway.")
-		c.flagSet.StringVar(&c.flagGatewayPortsString, "gateway-ports", "", "Ports of the gateway.")
 		c.flagSet.StringVar(&c.flagGatewayName, "gateway-name", "", "Name of the gateway.")
 		c.flagSet.StringVar(&c.flagGatewayNamespace, "gateway-namespace", "default", "Name of the gateway namespace.")
 	}
@@ -185,7 +181,6 @@ func (c *Command) Run(args []string) (ret int) {
 		c.flagGatewayName,
 		c.flagGatewayNamespace,
 		c.flagGatewayHost,
-		c.gatewayPorts,
 	)
 
 	c.logger.Debug("registering service")
@@ -273,9 +268,6 @@ func (c *Command) validateFlags() error {
 	if c.flagGatewayHost == "" {
 		return errors.New("-gateway-host must be set")
 	}
-	if c.flagGatewayPortsString == "" {
-		return errors.New("-gateway-ports must be set")
-	}
 	if c.flagGatewayName == "" {
 		return errors.New("-gateway-name must be set")
 	}
@@ -287,23 +279,6 @@ func (c *Command) validateFlags() error {
 	}
 	if c.flagGatewayID == "" {
 		c.flagGatewayID = uuid.New().String()
-	}
-	ports := strings.Split(c.flagGatewayPortsString, ",")
-	for _, port := range ports {
-		tokens := strings.SplitN(port, ":", 3)
-		if len(tokens) != 3 {
-			return fmt.Errorf("invalid named port: %s", port)
-		}
-		parsedPort, err := strconv.Atoi(tokens[2])
-		if err != nil {
-			return fmt.Errorf("invalid port: %w", err)
-		}
-		c.gatewayPorts = append(c.gatewayPorts, consul.NamedPort{
-			Address:  c.flagGatewayHost,
-			Port:     parsedPort,
-			Name:     tokens[1],
-			Protocol: tokens[0],
-		})
 	}
 	return nil
 }

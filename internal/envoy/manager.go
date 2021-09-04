@@ -91,12 +91,47 @@ func (m *Manager) RenderBootstrap(sdsConfig string) error {
 }
 
 const bootstrapJSONTemplate = `{
+	"admin": {
+    "access_log_path": "/dev/null",
+    "address": {
+      "socket_address": {
+        "address": "127.0.0.1",
+        "port_value": 19000
+      }
+    }
+  },
   "node": {
     "cluster": "{{ .ID }}",
     "id": "{{ .ID }}"
   },
   "static_resources": {
     "clusters": [
+			{
+        "name": "self_admin",
+        "ignore_health_on_host_removal": false,
+        "connect_timeout": "5s",
+        "type": "STATIC",
+        "http_protocol_options": {},
+        "loadAssignment": {
+          "clusterName": "self_admin",
+          "endpoints": [
+            {
+              "lbEndpoints": [
+                {
+                  "endpoint": {
+                    "address": {
+                      "socket_address": {
+                        "address": "127.0.0.1",
+                        "port_value": 19000
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        }
+			},
       {
         "name": "consul-server",
         "ignore_health_on_host_removal": false,
@@ -139,6 +174,66 @@ const bootstrapJSONTemplate = `{
         }
       },
 			{{ .SDSCluster }}
+    ],
+		"listeners": [
+      {
+        "name": "envoy_ready_listener",
+        "address": {
+          "socket_address": {
+            "address": "0.0.0.0",
+            "port_value": 20000
+          }
+        },
+        "filter_chains": [
+          {
+            "filters": [
+              {
+                "name": "envoy.filters.network.http_connection_manager",
+                "typedConfig": {
+                  "@type": "type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager",
+                  "stat_prefix": "envoy_ready",
+                  "codec_type": "HTTP1",
+                  "route_config": {
+                    "name": "self_admin_route",
+                    "virtual_hosts": [
+                      {
+                        "name": "self_admin",
+                        "domains": [
+                          "*"
+                        ],
+                        "routes": [
+                          {
+                            "match": {
+                              "path": "/ready"
+                            },
+                            "route": {
+                              "cluster": "self_admin",
+                              "prefix_rewrite": "/ready"
+                            }
+                          },
+                          {
+                            "match": {
+                              "prefix": "/"
+                            },
+                            "direct_response": {
+                              "status": 404
+                            }
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  "http_filters": [
+                    {
+                      "name": "envoy.filters.http.router"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      }
     ]
   },
   "dynamic_resources": {
