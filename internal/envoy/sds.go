@@ -76,7 +76,6 @@ func (s *SDSServer) Run(ctx context.Context) error {
 	opts := []grpc.ServerOption{
 		grpc.MaxConcurrentStreams(2048),
 		grpc.Creds(credentials.NewTLS(&tls.Config{
-			RootCAs: certPool,
 			GetCertificate: func(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
 				cert, err := s.manager.Certificate()
 				if err != nil {
