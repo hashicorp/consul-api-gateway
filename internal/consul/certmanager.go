@@ -14,6 +14,7 @@ import (
 	"github.com/cenkalti/backoff"
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
+
 	"github.com/hashicorp/polar/internal/common"
 )
 
