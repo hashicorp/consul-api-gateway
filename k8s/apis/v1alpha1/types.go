@@ -6,10 +6,9 @@ import (
 )
 
 // +genclient
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // GatewayClassConfig describes the configuration of a Polar GatewayClass.
-// +k8s:openapi-gen=true
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:resource:scope=Cluster
 type GatewayClassConfig struct {
 	metav1.TypeMeta `json:",inline"`
@@ -83,9 +82,8 @@ type AuthSpec struct {
 	Namespace string `json:"namespace,omitempty"`
 }
 
-//+kubebuilder:object:root=true
-
 // GatewayClassConfigList is a list of Config resources.
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type GatewayClassConfigList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata"`
