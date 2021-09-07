@@ -249,8 +249,17 @@ main() {
 
 usage() {
   echo -e "./scripts/develop [flags]"
+  echo -e ""
+  echo -e "Bootstraps a kind environment with Consul and ACLs enabled."
+  echo -e "When this script is run without flags it creates the"
+  echo -e "environment, cross-compiles polar, loads it into the kind"
+  echo -e "environment to use for gateway deployments, and builds"
+  echo -e "and runs a local polar controller instance. Subsequent"
+  echo -e "runs after the kind environment is already bootstrapped"
+  echo -e "should leverage the -l and -s flags."
+  echo -e ""
   echo -e "Dependencies:"
-  echo -e "\tkubectl, kind, consul, jq, docker, go, helm"
+  echo -e "\tkubectl, kind, consul, jq, docker, go, helm, kustomize"
   echo -e "Flags:"
   echo -e "  -l\tRebuild and load docker container into cluster"
   echo -e "  -d\tDestroy cluster"
