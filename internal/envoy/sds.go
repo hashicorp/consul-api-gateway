@@ -92,6 +92,8 @@ func (s *SDSServer) Run(ctx context.Context) error {
 				}
 				return &certificate, nil
 			},
+			ClientCAs:  certPool,
+			ClientAuth: tls.RequireAndVerifyClientCert,
 		})),
 	}
 	s.server = grpc.NewServer(opts...)
