@@ -28,6 +28,10 @@ const (
 	defaultSignalOnNWrites      = 1
 	defaultSDSAddress           = "localhost"
 	defaultSDSPort              = 9090
+
+	// if we're within certExpirationBuffer of a certificate
+	// expiring, request a new one
+	certExpirationBuffer = 10 * time.Minute
 )
 
 var (
@@ -71,11 +75,15 @@ func init() {
 
 // CertManagerOptions contains the optional configuration used to initialize a CertManager.
 type CertManagerOptions struct {
-	Directory       string
+	Directory  string
+	Tries      uint64
+	SDSAddress string
+	SDSPort    int
+
+	// This option allows us to signal when we've written N times to disk.
+	// The default value for this is 1, but for testing environments we can
+	// set it higher to allow for invoking certificate expiration logic.
 	SignalOnNWrites int
-	Tries           uint64
-	SDSAddress      string
-	SDSPort         int
 }
 
 // DefaultCertManagerOptions returns the default options for a CertManager instance.
@@ -101,9 +109,14 @@ type CertManager struct {
 	sdsAddress string
 	sdsPort    int
 
-	signalWrites int
-	writesLeft   int
-	writes       chan struct{}
+	// these help coordinate waiting for n writes to disk in WaitForWrite
+	// since we're writing to a signaling channel from the management loop
+	// that is run in a goroutine, we have two counters, one for how many
+	// writes we've done to the signaling channel, and one for how reads we
+	// have left on the channel
+	readsLeft  int
+	writesLeft int
+	writes     chan struct{}
 
 	tries           uint64
 	backoffInterval time.Duration
@@ -123,7 +136,7 @@ func NewCertManager(logger hclog.Logger, consul *api.Client, service string, opt
 		sdsPort:         options.SDSPort,
 		service:         service,
 		directory:       options.Directory,
-		signalWrites:    options.SignalOnNWrites,
+		readsLeft:       options.SignalOnNWrites,
 		writesLeft:      options.SignalOnNWrites,
 		writes:          make(chan struct{}, options.SignalOnNWrites),
 		tries:           options.Tries,
@@ -144,6 +157,11 @@ func (c *CertManager) Manage(ctx context.Context) error {
 			root, clientCert, err = c.getCerts(ctx)
 			if err != nil {
 				c.logger.Error("error requesting certificates", "error", err)
+				return err
+			}
+			err = c.persist(root, clientCert)
+			if err != nil {
+				c.logger.Error("error persisting certificates", "error", err)
 			}
 			return err
 		}, backoff.WithContext(backoff.WithMaxRetries(backoff.NewConstantBackOff(c.backoffInterval), c.tries), ctx))
@@ -155,12 +173,7 @@ func (c *CertManager) Manage(ctx context.Context) error {
 			return err
 		}
 
-		err = c.persist(root, clientCert)
-		if err != nil {
-			return err
-		}
-
-		expiresIn := time.Until(clientCert.ValidBefore)
+		expiresIn := time.Until(clientCert.ValidBefore.Add(-certExpirationBuffer))
 		select {
 		case <-time.After(expiresIn):
 			// loop
@@ -238,17 +251,17 @@ func (c *CertManager) PrivateKey() ([]byte, error) {
 	return os.ReadFile(path.Join(c.directory, ClientPrivateKeyFile))
 }
 
-// Wait acts as a signalling mechanism for when the certificates are
+// WaitForWrite acts as a signalling mechanism for when the certificates are
 // written to disk. It is intended to be used for use-cases where initial certificates
 // must be in place prior to being referenced by a consumer.
-func (c *CertManager) Wait(ctx context.Context) error {
+func (c *CertManager) WaitForWrite(ctx context.Context) error {
 	for {
-		if c.signalWrites <= 0 {
+		if c.readsLeft <= 0 {
 			break
 		}
 		select {
 		case <-c.writes:
-			c.signalWrites--
+			c.readsLeft--
 		case <-ctx.Done():
 			return errors.New("wait canceled")
 		}

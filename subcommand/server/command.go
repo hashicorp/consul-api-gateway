@@ -140,7 +140,7 @@ func (c *Command) Run(args []string) int {
 	waitCtx, waitCancel := context.WithTimeout(ctx, defaultCertWaitTime)
 	defer waitCancel()
 	c.logger.Debug("waiting for initial certs to be written")
-	if err := certManager.Wait(waitCtx); err != nil {
+	if err := certManager.WaitForWrite(waitCtx); err != nil {
 		c.logger.Error("timeout waiting for certs to be written", "error", err)
 		return 1
 	}

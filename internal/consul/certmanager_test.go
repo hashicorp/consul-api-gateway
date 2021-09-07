@@ -93,7 +93,7 @@ func TestManage(t *testing.T) {
 
 			initialized := make(chan struct{})
 			go func() {
-				manager.Wait(context.Background())
+				manager.WaitForWrite(context.Background())
 				close(initialized)
 			}()
 
@@ -129,7 +129,7 @@ func TestManage_WaitCancel(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Millisecond)
 	defer cancel()
 
-	err := NewCertManager(hclog.NewNullLogger(), nil, "", nil).Wait(ctx)
+	err := NewCertManager(hclog.NewNullLogger(), nil, "", nil).WaitForWrite(ctx)
 	require.Error(t, err)
 }
 
