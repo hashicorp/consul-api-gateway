@@ -6,18 +6,17 @@ import (
 	"crypto/x509"
 	"fmt"
 	"net"
-	"os"
 	"time"
 
 	envoy_discovery_v3 "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
 	envoy_secret_v3 "github.com/envoyproxy/go-control-plane/envoy/service/secret/v3"
-	"google.golang.org/grpc/grpclog"
-
+	"github.com/hashicorp/go-hclog"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/grpclog"
 
-	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/polar/internal/consul"
+	polarGRPC "github.com/hashicorp/polar/internal/grpc"
 )
 
 const (
@@ -61,7 +60,7 @@ func (s *SDSServer) Run(ctx context.Context) error {
 	childCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	grpclog.SetLoggerV2(grpclog.NewLoggerV2WithVerbosity(os.Stdout, os.Stdout, os.Stdout, 2))
+	grpclog.SetLoggerV2(polarGRPC.NewHCLogLogger(s.logger))
 
 	rootCA, err := s.manager.RootCA()
 	if err != nil {
