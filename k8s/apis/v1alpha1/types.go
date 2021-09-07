@@ -10,7 +10,7 @@ import (
 
 // GatewayClassConfig describes the configuration of a Polar GatewayClass.
 // +k8s:openapi-gen=true
-// +resource:path=resources
+// +kubebuilder:resource:scope=Cluster
 type GatewayClassConfig struct {
 	metav1.TypeMeta `json:",inline"`
 	// Standard object's metadata.
