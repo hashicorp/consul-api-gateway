@@ -9,6 +9,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	klogv2 "k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	clientruntime "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
@@ -67,6 +68,8 @@ func New(logger hclog.Logger, opts *Options) (*Kubernetes, error) {
 		opts = Defaults()
 	}
 
+	// this sets the internal logger that the kubernetes client uses
+	klogv2.SetLogger(log.FromHCLogger(logger.Named("kubernetes-client")))
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                  scheme,
 		MetricsBindAddress:      opts.MetricsBindAddr,
@@ -75,6 +78,7 @@ func New(logger hclog.Logger, opts *Options) (*Kubernetes, error) {
 		LeaderElection:          true,
 		LeaderElectionID:        polarLeaderElectionID,
 		LeaderElectionNamespace: "default",
+		Logger:                  log.FromHCLogger(logger.Named("controller-runtime")),
 	})
 
 	if err != nil {

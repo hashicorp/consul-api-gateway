@@ -18,8 +18,9 @@ func (l *logger) Enabled() bool {
 	return true
 }
 
-func (l *logger) Error(err error, msg string, keys ...interface{}) {
-	l.Logger.Error(msg, "error", err, keys)
+func (l *logger) Error(err error, msg string, keysAndValues ...interface{}) {
+	keysAndValues = append([]interface{}{"error", err}, keysAndValues...)
+	l.Logger.Error(msg, keysAndValues...)
 }
 
 func (l *logger) V(_ int) logr.Logger {
