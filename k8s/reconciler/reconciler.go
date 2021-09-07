@@ -70,52 +70,7 @@ func (c *GatewayReconciler) signalReconcile() {
 	}
 }
 
-func (c *GatewayReconciler) setInitialGatewayStatus() {
-	obj := object.New(c.kubeGateway)
-	obj.Status.Mutate(func(status interface{}) interface{} {
-		gwStatus := status.(*gw.GatewayStatus)
-		gwStatus.Conditions = []metav1.Condition{
-			{
-				Type:               string(gw.GatewayConditionReady),
-				Status:             metav1.ConditionFalse,
-				ObservedGeneration: obj.GetGeneration(),
-				LastTransitionTime: metav1.Now(),
-				Reason:             string(gw.GatewayReasonListenersNotReady),
-				Message:            "waiting for reconcile",
-			},
-			{
-				Type:               string(gw.GatewayConditionScheduled),
-				Status:             metav1.ConditionFalse,
-				ObservedGeneration: obj.GetGeneration(),
-				LastTransitionTime: metav1.Now(),
-				Reason:             string(gw.GatewayReasonNotReconciled),
-				Message:            "waiting for reconcile",
-			},
-		}
-		gwStatus.Listeners = make([]gw.ListenerStatus, len(c.kubeGateway.Spec.Listeners))
-		for idx, listener := range c.kubeGateway.Spec.Listeners {
-			gwStatus.Listeners[idx] = gw.ListenerStatus{
-				Name:           listener.Name,
-				AttachedRoutes: 0,
-				Conditions: []metav1.Condition{
-					{
-						Type:               string(gw.ListenerConditionReady),
-						Status:             metav1.ConditionFalse,
-						ObservedGeneration: obj.GetGeneration(),
-						LastTransitionTime: metav1.Now(),
-						Reason:             string(gw.ListenerReasonPending),
-						Message:            "pending reconcile",
-					},
-				},
-			}
-		}
-		return gwStatus
-	})
-	c.status.Push(obj)
-}
-
 func (c *GatewayReconciler) loop() {
-	c.setInitialGatewayStatus()
 	for {
 		select {
 		case <-c.signalReconcileCh:
