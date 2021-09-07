@@ -91,7 +91,7 @@ func (m *Manager) RenderBootstrap(sdsConfig string) error {
 }
 
 const bootstrapJSONTemplate = `{
-	"admin": {
+  "admin": {
     "access_log_path": "/dev/null",
     "address": {
       "socket_address": {
@@ -106,7 +106,7 @@ const bootstrapJSONTemplate = `{
   },
   "static_resources": {
     "clusters": [
-			{
+      {
         "name": "self_admin",
         "ignore_health_on_host_removal": false,
         "connect_timeout": "5s",
@@ -131,7 +131,7 @@ const bootstrapJSONTemplate = `{
             }
           ]
         }
-			},
+      },
       {
         "name": "consul-server",
         "ignore_health_on_host_removal": false,
@@ -173,9 +173,9 @@ const bootstrapJSONTemplate = `{
           ]
         }
       },
-			{{ .SDSCluster }}
+      {{ .SDSCluster }}
     ],
-		"listeners": [
+    "listeners": [
       {
         "name": "envoy_ready_listener",
         "address": {
