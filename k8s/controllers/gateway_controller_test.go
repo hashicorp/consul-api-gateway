@@ -42,7 +42,7 @@ func TestDeploymentFor(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			gw := &gateway.Gateway{}
 			fixtureTest(t, name, "deployment", gw, func() runtime.Object {
-				return DeploymentFor(gw)
+				return DeploymentFor(gw, "polar-controller.default.svc.cluster.local", 9090)
 			})
 		})
 	}

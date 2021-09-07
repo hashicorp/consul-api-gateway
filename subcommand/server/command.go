@@ -22,6 +22,8 @@ import (
 )
 
 const (
+	defaultSDSServerHost = "polar-controller.default.svc.cluster.local"
+	defaultSDSServerPort = 9090
 	// The amount of time to wait for the first cert write
 	defaultCertWaitTime = 1 * time.Minute
 )
@@ -34,6 +36,8 @@ type Command struct {
 	flagCASecret          string // CA Secret for Consul server
 	flagCASecretNamespace string // CA Secret namespace for Consul server
 	flagConsulAddress     string // Consul server address
+	flagSDSServerHost     string // SDS server host
+	flagSDSServerPort     int    // SDS server port
 
 	flagSet *flag.FlagSet
 	once    sync.Once
@@ -45,6 +49,8 @@ func (c *Command) init() {
 	c.flagSet.StringVar(&c.flagCASecret, "ca-secret", "", "CA Secret for Consul server.")
 	c.flagSet.StringVar(&c.flagCASecretNamespace, "ca-secret-namespace", "", "CA Secret namespace for Consul server.")
 	c.flagSet.StringVar(&c.flagConsulAddress, "consul-address", "", "Consul Address.")
+	c.flagSet.StringVar(&c.flagSDSServerHost, "sds-server-host", defaultSDSServerHost, "SDS Server Host.")
+	c.flagSet.IntVar(&c.flagSDSServerPort, "sds-server-port", defaultSDSServerPort, "SDS Server Port.")
 }
 
 func (c *Command) Run(args []string) int {

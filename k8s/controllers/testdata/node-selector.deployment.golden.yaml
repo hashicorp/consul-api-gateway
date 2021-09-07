@@ -40,8 +40,6 @@ spec:
         - polar-controller.default.svc.cluster.local
         - -envoy-sds-port
         - "9090"
-        - -acl-auth-method
-        - polar
         - -consul-ca-cert-file
         - /ca/tls.crt
         env:

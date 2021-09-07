@@ -38,16 +38,20 @@ func init() {
 }
 
 type Kubernetes struct {
-	k8sManager ctrl.Manager
-	consul     *api.Client
-	logger     hclog.Logger
-	k8sStatus  *object.StatusWorker
+	sDSServerHost string
+	sDSServerPort int
+	k8sManager    ctrl.Manager
+	consul        *api.Client
+	logger        hclog.Logger
+	k8sStatus     *object.StatusWorker
 }
 
 type Options struct {
 	CACertSecretNamespace string
 	CACertSecret          string
 	CACertFile            string
+	SDSServerHost         string
+	SDSServerPort         int
 	MetricsBindAddr       string
 	HealthProbeBindAddr   string
 	WebhookPort           int
@@ -58,6 +62,8 @@ func Defaults() *Options {
 		CACertSecretNamespace: "default",
 		CACertSecret:          "",
 		CACertFile:            "",
+		SDSServerHost:         "polar-controller.default.svc.cluster.local",
+		SDSServerPort:         9090,
 		MetricsBindAddr:       ":8080",
 		HealthProbeBindAddr:   ":8081",
 		WebhookPort:           8443,
@@ -112,8 +118,10 @@ func New(logger hclog.Logger, opts *Options) (*Kubernetes, error) {
 	}
 
 	return &Kubernetes{
-		k8sManager: mgr,
-		logger:     logger.Named("k8s"),
+		k8sManager:    mgr,
+		sDSServerHost: opts.SDSServerHost,
+		sDSServerPort: opts.SDSServerPort,
+		logger:        logger.Named("k8s"),
 	}, nil
 }
 
@@ -130,10 +138,12 @@ func (k *Kubernetes) Start(ctx context.Context) error {
 
 	consulMgr := reconciler.NewReconcileManager(ctx, k.consul, k.k8sManager.GetClient().Status(), k.logger.Named("consul"))
 	err := (&controllers.GatewayReconciler{
-		Client:  k.k8sManager.GetClient(),
-		Log:     klogger.WithName("controllers").WithName("Gateway"),
-		Scheme:  k.k8sManager.GetScheme(),
-		Manager: consulMgr,
+		SDSServerHost: k.sDSServerHost,
+		SDSServerPort: k.sDSServerPort,
+		Client:        k.k8sManager.GetClient(),
+		Log:           klogger.WithName("controllers").WithName("Gateway"),
+		Scheme:        k.k8sManager.GetScheme(),
+		Manager:       consulMgr,
 	}).SetupWithManager(k.k8sManager)
 	if err != nil {
 		return fmt.Errorf("failed to create gateway controller: %w", err)

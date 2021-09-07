@@ -216,6 +216,7 @@ func (c *CertManager) persist(root *api.CARoot, client *api.LeafCert) error {
 
 	if !c.isInitialized {
 		close(c.initializeSignal)
+		c.isInitialized = true
 	}
 
 	return nil

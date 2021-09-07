@@ -40,8 +40,6 @@ spec:
         - polar-controller.default.svc.cluster.local
         - -envoy-sds-port
         - "9090"
-        - -acl-auth-method
-        - polar
         env:
         - name: IP
           valueFrom:

@@ -17,7 +17,6 @@ metadata:
   name: test-gateway
   annotations:
     "polar.hashicorp.com/image": "polar:1"
-    "polar.hashicorp.com/envoy-sds-server-address": "host.docker.internal"
     "polar.hashicorp.com/consul-http-address": "host.docker.internal"
     "polar.hashicorp.com/consul-http-port": "443"
     "polar.hashicorp.com/consul-auth-method": "polar"

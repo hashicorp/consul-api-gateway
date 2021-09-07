@@ -28,20 +28,11 @@ type GatewayClassConfigSpec struct {
 	UseHostPorts bool `json:"useHostPorts,omitempty"`
 	// Configuration information about connecting to Consul.
 	ConsulSpec ConsulSpec `json:"consul,omitempty"`
-	// SDS server specific configuration
-	SDSServerSpec SDSServerSpec `json:"sds,omitempty"`
 	// Configuration information about the images to use
 	ImageSpec ImageSpec `json:"image,omitempty"`
 	// +kubebuilder:validation:Enum=trace;debug;info;warning;error
 	// Logging levels
 	LogLevel string `json:"logLevel,omitempty"`
-}
-
-type SDSServerSpec struct {
-	// The SDS server address for Envoy secrets
-	Address string `json:"address,omitempty"`
-	// The SDS server port for Envoy secrets
-	Port int `json:"port,omitempty"`
 }
 
 type ConsulSpec struct {

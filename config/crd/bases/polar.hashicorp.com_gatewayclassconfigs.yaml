@@ -181,16 +181,6 @@ spec:
                 required:
                 - nodeSelectorTerms
                 type: object
-              sds:
-                description: SDS server specific configuration
-                properties:
-                  address:
-                    description: The SDS server address for Envoy secrets
-                    type: string
-                  port:
-                    description: The SDS server port for Envoy secrets
-                    type: integer
-                type: object
               serviceType:
                 description: Service Type string describes ingress methods for a service
                 enum:

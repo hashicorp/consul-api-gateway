@@ -28,7 +28,7 @@ func (l *logger) V(_ int) logr.Logger {
 }
 
 func (l *logger) WithValues(keysAndValues ...interface{}) logr.Logger {
-	return &logger{l.With(keysAndValues)}
+	return &logger{l.With(keysAndValues...)}
 }
 
 func (l *logger) WithName(name string) logr.Logger {
