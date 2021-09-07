@@ -26,7 +26,6 @@ const (
 	SDSCAConfigFile      = "validation-context-sds.json"
 
 	defaultCertificateDirectory = "/certs"
-	defaultSignalOnNWrites      = 1
 	defaultSDSAddress           = "localhost"
 	defaultSDSPort              = 9090
 
@@ -80,23 +79,21 @@ type CertManagerOptions struct {
 	Tries      uint64
 	SDSAddress string
 	SDSPort    int
-
-	// This option allows us to signal when we've written N times to disk.
-	// The default value for this is 1, but for testing environments we can
-	// set it higher to allow for invoking certificate expiration logic.
-	SignalOnNWrites int
 }
 
 // DefaultCertManagerOptions returns the default options for a CertManager instance.
 func DefaultCertManagerOptions() *CertManagerOptions {
 	return &CertManagerOptions{
-		Directory:       defaultCertificateDirectory,
-		SignalOnNWrites: defaultSignalOnNWrites,
-		Tries:           defaultMaxAttempts,
-		SDSAddress:      defaultSDSAddress,
-		SDSPort:         defaultSDSPort,
+		Directory:  defaultCertificateDirectory,
+		Tries:      defaultMaxAttempts,
+		SDSAddress: defaultSDSAddress,
+		SDSPort:    defaultSDSPort,
 	}
 }
+
+// certWriter acts as the function used for persisting certificates
+// for a CertManager instance
+type certWriter func(root *api.CARoot, client *api.LeafCert) error
 
 // CertManager handles Consul leaf certificate management and certificate rotation.
 // Once a leaf certificate has expired, it generates a new certificate and writes
@@ -110,19 +107,16 @@ type CertManager struct {
 	sdsAddress string
 	sdsPort    int
 
-	// these help coordinate waiting for n writes to disk in WaitForWrite
-	// since we're writing to a signaling channel from the management loop
-	// that is run in a goroutine, we have two counters, one for how many
-	// writes we've done to the signaling channel, and one for how reads we
-	// have left on the channel
-	readsLeft  int
-	writesLeft int
-	writes     chan struct{}
-
 	tries           uint64
 	backoffInterval time.Duration
 
 	lock sync.RWMutex
+
+	isInitialized    bool
+	initializeSignal chan struct{}
+
+	// this can be overwritten to check retry logic in testing
+	writeCerts certWriter
 }
 
 // NewCertManager creates a new CertManager instance.
@@ -130,19 +124,19 @@ func NewCertManager(logger hclog.Logger, consul *api.Client, service string, opt
 	if options == nil {
 		options = DefaultCertManagerOptions()
 	}
-	return &CertManager{
-		consul:          consul,
-		logger:          logger,
-		sdsAddress:      options.SDSAddress,
-		sdsPort:         options.SDSPort,
-		service:         service,
-		directory:       options.Directory,
-		readsLeft:       options.SignalOnNWrites,
-		writesLeft:      options.SignalOnNWrites,
-		writes:          make(chan struct{}, options.SignalOnNWrites),
-		tries:           options.Tries,
-		backoffInterval: defaultBackoffInterval,
+	manager := &CertManager{
+		consul:           consul,
+		logger:           logger,
+		sdsAddress:       options.SDSAddress,
+		sdsPort:          options.SDSPort,
+		service:          service,
+		directory:        options.Directory,
+		tries:            options.Tries,
+		backoffInterval:  defaultBackoffInterval,
+		initializeSignal: make(chan struct{}),
 	}
+	manager.writeCerts = manager.persist
+	return manager
 }
 
 // Manage is the main run loop of the manager and should be run in a go routine.
@@ -160,7 +154,7 @@ func (c *CertManager) Manage(ctx context.Context) error {
 				c.logger.Error("error requesting certificates", "error", err)
 				return err
 			}
-			err = c.persist(root, clientCert)
+			err = c.writeCerts(root, clientCert)
 			if err != nil {
 				c.logger.Error("error persisting certificates", "error", err)
 			}
@@ -220,9 +214,8 @@ func (c *CertManager) persist(root *api.CARoot, client *api.LeafCert) error {
 		return fmt.Errorf("error writing client private key fiile: %w", err)
 	}
 
-	if c.writesLeft > 0 {
-		c.writes <- struct{}{}
-		c.writesLeft--
+	if !c.isInitialized {
+		close(c.initializeSignal)
 	}
 
 	return nil
@@ -256,18 +249,12 @@ func (c *CertManager) PrivateKey() ([]byte, error) {
 // written to disk. It is intended to be used for use-cases where initial certificates
 // must be in place prior to being referenced by a consumer.
 func (c *CertManager) WaitForWrite(ctx context.Context) error {
-	for {
-		if c.readsLeft <= 0 {
-			break
-		}
-		select {
-		case <-c.writes:
-			c.readsLeft--
-		case <-ctx.Done():
-			return errors.New("wait canceled")
-		}
+	select {
+	case <-c.initializeSignal:
+		return nil
+	case <-ctx.Done():
+		return errors.New("wait canceled")
 	}
-	return nil
 }
 
 func (c *CertManager) RenderSDSConfig() (string, error) {

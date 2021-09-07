@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -24,7 +25,6 @@ func TestManage(t *testing.T) {
 		leafFailures uint64
 		rootFailures uint64
 		maxRetries   uint64
-		writes       int
 		fail         bool
 	}{{
 		name: "test-basic",
@@ -57,26 +57,18 @@ func TestManage(t *testing.T) {
 		rootFailures: 3,
 		maxRetries:   2,
 		fail:         true,
-	}, {
-		name:   "test-refresh-cert",
-		writes: 3,
 	}} {
 		t.Run(test.name, func(t *testing.T) {
 			directory, err := os.MkdirTemp("", randomString())
 			require.NoError(t, err)
 			defer os.RemoveAll(directory)
-
 			service := randomString()
 
-			expirations := test.writes - 1
-			server := runCertServer(t, test.leafFailures, test.rootFailures, service, expirations)
+			server := runCertServer(t, test.leafFailures, test.rootFailures, service, 0)
 
 			options := DefaultCertManagerOptions()
 			options.Directory = directory
 			options.Tries = test.maxRetries
-			if test.writes > 0 {
-				options.SignalOnNWrites = test.writes
-			}
 
 			manager := NewCertManager(hclog.NewNullLogger(), server.consul, service, options)
 			manager.backoffInterval = 0
@@ -84,17 +76,23 @@ func TestManage(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
-			managerErr := make(chan error, 1)
+			managerErr := make(chan error, 2)
 			go func() {
 				if err := manager.Manage(ctx); err != nil {
 					managerErr <- err
 				}
 			}()
 
-			initialized := make(chan struct{})
+			finished := make(chan struct{})
 			go func() {
-				manager.WaitForWrite(context.Background())
-				close(initialized)
+				ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+				defer cancel()
+
+				if err := manager.WaitForWrite(ctx); err != nil {
+					managerErr <- err
+				} else {
+					close(finished)
+				}
 			}()
 
 			select {
@@ -104,24 +102,74 @@ func TestManage(t *testing.T) {
 					return
 				}
 				require.NoError(t, err)
-			case <-initialized:
+			case <-finished:
 			}
 
 			rootCAFile := path.Join(directory, RootCAFile)
 			clientCertFile := path.Join(directory, ClientCertFile)
 			clientPrivateKeyFile := path.Join(directory, ClientPrivateKeyFile)
-
 			rootCA, err := os.ReadFile(rootCAFile)
 			require.NoError(t, err)
 			clientCert, err := os.ReadFile(clientCertFile)
 			require.NoError(t, err)
 			clientPrivateKey, err := os.ReadFile(clientPrivateKeyFile)
 			require.NoError(t, err)
-
 			require.Equal(t, server.fakeRootCertPEM, string(rootCA))
 			require.Equal(t, server.fakeClientCert, string(clientCert))
 			require.Equal(t, server.fakeClientPrivateKey, string(clientPrivateKey))
 		})
+	}
+}
+
+func TestManage_Refresh(t *testing.T) {
+	t.Parallel()
+
+	service := randomString()
+
+	server := runCertServer(t, 0, 0, service, 2)
+
+	options := DefaultCertManagerOptions()
+	manager := NewCertManager(hclog.NewNullLogger(), server.consul, service, options)
+	manager.backoffInterval = 0
+
+	writes := int32(0)
+	manager.writeCerts = func(root *api.CARoot, client *api.LeafCert) error {
+		numWrites := atomic.AddInt32(&writes, 1)
+		if numWrites == 3 {
+			close(manager.initializeSignal)
+		}
+		require.Equal(t, server.fakeRootCertPEM, root.RootCertPEM)
+		require.Equal(t, server.fakeClientCert, client.CertPEM)
+		require.Equal(t, server.fakeClientPrivateKey, client.PrivateKeyPEM)
+		return nil
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	managerErr := make(chan error, 2)
+	go func() {
+		if err := manager.Manage(ctx); err != nil {
+			managerErr <- err
+		}
+	}()
+
+	finished := make(chan struct{})
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+		defer cancel()
+
+		if err := manager.WaitForWrite(ctx); err != nil {
+			managerErr <- err
+		} else {
+			close(finished)
+		}
+	}()
+
+	select {
+	case err := <-managerErr:
+		require.NoError(t, err)
+	case <-finished:
 	}
 }
 
@@ -141,7 +189,7 @@ type certServer struct {
 	fakeClientPrivateKey string
 }
 
-func runCertServer(t *testing.T, leafFailures, rootFailures uint64, service string, expirations int) *certServer {
+func runCertServer(t *testing.T, leafFailures, rootFailures uint64, service string, expirations int32) *certServer {
 	t.Helper()
 
 	server := &certServer{
