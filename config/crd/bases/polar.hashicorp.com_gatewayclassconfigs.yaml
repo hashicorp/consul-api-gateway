@@ -34,8 +34,7 @@ spec:
           metadata:
             type: object
           spec:
-            description: GatewayClassConfigSpec specifies the 'spec' of the Config
-              CRD.
+            description: Spec defines the desired state of GatewayClassConfig.
             properties:
               consul:
                 description: Configuration information about connecting to Consul.
