@@ -18,14 +18,6 @@ const (
 	serviceDeregistrationTime = "1m"
 )
 
-// NamedPort is a tuple for ports with names
-type NamedPort struct {
-	Name     string
-	Address  string
-	Port     int
-	Protocol string
-}
-
 // ServiceRegistry handles the logic for registering a Polar service in Consul.
 type ServiceRegistry struct {
 	consul *api.Client
