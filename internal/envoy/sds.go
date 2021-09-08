@@ -8,8 +8,10 @@ import (
 	"net"
 	"time"
 
-	envoy_discovery_v3 "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
-	envoy_secret_v3 "github.com/envoyproxy/go-control-plane/envoy/service/secret/v3"
+	secretservice "github.com/envoyproxy/go-control-plane/envoy/service/secret/v3"
+	cache "github.com/envoyproxy/go-control-plane/pkg/cache/v3"
+	"github.com/envoyproxy/go-control-plane/pkg/resource/v3"
+	server "github.com/envoyproxy/go-control-plane/pkg/server/v3"
 	"github.com/hashicorp/go-hclog"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -24,13 +26,12 @@ const (
 	defaultShutdownTimeout = 10 * time.Second
 )
 
-type SDSStream = envoy_secret_v3.SecretDiscoveryService_StreamSecretsServer
-type SDSDelta = envoy_secret_v3.SecretDiscoveryService_DeltaSecretsServer
-
 type SDSServer struct {
 	logger  hclog.Logger
 	manager *consul.CertManager
 	server  *grpc.Server
+
+	stopCtx context.Context
 }
 
 func NewSDSServer(logger hclog.Logger, manager *consul.CertManager) *SDSServer {
@@ -40,24 +41,10 @@ func NewSDSServer(logger hclog.Logger, manager *consul.CertManager) *SDSServer {
 	}
 }
 
-func (s *SDSServer) DeltaSecrets(stream SDSDelta) error {
-	s.logger.Info("Got DeltaSecrets request")
-	return nil
-}
-
-func (s *SDSServer) StreamSecrets(stream SDSStream) error {
-	s.logger.Info("Got StreamSecrets request")
-	return nil
-}
-
-func (s *SDSServer) FetchSecrets(context context.Context, request *envoy_discovery_v3.DiscoveryRequest) (*envoy_discovery_v3.DiscoveryResponse, error) {
-	s.logger.Info("Got FetchSecrets request")
-	return nil, nil
-}
-
 // GRPC returns a server instance that can handle xDS requests.
 func (s *SDSServer) Run(ctx context.Context) error {
 	childCtx, cancel := context.WithCancel(ctx)
+	s.stopCtx = childCtx
 	defer cancel()
 
 	grpclog.SetLoggerV2(polarGRPC.NewHCLogLogger(s.logger))
@@ -95,7 +82,12 @@ func (s *SDSServer) Run(ctx context.Context) error {
 		})),
 	}
 	s.server = grpc.NewServer(opts...)
-	envoy_secret_v3.RegisterSecretDiscoveryServiceServer(s.server, s)
+
+	resourceCache := cache.NewLinearCache(resource.SecretType)
+	secretManager := NewSecretManager(&stubSecretClient{}, "", resourceCache, s.logger.Named("secret-manager"))
+	handler := NewRequestHandler(s.logger.Named("handler"), secretManager)
+	sdsServer := server.NewServer(childCtx, resourceCache, handler)
+	secretservice.RegisterSecretDiscoveryServiceServer(s.server, sdsServer)
 
 	listener, err := net.Listen("tcp", defaultGRPCPort)
 	if err != nil {
