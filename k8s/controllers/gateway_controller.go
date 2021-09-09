@@ -18,6 +18,7 @@ import (
 	clientruntime "sigs.k8s.io/controller-runtime/pkg/client"
 	gateway "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
+	"github.com/hashicorp/polar/internal/metrics"
 	"github.com/hashicorp/polar/k8s/reconciler"
 	"github.com/hashicorp/polar/version"
 )
@@ -77,8 +78,8 @@ type GatewayReconciler struct {
 	Scheme        *runtime.Scheme
 	SDSServerHost string
 	SDSServerPort int
-
-	Manager *reconciler.GatewayReconcileManager
+	Metrics       *metrics.K8sMetrics
+	Manager       *reconciler.GatewayReconcileManager
 }
 
 //+kubebuilder:rbac:groups=polar.hashicorp.com,resources=gateways,verbs=get;list;watch;create;update;patch;delete
@@ -147,6 +148,8 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 				return ctrl.Result{}, err
 			}
 		}
+
+		r.Metrics.NewGatewayDeployments.Inc()
 
 		// Deployment created successfully - return and requeue
 		return ctrl.Result{Requeue: true}, nil

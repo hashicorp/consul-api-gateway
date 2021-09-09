@@ -167,13 +167,13 @@ func (c *Command) Run(args []string) (ret int) {
 	// First do the ACL Login, if necessary.
 	var token string
 	if c.flagACLAuthMethod != "" {
-		c.logger.Debug("logging in to consul")
+		c.logger.Trace("logging in to consul")
 		consulClient, token, err = c.login(ctx, consulClient, cfg)
 		if err != nil {
 			c.logger.Error("error logging into consul", "error", err)
 			return 1
 		}
-		c.logger.Debug("consul login complete")
+		c.logger.Trace("consul login complete")
 	}
 
 	registry := consul.NewServiceRegistry(
@@ -234,21 +234,20 @@ func (c *Command) Run(args []string) (ret int) {
 
 	group, groupCtx := errgroup.WithContext(ctx)
 	group.Go(func() error {
-		c.logger.Debug("running cert manager")
 		return certManager.Manage(groupCtx)
 	})
 
 	// wait until we've written once before booting envoy
 	waitCtx, waitCancel := context.WithTimeout(ctx, defaultCertWaitTime)
 	defer waitCancel()
-	c.logger.Debug("waiting for initial certs to be written")
+	c.logger.Trace("waiting for initial certs to be written")
 	if err := certManager.WaitForWrite(waitCtx); err != nil {
 		c.logger.Error("timeout waiting for certs to be written", "error", err)
 		return 1
 	}
+	c.logger.Trace("initial certificates written")
 
 	group.Go(func() error {
-		c.logger.Debug("running envoy")
 		return envoyManager.Run(ctx)
 	})
 

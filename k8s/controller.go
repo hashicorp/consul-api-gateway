@@ -18,6 +18,7 @@ import (
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
 
+	"github.com/hashicorp/polar/internal/metrics"
 	"github.com/hashicorp/polar/k8s/controllers"
 	"github.com/hashicorp/polar/k8s/log"
 	"github.com/hashicorp/polar/k8s/object"
@@ -42,6 +43,7 @@ type Kubernetes struct {
 	sDSServerPort int
 	k8sManager    ctrl.Manager
 	consul        *api.Client
+	metrics       *metrics.K8sMetrics
 	logger        hclog.Logger
 	k8sStatus     *object.StatusWorker
 }
@@ -70,7 +72,7 @@ func Defaults() *Options {
 	}
 }
 
-func New(logger hclog.Logger, opts *Options) (*Kubernetes, error) {
+func New(logger hclog.Logger, metrics *metrics.K8sMetrics, opts *Options) (*Kubernetes, error) {
 	if opts == nil {
 		opts = Defaults()
 	}
@@ -119,6 +121,7 @@ func New(logger hclog.Logger, opts *Options) (*Kubernetes, error) {
 
 	return &Kubernetes{
 		k8sManager:    mgr,
+		metrics:       metrics,
 		sDSServerHost: opts.SDSServerHost,
 		sDSServerPort: opts.SDSServerPort,
 		logger:        logger.Named("k8s"),
@@ -136,7 +139,7 @@ func (k *Kubernetes) Start(ctx context.Context) error {
 
 	klogger := log.FromHCLogger(k.logger)
 
-	consulMgr := reconciler.NewReconcileManager(ctx, k.consul, k.k8sManager.GetClient().Status(), k.logger.Named("consul"))
+	consulMgr := reconciler.NewReconcileManager(ctx, k.metrics, k.consul, k.k8sManager.GetClient().Status(), k.logger.Named("consul"))
 	err := (&controllers.GatewayReconciler{
 		SDSServerHost: k.sDSServerHost,
 		SDSServerPort: k.sDSServerPort,
@@ -144,6 +147,7 @@ func (k *Kubernetes) Start(ctx context.Context) error {
 		Log:           klogger.WithName("controllers").WithName("Gateway"),
 		Scheme:        k.k8sManager.GetScheme(),
 		Manager:       consulMgr,
+		Metrics:       k.metrics,
 	}).SetupWithManager(k.k8sManager)
 	if err != nil {
 		return fmt.Errorf("failed to create gateway controller: %w", err)
@@ -154,6 +158,7 @@ func (k *Kubernetes) Start(ctx context.Context) error {
 		Log:     klogger.WithName("controllers").WithName("HTTPRoute"),
 		Scheme:  k.k8sManager.GetScheme(),
 		Manager: consulMgr,
+		Metrics: k.metrics,
 	}).SetupWithManager(k.k8sManager)
 	if err != nil {
 		return fmt.Errorf("failed to create http_route controller: %w", err)

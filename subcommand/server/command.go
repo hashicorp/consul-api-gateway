@@ -44,6 +44,10 @@ type Command struct {
 	flagSDSServerPort     int    // SDS server port
 	flagMetricsPort       int    // Port for prometheus metrics
 
+	// Logging
+	flagLogLevel string
+	flagLogJSON  bool
+
 	flagSet *flag.FlagSet
 	once    sync.Once
 }
@@ -57,6 +61,15 @@ func (c *Command) init() {
 	c.flagSet.StringVar(&c.flagSDSServerHost, "sds-server-host", defaultSDSServerHost, "SDS Server Host.")
 	c.flagSet.IntVar(&c.flagSDSServerPort, "sds-server-port", defaultSDSServerPort, "SDS Server Port.")
 	c.flagSet.IntVar(&c.flagMetricsPort, "metrics-port", 0, "Metrics port, if not set, metrics are not enabled.")
+
+	{
+		// Logging
+		c.flagSet.StringVar(&c.flagLogLevel, "log-level", "info",
+			"Log verbosity level. Supported values (in order of detail) are \"trace\", "+
+				"\"debug\", \"info\", \"warn\", and \"error\".")
+		c.flagSet.BoolVar(&c.flagLogJSON, "log-json", false,
+			"Enable or disable JSON output format for logging.")
+	}
 }
 
 func (c *Command) Run(args []string) int {
@@ -85,8 +98,13 @@ func (c *Command) Run(args []string) int {
 	}
 	metrics := metrics.Registry
 
-	c.logger = hclog.Default().Named("polar-server")
-	c.logger.SetLevel(hclog.Trace)
+	if c.logger == nil {
+		c.logger = hclog.New(&hclog.LoggerOptions{
+			Level:      hclog.LevelFromString(c.flagLogLevel),
+			Output:     os.Stdout,
+			JSONFormat: c.flagLogJSON,
+		}).Named("polar-server")
+	}
 
 	consulCfg := api.DefaultConfig()
 	cfg := k8s.Defaults()
@@ -106,7 +124,7 @@ func (c *Command) Run(args []string) int {
 		// where we store it
 		file, err := ioutil.TempFile("", "polar")
 		if err != nil {
-			c.UI.Error("An error occurred creating the kubernetes controller:\n\t" + err.Error())
+			c.logger.Error("error creating the kubernetes controller", "error", err)
 			return 1
 		}
 		defer os.Remove(file.Name())
@@ -118,13 +136,13 @@ func (c *Command) Run(args []string) int {
 		consulCfg.Address = c.flagConsulAddress
 	}
 
-	secretFetcher, err := k8s.NewK8sSecretClient(c.logger.Named("cert-fetcher"))
+	secretFetcher, err := k8s.NewK8sSecretClient(c.logger.Named("cert-fetcher"), metrics.SDS)
 	if err != nil {
 		c.logger.Error("error initializing the kubernetes secret fetcher", "error", err)
 		return 1
 	}
 
-	controller, err := k8s.New(c.logger, cfg)
+	controller, err := k8s.New(c.logger, metrics.K8s, cfg)
 	if err != nil {
 		c.logger.Error("error creating the kubernetes controller", "error", err)
 		return 1
@@ -152,22 +170,21 @@ func (c *Command) Run(args []string) int {
 	)
 	group, groupCtx := errgroup.WithContext(ctx)
 	group.Go(func() error {
-		c.logger.Debug("running cert manager")
 		return certManager.Manage(groupCtx)
 	})
 
 	// wait until we've written once before booting envoy
 	waitCtx, waitCancel := context.WithTimeout(ctx, defaultCertWaitTime)
 	defer waitCancel()
-	c.logger.Debug("waiting for initial certs to be written")
+	c.logger.Trace("waiting for initial certs to be written")
 	if err := certManager.WaitForWrite(waitCtx); err != nil {
 		c.logger.Error("timeout waiting for certs to be written", "error", err)
 		return 1
 	}
+	c.logger.Trace("initial certificates written")
 
-	server := envoy.NewSDSServer(c.logger.Named("sds-server"), metrics, certManager, secretFetcher)
+	server := envoy.NewSDSServer(c.logger.Named("sds-server"), metrics.SDS, certManager, secretFetcher)
 	group.Go(func() error {
-		c.logger.Debug("running sds-server")
 		return server.Run(groupCtx)
 	})
 	group.Go(func() error {

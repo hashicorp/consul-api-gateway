@@ -62,6 +62,7 @@ func NewManager(logger hclog.Logger, config ManagerConfig) *Manager {
 }
 
 func (m *Manager) Run(ctx context.Context) error {
+	m.logger.Trace("running envoy")
 	cmd := exec.CommandContext(ctx, "envoy", "-l", m.LogLevel, "--log-format", logFormatString, "-c", m.BootstrapFilePath)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

@@ -126,6 +126,8 @@ func (s *SecretManager) Unwatch(ctx context.Context, names []string, node string
 }
 
 func (s *SecretManager) Manage(ctx context.Context) {
+	s.logger.Trace("running secrets manager")
+
 	for {
 		select {
 		case <-time.After(30 * time.Second):

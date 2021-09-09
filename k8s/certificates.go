@@ -10,17 +10,20 @@ import (
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/polar/internal/envoy"
+	"github.com/hashicorp/polar/internal/metrics"
+	"github.com/prometheus/client_golang/prometheus"
 	corev1 "k8s.io/api/core/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 type K8sSecretClient struct {
-	logger hclog.Logger
-	client client.Client
+	logger  hclog.Logger
+	client  client.Client
+	counter *prometheus.CounterVec
 }
 
-func NewK8sSecretClient(logger hclog.Logger) (*K8sSecretClient, error) {
+func NewK8sSecretClient(logger hclog.Logger, metrics *metrics.SDSMetrics) (*K8sSecretClient, error) {
 	apiClient, err := client.New(ctrl.GetConfigOrDie(), client.Options{
 		Scheme: scheme,
 	})
@@ -28,13 +31,15 @@ func NewK8sSecretClient(logger hclog.Logger) (*K8sSecretClient, error) {
 		return nil, err
 	}
 	return &K8sSecretClient{
-		logger: logger,
-		client: apiClient,
+		logger:  logger,
+		client:  apiClient,
+		counter: metrics.CertificateFetches.MustCurryWith(prometheus.Labels{"fetcher": "k8s"}),
 	}, nil
 }
 
 func (c *K8sSecretClient) FetchSecret(ctx context.Context, fullName string) (*envoy.Certificate, error) {
-	c.logger.Debug("fetching SDS secret", "name", fullName)
+	c.logger.Trace("fetching SDS secret", "name", fullName)
+	c.counter.WithLabelValues(fullName).Inc()
 	namespace, name := parseSecretName(fullName)
 	secret := &corev1.Secret{}
 	err := c.client.Get(ctx, client.ObjectKey{

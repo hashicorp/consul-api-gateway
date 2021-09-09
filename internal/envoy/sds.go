@@ -10,6 +10,7 @@ import (
 
 	secretservice "github.com/envoyproxy/go-control-plane/envoy/service/secret/v3"
 	cache "github.com/envoyproxy/go-control-plane/pkg/cache/v3"
+	"github.com/envoyproxy/go-control-plane/pkg/log"
 	"github.com/envoyproxy/go-control-plane/pkg/resource/v3"
 	server "github.com/envoyproxy/go-control-plane/pkg/server/v3"
 	"github.com/hashicorp/go-hclog"
@@ -30,14 +31,14 @@ const (
 type SDSServer struct {
 	logger  hclog.Logger
 	manager *consul.CertManager
-	metrics *metrics.MetricsRegistry
+	metrics *metrics.SDSMetrics
 	server  *grpc.Server
 	client  SecretClient
 
 	stopCtx context.Context
 }
 
-func NewSDSServer(logger hclog.Logger, metrics *metrics.MetricsRegistry, manager *consul.CertManager, client SecretClient) *SDSServer {
+func NewSDSServer(logger hclog.Logger, metrics *metrics.SDSMetrics, manager *consul.CertManager, client SecretClient) *SDSServer {
 	return &SDSServer{
 		logger:  logger,
 		manager: manager,
@@ -99,7 +100,6 @@ func (s *SDSServer) Run(ctx context.Context) error {
 	}
 
 	go func() {
-		s.logger.Trace("running secrets manager")
 		secretManager.Manage(childCtx)
 	}()
 	go func() {
@@ -113,7 +113,7 @@ func (s *SDSServer) Run(ctx context.Context) error {
 				return
 			case <-time.After(10 * time.Second):
 				resources := len(resourceCache.GetResources())
-				s.metrics.SDS.CachedResources.Set(float64(resources))
+				s.metrics.CachedResources.Set(float64(resources))
 			}
 		}
 	}()
@@ -137,5 +137,20 @@ func (s *SDSServer) Shutdown() {
 		case <-stopped:
 			timer.Stop()
 		}
+	}
+}
+
+func logFunc(log func(msg string, args ...interface{})) func(msg string, args ...interface{}) {
+	return func(msg string, args ...interface{}) {
+		log(fmt.Sprintf(msg, args...))
+	}
+}
+
+func wrapEnvoyLogger(logger hclog.Logger) log.Logger {
+	return log.LoggerFuncs{
+		DebugFunc: logFunc(logger.Debug),
+		InfoFunc:  logFunc(logger.Info),
+		WarnFunc:  logFunc(logger.Warn),
+		ErrorFunc: logFunc(logger.Error),
 	}
 }

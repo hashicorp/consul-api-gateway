@@ -143,6 +143,7 @@ func NewCertManager(logger hclog.Logger, consul *api.Client, service string, opt
 // It should be passed a cancellable context that signals when the manager should
 // stop and return. If it receives an unexpected error the loop exits.
 func (c *CertManager) Manage(ctx context.Context) error {
+	c.logger.Trace("running cert manager")
 	for {
 		var root *api.CARoot
 		var clientCert *api.LeafCert

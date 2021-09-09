@@ -15,13 +15,13 @@ import (
 
 type RequestHandler struct {
 	logger         hclog.Logger
-	metrics        *metrics.MetricsRegistry
+	metrics        *metrics.SDSMetrics
 	secretManager  *SecretManager
 	nodeMap        sync.Map
 	streamContexts sync.Map
 }
 
-func NewRequestHandler(logger hclog.Logger, metrics *metrics.MetricsRegistry, secretManager *SecretManager) *server.CallbackFuncs {
+func NewRequestHandler(logger hclog.Logger, metrics *metrics.SDSMetrics, secretManager *SecretManager) *server.CallbackFuncs {
 	handler := &RequestHandler{
 		metrics:       metrics,
 		logger:        logger,
@@ -43,7 +43,7 @@ func NewRequestHandler(logger hclog.Logger, metrics *metrics.MetricsRegistry, se
 func (r *RequestHandler) OnDeltaStreamOpen(ctx context.Context, streamID int64) error {
 	r.logger.Trace("beginning stream", "stream_id", streamID)
 	r.streamContexts.Store(streamID, ctx)
-	r.metrics.SDS.ActiveStreams.Inc()
+	r.metrics.ActiveStreams.Inc()
 	return nil
 }
 
@@ -56,7 +56,7 @@ func (r *RequestHandler) OnDeltaStreamClosed(streamID int64) {
 		r.logger.Warn("node not found for stream", "stream", streamID)
 	}
 	r.streamContexts.Delete(streamID)
-	r.metrics.SDS.ActiveStreams.Dec()
+	r.metrics.ActiveStreams.Dec()
 }
 
 func (r *RequestHandler) OnStreamDeltaRequest(streamID int64, req *discovery.DeltaDiscoveryRequest) error {
@@ -67,7 +67,7 @@ func (r *RequestHandler) OnStreamDeltaRequest(streamID int64, req *discovery.Del
 		return err
 	}
 	if err := r.secretManager.Unwatch(ctx, req.ResourceNamesUnsubscribe, req.Node.Id); err != nil {
-		return err
+		return nil
 	}
 	return nil
 }
