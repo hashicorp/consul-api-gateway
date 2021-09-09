@@ -7,7 +7,6 @@ import (
 
 	"github.com/cenkalti/backoff"
 	"github.com/google/uuid"
-
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
 )

@@ -8,9 +8,9 @@ import (
 	"os/exec"
 	"text/template"
 
-	"github.com/hashicorp/polar/internal/common"
-
 	"github.com/hashicorp/go-hclog"
+
+	"github.com/hashicorp/polar/internal/common"
 )
 
 const (

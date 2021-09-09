@@ -8,8 +8,8 @@ import (
 	discovery "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
 	resource "github.com/envoyproxy/go-control-plane/pkg/resource/v3"
 	server "github.com/envoyproxy/go-control-plane/pkg/server/v3"
-
 	"github.com/hashicorp/go-hclog"
+
 	"github.com/hashicorp/polar/internal/metrics"
 )
 

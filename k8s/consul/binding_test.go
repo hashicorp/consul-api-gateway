@@ -3,12 +3,11 @@ package consul
 import (
 	"testing"
 
+	"github.com/hashicorp/consul/api"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
-
-	"github.com/hashicorp/consul/api"
 )
 
 func portNumber(port int) *gw.PortNumber {
