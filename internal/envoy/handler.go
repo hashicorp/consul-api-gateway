@@ -4,31 +4,32 @@ import (
 	"context"
 	"fmt"
 	"sync"
-	"sync/atomic"
 
 	discovery "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
 	resource "github.com/envoyproxy/go-control-plane/pkg/resource/v3"
 	server "github.com/envoyproxy/go-control-plane/pkg/server/v3"
 
 	"github.com/hashicorp/go-hclog"
+	"github.com/hashicorp/polar/internal/metrics"
 )
 
 type RequestHandler struct {
 	logger         hclog.Logger
+	metrics        *metrics.MetricsRegistry
 	secretManager  *SecretManager
-	activeStreams  int64
 	nodeMap        sync.Map
 	streamContexts sync.Map
 }
 
-func NewRequestHandler(logger hclog.Logger, secretManager *SecretManager) *server.CallbackFuncs {
+func NewRequestHandler(logger hclog.Logger, metrics *metrics.MetricsRegistry, secretManager *SecretManager) *server.CallbackFuncs {
 	handler := &RequestHandler{
+		metrics:       metrics,
 		logger:        logger,
 		secretManager: secretManager,
 	}
 	return &server.CallbackFuncs{
 		DeltaStreamOpenFunc: func(ctx context.Context, streamID int64, typeURL string) error {
-			logger.Debug("delta stream open")
+			logger.Trace("delta stream open")
 			if typeURL != resource.SecretType {
 				return fmt.Errorf("unsupported type: %s", typeURL)
 			}
@@ -42,7 +43,7 @@ func NewRequestHandler(logger hclog.Logger, secretManager *SecretManager) *serve
 func (r *RequestHandler) OnDeltaStreamOpen(ctx context.Context, streamID int64) error {
 	r.logger.Trace("beginning stream", "stream_id", streamID)
 	r.streamContexts.Store(streamID, ctx)
-	atomic.AddInt64(&r.activeStreams, 1)
+	r.metrics.SDS.ActiveStreams.Inc()
 	return nil
 }
 
@@ -55,8 +56,7 @@ func (r *RequestHandler) OnDeltaStreamClosed(streamID int64) {
 		r.logger.Warn("node not found for stream", "stream", streamID)
 	}
 	r.streamContexts.Delete(streamID)
-
-	atomic.AddInt64(&r.activeStreams, -1)
+	r.metrics.SDS.ActiveStreams.Dec()
 }
 
 func (r *RequestHandler) OnStreamDeltaRequest(streamID int64, req *discovery.DeltaDiscoveryRequest) error {
@@ -67,7 +67,7 @@ func (r *RequestHandler) OnStreamDeltaRequest(streamID int64, req *discovery.Del
 		return err
 	}
 	if err := r.secretManager.Unwatch(ctx, req.ResourceNamesUnsubscribe, req.Node.Id); err != nil {
-		return nil
+		return err
 	}
 	return nil
 }

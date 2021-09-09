@@ -13,13 +13,13 @@ import (
 	"github.com/envoyproxy/go-control-plane/pkg/resource/v3"
 	server "github.com/envoyproxy/go-control-plane/pkg/server/v3"
 	"github.com/hashicorp/go-hclog"
-	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/grpclog"
 
 	"github.com/hashicorp/polar/internal/consul"
 	polarGRPC "github.com/hashicorp/polar/internal/grpc"
+	"github.com/hashicorp/polar/internal/metrics"
 )
 
 const (
@@ -30,16 +30,18 @@ const (
 type SDSServer struct {
 	logger  hclog.Logger
 	manager *consul.CertManager
+	metrics *metrics.MetricsRegistry
 	server  *grpc.Server
 	client  SecretClient
 
 	stopCtx context.Context
 }
 
-func NewSDSServer(logger hclog.Logger, manager *consul.CertManager, client SecretClient) *SDSServer {
+func NewSDSServer(logger hclog.Logger, metrics *metrics.MetricsRegistry, manager *consul.CertManager, client SecretClient) *SDSServer {
 	return &SDSServer{
 		logger:  logger,
 		manager: manager,
+		metrics: metrics,
 		client:  client,
 	}
 }
@@ -88,7 +90,7 @@ func (s *SDSServer) Run(ctx context.Context) error {
 
 	resourceCache := cache.NewLinearCache(resource.SecretType, cache.WithLogger(wrapEnvoyLogger(s.logger.Named("cache"))))
 	secretManager := NewSecretManager(s.client, resourceCache, s.logger.Named("secret-manager"))
-	handler := NewRequestHandler(s.logger.Named("handler"), secretManager)
+	handler := NewRequestHandler(s.logger.Named("handler"), s.metrics, secretManager)
 	sdsServer := server.NewServer(childCtx, resourceCache, handler)
 	secretservice.RegisterSecretDiscoveryServiceServer(s.server, sdsServer)
 	listener, err := net.Listen("tcp", defaultGRPCPort)
@@ -96,23 +98,28 @@ func (s *SDSServer) Run(ctx context.Context) error {
 		return err
 	}
 
-	group, groupCtx := errgroup.WithContext(childCtx)
-	group.Go(func() error {
-		s.logger.Debug("running secrets manager")
-		secretManager.Manage(groupCtx)
-		return nil
-	})
-	group.Go(func() error {
+	go func() {
+		s.logger.Trace("running secrets manager")
+		secretManager.Manage(childCtx)
+	}()
+	go func() {
 		<-childCtx.Done()
 		s.Shutdown()
-		return nil
-	})
-	group.Go(func() error {
-		s.logger.Debug("running SDS server")
-		return s.server.Serve(listener)
-	})
+	}()
+	go func() {
+		for {
+			select {
+			case <-childCtx.Done():
+				return
+			case <-time.After(10 * time.Second):
+				resources := len(resourceCache.GetResources())
+				s.metrics.SDS.CachedResources.Set(float64(resources))
+			}
+		}
+	}()
 
-	return group.Wait()
+	s.logger.Trace("running SDS server")
+	return s.server.Serve(listener)
 }
 
 func (s *SDSServer) Shutdown() {

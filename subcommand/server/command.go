@@ -3,7 +3,9 @@ package server
 import (
 	"context"
 	"flag"
+	"fmt"
 	"io/ioutil"
+	"net/http"
 	"os"
 	"os/signal"
 	"sync"
@@ -11,6 +13,7 @@ import (
 	"time"
 
 	"github.com/mitchellh/cli"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/hashicorp/consul/api"
@@ -18,6 +21,7 @@ import (
 
 	"github.com/hashicorp/polar/internal/consul"
 	"github.com/hashicorp/polar/internal/envoy"
+	"github.com/hashicorp/polar/internal/metrics"
 	"github.com/hashicorp/polar/k8s"
 )
 
@@ -38,6 +42,7 @@ type Command struct {
 	flagConsulAddress     string // Consul server address
 	flagSDSServerHost     string // SDS server host
 	flagSDSServerPort     int    // SDS server port
+	flagMetricsPort       int    // Port for prometheus metrics
 
 	flagSet *flag.FlagSet
 	once    sync.Once
@@ -51,6 +56,7 @@ func (c *Command) init() {
 	c.flagSet.StringVar(&c.flagConsulAddress, "consul-address", "", "Consul Address.")
 	c.flagSet.StringVar(&c.flagSDSServerHost, "sds-server-host", defaultSDSServerHost, "SDS Server Host.")
 	c.flagSet.IntVar(&c.flagSDSServerPort, "sds-server-port", defaultSDSServerPort, "SDS Server Port.")
+	c.flagSet.IntVar(&c.flagMetricsPort, "metrics-port", 0, "Metrics port, if not set, metrics are not enabled.")
 }
 
 func (c *Command) Run(args []string) int {
@@ -77,6 +83,7 @@ func (c *Command) Run(args []string) int {
 	if err := c.flagSet.Parse(args); err != nil {
 		return 1
 	}
+	metrics := metrics.Registry
 
 	c.logger = hclog.Default().Named("polar-server")
 	c.logger.SetLevel(hclog.Trace)
@@ -158,7 +165,7 @@ func (c *Command) Run(args []string) int {
 		return 1
 	}
 
-	server := envoy.NewSDSServer(c.logger.Named("sds-server"), certManager, secretFetcher)
+	server := envoy.NewSDSServer(c.logger.Named("sds-server"), metrics, certManager, secretFetcher)
 	group.Go(func() error {
 		c.logger.Debug("running sds-server")
 		return server.Run(groupCtx)
@@ -167,6 +174,29 @@ func (c *Command) Run(args []string) int {
 		c.logger.Debug("running controller")
 		return controller.Start(groupCtx)
 	})
+
+	if c.flagMetricsPort != 0 {
+		mux := http.NewServeMux()
+		mux.Handle("/metrics", promhttp.Handler())
+		server := &http.Server{
+			Addr:    fmt.Sprintf("127.0.0.1:%d", c.flagMetricsPort),
+			Handler: mux,
+		}
+
+		group.Go(func() error {
+			go func() {
+				<-groupCtx.Done()
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+				if err := server.Shutdown(ctx); err != nil {
+					// graceful shutdown failed, exit
+					c.logger.Error("error shutting down metrics server", "error", err)
+					os.Exit(1)
+				}
+			}()
+			return server.ListenAndServe()
+		})
+	}
 
 	if err := group.Wait(); err != nil {
 		c.logger.Error("unexpected error", "error", err)
