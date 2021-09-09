@@ -2,174 +2,153 @@ package envoy
 
 import (
 	"context"
-	"encoding/json"
-	"os"
-	"path"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	tls "github.com/envoyproxy/go-control-plane/envoy/extensions/transport_sockets/tls/v3"
-	discovery "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
+	"github.com/envoyproxy/go-control-plane/pkg/cache/types"
 	cache "github.com/envoyproxy/go-control-plane/pkg/cache/v3"
 	"github.com/hashicorp/go-hclog"
-	"google.golang.org/protobuf/types/known/anypb"
 )
 
 type SecretClient interface {
-	FetchSecret(name string) (time.Time, Certificate, error)
-}
-
-type stubSecretClient struct{}
-
-func (s *stubSecretClient) FetchSecret(name string) (time.Time, Certificate, error) {
-	return time.Now(), Certificate{}, nil
+	FetchSecret(ctx context.Context, name string) (*Certificate, error)
 }
 
 type Certificate struct {
 	Name             string
+	ExpiresAt        time.Time
 	CertificateChain []byte
 	PrivateKey       []byte
 }
 
-type persistedCertificate struct {
-	Certificate
-	expiresAt time.Time
-	path      string
-	refs      int64
+// reference counted Certificates
+type watchedCertificate struct {
+	*Certificate
+	refs map[string]struct{}
 }
 
 type SecretManager struct {
-	directory     string
-	client        SecretClient
-	watchers      map[int64]map[string]struct{}
-	registry      map[string]*persistedCertificate
-	cache         *cache.LinearCache
-	watcherMutex  sync.RWMutex
-	registryMutex sync.RWMutex
-	logger        hclog.Logger
+	client SecretClient
+	// map to contain sets of cert names that a stream is watching
+	watchers map[string]map[string]struct{}
+	// map of cert names to certs
+	registry map[string]*watchedCertificate
+	cache    *cache.LinearCache
+	mutex    sync.RWMutex
+	logger   hclog.Logger
 }
 
-func NewSecretManager(client SecretClient, directory string, cache *cache.LinearCache, logger hclog.Logger) *SecretManager {
+func NewSecretManager(client SecretClient, cache *cache.LinearCache, logger hclog.Logger) *SecretManager {
 	return &SecretManager{
-		client:    client,
-		directory: directory,
-		cache:     cache,
-		logger:    logger,
-		watchers:  make(map[int64]map[string]struct{}),
-		registry:  make(map[string]*persistedCertificate),
+		client:   client,
+		cache:    cache,
+		logger:   logger,
+		watchers: make(map[string]map[string]struct{}),
+		registry: make(map[string]*watchedCertificate),
 	}
 }
 
-func (s *SecretManager) Watch(name string, streamID int64) error {
-	maybeInsertSecret := func() error {
-		s.registryMutex.Lock()
-		defer s.registryMutex.Unlock()
-		if entry, ok := s.registry[name]; ok {
-			atomic.AddInt64(&entry.refs, 1)
-			return nil
-		}
-		expiration, certificate, err := s.client.FetchSecret(name)
-		if err != nil {
-			return err
-		}
+func (s *SecretManager) Watch(ctx context.Context, names []string, node string) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
 
-		path, err := s.persist(certificate, name)
-		if err != nil {
-			return err
-		}
-
-		s.registry[name] = &persistedCertificate{
-			Certificate: certificate,
-			expiresAt:   expiration,
-			path:        path,
-			refs:        1,
-		}
-		return nil
+	watcher, ok := s.watchers[node]
+	if !ok {
+		watcher = map[string]struct{}{}
+		s.watchers[node] = watcher
 	}
 
-	s.watcherMutex.Lock()
-	defer s.watcherMutex.Unlock()
-	if watcher, ok := s.watchers[streamID]; ok {
-		if _, found := watcher[name]; found {
-			// already watching
-			return nil
-		}
+	certificates := []*Certificate{}
+	for _, name := range names {
 		watcher[name] = struct{}{}
-		return maybeInsertSecret()
+		if entry, ok := s.registry[name]; ok {
+			certificates = append(certificates, entry.Certificate)
+			entry.refs[node] = struct{}{}
+			continue
+		}
+		certificate, err := s.client.FetchSecret(ctx, name)
+		if err != nil {
+			return err
+		}
+		certificates = append(certificates, certificate)
+		s.registry[name] = &watchedCertificate{
+			Certificate: certificate,
+			refs: map[string]struct{}{
+				node: {},
+			},
+		}
 	}
-	s.watchers[streamID] = map[string]struct{}{
-		name: {},
+	err := s.updateCertificates(ctx, certificates)
+	if err != nil {
+		return err
 	}
-	return maybeInsertSecret()
+	return nil
 }
 
-func (s *SecretManager) UnwatchAll(streamID int64) {
-	s.watcherMutex.Lock()
-	defer s.watcherMutex.Unlock()
-	if watcher, ok := s.watchers[streamID]; ok {
-		s.registryMutex.Lock()
-		defer s.registryMutex.Unlock()
+func (s *SecretManager) UnwatchAll(ctx context.Context, node string) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	if watcher, ok := s.watchers[node]; ok {
+		certificates := []string{}
 		for name := range watcher {
 			if certificate, ok := s.registry[name]; ok {
-				if atomic.AddInt64(&certificate.refs, -1) == 0 {
+				delete(certificate.refs, node)
+				if len(certificate.refs) == 0 {
 					// we have no more references, GC
 					delete(s.registry, name)
-					s.deleteCertificate(name)
+					certificates = append(certificates, name)
 				}
 			}
 		}
-		delete(s.watchers, streamID)
+		s.removeCertificates(ctx, certificates)
+		delete(s.watchers, node)
 	}
 }
 
-func (s *SecretManager) Unwatch(name string, streamID int64) {
-	s.watcherMutex.Lock()
-	defer s.watcherMutex.Unlock()
-	if watcher, ok := s.watchers[streamID]; ok {
-		if _, ok := watcher[name]; !ok {
-			return
-		}
-		delete(watcher, name)
-
-		s.registryMutex.Lock()
-		defer s.registryMutex.Unlock()
-		if certificate, ok := s.registry[name]; ok {
-			if atomic.AddInt64(&certificate.refs, -1) == 0 {
-				// we have no more references, GC
-				delete(s.registry, name)
-				s.deleteCertificate(name)
+func (s *SecretManager) Unwatch(ctx context.Context, names []string, node string) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	if watcher, ok := s.watchers[node]; ok {
+		for _, name := range names {
+			delete(watcher, name)
+			if certificate, ok := s.registry[name]; ok {
+				delete(certificate.refs, node)
+				if len(certificate.refs) == 0 {
+					// we have no more references, GC
+					delete(s.registry, name)
+				}
 			}
 		}
 	}
+	return s.removeCertificates(ctx, names)
 }
 
 func (s *SecretManager) Manage(ctx context.Context) {
 	for {
 		select {
 		case <-time.After(30 * time.Second):
-			s.registryMutex.RLock()
+			s.mutex.RLock()
 			for secretName, secret := range s.registry {
-				if time.Now().After(secret.expiresAt.Add(-10 * time.Minute)) {
+				if time.Now().After(secret.ExpiresAt.Add(-10 * time.Minute)) {
 					// request secret and persist
-					expiration, certificate, err := s.client.FetchSecret(secretName)
+					certificate, err := s.client.FetchSecret(ctx, secretName)
 					if err != nil {
-						s.logger.Error("error updating secret", "error", err, "secret", secretName)
-						s.registryMutex.RUnlock()
+						s.logger.Error("error fetching secret", "error", err, "secret", secretName)
+						s.mutex.RUnlock()
 						continue
 					}
-					_, err = s.persist(certificate, secretName)
+					err = s.updateCertificate(ctx, certificate)
 					if err != nil {
-						s.logger.Error("error persisting secret", "error", err, "secret", secretName)
-						s.registryMutex.RUnlock()
+						s.logger.Error("error updating secret", "error", err, "secret", secretName)
+						s.mutex.RUnlock()
 						continue
 					}
 					secret.Certificate = certificate
-					secret.expiresAt = expiration
 				}
 			}
-			s.registryMutex.RUnlock()
+			s.mutex.RUnlock()
 		case <-ctx.Done():
 			// we finished the context, just return
 			return
@@ -177,24 +156,8 @@ func (s *SecretManager) Manage(ctx context.Context) {
 	}
 }
 
-func (s *SecretManager) persist(certificate Certificate, name string) (string, error) {
-	file := path.Join(s.directory, name)
-	data, err := json.Marshal(&certificate)
-	if err != nil {
-		return "", err
-	}
-	if err := os.WriteFile(file, data, 0600); err != nil {
-		return "", err
-	}
-	// file write succeeded, persist cert in the cache
-	if err := s.updateCertificate(certificate); err != nil {
-		return "", err
-	}
-	return file, nil
-}
-
-func (s *SecretManager) updateCertificate(c Certificate) error {
-	resource, err := anypb.New(&tls.Secret{
+func certToSecret(c *Certificate) types.Resource {
+	return &tls.Secret{
 		Type: &tls.Secret_TlsCertificate{
 			TlsCertificate: &tls.TlsCertificate{
 				CertificateChain: &core.DataSource{
@@ -210,16 +173,31 @@ func (s *SecretManager) updateCertificate(c Certificate) error {
 			},
 		},
 		Name: c.Name,
-	})
-	if err != nil {
-		return err
 	}
-	return s.cache.UpdateResource(c.Name, &discovery.Resource{
-		Name:     c.Name,
-		Resource: resource,
-	})
 }
 
-func (s *SecretManager) deleteCertificate(name string) error {
-	return s.cache.DeleteResource(name)
+func (s *SecretManager) updateCertificate(ctx context.Context, c *Certificate) error {
+	return s.cache.UpdateResource(c.Name, certToSecret(c))
+}
+
+func (s *SecretManager) updateCertificates(ctx context.Context, certs []*Certificate) error {
+	for _, cert := range certs {
+		if err := s.updateCertificate(ctx, cert); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *SecretManager) removeCertificates(ctx context.Context, names []string) error {
+	if len(names) == 0 {
+		return nil
+	}
+	for _, name := range names {
+		s.logger.Debug("removing resource", "name", name)
+		if err := s.cache.DeleteResource(name); err != nil {
+			return err
+		}
+	}
+	return nil
 }

@@ -111,15 +111,21 @@ func (c *Command) Run(args []string) int {
 		consulCfg.Address = c.flagConsulAddress
 	}
 
+	secretFetcher, err := k8s.NewK8sSecretClient(c.logger.Named("cert-fetcher"))
+	if err != nil {
+		c.logger.Error("error initializing the kubernetes secret fetcher", "error", err)
+		return 1
+	}
+
 	controller, err := k8s.New(c.logger, cfg)
 	if err != nil {
-		c.UI.Error("An error occurred creating the kubernetes controller:\n\t" + err.Error())
+		c.logger.Error("error creating the kubernetes controller", "error", err)
 		return 1
 	}
 
 	consulClient, err := api.NewClient(consulCfg)
 	if err != nil {
-		c.UI.Error("An error occurred creating a Consul API client:\n\t" + err.Error())
+		c.logger.Error("error creating a Consul API client", "error", err)
 		return 1
 	}
 	controller.SetConsul(consulClient)
@@ -152,7 +158,7 @@ func (c *Command) Run(args []string) int {
 		return 1
 	}
 
-	server := envoy.NewSDSServer(c.logger.Named("sds-server"), certManager)
+	server := envoy.NewSDSServer(c.logger.Named("sds-server"), certManager, secretFetcher)
 	group.Go(func() error {
 		c.logger.Debug("running sds-server")
 		return server.Run(groupCtx)

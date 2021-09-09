@@ -154,6 +154,7 @@ func (c *CertManager) Manage(ctx context.Context) error {
 				c.logger.Error("error requesting certificates", "error", err)
 				return err
 			}
+			c.logger.Trace("persisting certificates")
 			err = c.writeCerts(root, clientCert)
 			if err != nil {
 				c.logger.Error("error persisting certificates", "error", err)

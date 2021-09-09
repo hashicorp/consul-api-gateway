@@ -13,6 +13,7 @@ import (
 	"github.com/envoyproxy/go-control-plane/pkg/resource/v3"
 	server "github.com/envoyproxy/go-control-plane/pkg/server/v3"
 	"github.com/hashicorp/go-hclog"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/grpclog"
@@ -30,14 +31,16 @@ type SDSServer struct {
 	logger  hclog.Logger
 	manager *consul.CertManager
 	server  *grpc.Server
+	client  SecretClient
 
 	stopCtx context.Context
 }
 
-func NewSDSServer(logger hclog.Logger, manager *consul.CertManager) *SDSServer {
+func NewSDSServer(logger hclog.Logger, manager *consul.CertManager, client SecretClient) *SDSServer {
 	return &SDSServer{
 		logger:  logger,
 		manager: manager,
+		client:  client,
 	}
 }
 
@@ -83,22 +86,33 @@ func (s *SDSServer) Run(ctx context.Context) error {
 	}
 	s.server = grpc.NewServer(opts...)
 
-	resourceCache := cache.NewLinearCache(resource.SecretType)
-	secretManager := NewSecretManager(&stubSecretClient{}, "", resourceCache, s.logger.Named("secret-manager"))
+	resourceCache := cache.NewLinearCache(resource.SecretType, cache.WithLogger(wrapEnvoyLogger(s.logger.Named("cache"))))
+	secretManager := NewSecretManager(s.client, resourceCache, s.logger.Named("secret-manager"))
 	handler := NewRequestHandler(s.logger.Named("handler"), secretManager)
 	sdsServer := server.NewServer(childCtx, resourceCache, handler)
 	secretservice.RegisterSecretDiscoveryServiceServer(s.server, sdsServer)
-
 	listener, err := net.Listen("tcp", defaultGRPCPort)
 	if err != nil {
 		return err
 	}
 
-	go func() {
+	group, groupCtx := errgroup.WithContext(childCtx)
+	group.Go(func() error {
+		s.logger.Debug("running secrets manager")
+		secretManager.Manage(groupCtx)
+		return nil
+	})
+	group.Go(func() error {
 		<-childCtx.Done()
 		s.Shutdown()
-	}()
-	return s.server.Serve(listener)
+		return nil
+	})
+	group.Go(func() error {
+		s.logger.Debug("running SDS server")
+		return s.server.Serve(listener)
+	})
+
+	return group.Wait()
 }
 
 func (s *SDSServer) Shutdown() {

@@ -3,6 +3,7 @@ package envoy
 import (
 	"context"
 	"fmt"
+	"sync"
 	"sync/atomic"
 
 	discovery "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
@@ -13,46 +14,67 @@ import (
 )
 
 type RequestHandler struct {
-	logger        hclog.Logger
-	secretManager *SecretManager
-	activeStreams int64
+	logger         hclog.Logger
+	secretManager  *SecretManager
+	activeStreams  int64
+	nodeMap        sync.Map
+	streamContexts sync.Map
 }
 
-func NewRequestHandler(logger hclog.Logger, secretManager *SecretManager) server.Callbacks {
+func NewRequestHandler(logger hclog.Logger, secretManager *SecretManager) *server.CallbackFuncs {
 	handler := &RequestHandler{
 		logger:        logger,
 		secretManager: secretManager,
 	}
-	return server.CallbackFuncs{
+	return &server.CallbackFuncs{
 		DeltaStreamOpenFunc: func(ctx context.Context, streamID int64, typeURL string) error {
+			logger.Debug("delta stream open")
 			if typeURL != resource.SecretType {
 				return fmt.Errorf("unsupported type: %s", typeURL)
 			}
 			return handler.OnDeltaStreamOpen(ctx, streamID)
 		},
-		DeltaStreamClosedFunc:   handler.OnDeltaStreamClosed,
-		StreamDeltaRequestFunc:  handler.OnStreamDeltaRequest,
-		StreamDeltaResponseFunc: handler.OnStreamDeltaResponse,
+		DeltaStreamClosedFunc:  handler.OnDeltaStreamClosed,
+		StreamDeltaRequestFunc: handler.OnStreamDeltaRequest,
 	}
 }
 
 func (r *RequestHandler) OnDeltaStreamOpen(ctx context.Context, streamID int64) error {
-	// this should register the stream with the poller
+	r.logger.Trace("beginning stream", "stream_id", streamID)
+	r.streamContexts.Store(streamID, ctx)
 	atomic.AddInt64(&r.activeStreams, 1)
 	return nil
 }
 
 func (r *RequestHandler) OnDeltaStreamClosed(streamID int64) {
-	r.secretManager.UnwatchAll(streamID)
+	r.logger.Trace("closing stream", "stream_id", streamID)
+	if node, deleted := r.nodeMap.LoadAndDelete(streamID); deleted {
+		r.logger.Trace("unwatching all secrets for node", "node", node.(string))
+		r.secretManager.UnwatchAll(r.streamContext(streamID), node.(string))
+	} else {
+		r.logger.Warn("node not found for stream", "stream", streamID)
+	}
+	r.streamContexts.Delete(streamID)
+
 	atomic.AddInt64(&r.activeStreams, -1)
 }
 
 func (r *RequestHandler) OnStreamDeltaRequest(streamID int64, req *discovery.DeltaDiscoveryRequest) error {
-	// this should un-register the secret polling, which, in turn, should remove items
-	// from the cache
+	ctx := r.streamContext(streamID)
+
+	r.nodeMap.Store(streamID, req.Node.Id)
+	if err := r.secretManager.Watch(ctx, req.ResourceNamesSubscribe, req.Node.Id); err != nil {
+		return err
+	}
+	if err := r.secretManager.Unwatch(ctx, req.ResourceNamesUnsubscribe, req.Node.Id); err != nil {
+		return nil
+	}
 	return nil
 }
 
-func (r *RequestHandler) OnStreamDeltaResponse(streamID int64, req *discovery.DeltaDiscoveryRequest, resp *discovery.DeltaDiscoveryResponse) {
-	// add diagnostics here
+func (r *RequestHandler) streamContext(streamID int64) context.Context {
+	if value, ok := r.streamContexts.Load(streamID); ok {
+		return value.(context.Context)
+	}
+	return nil
 }
