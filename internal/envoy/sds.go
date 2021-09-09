@@ -35,8 +35,6 @@ type SDSServer struct {
 	metrics *metrics.SDSMetrics
 	server  *grpc.Server
 	client  SecretClient
-
-	stopCtx context.Context
 }
 
 func NewSDSServer(logger hclog.Logger, metrics *metrics.SDSMetrics, manager *consul.CertManager, client SecretClient) *SDSServer {
@@ -51,7 +49,6 @@ func NewSDSServer(logger hclog.Logger, metrics *metrics.SDSMetrics, manager *con
 // GRPC returns a server instance that can handle xDS requests.
 func (s *SDSServer) Run(ctx context.Context) error {
 	childCtx, cancel := context.WithCancel(ctx)
-	s.stopCtx = childCtx
 	defer cancel()
 
 	grpclog.SetLoggerV2(polarGRPC.NewHCLogLogger(s.logger))
