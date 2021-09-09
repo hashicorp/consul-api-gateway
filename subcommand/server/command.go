@@ -5,7 +5,6 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
-	"net/http"
 	"os"
 	"os/signal"
 	"sync"
@@ -13,7 +12,6 @@ import (
 	"time"
 
 	"github.com/mitchellh/cli"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/hashicorp/consul/api"
@@ -22,6 +20,7 @@ import (
 	"github.com/hashicorp/polar/internal/consul"
 	"github.com/hashicorp/polar/internal/envoy"
 	"github.com/hashicorp/polar/internal/metrics"
+	"github.com/hashicorp/polar/internal/profiling"
 	"github.com/hashicorp/polar/k8s"
 )
 
@@ -43,6 +42,7 @@ type Command struct {
 	flagSDSServerHost     string // SDS server host
 	flagSDSServerPort     int    // SDS server port
 	flagMetricsPort       int    // Port for prometheus metrics
+	flagPprofPort         int    // Port for pprof profiling
 
 	// Logging
 	flagLogLevel string
@@ -61,7 +61,7 @@ func (c *Command) init() {
 	c.flagSet.StringVar(&c.flagSDSServerHost, "sds-server-host", defaultSDSServerHost, "SDS Server Host.")
 	c.flagSet.IntVar(&c.flagSDSServerPort, "sds-server-port", defaultSDSServerPort, "SDS Server Port.")
 	c.flagSet.IntVar(&c.flagMetricsPort, "metrics-port", 0, "Metrics port, if not set, metrics are not enabled.")
-
+	c.flagSet.IntVar(&c.flagPprofPort, "pprof-port", 0, "Go pprof port, if not set, profiling is not enabled.")
 	{
 		// Logging
 		c.flagSet.StringVar(&c.flagLogLevel, "log-level", "info",
@@ -96,7 +96,7 @@ func (c *Command) Run(args []string) int {
 	if err := c.flagSet.Parse(args); err != nil {
 		return 1
 	}
-	metrics := metrics.Registry
+	metricsRegistry := metrics.Registry
 
 	if c.logger == nil {
 		c.logger = hclog.New(&hclog.LoggerOptions{
@@ -136,13 +136,13 @@ func (c *Command) Run(args []string) int {
 		consulCfg.Address = c.flagConsulAddress
 	}
 
-	secretFetcher, err := k8s.NewK8sSecretClient(c.logger.Named("cert-fetcher"), metrics.SDS)
+	secretFetcher, err := k8s.NewK8sSecretClient(c.logger.Named("cert-fetcher"), metricsRegistry.SDS)
 	if err != nil {
 		c.logger.Error("error initializing the kubernetes secret fetcher", "error", err)
 		return 1
 	}
 
-	controller, err := k8s.New(c.logger, metrics.K8s, cfg)
+	controller, err := k8s.New(c.logger, metricsRegistry.K8s, cfg)
 	if err != nil {
 		c.logger.Error("error creating the kubernetes controller", "error", err)
 		return 1
@@ -183,35 +183,23 @@ func (c *Command) Run(args []string) int {
 	}
 	c.logger.Trace("initial certificates written")
 
-	server := envoy.NewSDSServer(c.logger.Named("sds-server"), metrics.SDS, certManager, secretFetcher)
+	server := envoy.NewSDSServer(c.logger.Named("sds-server"), metricsRegistry.SDS, certManager, secretFetcher)
 	group.Go(func() error {
 		return server.Run(groupCtx)
 	})
 	group.Go(func() error {
-		c.logger.Debug("running controller")
 		return controller.Start(groupCtx)
 	})
 
 	if c.flagMetricsPort != 0 {
-		mux := http.NewServeMux()
-		mux.Handle("/metrics", promhttp.Handler())
-		server := &http.Server{
-			Addr:    fmt.Sprintf("127.0.0.1:%d", c.flagMetricsPort),
-			Handler: mux,
-		}
-
 		group.Go(func() error {
-			go func() {
-				<-groupCtx.Done()
-				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-				defer cancel()
-				if err := server.Shutdown(ctx); err != nil {
-					// graceful shutdown failed, exit
-					c.logger.Error("error shutting down metrics server", "error", err)
-					os.Exit(1)
-				}
-			}()
-			return server.ListenAndServe()
+			return metrics.RunServer(groupCtx, c.logger.Named("metrics"), fmt.Sprintf("127.0.0.1:%d", c.flagMetricsPort))
+		})
+	}
+
+	if c.flagPprofPort != 0 {
+		group.Go(func() error {
+			return profiling.RunServer(groupCtx, c.logger.Named("pprof"), fmt.Sprintf("127.0.0.1:%d", c.flagPprofPort))
 		})
 	}
 

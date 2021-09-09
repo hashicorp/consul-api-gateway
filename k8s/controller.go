@@ -134,11 +134,12 @@ func (k *Kubernetes) SetConsul(consul *api.Client) {
 
 // Start will run the kubernetes controllers and return a startup error if occurred
 func (k *Kubernetes) Start(ctx context.Context) error {
+	k.logger.Trace("running controller")
+
 	status := object.NewStatusWorker(ctx, k.k8sManager.GetClient().Status(), k.logger)
 	k.k8sStatus = status
 
 	klogger := log.FromHCLogger(k.logger)
-
 	consulMgr := reconciler.NewReconcileManager(ctx, k.metrics, k.consul, k.k8sManager.GetClient().Status(), k.logger.Named("consul"))
 	err := (&controllers.GatewayReconciler{
 		SDSServerHost: k.sDSServerHost,
