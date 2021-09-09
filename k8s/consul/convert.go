@@ -3,8 +3,9 @@ package consul
 import (
 	"fmt"
 
-	"github.com/hashicorp/consul/api"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
+
+	"github.com/hashicorp/consul/api"
 )
 
 // HTTPRouteToServiceDiscoChain will convert a k8s HTTPRoute to a Consul service-router config entry and 0 or

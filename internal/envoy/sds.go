@@ -13,10 +13,11 @@ import (
 	"github.com/envoyproxy/go-control-plane/pkg/log"
 	"github.com/envoyproxy/go-control-plane/pkg/resource/v3"
 	server "github.com/envoyproxy/go-control-plane/pkg/server/v3"
-	"github.com/hashicorp/go-hclog"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/grpclog"
+
+	"github.com/hashicorp/go-hclog"
 
 	"github.com/hashicorp/polar/internal/consul"
 	polarGRPC "github.com/hashicorp/polar/internal/grpc"

@@ -5,8 +5,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hashicorp/go-hclog"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/hashicorp/go-hclog"
 )
 
 const (

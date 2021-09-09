@@ -3,9 +3,10 @@ package consul
 import (
 	"fmt"
 
-	"github.com/hashicorp/consul/api"
 	"k8s.io/apimachinery/pkg/types"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
+
+	"github.com/hashicorp/consul/api"
 
 	"github.com/hashicorp/polar/k8s/routes"
 )

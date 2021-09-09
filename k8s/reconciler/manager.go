@@ -4,11 +4,12 @@ import (
 	"context"
 	"sync"
 
-	"github.com/hashicorp/consul/api"
-	"github.com/hashicorp/go-hclog"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
+
+	"github.com/hashicorp/consul/api"
+	"github.com/hashicorp/go-hclog"
 
 	"github.com/hashicorp/polar/internal/metrics"
 	"github.com/hashicorp/polar/k8s/object"

@@ -6,10 +6,11 @@ import (
 	"sort"
 	"time"
 
-	"github.com/hashicorp/consul/api"
-	"github.com/hashicorp/go-hclog"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
+
+	"github.com/hashicorp/consul/api"
+	"github.com/hashicorp/go-hclog"
 
 	"github.com/hashicorp/polar/k8s/consul"
 	"github.com/hashicorp/polar/k8s/object"

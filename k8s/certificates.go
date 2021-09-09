@@ -8,11 +8,12 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/hashicorp/go-hclog"
 	"github.com/prometheus/client_golang/prometheus"
 	corev1 "k8s.io/api/core/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/hashicorp/go-hclog"
 
 	"github.com/hashicorp/polar/internal/envoy"
 	"github.com/hashicorp/polar/internal/metrics"

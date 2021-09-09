@@ -13,10 +13,11 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/hashicorp/consul/api"
-	"github.com/hashicorp/go-hclog"
 	"github.com/mitchellh/cli"
 	"golang.org/x/sync/errgroup"
+
+	"github.com/hashicorp/consul/api"
+	"github.com/hashicorp/go-hclog"
 
 	"github.com/hashicorp/polar/internal/consul"
 	"github.com/hashicorp/polar/internal/envoy"

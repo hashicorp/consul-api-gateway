@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff"
+
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
 

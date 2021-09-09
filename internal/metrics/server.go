@@ -7,8 +7,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hashicorp/go-hclog"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+
+	"github.com/hashicorp/go-hclog"
 )
 
 func RunServer(ctx context.Context, logger hclog.Logger, address string) error {
