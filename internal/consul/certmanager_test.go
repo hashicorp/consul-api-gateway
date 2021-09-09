@@ -16,6 +16,7 @@ import (
 
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
+	"github.com/hashicorp/polar/internal/metrics"
 )
 
 func TestManage(t *testing.T) {
@@ -71,7 +72,7 @@ func TestManage(t *testing.T) {
 			options.Directory = directory
 			options.Tries = test.maxRetries
 
-			manager := NewCertManager(hclog.NewNullLogger(), server.consul, service, options)
+			manager := NewCertManager(hclog.NewNullLogger(), metrics.Registry.Consul, server.consul, service, options)
 			manager.backoffInterval = 0
 
 			ctx, cancel := context.WithCancel(context.Background())
@@ -130,7 +131,7 @@ func TestManage_Refresh(t *testing.T) {
 	server := runCertServer(t, 0, 0, service, 2)
 
 	options := DefaultCertManagerOptions()
-	manager := NewCertManager(hclog.NewNullLogger(), server.consul, service, options)
+	manager := NewCertManager(hclog.NewNullLogger(), metrics.Registry.Consul, server.consul, service, options)
 	manager.backoffInterval = 0
 
 	writes := int32(0)
@@ -178,7 +179,7 @@ func TestManage_WaitCancel(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Millisecond)
 	defer cancel()
 
-	err := NewCertManager(hclog.NewNullLogger(), nil, "", nil).WaitForWrite(ctx)
+	err := NewCertManager(hclog.NewNullLogger(), metrics.Registry.Consul, nil, "", nil).WaitForWrite(ctx)
 	require.Error(t, err)
 }
 

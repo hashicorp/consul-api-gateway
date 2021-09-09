@@ -164,6 +164,7 @@ func (c *Command) Run(args []string) int {
 	options.Directory = directory
 	certManager := consul.NewCertManager(
 		c.logger.Named("cert-manager"),
+		metricsRegistry.Consul,
 		consulClient,
 		"polar-controller",
 		options,

@@ -17,6 +17,7 @@ import (
 	"github.com/hashicorp/go-hclog"
 
 	"github.com/hashicorp/polar/internal/common"
+	"github.com/hashicorp/polar/internal/metrics"
 )
 
 const (
@@ -116,12 +117,14 @@ type CertManager struct {
 	isInitialized    bool
 	initializeSignal chan struct{}
 
+	metrics *metrics.ConsulMetrics
+
 	// this can be overwritten to check retry logic in testing
 	writeCerts certWriter
 }
 
 // NewCertManager creates a new CertManager instance.
-func NewCertManager(logger hclog.Logger, consul *api.Client, service string, options *CertManagerOptions) *CertManager {
+func NewCertManager(logger hclog.Logger, metrics *metrics.ConsulMetrics, consul *api.Client, service string, options *CertManagerOptions) *CertManager {
 	if options == nil {
 		options = DefaultCertManagerOptions()
 	}
@@ -131,6 +134,7 @@ func NewCertManager(logger hclog.Logger, consul *api.Client, service string, opt
 		sdsAddress:       options.SDSAddress,
 		sdsPort:          options.SDSPort,
 		service:          service,
+		metrics:          metrics,
 		directory:        options.Directory,
 		tries:            options.Tries,
 		backoffInterval:  defaultBackoffInterval,
@@ -156,6 +160,8 @@ func (c *CertManager) Manage(ctx context.Context) error {
 				c.logger.Error("error requesting certificates", "error", err)
 				return err
 			}
+			c.metrics.LeafCertificateFetches.Inc()
+
 			c.logger.Trace("persisting certificates")
 			err = c.writeCerts(root, clientCert)
 			if err != nil {

@@ -21,6 +21,7 @@ import (
 
 	"github.com/hashicorp/polar/internal/consul"
 	"github.com/hashicorp/polar/internal/envoy"
+	"github.com/hashicorp/polar/internal/metrics"
 )
 
 // https://github.com/hashicorp/consul-k8s/blob/24be51c58461e71365ca39f113dae0379f7a1b7c/control-plane/connect-inject/container_init.go#L272-L306
@@ -29,9 +30,6 @@ import (
 // https://github.com/hashicorp/consul-k8s/blob/24be51c58461e71365ca39f113dae0379f7a1b7c/control-plane/connect-inject/endpoints_controller.go#L403
 
 const (
-	MetaKeyPodName = "pod-name"
-	MetaKeyKubeNS  = "k8s-namespace"
-
 	defaultBearerTokenFile = "/var/run/secrets/kubernetes.io/serviceaccount/token"
 
 	// The amount of time to wait for the first cert write
@@ -217,6 +215,7 @@ func (c *Command) Run(args []string) (ret int) {
 	options.SDSPort = c.flagSDSServerPort
 	certManager := consul.NewCertManager(
 		c.logger.Named("cert-manager"),
+		metrics.Registry.Consul,
 		consulClient,
 		c.flagGatewayName,
 		options,

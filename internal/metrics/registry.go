@@ -5,6 +5,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
+type ConsulMetrics struct {
+	LeafCertificateFetches prometheus.Counter
+}
+
 type SDSMetrics struct {
 	ActiveStreams      prometheus.Gauge
 	CachedResources    prometheus.Gauge
@@ -17,8 +21,9 @@ type K8sMetrics struct {
 }
 
 type MetricsRegistry struct {
-	SDS *SDSMetrics
-	K8s *K8sMetrics
+	SDS    *SDSMetrics
+	K8s    *K8sMetrics
+	Consul *ConsulMetrics
 }
 
 var Registry *MetricsRegistry
@@ -47,6 +52,12 @@ func init() {
 			NewGatewayDeployments: promauto.NewCounter(prometheus.CounterOpts{
 				Name: "k8s_new_gateway_deployments",
 				Help: "The number of gateways the kubernetes controller has deployed",
+			}),
+		},
+		Consul: &ConsulMetrics{
+			LeafCertificateFetches: promauto.NewCounter(prometheus.CounterOpts{
+				Name: "consul_leaf_certificate_fetches",
+				Help: "The number of times a leaf certificate has been fetched from Consul",
 			}),
 		},
 	}
