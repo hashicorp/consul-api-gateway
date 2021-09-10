@@ -16,33 +16,44 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/grpclog"
+	"google.golang.org/grpc/health"
+	healthservice "google.golang.org/grpc/health/grpc_health_v1"
 
 	"github.com/hashicorp/go-hclog"
 
-	"github.com/hashicorp/polar/internal/consul"
 	polarGRPC "github.com/hashicorp/polar/internal/grpc"
 	"github.com/hashicorp/polar/internal/metrics"
 )
 
+//go:generate mockgen -source ./sds.go -destination ./mocks/sds.go -package mocks CertificateFetcher
+
 const (
-	defaultGRPCPort        = ":9090"
+	defaultGRPCBindAddress = ":9090"
 	defaultShutdownTimeout = 10 * time.Second
 )
 
-type SDSServer struct {
-	logger  hclog.Logger
-	manager *consul.CertManager
-	metrics *metrics.SDSMetrics
-	server  *grpc.Server
-	client  SecretClient
+type CertificateFetcher interface {
+	RootCA() ([]byte, error)
+	Certificate() ([]byte, error)
+	PrivateKey() ([]byte, error)
 }
 
-func NewSDSServer(logger hclog.Logger, metrics *metrics.SDSMetrics, manager *consul.CertManager, client SecretClient) *SDSServer {
+type SDSServer struct {
+	logger      hclog.Logger
+	fetcher     CertificateFetcher
+	metrics     *metrics.SDSMetrics
+	server      *grpc.Server
+	client      SecretClient
+	bindAddress string
+}
+
+func NewSDSServer(logger hclog.Logger, metrics *metrics.SDSMetrics, fetcher CertificateFetcher, client SecretClient) *SDSServer {
 	return &SDSServer{
-		logger:  logger,
-		manager: manager,
-		metrics: metrics,
-		client:  client,
+		logger:      logger,
+		fetcher:     fetcher,
+		metrics:     metrics,
+		client:      client,
+		bindAddress: defaultGRPCBindAddress,
 	}
 }
 
@@ -53,7 +64,7 @@ func (s *SDSServer) Run(ctx context.Context) error {
 
 	grpclog.SetLoggerV2(polarGRPC.NewHCLogLogger(s.logger))
 
-	rootCA, err := s.manager.RootCA()
+	rootCA, err := s.fetcher.RootCA()
 	if err != nil {
 		return err
 	}
@@ -67,11 +78,11 @@ func (s *SDSServer) Run(ctx context.Context) error {
 		grpc.MaxConcurrentStreams(2048),
 		grpc.Creds(credentials.NewTLS(&tls.Config{
 			GetCertificate: func(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
-				cert, err := s.manager.Certificate()
+				cert, err := s.fetcher.Certificate()
 				if err != nil {
 					return nil, err
 				}
-				privateKey, err := s.manager.PrivateKey()
+				privateKey, err := s.fetcher.PrivateKey()
 				if err != nil {
 					return nil, err
 				}
@@ -92,7 +103,8 @@ func (s *SDSServer) Run(ctx context.Context) error {
 	handler := NewRequestHandler(s.logger.Named("handler"), s.metrics, secretManager)
 	sdsServer := server.NewServer(childCtx, resourceCache, handler)
 	secretservice.RegisterSecretDiscoveryServiceServer(s.server, sdsServer)
-	listener, err := net.Listen("tcp", defaultGRPCPort)
+	healthservice.RegisterHealthServer(s.server, health.NewServer())
+	listener, err := net.Listen("tcp", s.bindAddress)
 	if err != nil {
 		return err
 	}
