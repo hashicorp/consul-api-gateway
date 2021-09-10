@@ -7,6 +7,7 @@ require (
 	github.com/envoyproxy/go-control-plane v0.9.10-0.20210908152719-36c2c0845c9e
 	github.com/fatih/color v1.12.0 // indirect
 	github.com/go-logr/logr v0.4.0
+	github.com/golang/mock v1.4.1
 	github.com/google/uuid v1.1.2
 	github.com/hashicorp/consul/api v1.9.1
 	github.com/hashicorp/go-hclog v0.16.2

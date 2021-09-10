@@ -5,44 +5,50 @@ import (
 	"sync"
 	"time"
 
-	core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	tls "github.com/envoyproxy/go-control-plane/envoy/extensions/transport_sockets/tls/v3"
 	"github.com/envoyproxy/go-control-plane/pkg/cache/types"
-	cache "github.com/envoyproxy/go-control-plane/pkg/cache/v3"
 
 	"github.com/hashicorp/go-hclog"
 )
 
-type SecretClient interface {
-	FetchSecret(ctx context.Context, name string) (*Certificate, error)
+//go:generate mockgen -source ./secrets.go -destination ./mocks/secrets.go -package mocks SecretManager,SecretClient,SecretCache
+
+type SecretCache interface {
+	UpdateResource(name string, res types.Resource) error
+	DeleteResource(name string) error
 }
 
-type Certificate struct {
-	Name             string
-	ExpiresAt        time.Time
-	CertificateChain []byte
-	PrivateKey       []byte
+type SecretClient interface {
+	FetchSecret(ctx context.Context, name string) (*tls.Secret, time.Time, error)
+}
+
+type SecretManager interface {
+	Watch(ctx context.Context, names []string, node string) error
+	Unwatch(ctx context.Context, names []string, node string) error
+	UnwatchAll(ctx context.Context, node string)
+	Manage(ctx context.Context)
 }
 
 // reference counted Certificates
 type watchedCertificate struct {
-	*Certificate
-	refs map[string]struct{}
+	*tls.Secret
+	expiration time.Time
+	refs       map[string]struct{}
 }
 
-type SecretManager struct {
+type secretManager struct {
 	client SecretClient
 	// map to contain sets of cert names that a stream is watching
 	watchers map[string]map[string]struct{}
 	// map of cert names to certs
 	registry map[string]*watchedCertificate
-	cache    *cache.LinearCache
+	cache    SecretCache
 	mutex    sync.RWMutex
 	logger   hclog.Logger
 }
 
-func NewSecretManager(client SecretClient, cache *cache.LinearCache, logger hclog.Logger) *SecretManager {
-	return &SecretManager{
+func NewSecretManager(client SecretClient, cache SecretCache, logger hclog.Logger) SecretManager {
+	return &secretManager{
 		client:   client,
 		cache:    cache,
 		logger:   logger,
@@ -51,7 +57,7 @@ func NewSecretManager(client SecretClient, cache *cache.LinearCache, logger hclo
 	}
 }
 
-func (s *SecretManager) Watch(ctx context.Context, names []string, node string) error {
+func (s *secretManager) Watch(ctx context.Context, names []string, node string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -61,25 +67,27 @@ func (s *SecretManager) Watch(ctx context.Context, names []string, node string) 
 		s.watchers[node] = watcher
 	}
 
-	certificates := []*Certificate{}
+	certificates := []*tls.Secret{}
 	for _, name := range names {
 		watcher[name] = struct{}{}
 		if entry, ok := s.registry[name]; ok {
-			certificates = append(certificates, entry.Certificate)
+			certificates = append(certificates, entry.Secret)
 			entry.refs[node] = struct{}{}
 			continue
 		}
-		certificate, err := s.client.FetchSecret(ctx, name)
+		certificate, expires, err := s.client.FetchSecret(ctx, name)
 		if err != nil {
 			return err
 		}
-		certificates = append(certificates, certificate)
-		s.registry[name] = &watchedCertificate{
-			Certificate: certificate,
+		watchedCert := &watchedCertificate{
+			Secret:     certificate,
+			expiration: expires,
 			refs: map[string]struct{}{
 				node: {},
 			},
 		}
+		certificates = append(certificates, certificate)
+		s.registry[name] = watchedCert
 	}
 	err := s.updateCertificates(ctx, certificates)
 	if err != nil {
@@ -88,7 +96,7 @@ func (s *SecretManager) Watch(ctx context.Context, names []string, node string) 
 	return nil
 }
 
-func (s *SecretManager) UnwatchAll(ctx context.Context, node string) {
+func (s *secretManager) UnwatchAll(ctx context.Context, node string) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	if watcher, ok := s.watchers[node]; ok {
@@ -108,7 +116,7 @@ func (s *SecretManager) UnwatchAll(ctx context.Context, node string) {
 	}
 }
 
-func (s *SecretManager) Unwatch(ctx context.Context, names []string, node string) error {
+func (s *secretManager) Unwatch(ctx context.Context, names []string, node string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	if watcher, ok := s.watchers[node]; ok {
@@ -126,7 +134,7 @@ func (s *SecretManager) Unwatch(ctx context.Context, names []string, node string
 	return s.removeCertificates(ctx, names)
 }
 
-func (s *SecretManager) Manage(ctx context.Context) {
+func (s *secretManager) Manage(ctx context.Context) {
 	s.logger.Trace("running secrets manager")
 
 	for {
@@ -134,9 +142,9 @@ func (s *SecretManager) Manage(ctx context.Context) {
 		case <-time.After(30 * time.Second):
 			s.mutex.RLock()
 			for secretName, secret := range s.registry {
-				if time.Now().After(secret.ExpiresAt.Add(-10 * time.Minute)) {
+				if time.Now().After(secret.expiration.Add(-10 * time.Minute)) {
 					// request secret and persist
-					certificate, err := s.client.FetchSecret(ctx, secretName)
+					certificate, expires, err := s.client.FetchSecret(ctx, secretName)
 					if err != nil {
 						s.logger.Error("error fetching secret", "error", err, "secret", secretName)
 						s.mutex.RUnlock()
@@ -148,7 +156,8 @@ func (s *SecretManager) Manage(ctx context.Context) {
 						s.mutex.RUnlock()
 						continue
 					}
-					secret.Certificate = certificate
+					secret.Secret = certificate
+					secret.expiration = expires
 				}
 			}
 			s.mutex.RUnlock()
@@ -159,31 +168,11 @@ func (s *SecretManager) Manage(ctx context.Context) {
 	}
 }
 
-func certToSecret(c *Certificate) types.Resource {
-	return &tls.Secret{
-		Type: &tls.Secret_TlsCertificate{
-			TlsCertificate: &tls.TlsCertificate{
-				CertificateChain: &core.DataSource{
-					Specifier: &core.DataSource_InlineBytes{
-						InlineBytes: c.CertificateChain,
-					},
-				},
-				PrivateKey: &core.DataSource{
-					Specifier: &core.DataSource_InlineBytes{
-						InlineBytes: c.PrivateKey,
-					},
-				},
-			},
-		},
-		Name: c.Name,
-	}
+func (s *secretManager) updateCertificate(ctx context.Context, c *tls.Secret) error {
+	return s.cache.UpdateResource(c.Name, c)
 }
 
-func (s *SecretManager) updateCertificate(ctx context.Context, c *Certificate) error {
-	return s.cache.UpdateResource(c.Name, certToSecret(c))
-}
-
-func (s *SecretManager) updateCertificates(ctx context.Context, certs []*Certificate) error {
+func (s *secretManager) updateCertificates(ctx context.Context, certs []*tls.Secret) error {
 	for _, cert := range certs {
 		if err := s.updateCertificate(ctx, cert); err != nil {
 			return err
@@ -192,7 +181,7 @@ func (s *SecretManager) updateCertificates(ctx context.Context, certs []*Certifi
 	return nil
 }
 
-func (s *SecretManager) removeCertificates(ctx context.Context, names []string) error {
+func (s *secretManager) removeCertificates(ctx context.Context, names []string) error {
 	if len(names) == 0 {
 		return nil
 	}

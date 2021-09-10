@@ -7,7 +7,10 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
+	core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
+	tls "github.com/envoyproxy/go-control-plane/envoy/extensions/transport_sockets/tls/v3"
 	"github.com/prometheus/client_golang/prometheus"
 	corev1 "k8s.io/api/core/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -15,7 +18,6 @@ import (
 
 	"github.com/hashicorp/go-hclog"
 
-	"github.com/hashicorp/polar/internal/envoy"
 	"github.com/hashicorp/polar/internal/metrics"
 )
 
@@ -39,7 +41,7 @@ func NewK8sSecretClient(logger hclog.Logger, metrics *metrics.SDSMetrics) (*K8sS
 	}, nil
 }
 
-func (c *K8sSecretClient) FetchSecret(ctx context.Context, fullName string) (*envoy.Certificate, error) {
+func (c *K8sSecretClient) FetchSecret(ctx context.Context, fullName string) (*tls.Secret, time.Time, error) {
 	c.logger.Trace("fetching SDS secret", "name", fullName)
 	c.counter.WithLabelValues(fullName).Inc()
 	namespace, name := parseSecretName(fullName)
@@ -49,27 +51,38 @@ func (c *K8sSecretClient) FetchSecret(ctx context.Context, fullName string) (*en
 		Name:      name,
 	}, secret)
 	if err != nil {
-		return nil, err
+		return nil, time.Time{}, err
 	}
 	if secret.Type != corev1.SecretTypeTLS {
-		return nil, fmt.Errorf("only TLS certificates are supported, got type: %s", secret.Type)
+		return nil, time.Time{}, fmt.Errorf("only TLS certificates are supported, got type: %s", secret.Type)
 	}
 	certificateChain := secret.Data[corev1.TLSCertKey]
 	block, _ := pem.Decode(certificateChain)
 	if block == nil {
-		return nil, errors.New("failed to parse certificate PEM")
+		return nil, time.Time{}, errors.New("failed to parse certificate PEM")
 	}
 	cert, err := x509.ParseCertificate(block.Bytes)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse certificate: %w", err)
+		return nil, time.Time{}, fmt.Errorf("failed to parse certificate: %w", err)
 	}
 	certificatePrivateKey := secret.Data[corev1.TLSPrivateKeyKey]
-	return &envoy.Certificate{
-		Name:             fullName,
-		CertificateChain: certificateChain,
-		PrivateKey:       certificatePrivateKey,
-		ExpiresAt:        cert.NotAfter,
-	}, nil
+	return &tls.Secret{
+		Type: &tls.Secret_TlsCertificate{
+			TlsCertificate: &tls.TlsCertificate{
+				CertificateChain: &core.DataSource{
+					Specifier: &core.DataSource_InlineBytes{
+						InlineBytes: certificateChain,
+					},
+				},
+				PrivateKey: &core.DataSource{
+					Specifier: &core.DataSource_InlineBytes{
+						InlineBytes: certificatePrivateKey,
+					},
+				},
+			},
+		},
+		Name: fullName,
+	}, cert.NotAfter, nil
 }
 
 // parses the string into a namespace and name
