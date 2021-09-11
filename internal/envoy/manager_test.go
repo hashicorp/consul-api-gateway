@@ -57,6 +57,7 @@ func TestManagerRenderBootstrap(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			directory, err := os.MkdirTemp("", "polar-test")
 			require.NoError(t, err)
+			defer os.RemoveAll(directory)
 
 			filePath := path.Join(directory, "bootstrap.json")
 			test.config.BootstrapFilePath = filePath

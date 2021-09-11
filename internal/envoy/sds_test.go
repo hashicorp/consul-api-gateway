@@ -1,28 +1,22 @@
 package envoy
 
 import (
-	"bytes"
 	"context"
-	"crypto/rand"
-	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
-	"crypto/x509/pkix"
-	"encoding/pem"
 	"errors"
-	"fmt"
-	"math/big"
-	"net"
+	"os"
+	"path"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/cenkalti/backoff"
 	"github.com/golang/mock/gomock"
-	"github.com/hashicorp/consul/sdk/freeport"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/polar/internal/envoy/mocks"
 	"github.com/hashicorp/polar/internal/metrics"
+	polarTesting "github.com/hashicorp/polar/internal/testing"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -30,65 +24,35 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-type certInfo struct {
-	cert            *x509.Certificate
-	certBytes       []byte
-	privateKey      *rsa.PrivateKey
-	privateKeyBytes []byte
-	x509            tls.Certificate
-}
-
-var (
-	errEarlyTestTermination = errors.New("early test termination")
-)
-
-func TestSDSRun(t *testing.T) {
-	t.Parallel()
-
-	port := getPort()
-
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	ca, _, _ := generateCerts(t)
-
-	fetcher := mocks.NewMockCertificateFetcher(ctrl)
-	client := mocks.NewMockSecretClient(ctrl)
-	fetcher.EXPECT().RootCA().Return(ca.certBytes, nil)
-
-	sds := NewSDSServer(hclog.NewNullLogger(), metrics.Registry.SDS, fetcher, client)
-	sds.bindAddress = fmt.Sprintf("127.0.0.1:%d", port)
-
-	err := runTestServer(t, context.Background(), sds, func(cancel func()) { cancel() })
-	require.NoError(t, err)
-}
-
 func TestSDSRunCertificateVerification(t *testing.T) {
 	t.Parallel()
 
-	port := getPort()
-	serverAddress := fmt.Sprintf("127.0.0.1:%d", port)
+	ca, server, client := polarTesting.DefaultCertificates()
 
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+	err := runTestServer(t, ca.CertBytes, func(serverAddress string, fetcher *mocks.MockCertificateFetcher) {
+		fetcher.EXPECT().Certificate().Return(server.CertBytes, nil)
+		fetcher.EXPECT().PrivateKey().Return(server.PrivateKeyBytes, nil)
 
-	ca, server, client := generateCerts(t)
-
-	fetcher := mocks.NewMockCertificateFetcher(ctrl)
-	secretClient := mocks.NewMockSecretClient(ctrl)
-	fetcher.EXPECT().RootCA().Return(ca.certBytes, nil)
-	fetcher.EXPECT().Certificate().Return(server.certBytes, nil)
-	fetcher.EXPECT().PrivateKey().Return(server.privateKeyBytes, nil)
-
-	sds := NewSDSServer(hclog.NewNullLogger(), metrics.Registry.SDS, fetcher, secretClient)
-	sds.bindAddress = serverAddress
-
-	err := runTestServer(t, context.Background(), sds, func(cancel func()) {
-		defer cancel()
-
-		err := testClientHealth(t, serverAddress, client, ca.certBytes)
-
+		err := testClientHealth(t, serverAddress, client, ca.CertBytes)
 		require.NoError(t, err)
+	})
+	require.NoError(t, err)
+}
+
+func TestSDSRunServerParseError(t *testing.T) {
+	t.Parallel()
+
+	ca, _, client := polarTesting.DefaultCertificates()
+
+	err := runTestServer(t, ca.CertBytes, func(serverAddress string, fetcher *mocks.MockCertificateFetcher) {
+		fetcher.EXPECT().Certificate().Return(nil, nil)
+		fetcher.EXPECT().PrivateKey().Return(nil, nil)
+
+		err := testClientHealth(t, serverAddress, client, ca.CertBytes)
+
+		// error on invalid server certificate
+		require.Error(t, err)
+		require.Contains(t, status.Convert(err).String(), "tls: internal error")
 	})
 	require.NoError(t, err)
 }
@@ -96,30 +60,16 @@ func TestSDSRunCertificateVerification(t *testing.T) {
 func TestSDSRunServerCertificateError(t *testing.T) {
 	t.Parallel()
 
-	port := getPort()
-	serverAddress := fmt.Sprintf("127.0.0.1:%d", port)
+	ca, _, client := polarTesting.DefaultCertificates()
 
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+	err := runTestServer(t, ca.CertBytes, func(serverAddress string, fetcher *mocks.MockCertificateFetcher) {
+		fetcher.EXPECT().Certificate().Return(nil, errors.New("invalid"))
 
-	ca, _, client := generateCerts(t)
-
-	fetcher := mocks.NewMockCertificateFetcher(ctrl)
-	secretClient := mocks.NewMockSecretClient(ctrl)
-	fetcher.EXPECT().RootCA().Return(ca.certBytes, nil)
-	fetcher.EXPECT().Certificate().Return(nil, errors.New("invalid"))
-
-	sds := NewSDSServer(hclog.NewNullLogger(), metrics.Registry.SDS, fetcher, secretClient)
-	sds.bindAddress = serverAddress
-
-	err := runTestServer(t, context.Background(), sds, func(cancel func()) {
-		defer cancel()
-
-		err := testClientHealth(t, serverAddress, client, ca.certBytes)
+		err := testClientHealth(t, serverAddress, client, ca.CertBytes)
 
 		// error on invalid server certificate
 		require.Error(t, err)
-		require.Contains(t, status.Convert(err).String(), "tls")
+		require.Contains(t, status.Convert(err).String(), "tls: internal error")
 	})
 	require.NoError(t, err)
 }
@@ -127,31 +77,17 @@ func TestSDSRunServerCertificateError(t *testing.T) {
 func TestSDSRunServerKeyError(t *testing.T) {
 	t.Parallel()
 
-	port := getPort()
-	serverAddress := fmt.Sprintf("127.0.0.1:%d", port)
+	ca, server, client := polarTesting.DefaultCertificates()
 
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+	err := runTestServer(t, ca.CertBytes, func(serverAddress string, fetcher *mocks.MockCertificateFetcher) {
+		fetcher.EXPECT().Certificate().Return(server.CertBytes, nil)
+		fetcher.EXPECT().PrivateKey().Return(nil, errors.New("invalid"))
 
-	ca, server, client := generateCerts(t)
-
-	fetcher := mocks.NewMockCertificateFetcher(ctrl)
-	secretClient := mocks.NewMockSecretClient(ctrl)
-	fetcher.EXPECT().RootCA().Return(ca.certBytes, nil)
-	fetcher.EXPECT().Certificate().Return(server.certBytes, nil)
-	fetcher.EXPECT().PrivateKey().Return(nil, errors.New("invalid"))
-
-	sds := NewSDSServer(hclog.NewNullLogger(), metrics.Registry.SDS, fetcher, secretClient)
-	sds.bindAddress = serverAddress
-
-	err := runTestServer(t, context.Background(), sds, func(cancel func()) {
-		defer cancel()
-
-		err := testClientHealth(t, serverAddress, client, ca.certBytes)
+		err := testClientHealth(t, serverAddress, client, ca.CertBytes)
 
 		// error on invalid server private key
 		require.Error(t, err)
-		require.Contains(t, status.Convert(err).String(), "tls")
+		require.Contains(t, status.Convert(err).String(), "tls: internal error")
 	})
 	require.NoError(t, err)
 }
@@ -159,37 +95,25 @@ func TestSDSRunServerKeyError(t *testing.T) {
 func TestSDSRunClientVerificationError(t *testing.T) {
 	t.Parallel()
 
-	port := getPort()
-	serverAddress := fmt.Sprintf("127.0.0.1:%d", port)
+	ca, server, _ := polarTesting.DefaultCertificates()
+	client, err := polarTesting.GenerateSignedCertificate(nil, false)
+	require.NoError(t, err)
 
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+	err = runTestServer(t, ca.CertBytes, func(serverAddress string, fetcher *mocks.MockCertificateFetcher) {
+		fetcher.EXPECT().Certificate().Return(server.CertBytes, nil)
+		fetcher.EXPECT().PrivateKey().Return(server.PrivateKeyBytes, nil)
 
-	ca, server, _ := generateCerts(t)
-	_, _, client := generateCerts(t)
-
-	fetcher := mocks.NewMockCertificateFetcher(ctrl)
-	secretClient := mocks.NewMockSecretClient(ctrl)
-	fetcher.EXPECT().RootCA().Return(ca.certBytes, nil)
-	fetcher.EXPECT().Certificate().Return(server.certBytes, nil)
-	fetcher.EXPECT().PrivateKey().Return(server.privateKeyBytes, nil)
-
-	sds := NewSDSServer(hclog.NewNullLogger(), metrics.Registry.SDS, fetcher, secretClient)
-	sds.bindAddress = serverAddress
-
-	err := runTestServer(t, context.Background(), sds, func(cancel func()) {
-		defer cancel()
-
-		err := testClientHealth(t, serverAddress, client, ca.certBytes)
+		err := testClientHealth(t, serverAddress, client, ca.CertBytes)
 
 		// error on invalid client private key
 		require.Error(t, err)
-		require.Contains(t, status.Convert(err).String(), "connection closed")
+		// cnnection closed happens on a bad client cert
+		require.Contains(t, err.Error(), "connection closed")
 	})
 	require.NoError(t, err)
 }
 
-func testClientHealth(t *testing.T, address string, cert *certInfo, ca []byte) error {
+func testClientHealth(t *testing.T, address string, cert *polarTesting.CertificateInfo, ca []byte) error {
 	t.Helper()
 
 	certPool := x509.NewCertPool()
@@ -199,48 +123,49 @@ func testClientHealth(t *testing.T, address string, cert *certInfo, ca []byte) e
 
 	var err error
 	var connection *grpc.ClientConn
-	err = backoff.Retry(func() error {
-		ctx, timeoutCancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
-		defer timeoutCancel()
-		config := credentials.NewTLS(&tls.Config{
+	err = retryRequest(func(ctx context.Context) error {
+		connection, err = grpc.DialContext(ctx, address, grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{
 			ServerName:   "127.0.0.1",
-			Certificates: []tls.Certificate{cert.x509},
+			Certificates: []tls.Certificate{cert.X509},
 			RootCAs:      certPool,
-		})
-
-		connection, err = grpc.DialContext(ctx, address, grpc.WithTransportCredentials(config))
-		if err != nil && (errors.Is(err, context.DeadlineExceeded) ||
-			strings.Contains(err.Error(), "connection refused")) {
-			return err
-		}
-		return backoff.Permanent(err)
-	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(10*time.Millisecond), 100))
+		})))
+		return err
+	})
 	if err != nil {
 		return err
 	}
 	healthClient := healthservice.NewHealthClient(connection)
-	err = backoff.Retry(func() error {
-		ctx, timeoutCancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
-		defer timeoutCancel()
+	return retryRequest(func(ctx context.Context) error {
 		_, err = healthClient.Check(ctx, &healthservice.HealthCheckRequest{})
-		if err != nil && (errors.Is(err, context.DeadlineExceeded) ||
-			strings.Contains(err.Error(), "connection refused")) {
-			return err
-		}
-		return backoff.Permanent(err)
-	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(10*time.Millisecond), 100))
-	if err != nil {
 		return err
-	}
-	return err
+	})
 }
 
-func runTestServer(t *testing.T, ctx context.Context, sds *SDSServer, callback func(cancel func())) error {
+func runTestServer(t *testing.T, ca []byte, callback func(serverAddress string, fetcher *mocks.MockCertificateFetcher)) error {
 	t.Helper()
 
-	ctx, cancel := context.WithCancel(ctx)
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
+	directory, err := os.MkdirTemp("", "polar-test")
+	require.NoError(t, err)
+	defer os.RemoveAll(directory)
+	socketPath := path.Join(directory, "sds.sock")
+
+	serverAddress := socketPath
+	// test over unix sockets because free ports are flaky
+	connectionAddress := "unix://" + serverAddress
+	fetcher := mocks.NewMockCertificateFetcher(ctrl)
+	secretClient := mocks.NewMockSecretClient(ctrl)
+	fetcher.EXPECT().RootCA().Return(ca, nil)
+
+	sds := NewSDSServer(hclog.NewNullLogger(), metrics.Registry.SDS, fetcher, secretClient)
+	sds.bindAddress = serverAddress
+	sds.protocol = "unix"
+
+	errEarlyTestTermination := errors.New("early termination")
 	done := make(chan error, 1)
 	go func() {
 		defer func() {
@@ -253,86 +178,44 @@ func runTestServer(t *testing.T, ctx context.Context, sds *SDSServer, callback f
 		}()
 		done <- sds.Run(ctx)
 	}()
+	// wait until the server socket exists
+	err = retryRequest(func(_ context.Context) error {
+		_, err := os.Stat(serverAddress)
+		return err
+	})
+	require.NoError(t, err)
+
 	if callback != nil {
-		callback(cancel)
+		func() {
+			defer cancel()
+
+			callback(connectionAddress, fetcher)
+		}()
 	}
-	err := <-done
+	err = <-done
 	if err != nil {
 		require.NotErrorIs(t, err, errEarlyTestTermination)
 	}
 	return err
 }
 
-func getSignedCert(t *testing.T, ca *certInfo) *certInfo {
-	privateKey, err := rsa.GenerateKey(rand.Reader, 1024)
-	require.NoError(t, err)
-	cert := &x509.Certificate{
-		SerialNumber: big.NewInt(1),
-		Subject: pkix.Name{
-			Organization:  []string{"Testing, INC."},
-			Country:       []string{"US"},
-			Province:      []string{""},
-			Locality:      []string{"San Francisco"},
-			StreetAddress: []string{"Fake Street"},
-			PostalCode:    []string{"11111"},
-		},
-		IPAddresses:           []net.IP{net.IPv4(127, 0, 0, 1), net.IPv6loopback},
-		NotBefore:             time.Now().Add(-10 * time.Minute),
-		NotAfter:              time.Now().AddDate(10, 0, 0),
-		SubjectKeyId:          []byte{1, 2, 3, 4, 6},
-		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
-		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
-		BasicConstraintsValid: true,
-	}
-	if ca == nil {
-		cert.IsCA = true
-	}
-	caCert := cert
-	if ca != nil {
-		caCert = ca.cert
-	}
-	caPrivateKey := privateKey
-	if ca != nil {
-		caPrivateKey = ca.privateKey
-	}
-	data, err := x509.CreateCertificate(rand.Reader, cert, caCert, &privateKey.PublicKey, caPrivateKey)
-	require.NoError(t, err)
+func retryRequest(retry func(ctx context.Context) error) error {
+	return backoff.Retry(func() error {
+		ctx, timeoutCancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+		defer timeoutCancel()
 
-	var certificatePEM bytes.Buffer
-	var privateKeyPEM bytes.Buffer
-	pem.Encode(&certificatePEM, &pem.Block{
-		Type:  "CERTIFICATE",
-		Bytes: data,
-	})
-	pem.Encode(&privateKeyPEM, &pem.Block{
-		Type:  "RSA PRIVATE KEY",
-		Bytes: x509.MarshalPKCS1PrivateKey(privateKey),
-	})
+		err := retry(ctx)
 
-	certBytes := certificatePEM.Bytes()
-	privateKeyBytes := privateKeyPEM.Bytes()
-	x509Cert, err := tls.X509KeyPair(certBytes, privateKeyBytes)
-	require.NoError(t, err)
-
-	return &certInfo{
-		cert:            cert,
-		certBytes:       certBytes,
-		privateKey:      privateKey,
-		privateKeyBytes: privateKeyBytes,
-		x509:            x509Cert,
-	}
-}
-
-func generateCerts(t *testing.T) (*certInfo, *certInfo, *certInfo) {
-	t.Helper()
-
-	ca := getSignedCert(t, nil)
-	server := getSignedCert(t, ca)
-	client := getSignedCert(t, ca)
-
-	return ca, server, client
-}
-
-func getPort() int {
-	return freeport.MustTake(1)[0]
+		// grpc errors don't wrap errors normally, so just check the error text
+		// deadline exceeded == canceled context
+		// connection refused == no open port
+		// check for file existence if it's a unix socket
+		if err != nil && (strings.Contains(err.Error(), "deadline exceeded") ||
+			strings.Contains(err.Error(), "connection refused") ||
+			os.IsNotExist(err)) {
+			return err
+		}
+		return backoff.Permanent(err)
+		// try for up to 5 seconds
+	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(10*time.Millisecond), 500))
 }

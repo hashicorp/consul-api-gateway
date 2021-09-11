@@ -45,6 +45,7 @@ type SDSServer struct {
 	server      *grpc.Server
 	client      SecretClient
 	bindAddress string
+	protocol    string
 }
 
 func NewSDSServer(logger hclog.Logger, metrics *metrics.SDSMetrics, fetcher CertificateFetcher, client SecretClient) *SDSServer {
@@ -54,6 +55,7 @@ func NewSDSServer(logger hclog.Logger, metrics *metrics.SDSMetrics, fetcher Cert
 		metrics:     metrics,
 		client:      client,
 		bindAddress: defaultGRPCBindAddress,
+		protocol:    "tcp",
 	}
 }
 
@@ -104,7 +106,7 @@ func (s *SDSServer) Run(ctx context.Context) error {
 	sdsServer := server.NewServer(childCtx, resourceCache, handler)
 	secretservice.RegisterSecretDiscoveryServiceServer(s.server, sdsServer)
 	healthservice.RegisterHealthServer(s.server, health.NewServer())
-	listener, err := net.Listen("tcp", s.bindAddress)
+	listener, err := net.Listen(s.protocol, s.bindAddress)
 	if err != nil {
 		return err
 	}
