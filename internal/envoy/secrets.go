@@ -41,19 +41,23 @@ type secretManager struct {
 	// map to contain sets of cert names that a stream is watching
 	watchers map[string]map[string]struct{}
 	// map of cert names to certs
-	registry map[string]*watchedCertificate
-	cache    SecretCache
-	mutex    sync.RWMutex
-	logger   hclog.Logger
+	registry        map[string]*watchedCertificate
+	cache           SecretCache
+	mutex           sync.RWMutex
+	logger          hclog.Logger
+	loopTimeout     time.Duration
+	expirationDelta time.Duration
 }
 
 func NewSecretManager(client SecretClient, cache SecretCache, logger hclog.Logger) SecretManager {
 	return &secretManager{
-		client:   client,
-		cache:    cache,
-		logger:   logger,
-		watchers: make(map[string]map[string]struct{}),
-		registry: make(map[string]*watchedCertificate),
+		client:          client,
+		cache:           cache,
+		logger:          logger,
+		watchers:        make(map[string]map[string]struct{}),
+		registry:        make(map[string]*watchedCertificate),
+		loopTimeout:     30 * time.Second,
+		expirationDelta: 10 * time.Minute,
 	}
 }
 
@@ -71,7 +75,6 @@ func (s *secretManager) Watch(ctx context.Context, names []string, node string) 
 	for _, name := range names {
 		watcher[name] = struct{}{}
 		if entry, ok := s.registry[name]; ok {
-			certificates = append(certificates, entry.Secret)
 			entry.refs[node] = struct{}{}
 			continue
 		}
@@ -139,10 +142,10 @@ func (s *secretManager) Manage(ctx context.Context) {
 
 	for {
 		select {
-		case <-time.After(30 * time.Second):
+		case <-time.After(s.loopTimeout):
 			s.mutex.RLock()
 			for secretName, secret := range s.registry {
-				if time.Now().After(secret.expiration.Add(-10 * time.Minute)) {
+				if time.Now().After(secret.expiration.Add(-s.expirationDelta)) {
 					// request secret and persist
 					certificate, expires, err := s.client.FetchSecret(ctx, secretName)
 					if err != nil {
