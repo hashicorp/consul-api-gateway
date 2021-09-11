@@ -25,7 +25,7 @@ type SecretClient interface {
 type SecretManager interface {
 	Watch(ctx context.Context, names []string, node string) error
 	Unwatch(ctx context.Context, names []string, node string) error
-	UnwatchAll(ctx context.Context, node string)
+	UnwatchAll(ctx context.Context, node string) error
 	Manage(ctx context.Context)
 }
 
@@ -121,7 +121,7 @@ func (s *secretManager) Watch(ctx context.Context, names []string, node string) 
 	return nil
 }
 
-func (s *secretManager) UnwatchAll(ctx context.Context, node string) {
+func (s *secretManager) UnwatchAll(ctx context.Context, node string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	if watcher, ok := s.watchers[node]; ok {
@@ -136,15 +136,17 @@ func (s *secretManager) UnwatchAll(ctx context.Context, node string) {
 				}
 			}
 		}
-		s.removeCertificates(ctx, certificates)
 		delete(s.watchers, node)
+		return s.removeCertificates(ctx, certificates)
 	}
+	return nil
 }
 
 func (s *secretManager) Unwatch(ctx context.Context, names []string, node string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	if watcher, ok := s.watchers[node]; ok {
+		certificates := []string{}
 		for _, name := range names {
 			delete(watcher, name)
 			if certificate, ok := s.registry[name]; ok {
@@ -152,11 +154,16 @@ func (s *secretManager) Unwatch(ctx context.Context, names []string, node string
 				if len(certificate.refs) == 0 {
 					// we have no more references, GC
 					delete(s.registry, name)
+					certificates = append(certificates, name)
 				}
 			}
 		}
+		if len(watcher) == 0 {
+			delete(s.watchers, node)
+		}
+		return s.removeCertificates(ctx, certificates)
 	}
-	return s.removeCertificates(ctx, names)
+	return nil
 }
 
 func (s *secretManager) Manage(ctx context.Context) {
@@ -165,30 +172,33 @@ func (s *secretManager) Manage(ctx context.Context) {
 	for {
 		select {
 		case <-time.After(s.loopTimeout):
-			s.mutex.RLock()
-			for secretName, secret := range s.registry {
-				if time.Now().After(secret.expiration.Add(-s.expirationDelta)) {
-					// request secret and persist
-					certificate, expires, err := s.client.FetchSecret(ctx, secretName)
-					if err != nil {
-						s.logger.Error("error fetching secret", "error", err, "secret", secretName)
-						s.mutex.RUnlock()
-						continue
-					}
-					err = s.updateCertificate(ctx, certificate)
-					if err != nil {
-						s.logger.Error("error updating secret", "error", err, "secret", secretName)
-						s.mutex.RUnlock()
-						continue
-					}
-					secret.Secret = certificate
-					secret.expiration = expires
-				}
-			}
-			s.mutex.RUnlock()
+			s.manage(ctx)
 		case <-ctx.Done():
 			// we finished the context, just return
 			return
+		}
+	}
+}
+
+func (s *secretManager) manage(ctx context.Context) {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	for secretName, secret := range s.registry {
+		if time.Now().After(secret.expiration.Add(-s.expirationDelta)) {
+			// request secret and persist
+			certificate, expires, err := s.client.FetchSecret(ctx, secretName)
+			if err != nil {
+				s.logger.Error("error fetching secret", "error", err, "secret", secretName)
+				continue
+			}
+			err = s.updateCertificate(ctx, certificate)
+			if err != nil {
+				s.logger.Error("error updating secret", "error", err, "secret", secretName)
+				continue
+			}
+			secret.Secret = certificate
+			secret.expiration = expires
 		}
 	}
 }

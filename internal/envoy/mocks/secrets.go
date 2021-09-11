@@ -154,9 +154,11 @@ func (mr *MockSecretManagerMockRecorder) Unwatch(ctx, names, node interface{}) *
 }
 
 // UnwatchAll mocks base method.
-func (m *MockSecretManager) UnwatchAll(ctx context.Context, node string) {
+func (m *MockSecretManager) UnwatchAll(ctx context.Context, node string) error {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "UnwatchAll", ctx, node)
+	ret := m.ctrl.Call(m, "UnwatchAll", ctx, node)
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // UnwatchAll indicates an expected call of UnwatchAll.
