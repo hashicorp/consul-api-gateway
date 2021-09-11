@@ -33,9 +33,8 @@ const (
 )
 
 type CertificateFetcher interface {
-	RootCA() ([]byte, error)
-	Certificate() ([]byte, error)
-	PrivateKey() ([]byte, error)
+	RootCA() []byte
+	TLSCertificate() *tls.Certificate
 }
 
 type SDSServer struct {
@@ -66,13 +65,8 @@ func (s *SDSServer) Run(ctx context.Context) error {
 
 	grpclog.SetLoggerV2(polarGRPC.NewHCLogLogger(s.logger))
 
-	rootCA, err := s.fetcher.RootCA()
-	if err != nil {
-		return err
-	}
-
 	certPool := x509.NewCertPool()
-	if !certPool.AppendCertsFromPEM(rootCA) {
+	if !certPool.AppendCertsFromPEM(s.fetcher.RootCA()) {
 		return fmt.Errorf("failed to add server CA's certificate")
 	}
 
@@ -80,19 +74,7 @@ func (s *SDSServer) Run(ctx context.Context) error {
 		grpc.MaxConcurrentStreams(2048),
 		grpc.Creds(credentials.NewTLS(&tls.Config{
 			GetCertificate: func(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
-				cert, err := s.fetcher.Certificate()
-				if err != nil {
-					return nil, err
-				}
-				privateKey, err := s.fetcher.PrivateKey()
-				if err != nil {
-					return nil, err
-				}
-				certificate, err := tls.X509KeyPair(cert, privateKey)
-				if err != nil {
-					return nil, err
-				}
-				return &certificate, nil
+				return s.fetcher.TLSCertificate(), nil
 			},
 			ClientCAs:  certPool,
 			ClientAuth: tls.RequireAndVerifyClientCert,

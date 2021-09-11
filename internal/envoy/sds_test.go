@@ -30,8 +30,7 @@ func TestSDSRunCertificateVerification(t *testing.T) {
 	ca, server, client := polarTesting.DefaultCertificates()
 
 	err := runTestServer(t, ca.CertBytes, func(serverAddress string, fetcher *mocks.MockCertificateFetcher) {
-		fetcher.EXPECT().Certificate().Return(server.CertBytes, nil)
-		fetcher.EXPECT().PrivateKey().Return(server.PrivateKeyBytes, nil)
+		fetcher.EXPECT().TLSCertificate().Return(&server.X509)
 
 		err := testClientHealth(t, serverAddress, client, ca.CertBytes)
 		require.NoError(t, err)
@@ -45,49 +44,13 @@ func TestSDSRunServerParseError(t *testing.T) {
 	ca, _, client := polarTesting.DefaultCertificates()
 
 	err := runTestServer(t, ca.CertBytes, func(serverAddress string, fetcher *mocks.MockCertificateFetcher) {
-		fetcher.EXPECT().Certificate().Return(nil, nil)
-		fetcher.EXPECT().PrivateKey().Return(nil, nil)
+		fetcher.EXPECT().TLSCertificate().Return(nil)
 
 		err := testClientHealth(t, serverAddress, client, ca.CertBytes)
 
 		// error on invalid server certificate
 		require.Error(t, err)
-		require.Contains(t, status.Convert(err).String(), "tls: internal error")
-	})
-	require.NoError(t, err)
-}
-
-func TestSDSRunServerCertificateError(t *testing.T) {
-	t.Parallel()
-
-	ca, _, client := polarTesting.DefaultCertificates()
-
-	err := runTestServer(t, ca.CertBytes, func(serverAddress string, fetcher *mocks.MockCertificateFetcher) {
-		fetcher.EXPECT().Certificate().Return(nil, errors.New("invalid"))
-
-		err := testClientHealth(t, serverAddress, client, ca.CertBytes)
-
-		// error on invalid server certificate
-		require.Error(t, err)
-		require.Contains(t, status.Convert(err).String(), "tls: internal error")
-	})
-	require.NoError(t, err)
-}
-
-func TestSDSRunServerKeyError(t *testing.T) {
-	t.Parallel()
-
-	ca, server, client := polarTesting.DefaultCertificates()
-
-	err := runTestServer(t, ca.CertBytes, func(serverAddress string, fetcher *mocks.MockCertificateFetcher) {
-		fetcher.EXPECT().Certificate().Return(server.CertBytes, nil)
-		fetcher.EXPECT().PrivateKey().Return(nil, errors.New("invalid"))
-
-		err := testClientHealth(t, serverAddress, client, ca.CertBytes)
-
-		// error on invalid server private key
-		require.Error(t, err)
-		require.Contains(t, status.Convert(err).String(), "tls: internal error")
+		require.Contains(t, status.Convert(err).String(), "tls: unrecognized name")
 	})
 	require.NoError(t, err)
 }
@@ -100,8 +63,7 @@ func TestSDSRunClientVerificationError(t *testing.T) {
 	require.NoError(t, err)
 
 	err = runTestServer(t, ca.CertBytes, func(serverAddress string, fetcher *mocks.MockCertificateFetcher) {
-		fetcher.EXPECT().Certificate().Return(server.CertBytes, nil)
-		fetcher.EXPECT().PrivateKey().Return(server.PrivateKeyBytes, nil)
+		fetcher.EXPECT().TLSCertificate().Return(&server.X509)
 
 		err := testClientHealth(t, serverAddress, client, ca.CertBytes)
 
@@ -159,7 +121,7 @@ func runTestServer(t *testing.T, ca []byte, callback func(serverAddress string, 
 	connectionAddress := "unix://" + serverAddress
 	fetcher := mocks.NewMockCertificateFetcher(ctrl)
 	secretClient := mocks.NewMockSecretClient(ctrl)
-	fetcher.EXPECT().RootCA().Return(ca, nil)
+	fetcher.EXPECT().RootCA().Return(ca)
 
 	sds := NewSDSServer(hclog.NewNullLogger(), metrics.Registry.SDS, fetcher, secretClient)
 	sds.bindAddress = serverAddress

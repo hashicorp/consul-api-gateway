@@ -3,6 +3,7 @@ package consul
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"os"
@@ -104,10 +105,11 @@ type CertManager struct {
 	consul *api.Client
 	logger hclog.Logger
 
-	service    string
-	directory  string
-	sdsAddress string
-	sdsPort    int
+	service         string
+	directory       string
+	configDirectory string // only used for testing
+	sdsAddress      string
+	sdsPort         int
 
 	tries           uint64
 	backoffInterval time.Duration
@@ -118,6 +120,12 @@ type CertManager struct {
 	initializeSignal chan struct{}
 
 	metrics *metrics.ConsulMetrics
+
+	// cached values
+	ca             []byte
+	certificate    []byte
+	privateKey     []byte
+	tlsCertificate *tls.Certificate
 
 	// this can be overwritten to check retry logic in testing
 	writeCerts certWriter
@@ -135,6 +143,7 @@ func NewCertManager(logger hclog.Logger, metrics *metrics.ConsulMetrics, consul 
 		sdsPort:          options.SDSPort,
 		service:          service,
 		metrics:          metrics,
+		configDirectory:  options.Directory,
 		directory:        options.Directory,
 		tries:            options.Tries,
 		backoffInterval:  defaultBackoffInterval,
@@ -223,6 +232,15 @@ func (c *CertManager) persist(root *api.CARoot, client *api.LeafCert) error {
 		return fmt.Errorf("error writing client private key fiile: %w", err)
 	}
 
+	tlsCertificate, err := tls.X509KeyPair([]byte(client.CertPEM), []byte(client.PrivateKeyPEM))
+	if err != nil {
+		return fmt.Errorf("error parsing client certificate: %w", err)
+	}
+	c.tlsCertificate = &tlsCertificate
+	c.ca = []byte(root.RootCertPEM)
+	c.certificate = []byte(client.CertPEM)
+	c.privateKey = []byte(client.PrivateKeyPEM)
+
 	if !c.isInitialized {
 		close(c.initializeSignal)
 		c.isInitialized = true
@@ -232,27 +250,35 @@ func (c *CertManager) persist(root *api.CARoot, client *api.LeafCert) error {
 }
 
 // RootCA returns the current CA cert
-func (c *CertManager) RootCA() ([]byte, error) {
+func (c *CertManager) RootCA() []byte {
 	c.lock.RLock()
 	defer c.lock.RUnlock()
 
-	return os.ReadFile(path.Join(c.directory, RootCAFile))
+	return c.ca
 }
 
 // Certificate returns the current leaf cert
-func (c *CertManager) Certificate() ([]byte, error) {
+func (c *CertManager) Certificate() []byte {
 	c.lock.RLock()
 	defer c.lock.RUnlock()
 
-	return os.ReadFile(path.Join(c.directory, ClientCertFile))
+	return c.certificate
 }
 
 // PrivateKey returns the current leaf cert private key
-func (c *CertManager) PrivateKey() ([]byte, error) {
+func (c *CertManager) PrivateKey() []byte {
 	c.lock.RLock()
 	defer c.lock.RUnlock()
 
-	return os.ReadFile(path.Join(c.directory, ClientPrivateKeyFile))
+	return c.privateKey
+}
+
+// TLSCertificate returns the current leaf certificate as a parsed structure
+func (c *CertManager) TLSCertificate() *tls.Certificate {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+
+	return c.tlsCertificate
 }
 
 // WaitForWrite acts as a signalling mechanism for when the certificates are
@@ -294,10 +320,10 @@ func (c *CertManager) RenderSDSConfig() (string, error) {
 	}); err != nil {
 		return "", err
 	}
-	if err := os.WriteFile(sdsCertConfigPath, sdsCertConfig.Bytes(), 0600); err != nil {
+	if err := os.WriteFile(path.Join(c.configDirectory, SDSCertConfigFile), sdsCertConfig.Bytes(), 0600); err != nil {
 		return "", err
 	}
-	if err := os.WriteFile(sdsCAConfigPath, sdsCAConfig.Bytes(), 0600); err != nil {
+	if err := os.WriteFile(path.Join(c.configDirectory, SDSCAConfigFile), sdsCAConfig.Bytes(), 0600); err != nil {
 		return "", err
 	}
 

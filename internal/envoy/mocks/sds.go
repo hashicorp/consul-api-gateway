@@ -5,6 +5,7 @@
 package mocks
 
 import (
+	tls "crypto/tls"
 	reflect "reflect"
 
 	gomock "github.com/golang/mock/gomock"
@@ -33,47 +34,30 @@ func (m *MockCertificateFetcher) EXPECT() *MockCertificateFetcherMockRecorder {
 	return m.recorder
 }
 
-// Certificate mocks base method.
-func (m *MockCertificateFetcher) Certificate() ([]byte, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Certificate")
-	ret0, _ := ret[0].([]byte)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// Certificate indicates an expected call of Certificate.
-func (mr *MockCertificateFetcherMockRecorder) Certificate() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Certificate", reflect.TypeOf((*MockCertificateFetcher)(nil).Certificate))
-}
-
-// PrivateKey mocks base method.
-func (m *MockCertificateFetcher) PrivateKey() ([]byte, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "PrivateKey")
-	ret0, _ := ret[0].([]byte)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// PrivateKey indicates an expected call of PrivateKey.
-func (mr *MockCertificateFetcherMockRecorder) PrivateKey() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PrivateKey", reflect.TypeOf((*MockCertificateFetcher)(nil).PrivateKey))
-}
-
 // RootCA mocks base method.
-func (m *MockCertificateFetcher) RootCA() ([]byte, error) {
+func (m *MockCertificateFetcher) RootCA() []byte {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "RootCA")
 	ret0, _ := ret[0].([]byte)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	return ret0
 }
 
 // RootCA indicates an expected call of RootCA.
 func (mr *MockCertificateFetcherMockRecorder) RootCA() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RootCA", reflect.TypeOf((*MockCertificateFetcher)(nil).RootCA))
+}
+
+// TLSCertificate mocks base method.
+func (m *MockCertificateFetcher) TLSCertificate() *tls.Certificate {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "TLSCertificate")
+	ret0, _ := ret[0].(*tls.Certificate)
+	return ret0
+}
+
+// TLSCertificate indicates an expected call of TLSCertificate.
+func (mr *MockCertificateFetcherMockRecorder) TLSCertificate() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TLSCertificate", reflect.TypeOf((*MockCertificateFetcher)(nil).TLSCertificate))
 }
