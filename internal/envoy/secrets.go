@@ -49,7 +49,7 @@ type secretManager struct {
 	expirationDelta time.Duration
 }
 
-func NewSecretManager(client SecretClient, cache SecretCache, logger hclog.Logger) SecretManager {
+func NewSecretManager(client SecretClient, cache SecretCache, logger hclog.Logger) *secretManager {
 	return &secretManager{
 		client:          client,
 		cache:           cache,
@@ -59,6 +59,28 @@ func NewSecretManager(client SecretClient, cache SecretCache, logger hclog.Logge
 		loopTimeout:     30 * time.Second,
 		expirationDelta: 10 * time.Minute,
 	}
+}
+
+func (s *secretManager) Nodes() []string {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	nodes := []string{}
+	for node := range s.watchers {
+		nodes = append(nodes, node)
+	}
+	return nodes
+}
+
+func (s *secretManager) Resources() []string {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	resources := []string{}
+	for resource := range s.registry {
+		resources = append(resources, resource)
+	}
+	return resources
 }
 
 func (s *secretManager) Watch(ctx context.Context, names []string, node string) error {

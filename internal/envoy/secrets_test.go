@@ -27,17 +27,30 @@ func TestWatch(t *testing.T) {
 	secretTwo := &tls.Secret{
 		Name: "two",
 	}
+	secretThree := &tls.Secret{
+		Name: "three",
+	}
+	nodeOne := "nodeOne"
+	nodeTwo := "nodeTwo"
 	secretClient.EXPECT().FetchSecret(gomock.Any(), secretOne.Name).Return(secretOne, time.Now(), nil)
 	cache.EXPECT().UpdateResource(secretOne.Name, secretOne)
 	secretClient.EXPECT().FetchSecret(gomock.Any(), secretTwo.Name).Return(secretTwo, time.Now(), nil)
 	cache.EXPECT().UpdateResource(secretTwo.Name, secretTwo)
+	secretClient.EXPECT().FetchSecret(gomock.Any(), secretThree.Name).Return(secretThree, time.Now(), nil)
+	cache.EXPECT().UpdateResource(secretThree.Name, secretThree)
 
 	manager := NewSecretManager(secretClient, cache, hclog.NewNullLogger())
-	err := manager.Watch(context.Background(), []string{secretOne.Name, secretTwo.Name, secretOne.Name}, "node")
+	err := manager.Watch(context.Background(), []string{secretOne.Name, secretTwo.Name, secretOne.Name}, nodeOne)
 	require.NoError(t, err)
 	// call again and everything should hit cache
-	err = manager.Watch(context.Background(), []string{secretOne.Name, secretTwo.Name, secretOne.Name}, "node")
+	err = manager.Watch(context.Background(), []string{secretOne.Name, secretTwo.Name, secretThree.Name}, nodeTwo)
 	require.NoError(t, err)
+	nodes := manager.Nodes()
+	secrets := manager.Resources()
+	require.Len(t, nodes, 2)
+	require.Len(t, secrets, 3)
+	require.EqualValues(t, []string{nodeOne, nodeTwo}, nodes)
+	require.EqualValues(t, []string{secretOne.Name, secretTwo.Name, secretThree.Name}, secrets)
 }
 
 func TestWatch_FetchError(t *testing.T) {
