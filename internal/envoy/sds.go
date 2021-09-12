@@ -4,8 +4,11 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/pem"
+	"errors"
 	"fmt"
 	"net"
+	"net/url"
 	"time"
 
 	secretservice "github.com/envoyproxy/go-control-plane/envoy/service/secret/v3"
@@ -38,23 +41,25 @@ type CertificateFetcher interface {
 }
 
 type SDSServer struct {
-	logger      hclog.Logger
-	fetcher     CertificateFetcher
-	metrics     *metrics.SDSMetrics
-	server      *grpc.Server
-	client      SecretClient
-	bindAddress string
-	protocol    string
+	logger          hclog.Logger
+	fetcher         CertificateFetcher
+	metrics         *metrics.SDSMetrics
+	server          *grpc.Server
+	client          SecretClient
+	bindAddress     string
+	protocol        string
+	gatewayRegistry GatewayRegistry
 }
 
 func NewSDSServer(logger hclog.Logger, metrics *metrics.SDSMetrics, fetcher CertificateFetcher, client SecretClient) *SDSServer {
 	return &SDSServer{
-		logger:      logger,
-		fetcher:     fetcher,
-		metrics:     metrics,
-		client:      client,
-		bindAddress: defaultGRPCBindAddress,
-		protocol:    "tcp",
+		logger:          logger,
+		fetcher:         fetcher,
+		metrics:         metrics,
+		client:          client,
+		bindAddress:     defaultGRPCBindAddress,
+		protocol:        "tcp",
+		gatewayRegistry: &stubGatewayRegistry{},
 	}
 }
 
@@ -65,9 +70,24 @@ func (s *SDSServer) Run(ctx context.Context) error {
 
 	grpclog.SetLoggerV2(polarGRPC.NewHCLogLogger(s.logger))
 
+	ca := s.fetcher.RootCA()
+	block, _ := pem.Decode(ca)
+	caCert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return fmt.Errorf("failed to add server CA's certificate: %w", err)
+	}
 	certPool := x509.NewCertPool()
-	if !certPool.AppendCertsFromPEM(s.fetcher.RootCA()) {
-		return fmt.Errorf("failed to add server CA's certificate")
+	certPool.AddCert(caCert)
+
+	var spiffeRootCA *url.URL
+	for _, uri := range caCert.URIs {
+		if uri.Scheme == "spiffe" {
+			spiffeRootCA = uri
+			break
+		}
+	}
+	if spiffeRootCA == nil {
+		return errors.New("root CA must have spiffe URI")
 	}
 
 	opts := []grpc.ServerOption{
@@ -79,6 +99,8 @@ func (s *SDSServer) Run(ctx context.Context) error {
 			ClientCAs:  certPool,
 			ClientAuth: tls.RequireAndVerifyClientCert,
 		})),
+		grpc.StreamInterceptor(SPIFFEStreamMiddleware(s.logger, spiffeRootCA, s.gatewayRegistry)),
+		grpc.UnaryInterceptor(SPIFFEUnaryMiddleware(s.logger, spiffeRootCA, s.gatewayRegistry)),
 	}
 	s.server = grpc.NewServer(opts...)
 
