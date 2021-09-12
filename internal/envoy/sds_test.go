@@ -43,7 +43,10 @@ func TestSDSRunServerParseError(t *testing.T) {
 	t.Parallel()
 
 	ca, _, client := polarTesting.DefaultCertificates()
-	server, err := polarTesting.GenerateSignedCertificate(nil, false, "server")
+	newCA, err := polarTesting.GenerateSignedCertificate(nil, true, "")
+	require.NoError(t, err)
+	server, err := polarTesting.GenerateSignedCertificate(newCA, false, "server")
+	require.NoError(t, err)
 
 	err = runTestServer(t, ca.CertBytes, func(serverAddress string, fetcher *mocks.MockCertificateFetcher) {
 		fetcher.EXPECT().TLSCertificate().Return(&server.X509)
@@ -61,7 +64,9 @@ func TestSDSRunClientVerificationError(t *testing.T) {
 	t.Parallel()
 
 	ca, server, _ := polarTesting.DefaultCertificates()
-	client, err := polarTesting.GenerateSignedCertificate(nil, false, "client")
+	newCA, err := polarTesting.GenerateSignedCertificate(nil, true, "")
+	require.NoError(t, err)
+	client, err := polarTesting.GenerateSignedCertificate(newCA, false, "client")
 	require.NoError(t, err)
 
 	err = runTestServer(t, ca.CertBytes, func(serverAddress string, fetcher *mocks.MockCertificateFetcher) {
