@@ -8,9 +8,10 @@ import (
 
 	tls "github.com/envoyproxy/go-control-plane/envoy/extensions/transport_sockets/tls/v3"
 	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/require"
+
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/polar/internal/envoy/mocks"
-	"github.com/stretchr/testify/require"
 )
 
 func TestWatch(t *testing.T) {

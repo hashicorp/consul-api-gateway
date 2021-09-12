@@ -8,8 +8,9 @@ import (
 	"path"
 	"testing"
 
-	"github.com/hashicorp/go-hclog"
 	"github.com/stretchr/testify/require"
+
+	"github.com/hashicorp/go-hclog"
 )
 
 var (

@@ -9,10 +9,11 @@ import (
 	discovery "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
 	"github.com/envoyproxy/go-control-plane/pkg/resource/v3"
 	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/require"
+
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/polar/internal/envoy/mocks"
 	"github.com/hashicorp/polar/internal/metrics"
-	"github.com/stretchr/testify/require"
 )
 
 func TestOnStreamDeltaRequest(t *testing.T) {

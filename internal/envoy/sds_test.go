@@ -13,15 +13,16 @@ import (
 
 	"github.com/cenkalti/backoff"
 	"github.com/golang/mock/gomock"
-	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/polar/internal/envoy/mocks"
-	"github.com/hashicorp/polar/internal/metrics"
-	polarTesting "github.com/hashicorp/polar/internal/testing"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	healthservice "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/status"
+
+	"github.com/hashicorp/go-hclog"
+	"github.com/hashicorp/polar/internal/envoy/mocks"
+	"github.com/hashicorp/polar/internal/metrics"
+	polarTesting "github.com/hashicorp/polar/internal/testing"
 )
 
 func TestSDSRunCertificateVerification(t *testing.T) {
@@ -42,15 +43,16 @@ func TestSDSRunServerParseError(t *testing.T) {
 	t.Parallel()
 
 	ca, _, client := polarTesting.DefaultCertificates()
+	server, err := polarTesting.GenerateSignedCertificate(nil, false, "server")
 
-	err := runTestServer(t, ca.CertBytes, func(serverAddress string, fetcher *mocks.MockCertificateFetcher) {
-		fetcher.EXPECT().TLSCertificate().Return(nil)
+	err = runTestServer(t, ca.CertBytes, func(serverAddress string, fetcher *mocks.MockCertificateFetcher) {
+		fetcher.EXPECT().TLSCertificate().Return(&server.X509)
 
 		err := testClientHealth(t, serverAddress, client, ca.CertBytes)
 
 		// error on invalid server certificate
 		require.Error(t, err)
-		require.Contains(t, status.Convert(err).String(), "tls: unrecognized name")
+		require.Contains(t, status.Convert(err).String(), "x509: certificate signed by unknown authority")
 	})
 	require.NoError(t, err)
 }
@@ -59,7 +61,7 @@ func TestSDSRunClientVerificationError(t *testing.T) {
 	t.Parallel()
 
 	ca, server, _ := polarTesting.DefaultCertificates()
-	client, err := polarTesting.GenerateSignedCertificate(nil, false)
+	client, err := polarTesting.GenerateSignedCertificate(nil, false, "client")
 	require.NoError(t, err)
 
 	err = runTestServer(t, ca.CertBytes, func(serverAddress string, fetcher *mocks.MockCertificateFetcher) {
