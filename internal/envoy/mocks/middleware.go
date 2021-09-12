@@ -8,6 +8,7 @@ import (
 	reflect "reflect"
 
 	gomock "github.com/golang/mock/gomock"
+	common "github.com/hashicorp/polar/internal/common"
 )
 
 // MockGatewayRegistry is a mock of GatewayRegistry interface.
@@ -33,16 +34,30 @@ func (m *MockGatewayRegistry) EXPECT() *MockGatewayRegistryMockRecorder {
 	return m.recorder
 }
 
-// GatewayExists mocks base method.
-func (m *MockGatewayRegistry) GatewayExists(namespace, datacenter, service string) bool {
+// CanFetchSecret mocks base method.
+func (m *MockGatewayRegistry) CanFetchSecret(info *common.GatewayInfo, secret string) bool {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GatewayExists", namespace, datacenter, service)
+	ret := m.ctrl.Call(m, "CanFetchSecret", info, secret)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// CanFetchSecret indicates an expected call of CanFetchSecret.
+func (mr *MockGatewayRegistryMockRecorder) CanFetchSecret(info, secret interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CanFetchSecret", reflect.TypeOf((*MockGatewayRegistry)(nil).CanFetchSecret), info, secret)
+}
+
+// GatewayExists mocks base method.
+func (m *MockGatewayRegistry) GatewayExists(info *common.GatewayInfo) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GatewayExists", info)
 	ret0, _ := ret[0].(bool)
 	return ret0
 }
 
 // GatewayExists indicates an expected call of GatewayExists.
-func (mr *MockGatewayRegistryMockRecorder) GatewayExists(namespace, datacenter, service interface{}) *gomock.Call {
+func (mr *MockGatewayRegistryMockRecorder) GatewayExists(info interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GatewayExists", reflect.TypeOf((*MockGatewayRegistry)(nil).GatewayExists), namespace, datacenter, service)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GatewayExists", reflect.TypeOf((*MockGatewayRegistry)(nil).GatewayExists), info)
 }

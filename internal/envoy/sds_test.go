@@ -89,7 +89,7 @@ func TestSDSNoMatchingGateway(t *testing.T) {
 
 	err := runTestServer(t, ca.CertBytes, func(ctrl *gomock.Controller) GatewayRegistry {
 		gatewayRegistry := mocks.NewMockGatewayRegistry(ctrl)
-		gatewayRegistry.EXPECT().GatewayExists(gomock.Any(), gomock.Any(), gomock.Any()).Return(false)
+		gatewayRegistry.EXPECT().GatewayExists(gomock.Any()).Return(false)
 		return gatewayRegistry
 	}, func(serverAddress string, fetcher *mocks.MockCertificateFetcher) {
 		fetcher.EXPECT().TLSCertificate().Return(&server.X509)
