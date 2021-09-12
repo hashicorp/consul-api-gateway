@@ -30,7 +30,7 @@ func TestSDSRunCertificateVerification(t *testing.T) {
 
 	ca, server, client := polarTesting.DefaultCertificates()
 
-	err := runTestServer(t, ca.CertBytes, func(serverAddress string, fetcher *mocks.MockCertificateFetcher) {
+	err := runTestServer(t, ca.CertBytes, nil, func(serverAddress string, fetcher *mocks.MockCertificateFetcher) {
 		fetcher.EXPECT().TLSCertificate().Return(&server.X509)
 
 		err := testClientHealth(t, serverAddress, client, ca.CertBytes)
@@ -48,7 +48,7 @@ func TestSDSRunServerParseError(t *testing.T) {
 	server, err := polarTesting.GenerateSignedCertificate(newCA, false, "server")
 	require.NoError(t, err)
 
-	err = runTestServer(t, ca.CertBytes, func(serverAddress string, fetcher *mocks.MockCertificateFetcher) {
+	err = runTestServer(t, ca.CertBytes, nil, func(serverAddress string, fetcher *mocks.MockCertificateFetcher) {
 		fetcher.EXPECT().TLSCertificate().Return(&server.X509)
 
 		err := testClientHealth(t, serverAddress, client, ca.CertBytes)
@@ -69,7 +69,7 @@ func TestSDSRunClientVerificationError(t *testing.T) {
 	client, err := polarTesting.GenerateSignedCertificate(newCA, false, "client")
 	require.NoError(t, err)
 
-	err = runTestServer(t, ca.CertBytes, func(serverAddress string, fetcher *mocks.MockCertificateFetcher) {
+	err = runTestServer(t, ca.CertBytes, nil, func(serverAddress string, fetcher *mocks.MockCertificateFetcher) {
 		fetcher.EXPECT().TLSCertificate().Return(&server.X509)
 
 		err := testClientHealth(t, serverAddress, client, ca.CertBytes)
@@ -78,6 +78,24 @@ func TestSDSRunClientVerificationError(t *testing.T) {
 		require.Error(t, err)
 		// cnnection closed happens on a bad client cert
 		require.Contains(t, err.Error(), "connection closed")
+	})
+	require.NoError(t, err)
+}
+
+func TestSDSNoMatchingGateway(t *testing.T) {
+	t.Parallel()
+
+	ca, server, client := polarTesting.DefaultCertificates()
+
+	err := runTestServer(t, ca.CertBytes, func(ctrl *gomock.Controller) GatewayRegistry {
+		gatewayRegistry := mocks.NewMockGatewayRegistry(ctrl)
+		gatewayRegistry.EXPECT().GatewayExists(gomock.Any(), gomock.Any(), gomock.Any()).Return(false)
+		return gatewayRegistry
+	}, func(serverAddress string, fetcher *mocks.MockCertificateFetcher) {
+		fetcher.EXPECT().TLSCertificate().Return(&server.X509)
+		err := testClientHealth(t, serverAddress, client, ca.CertBytes)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "unable to authenticate request")
 	})
 	require.NoError(t, err)
 }
@@ -110,7 +128,7 @@ func testClientHealth(t *testing.T, address string, cert *polarTesting.Certifica
 	})
 }
 
-func runTestServer(t *testing.T, ca []byte, callback func(serverAddress string, fetcher *mocks.MockCertificateFetcher)) error {
+func runTestServer(t *testing.T, ca []byte, registryFn func(*gomock.Controller) GatewayRegistry, callback func(serverAddress string, fetcher *mocks.MockCertificateFetcher)) error {
 	t.Helper()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -133,6 +151,9 @@ func runTestServer(t *testing.T, ca []byte, callback func(serverAddress string, 
 	sds := NewSDSServer(hclog.NewNullLogger(), metrics.Registry.SDS, fetcher, secretClient)
 	sds.bindAddress = serverAddress
 	sds.protocol = "unix"
+	if registryFn != nil {
+		sds.gatewayRegistry = registryFn(ctrl)
+	}
 
 	errEarlyTestTermination := errors.New("early termination")
 	done := make(chan error, 1)
