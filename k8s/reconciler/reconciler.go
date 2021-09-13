@@ -20,12 +20,12 @@ import (
 )
 
 const (
-	ControllerName        = "hashicorp.com/polar-gateway-controller"
 	invalidRouteRefReason = "InvalidRouteRef"
 	routeAdmittedReason   = "RouteAdmitted"
 )
 
 type GatewayReconciler struct {
+	controllerName    string
 	ctx               context.Context
 	signalReconcileCh chan struct{}
 	stopReconcileCh   chan struct{}
@@ -39,16 +39,26 @@ type GatewayReconciler struct {
 	logger hclog.Logger
 }
 
-func newReconcilerForGateway(ctx context.Context, c *api.Client, logger hclog.Logger, kubeGateway *gw.Gateway, routes *routes.KubernetesRoutes, status *object.StatusWorker) *GatewayReconciler {
-	logger = logger.With("gateway", kubeGateway.Name, "namespace", kubeGateway.Namespace)
+type gatewayReconcilerArgs struct {
+	controllerName string
+	consul         *api.Client
+	gateway        *gw.Gateway
+	routes         *routes.KubernetesRoutes
+	status         *object.StatusWorker
+	logger         hclog.Logger
+}
+
+func newReconcilerForGateway(ctx context.Context, args *gatewayReconcilerArgs) *GatewayReconciler {
+	logger := args.logger.With("gateway", args.gateway.Name, "namespace", args.gateway.Namespace)
 	return &GatewayReconciler{
+		controllerName:    args.controllerName,
 		ctx:               ctx,
 		signalReconcileCh: make(chan struct{}, 1), // buffered chan allow for a single pending reconcile signal
 		stopReconcileCh:   make(chan struct{}, 0),
-		consul:            consul.NewReconciler(c, logger),
-		kubeGateway:       kubeGateway,
-		kubeRoutes:        routes,
-		status:            status,
+		consul:            consul.NewReconciler(args.consul, logger),
+		kubeGateway:       args.gateway,
+		kubeRoutes:        args.routes,
+		status:            args.status,
 
 		logger: logger,
 	}
@@ -117,7 +127,7 @@ func (c *GatewayReconciler) reconcile() error {
 		}
 		kubeRoute.Status.Mutate(func(s interface{}) interface{} {
 			r, _ := s.(*gw.HTTPRouteStatus)
-			r.Parents = status.build(r.Parents)
+			r.Parents = status.build(c.controllerName, r.Parents)
 			return r
 		})
 		if kubeRoute.Status.IsDirty() {
@@ -155,12 +165,12 @@ func (b *routeStatusBuilder) addRef(ref gw.ParentRef, admitted bool, reason, mes
 	}
 }
 
-func (b *routeStatusBuilder) build(current []gw.RouteParentStatus) []gw.RouteParentStatus {
+func (b *routeStatusBuilder) build(controller string, current []gw.RouteParentStatus) []gw.RouteParentStatus {
 	result := make([]gw.RouteParentStatus, 0, len(b.refs))
 
-	// first add any existing status that aren't managed by this controller
+	// first add any existing Status that aren't managed by this controller
 	for _, status := range current {
-		if status.Controller != ControllerName {
+		if status.Controller != controller {
 			result = append(result, status)
 		}
 	}
@@ -182,7 +192,7 @@ func (b *routeStatusBuilder) build(current []gw.RouteParentStatus) []gw.RoutePar
 		}
 		result = append(result, gw.RouteParentStatus{
 			ParentRef:  ref,
-			Controller: ControllerName,
+			Controller: controller,
 			Conditions: []metav1.Condition{condition},
 		})
 	}

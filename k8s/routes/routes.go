@@ -7,7 +7,6 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	"github.com/hashicorp/polar/k8s/object"
@@ -118,15 +117,13 @@ func (r *KubernetesRoute) ParentRefAllowed(ref gw.ParentRef, gatewayName types.N
 }
 
 type KubernetesRoutes struct {
-	routes       map[types.NamespacedName]*KubernetesRoute
-	statusWriter client.StatusWriter
-	lock         sync.Mutex
+	routes map[types.NamespacedName]*KubernetesRoute
+	lock   sync.Mutex
 }
 
-func NewKubernetesRoutes(status client.StatusWriter) *KubernetesRoutes {
+func NewKubernetesRoutes() *KubernetesRoutes {
 	return &KubernetesRoutes{
-		routes:       map[types.NamespacedName]*KubernetesRoute{},
-		statusWriter: status,
+		routes: map[types.NamespacedName]*KubernetesRoute{},
 	}
 }
 
