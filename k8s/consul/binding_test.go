@@ -20,7 +20,7 @@ func Test_computeConfigEntriesForHTTPRoutes_simple(t *testing.T) {
 	gateway := &ResolvedGateway{
 		name: types.NamespacedName{Name: "prod-web", Namespace: "default"},
 		listeners: map[string]*resolvedListener{
-			"default": &resolvedListener{
+			"default": {
 				name:     "default",
 				protocol: "HTTP",
 				port:     80,
