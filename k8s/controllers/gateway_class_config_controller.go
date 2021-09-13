@@ -49,7 +49,6 @@ func (r *GatewayClassConfigReconciler) Reconcile(ctx context.Context, req ctrl.R
 	if gcc.ObjectMeta.DeletionTimestamp.IsZero() {
 		// we're creating or updating
 		if err := ensureGatewayClassConfigFinalizer(ctx, r.Client, gcc); err != nil {
-			// requeue
 			return ctrl.Result{}, err
 		}
 	} else {
@@ -62,7 +61,6 @@ func (r *GatewayClassConfigReconciler) Reconcile(ctx context.Context, req ctrl.R
 			return ctrl.Result{}, fmt.Errorf("gateway class config '%s' is still in use", gcc.Name)
 		}
 		if err := removeGatewayClassConfigFinalizer(ctx, r.Client, gcc); err != nil {
-			// requeue
 			return ctrl.Result{}, err
 		}
 	}
@@ -116,7 +114,7 @@ func gatewayClassConfigInUse(ctx context.Context, client client.Client, gcc *pol
 				paramaterRef.Group == "polar.hashicorp.com" &&
 				paramaterRef.Kind == "GatewayClassConfig" &&
 				paramaterRef.Name == gcc.Name {
-				namespace := "default"
+				namespace := ""
 				if paramaterRef.Namespace != nil {
 					namespace = *paramaterRef.Namespace
 				}

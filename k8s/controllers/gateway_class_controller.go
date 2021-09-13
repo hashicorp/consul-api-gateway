@@ -62,16 +62,15 @@ func (r *GatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		// we're creating or updating
 		updated, err := ensureGatewayClassFinalizer(ctx, r.Client, gc)
 		if err != nil {
-			// requeue
 			return ctrl.Result{}, err
 		}
 		if updated {
 			// requeue for versioning
 			return ctrl.Result{Requeue: true}, nil
 		}
+		// this validation is used for setting the gateway class accepted status
 		valid, err := isValidGatewayClass(ctx, r.Client, gc)
 		if err != nil {
-			// requeue
 			return ctrl.Result{}, err
 		}
 		r.Manager.UpsertGatewayClass(gc, valid)
@@ -86,7 +85,6 @@ func (r *GatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		}
 		// remove finalizer
 		if err := removeGatewayClassFinalizer(ctx, r.Client, gc); err != nil {
-			// requeue
 			return ctrl.Result{}, err
 		}
 	}
