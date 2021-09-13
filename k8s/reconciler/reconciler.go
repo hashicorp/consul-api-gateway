@@ -53,7 +53,7 @@ func newReconcilerForGateway(ctx context.Context, args *gatewayReconcilerArgs) *
 		controllerName:    args.controllerName,
 		ctx:               ctx,
 		signalReconcileCh: make(chan struct{}, 1), // buffered chan allow for a single pending reconcile signal
-		stopReconcileCh:   make(chan struct{}, 0),
+		stopReconcileCh:   make(chan struct{}),
 		consul:            consul.NewReconciler(args.consul, logger),
 		kubeGateway:       args.gateway,
 		kubeRoutes:        args.routes,
@@ -101,7 +101,7 @@ func (c *GatewayReconciler) reconcile() error {
 	if c.logger.IsTrace() {
 		start := time.Now()
 		c.logger.Trace("reconcile started")
-		defer c.logger.Trace("reconcile finished", "duration", hclog.Fmt("%dms", time.Now().Sub(start).Milliseconds()))
+		defer c.logger.Trace("reconcile finished", "duration", hclog.Fmt("%dms", time.Since(start).Milliseconds()))
 	}
 	gatewayName := utils.KubeObjectNamespacedName(c.kubeGateway)
 	resolvedGateway := consul.NewResolvedGateway(gatewayName)

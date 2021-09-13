@@ -66,7 +66,6 @@ const (
 	defaultLogLevel       = "info"
 	defaultCASecret       = "consul-ca-cert"
 	defaultConsulAddress  = "$(HOST_IP)"
-	defaultConsulScheme   = "https"
 	defaultConsulHTTPPort = "8500"
 	defaultConsulXDSPort  = "8502"
 )

@@ -117,7 +117,9 @@ func New(logger hclog.Logger, registry *common.GatewaySecretRegistry, opts *Opti
 			return nil, fmt.Errorf("unable to pull Consul CA cert from secret: %w", err)
 		}
 		cert := secret.Data["tls.crt"]
-		os.WriteFile(opts.CACertFile, cert, 0444)
+		if err := os.WriteFile(opts.CACertFile, cert, 0444); err != nil {
+			return nil, fmt.Errorf("unable to write CA cert: %w", err)
+		}
 	}
 
 	return &Kubernetes{

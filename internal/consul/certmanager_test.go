@@ -230,7 +230,8 @@ func runCertServer(t *testing.T, leafFailures, rootFailures uint64, service stri
 				"ValidBefore":   expiration,
 			})
 			require.NoError(t, err)
-			w.Write([]byte(leafCert))
+			_, err = w.Write([]byte(leafCert))
+			require.NoError(t, err)
 			return
 		}
 		if r != nil && r.URL.Path == rootPath && r.Method == "GET" {
@@ -246,7 +247,8 @@ func runCertServer(t *testing.T, leafFailures, rootFailures uint64, service stri
 				}},
 			})
 			require.NoError(t, err)
-			w.Write([]byte(rootCert))
+			_, err = w.Write([]byte(rootCert))
+			require.NoError(t, err)
 			return
 		}
 		w.WriteHeader(http.StatusInternalServerError)
