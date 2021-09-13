@@ -107,20 +107,18 @@ func gatewayClassConfigInUse(ctx context.Context, client client.Client, gcc *pol
 	if err := client.List(ctx, list); err != nil {
 		return false, fmt.Errorf("failed to list gateways")
 	}
-	if list != nil {
-		for _, g := range list.Items {
-			paramaterRef := g.Spec.ParametersRef
-			if paramaterRef != nil &&
-				paramaterRef.Group == "polar.hashicorp.com" &&
-				paramaterRef.Kind == "GatewayClassConfig" &&
-				paramaterRef.Name == gcc.Name {
-				namespace := ""
-				if paramaterRef.Namespace != nil {
-					namespace = *paramaterRef.Namespace
-				}
-				if namespace == gcc.Namespace {
-					return true, nil
-				}
+	for _, g := range list.Items {
+		paramaterRef := g.Spec.ParametersRef
+		if paramaterRef != nil &&
+			paramaterRef.Group == polarv1alpha1.Group &&
+			paramaterRef.Kind == polarv1alpha1.GatewayClassConfigKind &&
+			paramaterRef.Name == gcc.Name {
+			namespace := ""
+			if paramaterRef.Namespace != nil {
+				namespace = *paramaterRef.Namespace
+			}
+			if namespace == gcc.Namespace {
+				return true, nil
 			}
 		}
 	}

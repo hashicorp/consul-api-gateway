@@ -130,7 +130,7 @@ func isValidGatewayClass(ctx context.Context, client client.Client, gc *gateway.
 	// only validate if we actually have a config reference
 	if parametersRef := gc.Spec.ParametersRef; parametersRef != nil {
 		// check that we're using a typed config
-		if parametersRef.Group != "polar.hashicorp.com" && parametersRef.Kind != "GatewayClassConfig" {
+		if parametersRef.Group != polarv1alpha1.Group || parametersRef.Kind != polarv1alpha1.GatewayClassConfigKind {
 			return false, nil
 		}
 
@@ -157,11 +157,9 @@ func gatewayClassInUse(ctx context.Context, client client.Client, gc *gateway.Ga
 	if err := client.List(ctx, list); err != nil {
 		return false, fmt.Errorf("failed to list gateways")
 	}
-	if list != nil {
-		for _, g := range list.Items {
-			if g.Spec.GatewayClassName == gc.Name {
-				return true, nil
-			}
+	for _, g := range list.Items {
+		if g.Spec.GatewayClassName == gc.Name {
+			return true, nil
 		}
 	}
 	return false, nil
