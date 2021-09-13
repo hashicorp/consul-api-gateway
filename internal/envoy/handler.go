@@ -8,6 +8,8 @@ import (
 	discovery "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
 	resource "github.com/envoyproxy/go-control-plane/pkg/resource/v3"
 	server "github.com/envoyproxy/go-control-plane/pkg/server/v3"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/hashicorp/go-hclog"
 
@@ -18,12 +20,14 @@ type RequestHandler struct {
 	logger         hclog.Logger
 	metrics        *metrics.SDSMetrics
 	secretManager  SecretManager
+	registry       GatewayRegistry
 	nodeMap        sync.Map
 	streamContexts sync.Map
 }
 
-func NewRequestHandler(logger hclog.Logger, metrics *metrics.SDSMetrics, secretManager SecretManager) *server.CallbackFuncs {
+func NewRequestHandler(logger hclog.Logger, registry GatewayRegistry, metrics *metrics.SDSMetrics, secretManager SecretManager) *server.CallbackFuncs {
 	handler := &RequestHandler{
+		registry:      registry,
 		metrics:       metrics,
 		logger:        logger,
 		secretManager: secretManager,
@@ -64,6 +68,11 @@ func (r *RequestHandler) OnDeltaStreamClosed(streamID int64) {
 
 func (r *RequestHandler) OnStreamDeltaRequest(streamID int64, req *discovery.DeltaDiscoveryRequest) error {
 	ctx := r.streamContext(streamID)
+
+	// check to make sure we're actually authorized to do this
+	if !r.registry.CanFetchSecrets(GatewayFromContext(ctx), req.ResourceNamesSubscribe) {
+		return status.Errorf(codes.PermissionDenied, "the current gateway does not have permission to fetch the requested secrets")
+	}
 
 	r.nodeMap.Store(streamID, req.Node.Id)
 	if err := r.secretManager.Watch(ctx, req.ResourceNamesSubscribe, req.Node.Id); err != nil {

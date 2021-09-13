@@ -19,17 +19,21 @@ import (
 func TestOnStreamDeltaRequest(t *testing.T) {
 	t.Parallel()
 
+	requestedSecrets := []string{
+		"a",
+		"b",
+	}
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	secrets := mocks.NewMockSecretManager(ctrl)
-	handler := NewRequestHandler(hclog.NewNullLogger(), metrics.Registry.SDS, secrets)
+	registry := mocks.NewMockGatewayRegistry(ctrl)
+	registry.EXPECT().CanFetchSecrets(gomock.Any(), requestedSecrets).Return(true)
+	handler := NewRequestHandler(hclog.NewNullLogger(), registry, metrics.Registry.SDS, secrets)
 
 	request := &discovery.DeltaDiscoveryRequest{
-		ResourceNamesSubscribe: []string{
-			"a",
-			"b",
-		},
+		ResourceNamesSubscribe: requestedSecrets,
 		ResourceNamesUnsubscribe: []string{
 			"c",
 			"d",
@@ -47,21 +51,58 @@ func TestOnStreamDeltaRequest(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestOnStreamDeltaRequest_PermissionError(t *testing.T) {
+	t.Parallel()
+
+	requestedSecrets := []string{
+		"a",
+		"b",
+	}
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	secrets := mocks.NewMockSecretManager(ctrl)
+	registry := mocks.NewMockGatewayRegistry(ctrl)
+	registry.EXPECT().CanFetchSecrets(gomock.Any(), requestedSecrets).Return(false)
+	handler := NewRequestHandler(hclog.NewNullLogger(), registry, metrics.Registry.SDS, secrets)
+
+	request := &discovery.DeltaDiscoveryRequest{
+		ResourceNamesSubscribe: requestedSecrets,
+		ResourceNamesUnsubscribe: []string{
+			"c",
+			"d",
+		},
+		Node: &core.Node{
+			Id: "1",
+		},
+	}
+
+	err := handler.OnDeltaStreamOpen(context.Background(), 1, resource.SecretType)
+	require.NoError(t, err)
+	err = handler.OnStreamDeltaRequest(1, request)
+	require.Contains(t, err.Error(), "the current gateway does not have permission to fetch the requested secrets")
+}
+
 func TestOnStreamDeltaRequest_WatchError(t *testing.T) {
 	t.Parallel()
+
+	requestedSecrets := []string{
+		"a",
+		"b",
+	}
 
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	expectedErr := errors.New("error")
 	secrets := mocks.NewMockSecretManager(ctrl)
-	handler := NewRequestHandler(hclog.NewNullLogger(), metrics.Registry.SDS, secrets)
+	registry := mocks.NewMockGatewayRegistry(ctrl)
+	registry.EXPECT().CanFetchSecrets(gomock.Any(), requestedSecrets).Return(true)
+	handler := NewRequestHandler(hclog.NewNullLogger(), registry, metrics.Registry.SDS, secrets)
 
 	request := &discovery.DeltaDiscoveryRequest{
-		ResourceNamesSubscribe: []string{
-			"a",
-			"b",
-		},
+		ResourceNamesSubscribe: requestedSecrets,
 		ResourceNamesUnsubscribe: []string{
 			"c",
 			"d",
@@ -81,18 +122,22 @@ func TestOnStreamDeltaRequest_WatchError(t *testing.T) {
 func TestOnStreamDeltaRequest_UnwatchError(t *testing.T) {
 	t.Parallel()
 
+	requestedSecrets := []string{
+		"a",
+		"b",
+	}
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	expectedErr := errors.New("error")
 	secrets := mocks.NewMockSecretManager(ctrl)
-	handler := NewRequestHandler(hclog.NewNullLogger(), metrics.Registry.SDS, secrets)
+	registry := mocks.NewMockGatewayRegistry(ctrl)
+	registry.EXPECT().CanFetchSecrets(gomock.Any(), requestedSecrets).Return(true)
+	handler := NewRequestHandler(hclog.NewNullLogger(), registry, metrics.Registry.SDS, secrets)
 
 	request := &discovery.DeltaDiscoveryRequest{
-		ResourceNamesSubscribe: []string{
-			"a",
-			"b",
-		},
+		ResourceNamesSubscribe: requestedSecrets,
 		ResourceNamesUnsubscribe: []string{
 			"c",
 			"d",
@@ -113,17 +158,21 @@ func TestOnStreamDeltaRequest_UnwatchError(t *testing.T) {
 func TestOnStreamDeltaRequest_Graceful(t *testing.T) {
 	t.Parallel()
 
+	requestedSecrets := []string{
+		"a",
+		"b",
+	}
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	secrets := mocks.NewMockSecretManager(ctrl)
-	handler := NewRequestHandler(hclog.NewNullLogger(), metrics.Registry.SDS, secrets)
+	registry := mocks.NewMockGatewayRegistry(ctrl)
+	registry.EXPECT().CanFetchSecrets(gomock.Any(), requestedSecrets).Return(true)
+	handler := NewRequestHandler(hclog.NewNullLogger(), registry, metrics.Registry.SDS, secrets)
 
 	request := &discovery.DeltaDiscoveryRequest{
-		ResourceNamesSubscribe: []string{
-			"a",
-			"b",
-		},
+		ResourceNamesSubscribe: requestedSecrets,
 		ResourceNamesUnsubscribe: []string{
 			"c",
 			"d",
@@ -143,17 +192,21 @@ func TestOnStreamDeltaRequest_Graceful(t *testing.T) {
 func TestOnDeltaStreamClosed(t *testing.T) {
 	t.Parallel()
 
+	requestedSecrets := []string{
+		"a",
+		"b",
+	}
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	secrets := mocks.NewMockSecretManager(ctrl)
-	handler := NewRequestHandler(hclog.NewNullLogger(), metrics.Registry.SDS, secrets)
+	registry := mocks.NewMockGatewayRegistry(ctrl)
+	registry.EXPECT().CanFetchSecrets(gomock.Any(), requestedSecrets).Return(true)
+	handler := NewRequestHandler(hclog.NewNullLogger(), registry, metrics.Registry.SDS, secrets)
 
 	request := &discovery.DeltaDiscoveryRequest{
-		ResourceNamesSubscribe: []string{
-			"a",
-			"b",
-		},
+		ResourceNamesSubscribe: requestedSecrets,
 		ResourceNamesUnsubscribe: []string{
 			"c",
 			"d",
@@ -180,7 +233,8 @@ func TestOnDeltaStreamClosed_Graceful(t *testing.T) {
 	defer ctrl.Finish()
 
 	secrets := mocks.NewMockSecretManager(ctrl)
-	handler := NewRequestHandler(hclog.NewNullLogger(), metrics.Registry.SDS, secrets)
+	registry := mocks.NewMockGatewayRegistry(ctrl)
+	handler := NewRequestHandler(hclog.NewNullLogger(), registry, metrics.Registry.SDS, secrets)
 
 	// no-ops instead of panics without setting up the stream context in the open call
 	handler.OnDeltaStreamClosed(1)
@@ -193,7 +247,8 @@ func TestOnDeltaStreamOpen(t *testing.T) {
 	defer ctrl.Finish()
 
 	secrets := mocks.NewMockSecretManager(ctrl)
-	handler := NewRequestHandler(hclog.NewNullLogger(), metrics.Registry.SDS, secrets)
+	registry := mocks.NewMockGatewayRegistry(ctrl)
+	handler := NewRequestHandler(hclog.NewNullLogger(), registry, metrics.Registry.SDS, secrets)
 
 	// errors on non secret requests
 	err := handler.OnDeltaStreamOpen(context.Background(), 1, resource.ClusterType)

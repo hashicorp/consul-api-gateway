@@ -17,6 +17,7 @@ import (
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
 
+	"github.com/hashicorp/polar/internal/common"
 	"github.com/hashicorp/polar/internal/consul"
 	"github.com/hashicorp/polar/internal/envoy"
 	"github.com/hashicorp/polar/internal/metrics"
@@ -97,6 +98,7 @@ func (c *Command) Run(args []string) int {
 		return 1
 	}
 	metricsRegistry := metrics.Registry
+	gatewayRegistry := common.NewGatewayRegistry()
 
 	if c.logger == nil {
 		c.logger = hclog.New(&hclog.LoggerOptions{
@@ -142,7 +144,7 @@ func (c *Command) Run(args []string) int {
 		return 1
 	}
 
-	controller, err := k8s.New(c.logger, metricsRegistry.K8s, cfg)
+	controller, err := k8s.New(c.logger, gatewayRegistry, metricsRegistry.K8s, cfg)
 	if err != nil {
 		c.logger.Error("error creating the kubernetes controller", "error", err)
 		return 1
@@ -184,7 +186,7 @@ func (c *Command) Run(args []string) int {
 	}
 	c.logger.Trace("initial certificates written")
 
-	server := envoy.NewSDSServer(c.logger.Named("sds-server"), metricsRegistry.SDS, certManager, secretFetcher)
+	server := envoy.NewSDSServer(c.logger.Named("sds-server"), metricsRegistry.SDS, certManager, secretFetcher, gatewayRegistry)
 	group.Go(func() error {
 		return server.Run(groupCtx)
 	})

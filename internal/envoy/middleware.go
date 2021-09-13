@@ -37,7 +37,7 @@ func wrapStream(stream grpc.ServerStream, info *common.GatewayInfo) *wrappedStre
 	}
 }
 
-func GatewayForContext(ctx context.Context) *common.GatewayInfo {
+func GatewayFromContext(ctx context.Context) *common.GatewayInfo {
 	value := ctx.Value(gatewayInfoContextKey)
 	if value == nil {
 		return nil
@@ -47,17 +47,7 @@ func GatewayForContext(ctx context.Context) *common.GatewayInfo {
 
 type GatewayRegistry interface {
 	GatewayExists(info *common.GatewayInfo) bool
-	CanFetchSecret(info *common.GatewayInfo, secret string) bool
-}
-
-type stubGatewayRegistry struct{}
-
-func (m *stubGatewayRegistry) GatewayExists(info *common.GatewayInfo) bool {
-	return true
-}
-
-func (m *stubGatewayRegistry) CanFetchSecret(info *common.GatewayInfo, secret string) bool {
-	return true
+	CanFetchSecrets(info *common.GatewayInfo, secrets []string) bool
 }
 
 // SPIFFEStreamMiddleware verifies the spiffe entries for the certificate
@@ -70,19 +60,6 @@ func SPIFFEStreamMiddleware(logger hclog.Logger, spiffeCA *url.URL, registry Gat
 			return handler(srv, wrapStream(ss, info))
 		}
 		return status.Errorf(codes.Unauthenticated, "unable to authenticate request")
-	}
-}
-
-// SPIFFEUnaryMiddleware verifies the spiffe entries for the certificate
-// and sets the client identidy on the request context. If no
-// spiffe information is detected, or if the service is unknown,
-// the request is rejected.
-func SPIFFEUnaryMiddleware(logger hclog.Logger, spiffeCA *url.URL, registry GatewayRegistry) grpc.UnaryServerInterceptor {
-	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp interface{}, err error) {
-		if info, ok := verifySPIFFE(ctx, logger, spiffeCA, registry); ok {
-			return handler(context.WithValue(ctx, gatewayInfoContextKey, info), req)
-		}
-		return nil, status.Errorf(codes.Unauthenticated, "unable to authenticate request")
 	}
 }
 
@@ -122,8 +99,7 @@ func parseURI(path string) (*common.GatewayInfo, error) {
 		return nil, errors.New("invalid spiffe path")
 	}
 	return &common.GatewayInfo{
-		Namespace:  tokens[1],
-		Datacenter: tokens[3],
-		Service:    tokens[5],
+		Namespace: tokens[1],
+		Service:   tokens[5],
 	}, nil
 }

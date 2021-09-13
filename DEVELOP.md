@@ -36,6 +36,9 @@ spec:
     allowedRoutes:
       namespaces:
         from: Same
+    tls:
+      certificateRef:
+        name: consul-server-cert
 EOF
 ```
 

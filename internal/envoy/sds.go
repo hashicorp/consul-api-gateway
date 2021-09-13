@@ -19,8 +19,6 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/grpclog"
-	"google.golang.org/grpc/health"
-	healthservice "google.golang.org/grpc/health/grpc_health_v1"
 
 	"github.com/hashicorp/go-hclog"
 
@@ -51,7 +49,7 @@ type SDSServer struct {
 	gatewayRegistry GatewayRegistry
 }
 
-func NewSDSServer(logger hclog.Logger, metrics *metrics.SDSMetrics, fetcher CertificateFetcher, client SecretClient) *SDSServer {
+func NewSDSServer(logger hclog.Logger, metrics *metrics.SDSMetrics, fetcher CertificateFetcher, client SecretClient, registry GatewayRegistry) *SDSServer {
 	return &SDSServer{
 		logger:          logger,
 		fetcher:         fetcher,
@@ -59,7 +57,7 @@ func NewSDSServer(logger hclog.Logger, metrics *metrics.SDSMetrics, fetcher Cert
 		client:          client,
 		bindAddress:     defaultGRPCBindAddress,
 		protocol:        "tcp",
-		gatewayRegistry: &stubGatewayRegistry{},
+		gatewayRegistry: registry,
 	}
 }
 
@@ -100,16 +98,14 @@ func (s *SDSServer) Run(ctx context.Context) error {
 			ClientAuth: tls.RequireAndVerifyClientCert,
 		})),
 		grpc.StreamInterceptor(SPIFFEStreamMiddleware(s.logger, spiffeRootCA, s.gatewayRegistry)),
-		grpc.UnaryInterceptor(SPIFFEUnaryMiddleware(s.logger, spiffeRootCA, s.gatewayRegistry)),
 	}
 	s.server = grpc.NewServer(opts...)
 
 	resourceCache := cache.NewLinearCache(resource.SecretType, cache.WithLogger(wrapEnvoyLogger(s.logger.Named("cache"))))
 	secretManager := NewSecretManager(s.client, resourceCache, s.logger.Named("secret-manager"))
-	handler := NewRequestHandler(s.logger.Named("handler"), s.metrics, secretManager)
+	handler := NewRequestHandler(s.logger.Named("handler"), s.gatewayRegistry, s.metrics, secretManager)
 	sdsServer := server.NewServer(childCtx, resourceCache, handler)
 	secretservice.RegisterSecretDiscoveryServiceServer(s.server, sdsServer)
-	healthservice.RegisterHealthServer(s.server, health.NewServer())
 	listener, err := net.Listen(s.protocol, s.bindAddress)
 	if err != nil {
 		return err

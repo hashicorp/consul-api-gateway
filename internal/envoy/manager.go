@@ -3,7 +3,6 @@ package envoy
 import (
 	"bytes"
 	"context"
-	"errors"
 	"os"
 	"os/exec"
 	"text/template"
@@ -49,29 +48,39 @@ type ManagerConfig struct {
 }
 
 type Manager struct {
-	logger hclog.Logger
+	logger      hclog.Logger
+	commandFunc func() (string, []string)
 
 	ManagerConfig
 }
 
 func NewManager(logger hclog.Logger, config ManagerConfig) *Manager {
-	return &Manager{
+	m := &Manager{
 		logger:        logger,
 		ManagerConfig: config,
 	}
+	m.commandFunc = m.CommandArgs
+	return m
 }
 
 func (m *Manager) Run(ctx context.Context) error {
 	m.logger.Trace("running envoy")
-	cmd := exec.CommandContext(ctx, "envoy", "-l", m.LogLevel, "--log-format", logFormatString, "-c", m.BootstrapFilePath)
+	process, args := m.commandFunc()
+	cmd := exec.CommandContext(ctx, process, args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	err := cmd.Run()
-	if errors.Is(err, context.Canceled) {
+	select {
+	case <-ctx.Done():
 		// we intentionally canceled the context, just return
 		return nil
+	default:
+		return err
 	}
-	return err
+}
+
+func (m *Manager) CommandArgs() (string, []string) {
+	return "envoy", []string{"-l", m.LogLevel, "--log-format", logFormatString, "-c", m.BootstrapFilePath}
 }
 
 func (m *Manager) RenderBootstrap(sdsConfig string) error {

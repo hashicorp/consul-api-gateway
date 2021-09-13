@@ -12,14 +12,20 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff"
+	core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
+	envoyTLS "github.com/envoyproxy/go-control-plane/envoy/extensions/transport_sockets/tls/v3"
+	discoveryservice "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
+	secretservice "github.com/envoyproxy/go-control-plane/envoy/service/secret/v3"
+	resource "github.com/envoyproxy/go-control-plane/pkg/resource/v3"
 	"github.com/golang/mock/gomock"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-	healthservice "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/status"
 
 	"github.com/hashicorp/go-hclog"
+	"github.com/hashicorp/polar/internal/common"
 	"github.com/hashicorp/polar/internal/envoy/mocks"
 	"github.com/hashicorp/polar/internal/metrics"
 	polarTesting "github.com/hashicorp/polar/internal/testing"
@@ -30,10 +36,15 @@ func TestSDSRunCertificateVerification(t *testing.T) {
 
 	ca, server, client := polarTesting.DefaultCertificates()
 
-	err := runTestServer(t, ca.CertBytes, nil, func(serverAddress string, fetcher *mocks.MockCertificateFetcher) {
-		fetcher.EXPECT().TLSCertificate().Return(&server.X509)
+	err := runTestServer(t, ca.CertBytes, func(ctrl *gomock.Controller) GatewayRegistry {
+		gatewayRegistry := mocks.NewMockGatewayRegistry(ctrl)
+		gatewayRegistry.EXPECT().GatewayExists(gomock.Any()).MinTimes(1).Return(true)
+		gatewayRegistry.EXPECT().CanFetchSecrets(gomock.Any(), gomock.Any()).Return(true).MinTimes(1).Return(true)
+		return gatewayRegistry
+	}, func(serverAddress string, fetcher *mocks.MockCertificateFetcher) {
+		fetcher.EXPECT().TLSCertificate().MinTimes(1).Return(&server.X509)
 
-		err := testClientHealth(t, serverAddress, client, ca.CertBytes)
+		err := testClientSDS(t, serverAddress, client, ca.CertBytes)
 		require.NoError(t, err)
 	})
 	require.NoError(t, err)
@@ -43,15 +54,20 @@ func TestSDSRunServerParseError(t *testing.T) {
 	t.Parallel()
 
 	ca, _, client := polarTesting.DefaultCertificates()
-	newCA, err := polarTesting.GenerateSignedCertificate(nil, true, "")
+	newCA, err := polarTesting.GenerateSignedCertificate(polarTesting.GenerateCertificateOptions{
+		IsCA: true,
+	})
 	require.NoError(t, err)
-	server, err := polarTesting.GenerateSignedCertificate(newCA, false, "server")
+	server, err := polarTesting.GenerateSignedCertificate(polarTesting.GenerateCertificateOptions{
+		CA:          newCA,
+		ServiceName: "server",
+	})
 	require.NoError(t, err)
 
 	err = runTestServer(t, ca.CertBytes, nil, func(serverAddress string, fetcher *mocks.MockCertificateFetcher) {
-		fetcher.EXPECT().TLSCertificate().Return(&server.X509)
+		fetcher.EXPECT().TLSCertificate().MinTimes(1).Return(&server.X509)
 
-		err := testClientHealth(t, serverAddress, client, ca.CertBytes)
+		err := testClientSDS(t, serverAddress, client, ca.CertBytes)
 
 		// error on invalid server certificate
 		require.Error(t, err)
@@ -64,15 +80,20 @@ func TestSDSRunClientVerificationError(t *testing.T) {
 	t.Parallel()
 
 	ca, server, _ := polarTesting.DefaultCertificates()
-	newCA, err := polarTesting.GenerateSignedCertificate(nil, true, "")
+	newCA, err := polarTesting.GenerateSignedCertificate(polarTesting.GenerateCertificateOptions{
+		IsCA: true,
+	})
 	require.NoError(t, err)
-	client, err := polarTesting.GenerateSignedCertificate(newCA, false, "client")
+	client, err := polarTesting.GenerateSignedCertificate(polarTesting.GenerateCertificateOptions{
+		CA:          newCA,
+		ServiceName: "client",
+	})
 	require.NoError(t, err)
 
 	err = runTestServer(t, ca.CertBytes, nil, func(serverAddress string, fetcher *mocks.MockCertificateFetcher) {
-		fetcher.EXPECT().TLSCertificate().Return(&server.X509)
+		fetcher.EXPECT().TLSCertificate().MinTimes(1).Return(&server.X509)
 
-		err := testClientHealth(t, serverAddress, client, ca.CertBytes)
+		err := testClientSDS(t, serverAddress, client, ca.CertBytes)
 
 		// error on invalid client private key
 		require.Error(t, err)
@@ -82,25 +103,85 @@ func TestSDSRunClientVerificationError(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestSDSNoMatchingGateway(t *testing.T) {
+func TestSDSSPIFFEHostMismatch(t *testing.T) {
 	t.Parallel()
 
-	ca, server, client := polarTesting.DefaultCertificates()
+	ca, server, _ := polarTesting.DefaultCertificates()
+	client, err := polarTesting.GenerateSignedCertificate(polarTesting.GenerateCertificateOptions{
+		CA:                 ca,
+		ServiceName:        "client",
+		SPIFFEHostOverride: "mismatch.consul",
+	})
+	require.NoError(t, err)
 
-	err := runTestServer(t, ca.CertBytes, func(ctrl *gomock.Controller) GatewayRegistry {
-		gatewayRegistry := mocks.NewMockGatewayRegistry(ctrl)
-		gatewayRegistry.EXPECT().GatewayExists(gomock.Any()).Return(false)
-		return gatewayRegistry
-	}, func(serverAddress string, fetcher *mocks.MockCertificateFetcher) {
+	err = runTestServer(t, ca.CertBytes, nil, func(serverAddress string, fetcher *mocks.MockCertificateFetcher) {
 		fetcher.EXPECT().TLSCertificate().Return(&server.X509)
-		err := testClientHealth(t, serverAddress, client, ca.CertBytes)
+		err := testClientSDS(t, serverAddress, client, ca.CertBytes)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "unable to authenticate request")
 	})
 	require.NoError(t, err)
 }
 
-func testClientHealth(t *testing.T, address string, cert *polarTesting.CertificateInfo, ca []byte) error {
+func TestSDSSPIFFEPathParsing(t *testing.T) {
+	t.Parallel()
+
+	ca, server, _ := polarTesting.DefaultCertificates()
+	client, err := polarTesting.GenerateSignedCertificate(polarTesting.GenerateCertificateOptions{
+		CA:                 ca,
+		ServiceName:        "client",
+		SPIFFEPathOverride: "/invalid/path",
+	})
+	require.NoError(t, err)
+
+	err = runTestServer(t, ca.CertBytes, nil, func(serverAddress string, fetcher *mocks.MockCertificateFetcher) {
+		fetcher.EXPECT().TLSCertificate().Return(&server.X509)
+		err := testClientSDS(t, serverAddress, client, ca.CertBytes)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "unable to authenticate request")
+	})
+	require.NoError(t, err)
+}
+
+func TestSDSSPIFFEPathParsingFieldMismatch(t *testing.T) {
+	t.Parallel()
+
+	ca, server, _ := polarTesting.DefaultCertificates()
+	client, err := polarTesting.GenerateSignedCertificate(polarTesting.GenerateCertificateOptions{
+		CA:                 ca,
+		ServiceName:        "client",
+		SPIFFEPathOverride: "/ns/1/dc/2/something/3",
+	})
+	require.NoError(t, err)
+
+	err = runTestServer(t, ca.CertBytes, nil, func(serverAddress string, fetcher *mocks.MockCertificateFetcher) {
+		fetcher.EXPECT().TLSCertificate().Return(&server.X509)
+		err := testClientSDS(t, serverAddress, client, ca.CertBytes)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "unable to authenticate request")
+	})
+	require.NoError(t, err)
+}
+
+func TestSDSSPIFFENoMatchingGateway(t *testing.T) {
+	t.Parallel()
+
+	ca, server, client := polarTesting.DefaultCertificates()
+
+	err := runTestServer(t, ca.CertBytes, func(ctrl *gomock.Controller) GatewayRegistry {
+		gatewayRegistry := mocks.NewMockGatewayRegistry(ctrl)
+		gatewayRegistry.EXPECT().GatewayExists(gomock.Any()).MinTimes(1).Return(false)
+		return gatewayRegistry
+	}, func(serverAddress string, fetcher *mocks.MockCertificateFetcher) {
+		fetcher.EXPECT().TLSCertificate().Return(&server.X509)
+		err := testClientSDS(t, serverAddress, client, ca.CertBytes)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "unable to authenticate request")
+	})
+	require.NoError(t, err)
+}
+
+func testClientSDS(t *testing.T, address string, cert *polarTesting.CertificateInfo, ca []byte) error {
 	t.Helper()
 
 	certPool := x509.NewCertPool()
@@ -121,9 +202,22 @@ func testClientHealth(t *testing.T, address string, cert *polarTesting.Certifica
 	if err != nil {
 		return err
 	}
-	healthClient := healthservice.NewHealthClient(connection)
 	return retryRequest(func(ctx context.Context) error {
-		_, err = healthClient.Check(ctx, &healthservice.HealthCheckRequest{})
+		deltaClient, err := secretservice.NewSecretDiscoveryServiceClient(connection).DeltaSecrets(context.Background())
+		if err != nil {
+			return err
+		}
+		err = deltaClient.Send(&discoveryservice.DeltaDiscoveryRequest{
+			Node: &core.Node{
+				Id: uuid.New().String(),
+			},
+			ResourceNamesSubscribe: []string{"test"},
+			TypeUrl:                resource.SecretType,
+		})
+		if err != nil {
+			return err
+		}
+		_, err = deltaClient.Recv()
 		return err
 	})
 }
@@ -147,8 +241,11 @@ func runTestServer(t *testing.T, ca []byte, registryFn func(*gomock.Controller) 
 	fetcher := mocks.NewMockCertificateFetcher(ctrl)
 	secretClient := mocks.NewMockSecretClient(ctrl)
 	fetcher.EXPECT().RootCA().Return(ca)
+	secretClient.EXPECT().FetchSecret(gomock.Any(), "test").AnyTimes().Return(&envoyTLS.Secret{
+		Name: "test",
+	}, time.Now(), nil)
 
-	sds := NewSDSServer(hclog.NewNullLogger(), metrics.Registry.SDS, fetcher, secretClient)
+	sds := NewSDSServer(hclog.NewNullLogger(), metrics.Registry.SDS, fetcher, secretClient, common.NewGatewayRegistry())
 	sds.bindAddress = serverAddress
 	sds.protocol = "unix"
 	if registryFn != nil {
@@ -199,9 +296,11 @@ func retryRequest(retry func(ctx context.Context) error) error {
 		// grpc errors don't wrap errors normally, so just check the error text
 		// deadline exceeded == canceled context
 		// connection refused == no open port
+		// EOF == no response yet on a stream
 		// check for file existence if it's a unix socket
 		if err != nil && (strings.Contains(err.Error(), "deadline exceeded") ||
 			strings.Contains(err.Error(), "connection refused") ||
+			strings.Contains(err.Error(), "EOF") ||
 			os.IsNotExist(err)) {
 			return err
 		}

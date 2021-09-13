@@ -34,18 +34,18 @@ func (m *MockGatewayRegistry) EXPECT() *MockGatewayRegistryMockRecorder {
 	return m.recorder
 }
 
-// CanFetchSecret mocks base method.
-func (m *MockGatewayRegistry) CanFetchSecret(info *common.GatewayInfo, secret string) bool {
+// CanFetchSecrets mocks base method.
+func (m *MockGatewayRegistry) CanFetchSecrets(info *common.GatewayInfo, secrets []string) bool {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CanFetchSecret", info, secret)
+	ret := m.ctrl.Call(m, "CanFetchSecrets", info, secrets)
 	ret0, _ := ret[0].(bool)
 	return ret0
 }
 
-// CanFetchSecret indicates an expected call of CanFetchSecret.
-func (mr *MockGatewayRegistryMockRecorder) CanFetchSecret(info, secret interface{}) *gomock.Call {
+// CanFetchSecrets indicates an expected call of CanFetchSecrets.
+func (mr *MockGatewayRegistryMockRecorder) CanFetchSecrets(info, secrets interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CanFetchSecret", reflect.TypeOf((*MockGatewayRegistry)(nil).CanFetchSecret), info, secret)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CanFetchSecrets", reflect.TypeOf((*MockGatewayRegistry)(nil).CanFetchSecrets), info, secrets)
 }
 
 // GatewayExists mocks base method.

@@ -7,8 +7,11 @@ import (
 	"os"
 	"path"
 	"testing"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/net/context"
 
 	"github.com/hashicorp/go-hclog"
 )
@@ -88,4 +91,40 @@ func TestManagerRenderBootstrap(t *testing.T) {
 			require.JSONEq(t, expected, string(data))
 		})
 	}
+}
+
+func TestCommandArgs(t *testing.T) {
+	path := uuid.New().String()
+	manager := NewManager(hclog.NewNullLogger(), ManagerConfig{
+		BootstrapFilePath: path,
+		LogLevel:          "debug",
+	})
+	process, args := manager.CommandArgs()
+	require.Equal(t, "envoy", process)
+	require.Equal(t, []string{"-l", "debug", "--log-format", logFormatString, "-c", path}, args)
+}
+
+func TestRun(t *testing.T) {
+	manager := NewManager(hclog.NewNullLogger(), ManagerConfig{})
+	manager.commandFunc = func() (string, []string) {
+		return "sleep", []string{"10"}
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() {
+		time.Sleep(10 * time.Millisecond)
+		cancel()
+	}()
+	err := manager.Run(ctx)
+	// ensure it swallows the canceled context
+	require.NoError(t, err)
+}
+
+func TestRunError(t *testing.T) {
+	manager := NewManager(hclog.NewNullLogger(), ManagerConfig{})
+	manager.commandFunc = func() (string, []string) {
+		return "nonexistentbinarypath", []string{}
+	}
+	err := manager.Run(context.Background())
+	require.Error(t, err)
 }

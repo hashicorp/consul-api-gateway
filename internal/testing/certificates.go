@@ -23,15 +23,23 @@ var (
 )
 
 func init() {
-	rootCA, err := GenerateSignedCertificate(nil, true, "")
+	rootCA, err := GenerateSignedCertificate(GenerateCertificateOptions{
+		IsCA: true,
+	})
 	if err != nil {
 		panic(err)
 	}
-	serverCert, err := GenerateSignedCertificate(rootCA, false, "server")
+	serverCert, err := GenerateSignedCertificate(GenerateCertificateOptions{
+		CA:          rootCA,
+		ServiceName: "server",
+	})
 	if err != nil {
 		panic(err)
 	}
-	clientCert, err := GenerateSignedCertificate(rootCA, false, "client")
+	clientCert, err := GenerateSignedCertificate(GenerateCertificateOptions{
+		CA:          rootCA,
+		ServiceName: "client",
+	})
 	if err != nil {
 		panic(err)
 	}
@@ -60,21 +68,35 @@ func getSVIDRootURI() *url.URL {
 	return &svid
 }
 
-func getSVIDServiceURI(root *url.URL, service string) *url.URL {
+func getSVIDServiceURI(root *url.URL, hostOverride, pathOverride, service string) *url.URL {
 	var svid url.URL
 	svid.Scheme = "spiffe"
 	svid.Host = root.Host
+	if hostOverride != "" {
+		svid.Host = hostOverride
+	}
 	svid.Path = "/ns/default/dc/testing/svc/" + service
+	if pathOverride != "" {
+		svid.Path = pathOverride
+	}
 	return &svid
 }
 
-func GenerateSignedCertificate(ca *CertificateInfo, isCA bool, service string) (*CertificateInfo, error) {
+type GenerateCertificateOptions struct {
+	CA                 *CertificateInfo
+	IsCA               bool
+	ServiceName        string
+	SPIFFEHostOverride string
+	SPIFFEPathOverride string
+}
+
+func GenerateSignedCertificate(options GenerateCertificateOptions) (*CertificateInfo, error) {
 	privateKey, err := rsa.GenerateKey(rand.Reader, 1024)
 	if err != nil {
 		return nil, err
 	}
 	usage := x509.KeyUsageDigitalSignature
-	if isCA {
+	if options.IsCA {
 		usage = x509.KeyUsageCertSign
 	}
 
@@ -94,8 +116,8 @@ func GenerateSignedCertificate(ca *CertificateInfo, isCA bool, service string) (
 	// As support for URI name constraints becomes more widespread, future versions of this document may update the requirements set forth in this section in order to better leverage name constraint validation.
 
 	spiffe := getSVIDRootURI()
-	if ca != nil {
-		spiffe = getSVIDServiceURI(ca.spiffe, service)
+	if options.CA != nil {
+		spiffe = getSVIDServiceURI(options.CA.spiffe, options.SPIFFEHostOverride, options.SPIFFEPathOverride, options.ServiceName)
 	}
 	cert := &x509.Certificate{
 		SerialNumber: big.NewInt(1),
@@ -108,7 +130,7 @@ func GenerateSignedCertificate(ca *CertificateInfo, isCA bool, service string) (
 			StreetAddress: []string{"Fake Street"},
 			PostalCode:    []string{"11111"},
 		},
-		IsCA:                  isCA,
+		IsCA:                  options.IsCA,
 		IPAddresses:           []net.IP{net.IPv4(127, 0, 0, 1), net.IPv6loopback},
 		NotBefore:             time.Now().Add(-10 * time.Minute),
 		NotAfter:              time.Now().AddDate(10, 0, 0),
@@ -118,12 +140,12 @@ func GenerateSignedCertificate(ca *CertificateInfo, isCA bool, service string) (
 		BasicConstraintsValid: true,
 	}
 	caCert := cert
-	if ca != nil {
-		caCert = ca.Cert
+	if options.CA != nil {
+		caCert = options.CA.Cert
 	}
 	caPrivateKey := privateKey
-	if ca != nil {
-		caPrivateKey = ca.PrivateKey
+	if options.CA != nil {
+		caPrivateKey = options.CA.PrivateKey
 	}
 	data, err := x509.CreateCertificate(rand.Reader, cert, caCert, &privateKey.PublicKey, caPrivateKey)
 	if err != nil {

@@ -18,6 +18,7 @@ import (
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
 
+	"github.com/hashicorp/polar/internal/common"
 	"github.com/hashicorp/polar/internal/metrics"
 	"github.com/hashicorp/polar/k8s/controllers"
 	"github.com/hashicorp/polar/k8s/log"
@@ -43,6 +44,7 @@ type Kubernetes struct {
 	sDSServerPort int
 	k8sManager    ctrl.Manager
 	consul        *api.Client
+	registry      *common.GatewayRegistry
 	metrics       *metrics.K8sMetrics
 	logger        hclog.Logger
 	k8sStatus     *object.StatusWorker
@@ -72,7 +74,7 @@ func Defaults() *Options {
 	}
 }
 
-func New(logger hclog.Logger, metrics *metrics.K8sMetrics, opts *Options) (*Kubernetes, error) {
+func New(logger hclog.Logger, registry *common.GatewayRegistry, metrics *metrics.K8sMetrics, opts *Options) (*Kubernetes, error) {
 	if opts == nil {
 		opts = Defaults()
 	}
@@ -121,6 +123,7 @@ func New(logger hclog.Logger, metrics *metrics.K8sMetrics, opts *Options) (*Kube
 
 	return &Kubernetes{
 		k8sManager:    mgr,
+		registry:      registry,
 		metrics:       metrics,
 		sDSServerHost: opts.SDSServerHost,
 		sDSServerPort: opts.SDSServerPort,
@@ -140,7 +143,7 @@ func (k *Kubernetes) Start(ctx context.Context) error {
 	k.k8sStatus = status
 
 	klogger := log.FromHCLogger(k.logger)
-	consulMgr := reconciler.NewReconcileManager(ctx, k.metrics, k.consul, k.k8sManager.GetClient().Status(), k.logger.Named("consul"))
+	consulMgr := reconciler.NewReconcileManager(ctx, k.metrics, k.registry, k.consul, k.k8sManager.GetClient().Status(), k.logger.Named("consul"))
 	err := (&controllers.GatewayReconciler{
 		SDSServerHost: k.sDSServerHost,
 		SDSServerPort: k.sDSServerPort,
