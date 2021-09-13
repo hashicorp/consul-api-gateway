@@ -152,14 +152,24 @@ func (k *Kubernetes) Start(ctx context.Context) error {
 		Logger:         k.logger.Named("consul"),
 	})
 
-	err := (&controllers.GatewayClassReconciler{
-		Client:  k.k8sManager.GetClient(),
-		Log:     klogger.WithName("controllers").WithName("GatewayClass"),
-		Scheme:  k.k8sManager.GetScheme(),
-		Manager: reconcileManager,
+	err := (&controllers.GatewayClassConfigReconciler{
+		Client: k.k8sManager.GetClient(),
+		Log:    klogger.WithName("controllers").WithName("GatewayClassConfig"),
+		Scheme: k.k8sManager.GetScheme(),
 	}).SetupWithManager(k.k8sManager)
 	if err != nil {
-		return fmt.Errorf("failed to create gateway_class controller: %w", err)
+		return fmt.Errorf("failed to create gateway class config controller: %w", err)
+	}
+
+	err = (&controllers.GatewayClassReconciler{
+		ControllerName: ControllerName,
+		Client:         k.k8sManager.GetClient(),
+		Log:            klogger.WithName("controllers").WithName("GatewayClass"),
+		Scheme:         k.k8sManager.GetScheme(),
+		Manager:        reconcileManager,
+	}).SetupWithManager(k.k8sManager)
+	if err != nil {
+		return fmt.Errorf("failed to create gateway class controller: %w", err)
 	}
 
 	err = (&controllers.GatewayReconciler{
@@ -181,7 +191,7 @@ func (k *Kubernetes) Start(ctx context.Context) error {
 		Manager: reconcileManager,
 	}).SetupWithManager(k.k8sManager)
 	if err != nil {
-		return fmt.Errorf("failed to create http_route controller: %w", err)
+		return fmt.Errorf("failed to create http route controller: %w", err)
 	}
 
 	return k.k8sManager.Start(ctx)

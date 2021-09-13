@@ -24,8 +24,8 @@ type GatewayClassConfig struct {
 // GatewayClassConfigSpec specifies the 'spec' of the Config CRD.
 type GatewayClassConfigSpec struct {
 	// +kubebuilder:validation:Enum=ClusterIP;NodePort;LoadBalancer
-	ServiceType  corev1.ServiceType  `json:"serviceType,omitempty"`
-	NodeSelector corev1.NodeSelector `json:"nodeSelector,omitempty"`
+	ServiceType  *corev1.ServiceType  `json:"serviceType,omitempty"`
+	NodeSelector *corev1.NodeSelector `json:"nodeSelector,omitempty"`
 	// If this is set, then the Envoy container ports are mapped
 	// to host ports.
 	UseHostPorts bool `json:"useHostPorts,omitempty"`
