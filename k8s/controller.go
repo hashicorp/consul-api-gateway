@@ -31,6 +31,7 @@ var (
 )
 
 const (
+	ControllerName        = "hashicorp.com/polar-gateway-controller"
 	polarLeaderElectionID = "polar.consul.hashicorp.com"
 )
 
@@ -143,15 +144,34 @@ func (k *Kubernetes) Start(ctx context.Context) error {
 	k.k8sStatus = status
 
 	klogger := log.FromHCLogger(k.logger)
-	consulMgr := reconciler.NewReconcileManager(ctx, k.metrics, k.registry, k.consul, k.k8sManager.GetClient().Status(), k.logger.Named("consul"))
-	err := (&controllers.GatewayReconciler{
+
+	reconcileManager := reconciler.NewReconcileManager(ctx, &reconciler.ManagerConfig{
+		ControllerName: ControllerName,
+		Metrics:        k.metrics,
+		Registry:       k.registry,
+		Consul:         k.consul,
+		Status:         k.k8sManager.GetClient().Status(),
+		Logger:         k.logger.Named("consul"),
+	})
+
+	err := (&controllers.GatewayClassReconciler{
+		Client:  k.k8sManager.GetClient(),
+		Log:     klogger.WithName("controllers").WithName("GatewayClass"),
+		Scheme:  k.k8sManager.GetScheme(),
+		Manager: reconcileManager,
+	}).SetupWithManager(k.k8sManager)
+	if err != nil {
+		return fmt.Errorf("failed to create gateway_class controller: %w", err)
+	}
+
+	err = (&controllers.GatewayReconciler{
 		SDSServerHost: k.sDSServerHost,
 		SDSServerPort: k.sDSServerPort,
 		Client:        k.k8sManager.GetClient(),
 		Log:           klogger.WithName("controllers").WithName("Gateway"),
 		Scheme:        k.k8sManager.GetScheme(),
-		Manager:       consulMgr,
 		Metrics:       k.metrics,
+		Manager:       reconcileManager,
 	}).SetupWithManager(k.k8sManager)
 	if err != nil {
 		return fmt.Errorf("failed to create gateway controller: %w", err)
@@ -161,8 +181,8 @@ func (k *Kubernetes) Start(ctx context.Context) error {
 		Client:  k.k8sManager.GetClient(),
 		Log:     klogger.WithName("controllers").WithName("HTTPRoute"),
 		Scheme:  k.k8sManager.GetScheme(),
-		Manager: consulMgr,
 		Metrics: k.metrics,
+		Manager: reconcileManager,
 	}).SetupWithManager(k.k8sManager)
 	if err != nil {
 		return fmt.Errorf("failed to create http_route controller: %w", err)

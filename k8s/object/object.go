@@ -117,7 +117,7 @@ func (s *status) Mutate(f func(status interface{}) interface{}) {
 	}
 	old := s.deepCopy()
 	s.status = f(s.status)
-	if !reflect.DeepEqual(old, s.status) {
+	if !reflect.DeepEqual(old, s.deepCopy()) {
 		s.dirty = true
 	}
 }
