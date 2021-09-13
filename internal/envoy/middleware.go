@@ -6,13 +6,14 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/polar/internal/common"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
+
+	"github.com/hashicorp/go-hclog"
+	"github.com/hashicorp/polar/internal/common"
 )
 
 //go:generate mockgen -source ./middleware.go -destination ./mocks/middleware.go -package mocks GatewayRegistry
