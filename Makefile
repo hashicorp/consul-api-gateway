@@ -81,6 +81,9 @@ endif
 
 all: bin ctrl-generate
 
+fmt:
+	@for d in $$(go list -f {{.Dir}} ./...); do goimports --local github.com/hashicorp/polar -w -l $$d/*.go; done
+
 bin:
 	@$(SHELL) $(CURDIR)/build-support/scripts/build-local.sh
 
@@ -209,4 +212,4 @@ ifeq ($(CIRCLE_BRANCH), crd-controller-base)
 	@docker push $(CI_DEV_DOCKER_NAMESPACE)/$(CI_DEV_DOCKER_IMAGE_NAME):crd-controller-base-latest
 endif
 
-.PHONY: all bin clean dev dist docker-images go-build-image test tools ci.dev-docker
+.PHONY: all bin clean dev dist docker-images go-build-image test tools ci.dev-docker fmt

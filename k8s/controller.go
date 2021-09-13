@@ -3,16 +3,21 @@ package k8s
 import (
 	"context"
 	"fmt"
+	"os"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	klogv2 "k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
+	clientruntime "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
+
 	"github.com/hashicorp/polar/k8s/controllers"
 	"github.com/hashicorp/polar/k8s/log"
 	"github.com/hashicorp/polar/k8s/object"
@@ -33,33 +38,45 @@ func init() {
 }
 
 type Kubernetes struct {
-	k8sManager ctrl.Manager
-	consul     *api.Client
-	logger     hclog.Logger
-	k8sStatus  *object.StatusWorker
-
-	failed chan struct{}
+	sDSServerHost string
+	sDSServerPort int
+	k8sManager    ctrl.Manager
+	consul        *api.Client
+	logger        hclog.Logger
+	k8sStatus     *object.StatusWorker
 }
 
 type Options struct {
-	MetricsBindAddr     string
-	HealthProbeBindAddr string
-	WebhookPort         int
+	CACertSecretNamespace string
+	CACertSecret          string
+	CACertFile            string
+	SDSServerHost         string
+	SDSServerPort         int
+	MetricsBindAddr       string
+	HealthProbeBindAddr   string
+	WebhookPort           int
 }
 
 func Defaults() *Options {
 	return &Options{
-		MetricsBindAddr:     ":8080",
-		HealthProbeBindAddr: ":8081",
-		WebhookPort:         8443,
+		CACertSecretNamespace: "default",
+		CACertSecret:          "",
+		CACertFile:            "",
+		SDSServerHost:         "polar-controller.default.svc.cluster.local",
+		SDSServerPort:         9090,
+		MetricsBindAddr:       ":8080",
+		HealthProbeBindAddr:   ":8081",
+		WebhookPort:           8443,
 	}
 }
 
-func New(client *api.Client, logger hclog.Logger, opts *Options) (*Kubernetes, error) {
+func New(logger hclog.Logger, opts *Options) (*Kubernetes, error) {
 	if opts == nil {
 		opts = Defaults()
 	}
 
+	// this sets the internal logger that the kubernetes client uses
+	klogv2.SetLogger(log.FromHCLogger(logger.Named("kubernetes-client")))
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                  scheme,
 		MetricsBindAddress:      opts.MetricsBindAddr,
@@ -68,6 +85,7 @@ func New(client *api.Client, logger hclog.Logger, opts *Options) (*Kubernetes, e
 		LeaderElection:          true,
 		LeaderElectionID:        polarLeaderElectionID,
 		LeaderElectionNamespace: "default",
+		Logger:                  log.FromHCLogger(logger.Named("controller-runtime")),
 	})
 
 	if err != nil {
@@ -80,18 +98,39 @@ func New(client *api.Client, logger hclog.Logger, opts *Options) (*Kubernetes, e
 		return nil, fmt.Errorf("unable to set up ready check: %w", err)
 	}
 
-	return &Kubernetes{
-		k8sManager: mgr,
-		consul:     client,
-		logger:     logger.Named("k8s"),
-		failed:     make(chan struct{}),
-	}, nil
+	if opts.CACertSecret != "" && opts.CACertFile != "" {
+		client, err := clientruntime.New(ctrl.GetConfigOrDie(), clientruntime.Options{
+			Scheme: scheme,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to get k8s client: %w", err)
+		}
+		secret := &corev1.Secret{}
+		err = client.Get(context.Background(), clientruntime.ObjectKey{
+			Namespace: opts.CACertSecretNamespace,
+			Name:      opts.CACertSecret,
+		}, secret)
+		if err != nil {
+			return nil, fmt.Errorf("unable to pull Consul CA cert from secret: %w", err)
+		}
+		cert := secret.Data["tls.crt"]
+		os.WriteFile(opts.CACertFile, cert, 0444)
+	}
 
+	return &Kubernetes{
+		k8sManager:    mgr,
+		sDSServerHost: opts.SDSServerHost,
+		sDSServerPort: opts.SDSServerPort,
+		logger:        logger.Named("k8s"),
+	}, nil
+}
+
+func (k *Kubernetes) SetConsul(consul *api.Client) {
+	k.consul = consul
 }
 
 // Start will run the kubernetes controllers and return a startup error if occurred
 func (k *Kubernetes) Start(ctx context.Context) error {
-
 	status := object.NewStatusWorker(ctx, k.k8sManager.GetClient().Status(), k.logger)
 	k.k8sStatus = status
 
@@ -99,10 +138,12 @@ func (k *Kubernetes) Start(ctx context.Context) error {
 
 	consulMgr := reconciler.NewReconcileManager(ctx, k.consul, k.k8sManager.GetClient().Status(), k.logger.Named("consul"))
 	err := (&controllers.GatewayReconciler{
-		Client:  k.k8sManager.GetClient(),
-		Log:     klogger.WithName("controllers").WithName("Gateway"),
-		Scheme:  k.k8sManager.GetScheme(),
-		Manager: consulMgr,
+		SDSServerHost: k.sDSServerHost,
+		SDSServerPort: k.sDSServerPort,
+		Client:        k.k8sManager.GetClient(),
+		Log:           klogger.WithName("controllers").WithName("Gateway"),
+		Scheme:        k.k8sManager.GetScheme(),
+		Manager:       consulMgr,
 	}).SetupWithManager(k.k8sManager)
 	if err != nil {
 		return fmt.Errorf("failed to create gateway controller: %w", err)
@@ -118,18 +159,5 @@ func (k *Kubernetes) Start(ctx context.Context) error {
 		return fmt.Errorf("failed to create http_route controller: %w", err)
 	}
 
-	go func() {
-		err := k.k8sManager.Start(ctx)
-		if err != nil {
-			k.logger.Error("fatal controller error occurred", "error", err)
-			close(k.failed)
-		}
-	}()
-
-	return nil
-}
-
-// Failed returns a channel which will be closed if a critical failure occurs with the controller
-func (k *Kubernetes) Failed() <-chan struct{} {
-	return k.failed
+	return k.k8sManager.Start(ctx)
 }

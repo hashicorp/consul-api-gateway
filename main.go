@@ -4,8 +4,9 @@ import (
 	"log"
 	"os"
 
-	"github.com/hashicorp/polar/version"
 	"github.com/mitchellh/cli"
+
+	"github.com/hashicorp/polar/version"
 )
 
 func main() {
