@@ -22,16 +22,6 @@ import (
 	polarTesting "github.com/hashicorp/polar/internal/testing"
 )
 
-var (
-	generate bool
-)
-
-func init() {
-	if os.Getenv("GENERATE") == "true" {
-		generate = true
-	}
-}
-
 func TestManage(t *testing.T) {
 	t.Parallel()
 
