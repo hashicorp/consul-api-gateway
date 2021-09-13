@@ -1,0 +1,203 @@
+
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.6.0
+  creationTimestamp: null
+  name: gatewayclassconfigs.polar.hashicorp.com
+spec:
+  group: polar.hashicorp.com
+  names:
+    kind: GatewayClassConfig
+    listKind: GatewayClassConfigList
+    plural: gatewayclassconfigs
+    singular: gatewayclassconfig
+  scope: Cluster
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: GatewayClassConfig describes the configuration of a Polar GatewayClass.
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: Spec defines the desired state of GatewayClassConfig.
+            properties:
+              consul:
+                description: Configuration information about connecting to Consul.
+                properties:
+                  address:
+                    description: The address of the consul server to communicate with
+                      in the gateway pod. If not specified, the pod will attempt to
+                      use a local agent on the host on which it is running.
+                    type: string
+                  authentication:
+                    description: Consul authentication information
+                    properties:
+                      account:
+                        description: The Kubernetes service account to authenticate
+                          as.
+                        type: string
+                      method:
+                        description: The Consul auth method used for initial authentication
+                          by Polar.
+                        type: string
+                      namespace:
+                        description: The Consul namespace to use for authentication.
+                        type: string
+                    type: object
+                  caSecret:
+                    description: The location of a secret to mount with the Consul
+                      root CA.
+                    type: string
+                  ports:
+                    description: The information about Consul's ports
+                    properties:
+                      grpc:
+                        description: The grpc port for Consul's xDS server.
+                        type: integer
+                      http:
+                        description: The port for Consul's HTTP server.
+                        type: integer
+                    type: object
+                  scheme:
+                    description: The scheme to use for connecting to Consul.
+                    type: string
+                type: object
+              image:
+                description: Configuration information about the images to use
+                properties:
+                  envoy:
+                    description: The image to use for Envoy.
+                    type: string
+                  polar:
+                    description: The image to use for Polar.
+                    type: string
+                type: object
+              logLevel:
+                description: Logging levels
+                enum:
+                - trace
+                - debug
+                - info
+                - warning
+                - error
+                type: string
+              nodeSelector:
+                description: A node selector represents the union of the results of
+                  one or more label queries over a set of nodes; that is, it represents
+                  the OR of the selectors represented by the node selector terms.
+                properties:
+                  nodeSelectorTerms:
+                    description: Required. A list of node selector terms. The terms
+                      are ORed.
+                    items:
+                      description: A null or empty node selector term matches no objects.
+                        The requirements of them are ANDed. The TopologySelectorTerm
+                        type implements a subset of the NodeSelectorTerm.
+                      properties:
+                        matchExpressions:
+                          description: A list of node selector requirements by node's
+                            labels.
+                          items:
+                            description: A node selector requirement is a selector
+                              that contains values, a key, and an operator that relates
+                              the key and values.
+                            properties:
+                              key:
+                                description: The label key that the selector applies
+                                  to.
+                                type: string
+                              operator:
+                                description: Represents a key's relationship to a
+                                  set of values. Valid operators are In, NotIn, Exists,
+                                  DoesNotExist. Gt, and Lt.
+                                type: string
+                              values:
+                                description: An array of string values. If the operator
+                                  is In or NotIn, the values array must be non-empty.
+                                  If the operator is Exists or DoesNotExist, the values
+                                  array must be empty. If the operator is Gt or Lt,
+                                  the values array must have a single element, which
+                                  will be interpreted as an integer. This array is
+                                  replaced during a strategic merge patch.
+                                items:
+                                  type: string
+                                type: array
+                            required:
+                            - key
+                            - operator
+                            type: object
+                          type: array
+                        matchFields:
+                          description: A list of node selector requirements by node's
+                            fields.
+                          items:
+                            description: A node selector requirement is a selector
+                              that contains values, a key, and an operator that relates
+                              the key and values.
+                            properties:
+                              key:
+                                description: The label key that the selector applies
+                                  to.
+                                type: string
+                              operator:
+                                description: Represents a key's relationship to a
+                                  set of values. Valid operators are In, NotIn, Exists,
+                                  DoesNotExist. Gt, and Lt.
+                                type: string
+                              values:
+                                description: An array of string values. If the operator
+                                  is In or NotIn, the values array must be non-empty.
+                                  If the operator is Exists or DoesNotExist, the values
+                                  array must be empty. If the operator is Gt or Lt,
+                                  the values array must have a single element, which
+                                  will be interpreted as an integer. This array is
+                                  replaced during a strategic merge patch.
+                                items:
+                                  type: string
+                                type: array
+                            required:
+                            - key
+                            - operator
+                            type: object
+                          type: array
+                      type: object
+                    type: array
+                required:
+                - nodeSelectorTerms
+                type: object
+              serviceType:
+                description: Service Type string describes ingress methods for a service
+                enum:
+                - ClusterIP
+                - NodePort
+                - LoadBalancer
+                type: string
+              useHostPorts:
+                description: If this is set, then the Envoy container ports are mapped
+                  to host ports.
+                type: boolean
+            type: object
+        type: object
+    served: true
+    storage: true
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []

@@ -1,0 +1,310 @@
+#!/bin/bash
+
+enableHelmRepo() {
+  echo "Enabling Hashicorp Helm repo"
+  helm repo add hashicorp https://helm.releases.hashicorp.com 2>&1 > /dev/null
+}
+
+destroyCluster() {
+  local exists=$(kind get clusters | grep polar || true)
+  if [[ "$exists" != "polar" ]]; then
+    echo "Polar cluster not found"
+    exit 1
+  fi
+  kind delete cluster --name polar
+}
+
+createCluster() {
+  local exists=$(kind get clusters | grep polar || true)
+  if [[ "$exists" == "polar" ]]; then
+    echo "Polar cluster already exists"
+    exit 1
+  fi
+  cat <<EOF | kind create cluster --name polar --config=-
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+- role: control-plane
+  kubeadmConfigPatches:
+  - |
+    kind: InitConfiguration
+    nodeRegistration:
+      kubeletExtraArgs:
+        node-labels: "ingress-ready=true"
+  extraPortMappings:
+  - containerPort: 443
+    hostPort: 443
+    protocol: TCP
+  - containerPort: 8502
+    hostPort: 8502
+    protocol: TCP
+EOF
+}
+
+installGatewayCRDs() {
+  echo "Installing Gateway CRDs"
+  kubectl kustomize "github.com/kubernetes-sigs/gateway-api/config/crd?ref=0fbc16ba7999bfb379f3c4fdcef589d7dd333e18" | kubectl apply -f -  2>&1 > /dev/null
+}
+
+createServiceAccountForRBAC() {
+  echo "Creating Polar Service Account"
+  kubectl create serviceaccount polar 2>&1 > /dev/null
+
+  cat <<EOF | kubectl apply -f - 2>&1 > /dev/null
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: polar-tokenreview-binding
+  namespace: default
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:auth-delegator
+subjects:
+  - kind: ServiceAccount
+    name: polar
+    namespace: default
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  namespace: default
+  name: polar-auth
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - serviceaccounts
+  verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: polar-auth-binding
+  namespace: default
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: polar-auth
+subjects:
+  - kind: ServiceAccount
+    name: polar
+    namespace: default
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: consul-auth-binding
+  namespace: default
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: polar-auth
+subjects:
+  - kind: ServiceAccount
+    name: consul-server
+    namespace: default
+EOF
+}
+
+createNginxIngress() {
+  echo "Creating nginx ingress"
+  cat <<EOF > tmp/kustomization.yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - https://github.com/kubernetes/ingress-nginx/deploy/static/provider/kind
+patchesJSON6902:
+- target:
+    group: apps
+    version: v1
+    kind: Deployment
+    name: ingress-nginx-controller
+  patch: |-
+    - op: add
+      path: "/spec/template/spec/containers/0/args/-"
+      value: "--enable-ssl-passthrough"
+EOF
+  kubectl kustomize tmp | kubectl apply -f - 2>&1 > /dev/null
+  echo "Waiting for ingress pod to start"
+  sleep 10
+  kubectl wait --namespace ingress-nginx --for=condition=ready pod --selector=app.kubernetes.io/component=controller --timeout=90s
+}
+
+installConsul() {
+  echo "Installing consul helm chart"
+  cat <<EOF | helm install consul hashicorp/consul --version 0.32.0 -f - 2>&1 > /dev/null
+global:
+  name: consul
+  tls:
+    enabled: true
+    serverAdditionalDNSSANs:
+    - host.docker.internal
+    - localhost
+server:
+  replicas: 1
+  extraConfig: |
+    {
+      "acl": {
+        "enabled": true,
+        "default_policy": "allow",
+        "enable_token_persistence": true
+      }
+    }
+ui:
+  enabled: true
+  ingress:
+    enabled: true
+    hosts:
+    - host: "host.docker.internal"
+      paths:
+      - "/"
+    - host: "localhost"
+      paths:
+      - "/"
+    annotations: |
+      "kubernetes.io/ingress.class": "nginx"
+      "nginx.ingress.kubernetes.io/ssl-passthrough": "true"
+EOF
+  echo "Waiting for consul to stabilize"
+  sleep 10
+  kubectl wait --for=condition=ready pod --selector=app=consul,component=server,release=consul --timeout=90s
+  echo "Consul is now accessible at https://localhost"
+}
+
+setupAuthMethod() {
+  local consul_policy=$(cat <<'EOF'
+node_prefix "" { policy = "write" }
+service_prefix "" { policy = "write" }
+agent_prefix "" { policy = "write" }
+event_prefix "" { policy = "write" }
+query_prefix "" { policy = "write" }
+session_prefix "" { policy = "write" }
+operator = "write"
+acl = "write"
+keyring = "write"
+EOF
+)
+  echo "Importing Kubernetes Configuration"
+  export K8S_JWT=$(kubectl get secret $(kubectl get serviceaccounts polar -o json | jq '.secrets[0].name' -r) -o json | jq '.data.token' -r | base64 -d)
+  export K8S_HOST=$(kind get kubeconfig --name polar --internal | grep server | tr -s ' '| cut -d' ' -f3)
+  export K8S_CERT=$(kubectl config view -o jsonpath='{.clusters[].cluster.certificate-authority-data}' --raw | base64 -d)
+  echo "Bootstrapping ACLs"
+  export CONSUL_HTTP_ADDR="https://localhost"
+  export CONSUL_HTTP_SSL_VERIFY=false
+  export CONSUL_HTTP_TOKEN=$(consul acl bootstrap -format json | jq '.SecretID' -r)
+  export CONSUL_POLICY_ID=$(consul acl policy create -name policy -rules "$consul_policy" -format json | jq '.ID' -r)
+  consul acl role create -name "polar" -policy-id "${CONSUL_POLICY_ID}" > /dev/null
+  echo "Creating ACL Auth Rule Binding"
+  consul acl auth-method create -type "kubernetes" -name "polar" -kubernetes-host "$K8S_HOST" -kubernetes-ca-cert "$K8S_CERT" -kubernetes-service-account-jwt "$K8S_JWT" | grep ServiceAccountJWT | cut -d':' -f 2 | tr -s " " | jq -r > token
+  consul acl binding-rule create -method=polar -bind-type=role -bind-name='polar' -selector='serviceaccount.name=="polar"' > /dev/null
+  echo $CONSUL_HTTP_TOKEN > token
+}
+
+buildPolar() {
+  echo "Cross-compiling polar for Linux"
+  GOOS=linux go build 2>&1 > /dev/null
+}
+
+buildDocker() {
+  echo "Building local docker container"
+  docker build . -t polar:1 2>&1 > /dev/null  
+}
+
+loadDockerImage() {
+  echo "Loading docker image into cluster"
+  kind load docker-image polar:1 polar:1 --name polar 2>&1 > /dev/null  
+}
+
+main() {
+  local destroy=$1
+  local provision=$2
+  local load=$3
+
+  if [[ "${destroy}" == "TRUE" ]]; then
+    destroyCluster
+  fi
+  if [[ "${provision}" == "TRUE" ]]; then
+    enableHelmRepo
+    createCluster
+    installGatewayCRDs
+    createServiceAccountForRBAC
+    createNginxIngress
+    installConsul
+    setupAuthMethod
+  fi
+  if [[ "${load}" == "TRUE" ]]; then
+    buildPolar
+    buildDocker
+    loadDockerImage
+    echo "To reload the init container after modifications run './scripts/develop -l'"
+  fi
+  if [[ "${start}" == "TRUE" ]]; then
+    export CONSUL_HTTP_TOKEN=$(cat token)
+    go build
+    ./polar server -ca-secret consul-ca-cert -consul-address https://localhost -sds-server-host host.docker.internal -sds-server-port 9090
+    echo "To re-run the server run './scripts/develop -s'"
+  fi
+}
+
+usage() {
+  echo -e "./scripts/develop [flags]"
+  echo -e ""
+  echo -e "Bootstraps a kind environment with Consul and ACLs enabled."
+  echo -e "When this script is run without flags it creates the"
+  echo -e "environment, cross-compiles polar, loads it into the kind"
+  echo -e "environment to use for gateway deployments, and builds"
+  echo -e "and runs a local polar controller instance. Subsequent"
+  echo -e "runs after the kind environment is already bootstrapped"
+  echo -e "should leverage the -l and -s flags."
+  echo -e ""
+  echo -e "Dependencies:"
+  echo -e "\tkubectl, kind, consul, jq, docker, go, helm, kustomize"
+  echo -e "Flags:"
+  echo -e "  -l\tRebuild and load docker container into cluster"
+  echo -e "  -d\tDestroy cluster"
+  echo -e "  -r\tDestroy and then remake cluster"
+  echo -e "  -h\tShow usage"
+  echo -e "  -s\tStart polar"
+}
+
+destroy=FALSE
+provision=TRUE
+load=TRUE
+start=TRUE
+
+while getopts drhls flag
+do
+    case "${flag}" in
+        d)
+          destroy=TRUE
+          provision=FALSE
+          load=FALSE
+          start=FALSE
+          ;;
+        r)
+          destroy=TRUE
+          provision=TRUE
+          load=TRUE
+          start=TRUE
+          ;;
+        h)
+          usage
+          exit 0 
+          ;;
+        l) 
+          load=TRUE
+          destroy=FALSE
+          provision=FALSE
+          start=FALSE
+          ;;
+        s) 
+          load=FALSE
+          destroy=FALSE
+          provision=FALSE
+          start=TRUE
+          ;;
+    esac
+done
+
+main $destroy $provision $load $start

@@ -1,0 +1,99 @@
+metadata:
+  creationTimestamp: null
+  labels:
+    managedBy: polar
+    name: polar-invalid-node-selector
+  name: invalid-node-selector
+spec:
+  selector:
+    matchLabels:
+      managedBy: polar
+      name: polar-invalid-node-selector
+  strategy: {}
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        managedBy: polar
+        name: polar-invalid-node-selector
+    spec:
+      containers:
+      - command:
+        - /bootstrap/polar
+        - exec
+        - -log-json
+        - -log-level
+        - info
+        - -gateway-host
+        - $(IP)
+        - -gateway-name
+        - invalid-node-selector
+        - -consul-http-address
+        - $(HOST_IP)
+        - -consul-http-port
+        - "8500"
+        - -consul-xds-port
+        - "8502"
+        - -envoy-bootstrap-path
+        - /bootstrap/envoy.json
+        - -envoy-sds-address
+        - polar-controller.default.svc.cluster.local
+        - -envoy-sds-port
+        - "9090"
+        - -consul-ca-cert-file
+        - /ca/tls.crt
+        env:
+        - name: IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: HOST_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP
+        image: envoyproxy/envoy:v1.19-latest
+        name: polar
+        ports:
+        - containerPort: 20000
+          name: ready
+          protocol: TCP
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+        - containerPort: 8443
+          name: https
+          protocol: TCP
+        resources: {}
+        volumeMounts:
+        - mountPath: /bootstrap
+          name: bootstrap
+        - mountPath: /certs
+          name: certs
+        - mountPath: /ca
+          name: ca
+          readOnly: true
+      initContainers:
+      - command:
+        - cp
+        - /bin/polar
+        - /bootstrap/polar
+        image: hashicorp/polar:0.1.0
+        name: polar-init
+        resources: {}
+        volumeMounts:
+        - mountPath: /bootstrap
+          name: bootstrap
+        - mountPath: /certs
+          name: certs
+        - mountPath: /ca
+          name: ca
+          readOnly: true
+      volumes:
+      - emptyDir: {}
+        name: bootstrap
+      - emptyDir: {}
+        name: certs
+      - name: ca
+        secret:
+          secretName: consul-ca-cert
+status: {}
