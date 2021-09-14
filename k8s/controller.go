@@ -173,12 +173,13 @@ func (k *Kubernetes) Start(ctx context.Context) error {
 	}
 
 	err = (&controllers.GatewayReconciler{
-		SDSServerHost: k.sDSServerHost,
-		SDSServerPort: k.sDSServerPort,
-		Client:        k.k8sManager.GetClient(),
-		Log:           klogger.WithName("controllers").WithName("Gateway"),
-		Scheme:        k.k8sManager.GetScheme(),
-		Manager:       reconcileManager,
+		SDSServerHost:  k.sDSServerHost,
+		SDSServerPort:  k.sDSServerPort,
+		ControllerName: ControllerName,
+		Client:         k.k8sManager.GetClient(),
+		Log:            klogger.WithName("controllers").WithName("Gateway"),
+		Scheme:         k.k8sManager.GetScheme(),
+		Manager:        reconcileManager,
 	}).SetupWithManager(k.k8sManager)
 	if err != nil {
 		return fmt.Errorf("failed to create gateway controller: %w", err)

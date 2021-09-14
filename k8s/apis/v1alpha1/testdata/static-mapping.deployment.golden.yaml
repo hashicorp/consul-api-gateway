@@ -2,20 +2,20 @@ metadata:
   creationTimestamp: null
   labels:
     managedBy: polar
-    name: polar-test-gateway
-  name: test-gateway
+    name: polar-test-static-mapping
+  name: test-static-mapping
 spec:
   selector:
     matchLabels:
       managedBy: polar
-      name: polar-test-gateway
+      name: polar-test-static-mapping
   strategy: {}
   template:
     metadata:
       creationTimestamp: null
       labels:
         managedBy: polar
-        name: polar-test-gateway
+        name: polar-test-static-mapping
     spec:
       containers:
       - command:
@@ -27,11 +27,11 @@ spec:
         - -gateway-host
         - $(IP)
         - -gateway-name
-        - test-gateway
+        - test-static-mapping
         - -consul-http-address
-        - host.docker.internal:443
+        - host.docker.internal
         - -consul-http-port
-        - "8500"
+        - "443"
         - -consul-xds-port
         - "8502"
         - -envoy-bootstrap-path
@@ -40,8 +40,8 @@ spec:
         - polar-controller.default.svc.cluster.local
         - -envoy-sds-port
         - "9090"
-        - -consul-ca-cert-file
-        - /ca/tls.crt
+        - -acl-auth-method
+        - polar
         env:
         - name: IP
           valueFrom:
@@ -51,7 +51,7 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: status.hostIP
-        image: polar:1
+        image: envoyproxy/envoy:v1.19-latest
         name: polar
         ports:
         - containerPort: 20000
@@ -71,15 +71,12 @@ spec:
           name: bootstrap
         - mountPath: /certs
           name: certs
-        - mountPath: /ca
-          name: ca
-          readOnly: true
       initContainers:
       - command:
         - cp
         - /bin/polar
         - /bootstrap/polar
-        image: polar:1
+        image: hashicorp/polar:0.1.0
         name: polar-init
         resources: {}
         volumeMounts:
@@ -87,9 +84,6 @@ spec:
           name: bootstrap
         - mountPath: /certs
           name: certs
-        - mountPath: /ca
-          name: ca
-          readOnly: true
       nodeSelector:
         ingress-ready: "true"
       serviceAccountName: polar
@@ -98,7 +92,4 @@ spec:
         name: bootstrap
       - emptyDir: {}
         name: certs
-      - name: ca
-        secret:
-          secretName: consul-ca-cert
 status: {}

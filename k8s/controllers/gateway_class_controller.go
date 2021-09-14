@@ -23,9 +23,8 @@ const (
 // GatewayClassReconciler reconciles a GatewayClass object
 type GatewayClassReconciler struct {
 	client.Client
-	Log    logr.Logger
-	Scheme *runtime.Scheme
-
+	Log            logr.Logger
+	Scheme         *runtime.Scheme
 	ControllerName string
 	Manager        *reconciler.GatewayReconcileManager
 }
@@ -134,7 +133,7 @@ func isValidGatewayClass(ctx context.Context, client client.Client, gc *gateway.
 			return false, nil
 		}
 
-		// try and retrive the config
+		// try and retrieve the config
 		found := &polarv1alpha1.GatewayClassConfig{}
 		name := types.NamespacedName{Name: parametersRef.Name}
 		if parametersRef.Namespace != nil {
@@ -150,6 +149,23 @@ func isValidGatewayClass(ctx context.Context, client client.Client, gc *gateway.
 	}
 
 	return true, nil
+}
+
+func gatewayClassConfigForGatewayClass(ctx context.Context, client client.Client, gc *gateway.GatewayClass) (*polarv1alpha1.GatewayClassConfig, error) {
+	if parametersRef := gc.Spec.ParametersRef; parametersRef != nil {
+		// try and retrieve the config
+		found := &polarv1alpha1.GatewayClassConfig{}
+		name := types.NamespacedName{Name: parametersRef.Name}
+		if parametersRef.Namespace != nil {
+			name.Namespace = parametersRef.Name
+		}
+		err := client.Get(ctx, name, found)
+		if err != nil {
+			return nil, err
+		}
+		return found, nil
+	}
+	return nil, nil
 }
 
 func gatewayClassInUse(ctx context.Context, client client.Client, gc *gateway.GatewayClass) (bool, error) {

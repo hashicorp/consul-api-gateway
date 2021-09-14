@@ -2,20 +2,20 @@ metadata:
   creationTimestamp: null
   labels:
     managedBy: polar
-    name: polar-clusterip
-  name: clusterip
+    name: polar-test-clusterip
+  name: test-clusterip
 spec:
   selector:
     matchLabels:
       managedBy: polar
-      name: polar-clusterip
+      name: polar-test-clusterip
   strategy: {}
   template:
     metadata:
       creationTimestamp: null
       labels:
         managedBy: polar
-        name: polar-clusterip
+        name: polar-test-clusterip
     spec:
       containers:
       - command:
@@ -27,7 +27,7 @@ spec:
         - -gateway-host
         - $(IP)
         - -gateway-name
-        - clusterip
+        - test-clusterip
         - -consul-http-address
         - $(HOST_IP)
         - -consul-http-port
@@ -40,8 +40,6 @@ spec:
         - polar-controller.default.svc.cluster.local
         - -envoy-sds-port
         - "9090"
-        - -consul-ca-cert-file
-        - /ca/tls.crt
         env:
         - name: IP
           valueFrom:
@@ -69,9 +67,6 @@ spec:
           name: bootstrap
         - mountPath: /certs
           name: certs
-        - mountPath: /ca
-          name: ca
-          readOnly: true
       initContainers:
       - command:
         - cp
@@ -85,15 +80,9 @@ spec:
           name: bootstrap
         - mountPath: /certs
           name: certs
-        - mountPath: /ca
-          name: ca
-          readOnly: true
       volumes:
       - emptyDir: {}
         name: bootstrap
       - emptyDir: {}
         name: certs
-      - name: ca
-        secret:
-          secretName: consul-ca-cert
 status: {}

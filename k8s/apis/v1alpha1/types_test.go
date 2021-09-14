@@ -1,4 +1,4 @@
-package controllers
+package v1alpha1
 
 import (
 	"bytes"
@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer/json"
 	"k8s.io/apimachinery/pkg/util/yaml"
@@ -18,11 +17,7 @@ import (
 var (
 	generate bool
 	fixtures = []string{
-		"basic",
-		"annotations",
 		"tls-cert",
-		"node-selector",
-		"invalid-node-selector",
 		"static-mapping",
 		"clusterip",
 		"loadbalancer",
@@ -35,14 +30,39 @@ func init() {
 	}
 }
 
+type gatewayTestConfig struct {
+	gatewayClassConfig *GatewayClassConfig
+	gatewayClass       *gateway.GatewayClass
+	gateway            *gateway.Gateway
+}
+
+func newGatewayTestConfig() *gatewayTestConfig {
+	return &gatewayTestConfig{
+		gatewayClassConfig: &GatewayClassConfig{},
+		gatewayClass:       &gateway.GatewayClass{},
+		gateway:            &gateway.Gateway{},
+	}
+}
+
+func (g *gatewayTestConfig) EncodeDeployment() runtime.Object {
+	return g.gatewayClassConfig.DeploymentFor(g.gateway, SDSConfig{
+		Host: "polar-controller.default.svc.cluster.local",
+		Port: 9090,
+	})
+}
+
+func (g *gatewayTestConfig) EncodeService() runtime.Object {
+	return g.gatewayClassConfig.ServiceFor(g.gateway)
+}
+
 func TestDeploymentFor(t *testing.T) {
 	t.Parallel()
 
 	for _, name := range fixtures {
 		t.Run(name, func(t *testing.T) {
-			gw := &gateway.Gateway{}
-			fixtureTest(t, name, "deployment", gw, func() runtime.Object {
-				return DeploymentFor(gw, "polar-controller.default.svc.cluster.local", 9090)
+			config := newGatewayTestConfig()
+			fixtureTest(t, name, "deployment", config, func() runtime.Object {
+				return config.EncodeDeployment()
 			})
 		})
 	}
@@ -53,36 +73,15 @@ func TestServiceFor(t *testing.T) {
 
 	for _, name := range fixtures {
 		t.Run(name, func(t *testing.T) {
-			gw := &gateway.Gateway{}
-			fixtureTest(t, name, "service", gw, func() runtime.Object {
-				return ServiceFor(gw)
+			config := newGatewayTestConfig()
+			fixtureTest(t, name, "service", config, func() runtime.Object {
+				return config.EncodeService()
 			})
 		})
 	}
 }
 
-func TestNamespacedCASecretFor(t *testing.T) {
-	t.Parallel()
-
-	secret := namespacedCASecretFor(&gateway.Gateway{
-		ObjectMeta: v1.ObjectMeta{
-			Namespace: "foo",
-			Annotations: map[string]string{
-				annotationConsulCASecret: "bar",
-			},
-		},
-	})
-	require.Equal(t, "foo/bar", secret.String())
-
-	secret = namespacedCASecretFor(&gateway.Gateway{
-		ObjectMeta: v1.ObjectMeta{
-			Namespace: "default",
-		},
-	})
-	require.Equal(t, "default/consul-ca-cert", secret.String())
-}
-
-func fixtureTest(t *testing.T, name, suffix string, into interface{}, encode func() runtime.Object) {
+func fixtureTest(t *testing.T, name, suffix string, into *gatewayTestConfig, encode func() runtime.Object) {
 	t.Helper()
 
 	file, err := os.OpenFile(path.Join("testdata", fmt.Sprintf("%s.yaml", name)), os.O_RDONLY, 0644)
@@ -92,7 +91,12 @@ func fixtureTest(t *testing.T, name, suffix string, into interface{}, encode fun
 	stat, err := file.Stat()
 	require.NoError(t, err)
 
-	err = yaml.NewYAMLOrJSONDecoder(file, int(stat.Size())).Decode(into)
+	decoder := yaml.NewYAMLOrJSONDecoder(file, int(stat.Size()))
+	err = decoder.Decode(into.gatewayClassConfig)
+	require.NoError(t, err)
+	err = decoder.Decode(into.gatewayClass)
+	require.NoError(t, err)
+	err = decoder.Decode(into.gateway)
 	require.NoError(t, err)
 
 	var buffer bytes.Buffer

@@ -78,8 +78,10 @@ func (in *GatewayClassConfigSpec) DeepCopyInto(out *GatewayClassConfigSpec) {
 	}
 	if in.NodeSelector != nil {
 		in, out := &in.NodeSelector, &out.NodeSelector
-		*out = new(v1.NodeSelector)
-		(*in).DeepCopyInto(*out)
+		*out = make(map[string]string, len(*in))
+		for key, val := range *in {
+			(*out)[key] = val
+		}
 	}
 	out.ConsulSpec = in.ConsulSpec
 	out.ImageSpec = in.ImageSpec
