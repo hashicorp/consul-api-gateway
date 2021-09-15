@@ -160,12 +160,12 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 // Validate does some basic validations on the gateway
 func (r *GatewayReconciler) Validate(ctx context.Context, gw *gateway.Gateway) error {
 	// check if the gateway requires a CA to inject
-	if requiresCA(gw) {
+	/*if requiresCA(gw) {
 		// if it does, make sure the secret exists
 		if err := r.Get(ctx, namespacedCASecretFor(gw), &corev1.Secret{}); err != nil {
 			return err
 		}
-	}
+	}*/
 
 	// validate that the listeners don't conflict with names or ports
 	seenPorts := make(map[gateway.PortNumber]struct{})

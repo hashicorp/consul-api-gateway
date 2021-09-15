@@ -12,7 +12,7 @@ import (
 
 const (
 	statusUpdateTimeout     = 10 * time.Second
-	statusFlushInterval     = 15 * time.Second
+	statusFlushInterval     = 2 * time.Second
 	maxStatusUpdateAttempts = 5
 )
 
@@ -66,7 +66,7 @@ func (w *StatusWorker) FlushAsync() {
 	if !w.timer.Stop() {
 		<-w.timer.C
 	}
-	w.timer.Reset(statusFlushInterval)
+	w.timer.Reset(0)
 }
 
 // queueMe lock must be held

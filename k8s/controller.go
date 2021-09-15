@@ -9,6 +9,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/rest"
 	klogv2 "k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	clientruntime "sigs.k8s.io/controller-runtime/pkg/client"
@@ -56,6 +57,7 @@ type Options struct {
 	MetricsBindAddr       string
 	HealthProbeBindAddr   string
 	WebhookPort           int
+	K8sRestConfig         *rest.Config
 }
 
 func Defaults() *Options {
@@ -68,37 +70,11 @@ func Defaults() *Options {
 		MetricsBindAddr:       ":8080",
 		HealthProbeBindAddr:   ":8081",
 		WebhookPort:           8443,
+		K8sRestConfig:         ctrl.GetConfigOrDie(),
 	}
 }
 
-func New(logger hclog.Logger, opts *Options) (*Kubernetes, error) {
-	if opts == nil {
-		opts = Defaults()
-	}
-
-	// this sets the internal logger that the kubernetes client uses
-	klogv2.SetLogger(log.FromHCLogger(logger.Named("kubernetes-client")))
-	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-		Scheme:                  scheme,
-		MetricsBindAddress:      opts.MetricsBindAddr,
-		HealthProbeBindAddress:  opts.HealthProbeBindAddr,
-		Port:                    opts.WebhookPort,
-		LeaderElection:          true,
-		LeaderElectionID:        polarLeaderElectionID,
-		LeaderElectionNamespace: "default",
-		Logger:                  log.FromHCLogger(logger.Named("controller-runtime")),
-	})
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to start k8s controller manager: %w", err)
-	}
-	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
-		return nil, fmt.Errorf("unable to set up health check: %w", err)
-	}
-	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
-		return nil, fmt.Errorf("unable to set up ready check: %w", err)
-	}
-
+func newWithManager(logger hclog.Logger, opts *Options, mgr ctrl.Manager) (*Kubernetes, error) {
 	if opts.CACertSecret != "" && opts.CACertFile != "" {
 		client, err := clientruntime.New(ctrl.GetConfigOrDie(), clientruntime.Options{
 			Scheme: scheme,
@@ -124,6 +100,41 @@ func New(logger hclog.Logger, opts *Options) (*Kubernetes, error) {
 		sDSServerPort: opts.SDSServerPort,
 		logger:        logger.Named("k8s"),
 	}, nil
+}
+
+func New(logger hclog.Logger, opts *Options) (*Kubernetes, error) {
+	if opts == nil {
+		opts = Defaults()
+	}
+
+	if opts.K8sRestConfig == nil {
+		opts.K8sRestConfig = Defaults().K8sRestConfig
+	}
+
+	// this sets the internal logger that the kubernetes client uses
+	klogv2.SetLogger(log.FromHCLogger(logger.Named("kubernetes-client")))
+	mgr, err := ctrl.NewManager(opts.K8sRestConfig, ctrl.Options{
+		Scheme:                  scheme,
+		MetricsBindAddress:      opts.MetricsBindAddr,
+		HealthProbeBindAddress:  opts.HealthProbeBindAddr,
+		Port:                    opts.WebhookPort,
+		LeaderElection:          true,
+		LeaderElectionID:        polarLeaderElectionID,
+		LeaderElectionNamespace: "default",
+		Logger:                  log.FromHCLogger(logger.Named("controller-runtime")),
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to start k8s controller manager: %w", err)
+	}
+	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
+		return nil, fmt.Errorf("unable to set up health check: %w", err)
+	}
+	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
+		return nil, fmt.Errorf("unable to set up ready check: %w", err)
+	}
+
+	return newWithManager(logger, opts, mgr)
 }
 
 func (k *Kubernetes) SetConsul(consul *api.Client) {

@@ -80,6 +80,7 @@ func (m *GatewayReconcileManager) UpsertGatewayClass(gc *gw.GatewayClass) {
 			})
 			if obj.Status.IsDirty() {
 				m.status.Push(obj)
+				m.status.FlushAsync()
 			}
 		}
 		m.reconcilersMu.Unlock()

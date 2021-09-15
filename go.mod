@@ -9,6 +9,7 @@ require (
 	github.com/go-logr/logr v0.4.0
 	github.com/google/uuid v1.1.2
 	github.com/hashicorp/consul/api v1.9.1
+	github.com/hashicorp/consul/sdk v0.8.0 // indirect
 	github.com/hashicorp/go-hclog v0.16.2
 	github.com/mitchellh/cli v1.1.2
 	github.com/prometheus/common v0.26.0

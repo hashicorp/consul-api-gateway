@@ -8,7 +8,8 @@ GOTOOLS = \
 	github.com/magiconair/vendorfmt/cmd/vendorfmt \
 	github.com/mitchellh/gox \
 	golang.org/x/tools/cmd/cover \
-	golang.org/x/tools/cmd/stringer
+	golang.org/x/tools/cmd/stringer \
+	sigs.k8s.io/controller-runtime/tools/setup-envtest
 
 DEV_IMAGE?=polar
 GO_BUILD_TAG?=polar-build-go
@@ -132,11 +133,8 @@ clean:
 		$(CURDIR)/pkg
 
 # Run controller tests
-ENVTEST_ASSETS_DIR=$(shell pwd)/testbin
-ctrl-test: ctrl-generate ctrl-manifests
-	mkdir -p ${ENVTEST_ASSETS_DIR}
-	test -f ${ENVTEST_ASSETS_DIR}/setup-envtest.sh || curl -sSLo ${ENVTEST_ASSETS_DIR}/setup-envtest.sh https://raw.githubusercontent.com/kubernetes-sigs/controller-runtime/master/hack/setup-envtest.sh
-	source ${ENVTEST_ASSETS_DIR}/setup-envtest.sh; fetch_envtest_tools $(ENVTEST_ASSETS_DIR); setup_envtest_env $(ENVTEST_ASSETS_DIR); go test ./...
+ctrl-test:
+	KUBEBUILDER_ASSETS="$(shell setup-envtest use -p path)" go test ./k8s
 
 # Deploy controller in the configured Kubernetes cluster in ~/.kube/config
 ctrl-deploy: ctrl-manifests kustomize
@@ -187,6 +185,13 @@ KUSTOMIZE=$(GOBIN)/kustomize
 else
 KUSTOMIZE=$(shell which kustomize)
 endif
+
+sync-gwapi-crds:
+	git clone git@github.com:kubernetes-sigs/gateway-api.git tmp-gwapi-sync
+	pushd tmp-gwapi-sync; git checkout $(shell cat go.mod | grep sigs.k8s.io/gateway-api | awk '{print $2}' | cut -d'-' -f4)
+	cp -r tmp-gwapi-sync/config/crd/* config/crd/third-party/gateway-api/
+	rm -rf tmp-gwapi-sync
+
 
 # In CircleCI, the linux binary will be attached from a previous step at pkg/bin/linux_amd64/. This make target
 # should only run in CI and not locally.
