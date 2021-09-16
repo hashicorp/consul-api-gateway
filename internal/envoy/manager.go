@@ -75,9 +75,15 @@ func (m *Manager) Run(ctx context.Context) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	err := cmd.Run()
+
+	// Turns out that when a command spawned with CommandContext
+	// has its context canceled, rather than returnng an error about
+	// canceled context, it sends an error about the spawned process
+	// being killed. This select allows us to effectively check whether
+	// or not the process stopped because the context was canceled even
+	// if the cancellation error isn't propagated up to us.
 	select {
 	case <-ctx.Done():
-		// we intentionally canceled the context, just return
 		return nil
 	default:
 		return err

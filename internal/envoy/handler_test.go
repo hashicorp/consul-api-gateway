@@ -27,7 +27,7 @@ func TestOnStreamDeltaRequest(t *testing.T) {
 	defer ctrl.Finish()
 
 	secrets := mocks.NewMockSecretManager(ctrl)
-	registry := mocks.NewMockGatewayRegistry(ctrl)
+	registry := mocks.NewMockGatewaySecretRegistry(ctrl)
 	registry.EXPECT().CanFetchSecrets(gomock.Any(), requestedSecrets).Return(true)
 	handler := NewRequestHandler(hclog.NewNullLogger(), registry, secrets)
 
@@ -62,7 +62,7 @@ func TestOnStreamDeltaRequest_PermissionError(t *testing.T) {
 	defer ctrl.Finish()
 
 	secrets := mocks.NewMockSecretManager(ctrl)
-	registry := mocks.NewMockGatewayRegistry(ctrl)
+	registry := mocks.NewMockGatewaySecretRegistry(ctrl)
 	registry.EXPECT().CanFetchSecrets(gomock.Any(), requestedSecrets).Return(false)
 	handler := NewRequestHandler(hclog.NewNullLogger(), registry, secrets)
 
@@ -96,7 +96,7 @@ func TestOnStreamDeltaRequest_WatchError(t *testing.T) {
 
 	expectedErr := errors.New("error")
 	secrets := mocks.NewMockSecretManager(ctrl)
-	registry := mocks.NewMockGatewayRegistry(ctrl)
+	registry := mocks.NewMockGatewaySecretRegistry(ctrl)
 	registry.EXPECT().CanFetchSecrets(gomock.Any(), requestedSecrets).Return(true)
 	handler := NewRequestHandler(hclog.NewNullLogger(), registry, secrets)
 
@@ -131,7 +131,7 @@ func TestOnStreamDeltaRequest_UnwatchError(t *testing.T) {
 
 	expectedErr := errors.New("error")
 	secrets := mocks.NewMockSecretManager(ctrl)
-	registry := mocks.NewMockGatewayRegistry(ctrl)
+	registry := mocks.NewMockGatewaySecretRegistry(ctrl)
 	registry.EXPECT().CanFetchSecrets(gomock.Any(), requestedSecrets).Return(true)
 	handler := NewRequestHandler(hclog.NewNullLogger(), registry, secrets)
 
@@ -166,7 +166,7 @@ func TestOnStreamDeltaRequest_Graceful(t *testing.T) {
 	defer ctrl.Finish()
 
 	secrets := mocks.NewMockSecretManager(ctrl)
-	registry := mocks.NewMockGatewayRegistry(ctrl)
+	registry := mocks.NewMockGatewaySecretRegistry(ctrl)
 	registry.EXPECT().CanFetchSecrets(gomock.Any(), requestedSecrets).Return(true)
 	handler := NewRequestHandler(hclog.NewNullLogger(), registry, secrets)
 
@@ -200,7 +200,7 @@ func TestOnDeltaStreamClosed(t *testing.T) {
 	defer ctrl.Finish()
 
 	secrets := mocks.NewMockSecretManager(ctrl)
-	registry := mocks.NewMockGatewayRegistry(ctrl)
+	registry := mocks.NewMockGatewaySecretRegistry(ctrl)
 	registry.EXPECT().CanFetchSecrets(gomock.Any(), requestedSecrets).Return(true)
 	handler := NewRequestHandler(hclog.NewNullLogger(), registry, secrets)
 
@@ -232,7 +232,7 @@ func TestOnDeltaStreamClosed_Graceful(t *testing.T) {
 	defer ctrl.Finish()
 
 	secrets := mocks.NewMockSecretManager(ctrl)
-	registry := mocks.NewMockGatewayRegistry(ctrl)
+	registry := mocks.NewMockGatewaySecretRegistry(ctrl)
 	handler := NewRequestHandler(hclog.NewNullLogger(), registry, secrets)
 
 	// no-ops instead of panics without setting up the stream context in the open call
@@ -246,7 +246,7 @@ func TestOnDeltaStreamOpen(t *testing.T) {
 	defer ctrl.Finish()
 
 	secrets := mocks.NewMockSecretManager(ctrl)
-	registry := mocks.NewMockGatewayRegistry(ctrl)
+	registry := mocks.NewMockGatewaySecretRegistry(ctrl)
 	handler := NewRequestHandler(hclog.NewNullLogger(), registry, secrets)
 
 	// errors on non secret requests

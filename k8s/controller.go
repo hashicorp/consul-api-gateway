@@ -44,7 +44,7 @@ type Kubernetes struct {
 	sDSServerPort int
 	k8sManager    ctrl.Manager
 	consul        *api.Client
-	registry      *common.GatewayRegistry
+	registry      *common.GatewaySecretRegistry
 	logger        hclog.Logger
 	k8sStatus     *object.StatusWorker
 }
@@ -73,7 +73,7 @@ func Defaults() *Options {
 	}
 }
 
-func New(logger hclog.Logger, registry *common.GatewayRegistry, opts *Options) (*Kubernetes, error) {
+func New(logger hclog.Logger, registry *common.GatewaySecretRegistry, opts *Options) (*Kubernetes, error) {
 	if opts == nil {
 		opts = Defaults()
 	}

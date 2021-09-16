@@ -11,36 +11,39 @@ type GatewayInfo struct {
 	Service   string
 }
 
-// GatewayRegistry is the source we can use to
+// GatewaySecretRegistry is the source we can use to
 // lookup what gateways are deployed and what secrets
 // they have access to
-type GatewayRegistry struct {
+type GatewaySecretRegistry struct {
 	secrets map[GatewayInfo]map[string]struct{}
 	mutex   sync.RWMutex
 }
 
-// NewGatewayRegistry initializes a GatewayRegistry instance
-func NewGatewayRegistry() *GatewayRegistry {
-	return &GatewayRegistry{
+// NewGatewaySecretRegistry initializes a GatewaySecretRegistry instance
+func NewGatewaySecretRegistry() *GatewaySecretRegistry {
+	return &GatewaySecretRegistry{
 		secrets: make(map[GatewayInfo]map[string]struct{}),
 	}
 }
 
 // GatewayExists checks if the registry knows about a gateway
-func (r *GatewayRegistry) GatewayExists(info *GatewayInfo) bool {
+func (r *GatewaySecretRegistry) GatewayExists(info GatewayInfo) bool {
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
 
-	_, found := r.secrets[*info]
+	_, found := r.secrets[info]
 	return found
 }
 
 // CanFetchSecrets checks if a gateway should be able to access a set of secrets
-func (r *GatewayRegistry) CanFetchSecrets(info *GatewayInfo, secrets []string) bool {
+func (r *GatewaySecretRegistry) CanFetchSecrets(info GatewayInfo, secrets []string) bool {
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
 
-	storedSecrets := r.secrets[*info]
+	storedSecrets, ok := r.secrets[info]
+	if !ok {
+		return false
+	}
 	for _, secret := range secrets {
 		if _, found := storedSecrets[secret]; !found {
 			return false
@@ -50,7 +53,7 @@ func (r *GatewayRegistry) CanFetchSecrets(info *GatewayInfo, secrets []string) b
 }
 
 // AddGateway adds a gateway to the registry with a set of secrets that it can access
-func (r *GatewayRegistry) AddGateway(info GatewayInfo, secrets ...string) {
+func (r *GatewaySecretRegistry) AddGateway(info GatewayInfo, secrets ...string) {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
@@ -62,7 +65,7 @@ func (r *GatewayRegistry) AddGateway(info GatewayInfo, secrets ...string) {
 }
 
 // AddSecrets adds a set of secrets that the given gateway has access to
-func (r *GatewayRegistry) AddSecrets(info GatewayInfo, secrets ...string) {
+func (r *GatewaySecretRegistry) AddSecrets(info GatewayInfo, secrets ...string) {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
@@ -75,7 +78,7 @@ func (r *GatewayRegistry) AddSecrets(info GatewayInfo, secrets ...string) {
 }
 
 // RemoveGateway removes a gateway from the registry
-func (r *GatewayRegistry) RemoveGateway(info GatewayInfo) {
+func (r *GatewaySecretRegistry) RemoveGateway(info GatewayInfo) {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
@@ -83,7 +86,7 @@ func (r *GatewayRegistry) RemoveGateway(info GatewayInfo) {
 }
 
 // RemoveSecrets removes a set of secrets that gateway should no longer have access to
-func (r *GatewayRegistry) RemoveSecrets(info GatewayInfo, secrets ...string) {
+func (r *GatewaySecretRegistry) RemoveSecrets(info GatewayInfo, secrets ...string) {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 

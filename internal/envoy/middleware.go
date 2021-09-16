@@ -16,7 +16,7 @@ import (
 	"github.com/hashicorp/polar/internal/common"
 )
 
-//go:generate mockgen -source ./middleware.go -destination ./mocks/middleware.go -package mocks GatewayRegistry
+//go:generate mockgen -source ./middleware.go -destination ./mocks/middleware.go -package mocks GatewaySecretRegistry
 
 type contextKey string
 
@@ -33,7 +33,7 @@ func (s *wrappedStream) Context() context.Context {
 	return s.wrappedContext
 }
 
-func wrapStream(stream grpc.ServerStream, info *common.GatewayInfo) *wrappedStream {
+func wrapStream(stream grpc.ServerStream, info common.GatewayInfo) *wrappedStream {
 	return &wrappedStream{
 		ServerStream:   stream,
 		wrappedContext: context.WithValue(stream.Context(), gatewayInfoContextKey, info),
@@ -41,29 +41,29 @@ func wrapStream(stream grpc.ServerStream, info *common.GatewayInfo) *wrappedStre
 }
 
 // GatewayFromContext retrieves info about a gateway from the context or nil if there is none
-func GatewayFromContext(ctx context.Context) *common.GatewayInfo {
+func GatewayFromContext(ctx context.Context) common.GatewayInfo {
 	value := ctx.Value(gatewayInfoContextKey)
 	if value == nil {
-		return nil
+		return common.GatewayInfo{}
 	}
-	return value.(*common.GatewayInfo)
+	return value.(common.GatewayInfo)
 }
 
-// GatewayRegistry is used as the authority for determining what gateways the SDS server
+// GatewaySecretRegistry is used as the authority for determining what gateways the SDS server
 // should actually respond to because they're managed by polar
-type GatewayRegistry interface {
+type GatewaySecretRegistry interface {
 	// GatewayExists is used to determine whether or not we know a particular gateway instance
-	GatewayExists(info *common.GatewayInfo) bool
+	GatewayExists(info common.GatewayInfo) bool
 	// CanFetchSecrets is used to determine whether a gateway should be able to fetch a set
 	// of secrets it has requested
-	CanFetchSecrets(info *common.GatewayInfo, secrets []string) bool
+	CanFetchSecrets(info common.GatewayInfo, secrets []string) bool
 }
 
 // SPIFFEStreamMiddleware verifies the spiffe entries for the certificate
 // and sets the client identidy on the request context. If no
 // spiffe information is detected, or if the service is unknown,
 // the request is rejected.
-func SPIFFEStreamMiddleware(logger hclog.Logger, spiffeCA *url.URL, registry GatewayRegistry) grpc.StreamServerInterceptor {
+func SPIFFEStreamMiddleware(logger hclog.Logger, spiffeCA *url.URL, registry GatewaySecretRegistry) grpc.StreamServerInterceptor {
 	return func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 		if info, ok := verifySPIFFE(ss.Context(), logger, spiffeCA, registry); ok {
 			return handler(srv, wrapStream(ss, info))
@@ -72,7 +72,7 @@ func SPIFFEStreamMiddleware(logger hclog.Logger, spiffeCA *url.URL, registry Gat
 	}
 }
 
-func verifySPIFFE(ctx context.Context, logger hclog.Logger, spiffeCA *url.URL, registry GatewayRegistry) (*common.GatewayInfo, bool) {
+func verifySPIFFE(ctx context.Context, logger hclog.Logger, spiffeCA *url.URL, registry GatewaySecretRegistry) (common.GatewayInfo, bool) {
 	if p, ok := peer.FromContext(ctx); ok {
 		if mtls, ok := p.AuthInfo.(credentials.TLSInfo); ok {
 			// grab the peer certificate info
@@ -102,19 +102,19 @@ func verifySPIFFE(ctx context.Context, logger hclog.Logger, spiffeCA *url.URL, r
 			}
 		}
 	}
-	return nil, false
+	return common.GatewayInfo{}, false
 }
 
-func parseURI(path string) (*common.GatewayInfo, error) {
+func parseURI(path string) (common.GatewayInfo, error) {
 	path = strings.TrimPrefix(path, "/")
 	tokens := strings.SplitN(path, "/", 6)
 	if len(tokens) != 6 {
-		return nil, errors.New("invalid spiffe path")
+		return common.GatewayInfo{}, errors.New("invalid spiffe path")
 	}
 	if tokens[0] != "ns" || tokens[2] != "dc" || tokens[4] != "svc" {
-		return nil, errors.New("invalid spiffe path")
+		return common.GatewayInfo{}, errors.New("invalid spiffe path")
 	}
-	return &common.GatewayInfo{
+	return common.GatewayInfo{
 		Namespace: tokens[1],
 		Service:   tokens[5],
 	}, nil

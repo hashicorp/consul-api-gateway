@@ -26,7 +26,7 @@ import (
 type GatewayReconcileManager struct {
 	controllerName string
 	ctx            context.Context
-	registry       *common.GatewayRegistry
+	registry       *common.GatewaySecretRegistry
 	consul         *api.Client
 	routes         *routes.KubernetesRoutes
 	logger         hclog.Logger
@@ -40,7 +40,7 @@ type GatewayReconcileManager struct {
 
 type ManagerConfig struct {
 	ControllerName string
-	Registry       *common.GatewayRegistry
+	Registry       *common.GatewaySecretRegistry
 	Consul         *api.Client
 	Status         client.StatusWriter
 	Logger         hclog.Logger

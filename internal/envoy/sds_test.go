@@ -35,8 +35,8 @@ func TestSDSRunCertificateVerification(t *testing.T) {
 
 	ca, server, client := polarTesting.DefaultCertificates()
 
-	err := runTestServer(t, ca.CertBytes, func(ctrl *gomock.Controller) GatewayRegistry {
-		gatewayRegistry := mocks.NewMockGatewayRegistry(ctrl)
+	err := runTestServer(t, ca.CertBytes, func(ctrl *gomock.Controller) GatewaySecretRegistry {
+		gatewayRegistry := mocks.NewMockGatewaySecretRegistry(ctrl)
 		gatewayRegistry.EXPECT().GatewayExists(gomock.Any()).MinTimes(1).Return(true)
 		gatewayRegistry.EXPECT().CanFetchSecrets(gomock.Any(), gomock.Any()).Return(true).MinTimes(1).Return(true)
 		return gatewayRegistry
@@ -167,8 +167,8 @@ func TestSDSSPIFFENoMatchingGateway(t *testing.T) {
 
 	ca, server, client := polarTesting.DefaultCertificates()
 
-	err := runTestServer(t, ca.CertBytes, func(ctrl *gomock.Controller) GatewayRegistry {
-		gatewayRegistry := mocks.NewMockGatewayRegistry(ctrl)
+	err := runTestServer(t, ca.CertBytes, func(ctrl *gomock.Controller) GatewaySecretRegistry {
+		gatewayRegistry := mocks.NewMockGatewaySecretRegistry(ctrl)
 		gatewayRegistry.EXPECT().GatewayExists(gomock.Any()).MinTimes(1).Return(false)
 		return gatewayRegistry
 	}, func(serverAddress string, fetcher *mocks.MockCertificateFetcher) {
@@ -221,7 +221,7 @@ func testClientSDS(t *testing.T, address string, cert *polarTesting.CertificateI
 	})
 }
 
-func runTestServer(t *testing.T, ca []byte, registryFn func(*gomock.Controller) GatewayRegistry, callback func(serverAddress string, fetcher *mocks.MockCertificateFetcher)) error {
+func runTestServer(t *testing.T, ca []byte, registryFn func(*gomock.Controller) GatewaySecretRegistry, callback func(serverAddress string, fetcher *mocks.MockCertificateFetcher)) error {
 	t.Helper()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -244,7 +244,7 @@ func runTestServer(t *testing.T, ca []byte, registryFn func(*gomock.Controller) 
 		Name: "test",
 	}, time.Now(), nil)
 
-	sds := NewSDSServer(hclog.NewNullLogger(), fetcher, secretClient, common.NewGatewayRegistry())
+	sds := NewSDSServer(hclog.NewNullLogger(), fetcher, secretClient, common.NewGatewaySecretRegistry())
 	sds.bindAddress = serverAddress
 	sds.protocol = "unix"
 	if registryFn != nil {

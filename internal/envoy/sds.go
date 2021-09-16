@@ -50,11 +50,11 @@ type SDSServer struct {
 	client          SecretClient
 	bindAddress     string
 	protocol        string
-	gatewayRegistry GatewayRegistry
+	gatewayRegistry GatewaySecretRegistry
 }
 
 // NEWSDSServer initializes an SDSServer instance
-func NewSDSServer(logger hclog.Logger, fetcher CertificateFetcher, client SecretClient, registry GatewayRegistry) *SDSServer {
+func NewSDSServer(logger hclog.Logger, fetcher CertificateFetcher, client SecretClient, registry GatewaySecretRegistry) *SDSServer {
 	return &SDSServer{
 		logger:          logger,
 		fetcher:         fetcher,

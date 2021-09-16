@@ -97,7 +97,7 @@ func (c *Command) Run(args []string) int {
 	if err := c.flagSet.Parse(args); err != nil {
 		return 1
 	}
-	gatewayRegistry := common.NewGatewayRegistry()
+	GatewaySecretRegistry := common.NewGatewaySecretRegistry()
 
 	if c.logger == nil {
 		c.logger = hclog.New(&hclog.LoggerOptions{
@@ -143,7 +143,7 @@ func (c *Command) Run(args []string) int {
 		return 1
 	}
 
-	controller, err := k8s.New(c.logger, gatewayRegistry, cfg)
+	controller, err := k8s.New(c.logger, GatewaySecretRegistry, cfg)
 	if err != nil {
 		c.logger.Error("error creating the kubernetes controller", "error", err)
 		return 1
@@ -184,7 +184,7 @@ func (c *Command) Run(args []string) int {
 	}
 	c.logger.Trace("initial certificates written")
 
-	server := envoy.NewSDSServer(c.logger.Named("sds-server"), certManager, secretFetcher, gatewayRegistry)
+	server := envoy.NewSDSServer(c.logger.Named("sds-server"), certManager, secretFetcher, GatewaySecretRegistry)
 	group.Go(func() error {
 		return server.Run(groupCtx)
 	})
