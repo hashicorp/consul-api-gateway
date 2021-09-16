@@ -1,7 +1,9 @@
 package consul
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -12,9 +14,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
-	"github.com/stretchr/testify/require"
+	polarTesting "github.com/hashicorp/polar/internal/testing"
 )
 
 func TestManage(t *testing.T) {
@@ -115,8 +119,12 @@ func TestManage(t *testing.T) {
 			clientPrivateKey, err := os.ReadFile(clientPrivateKeyFile)
 			require.NoError(t, err)
 			require.Equal(t, server.fakeRootCertPEM, string(rootCA))
+			require.Equal(t, server.fakeRootCertPEM, string(manager.RootCA()))
 			require.Equal(t, server.fakeClientCert, string(clientCert))
+			require.Equal(t, server.fakeClientCert, string(manager.Certificate()))
 			require.Equal(t, server.fakeClientPrivateKey, string(clientPrivateKey))
+			require.Equal(t, server.fakeClientPrivateKey, string(manager.PrivateKey()))
+			require.NotNil(t, manager.TLSCertificate())
 		})
 	}
 }
@@ -192,10 +200,11 @@ type certServer struct {
 func runCertServer(t *testing.T, leafFailures, rootFailures uint64, service string, expirations int32) *certServer {
 	t.Helper()
 
+	ca, _, clientCert := polarTesting.DefaultCertificates()
 	server := &certServer{
-		fakeRootCertPEM:      randomString(),
-		fakeClientCert:       randomString(),
-		fakeClientPrivateKey: randomString(),
+		fakeRootCertPEM:      string(ca.CertBytes),
+		fakeClientCert:       string(clientCert.CertBytes),
+		fakeClientPrivateKey: string(clientCert.PrivateKeyBytes),
 	}
 
 	// Start the fake Consul server.
@@ -215,7 +224,12 @@ func runCertServer(t *testing.T, leafFailures, rootFailures uint64, service stri
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
-			leafCert := fmt.Sprintf(`{ "CertPEM": "%s","PrivateKeyPEM": "%s","ValidBefore": "%s" }`, server.fakeClientCert, server.fakeClientPrivateKey, expiration)
+			leafCert, err := json.Marshal(map[string]interface{}{
+				"CertPEM":       server.fakeClientCert,
+				"PrivateKeyPEM": server.fakeClientPrivateKey,
+				"ValidBefore":   expiration,
+			})
+			require.NoError(t, err)
 			w.Write([]byte(leafCert))
 			return
 		}
@@ -225,7 +239,13 @@ func runCertServer(t *testing.T, leafFailures, rootFailures uint64, service stri
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
-			rootCert := fmt.Sprintf(`{"Roots":[{"RootCert": "%s","Active": true}]}`, server.fakeRootCertPEM)
+			rootCert, err := json.Marshal(map[string]interface{}{
+				"Roots": []map[string]interface{}{{
+					"RootCert": server.fakeRootCertPEM,
+					"Active":   true,
+				}},
+			})
+			require.NoError(t, err)
 			w.Write([]byte(rootCert))
 			return
 		}
@@ -241,4 +261,73 @@ func runCertServer(t *testing.T, leafFailures, rootFailures uint64, service stri
 
 	server.consul = client
 	return server
+}
+
+func TestRenderSDS(t *testing.T) {
+	t.Parallel()
+
+	expected := `
+{
+	"name": "sds-cluster",
+	"connect_timeout": "5s",
+	"type": "STRICT_DNS",
+	"transport_socket": {
+		"name": "tls",
+		"typed_config": {
+			"@type": "type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext",
+			"common_tls_context": {
+				"tls_certificate_sds_secret_configs": [
+					{
+						"name": "tls_sds",
+						"sds_config": {
+							"path": "/certs/tls-sds.json"
+						}
+					}
+				],
+				"validation_context_sds_secret_config": {
+					"name": "validation_context_sds",
+					"sds_config": {
+						"path": "/certs/validation-context-sds.json"
+					}
+				}
+			}
+		}
+	},
+	"http2_protocol_options": {},
+	"loadAssignment": {
+		"clusterName": "sds-cluster",
+		"endpoints": [
+			{
+				"lbEndpoints": [
+					{
+						"endpoint": {
+							"address": {
+								"socket_address": {
+									"address": "localhost",
+									"port_value": 9090
+								}
+							}
+						}
+					}
+				]
+			}
+		]
+	}
+}
+`
+	directory, err := os.MkdirTemp("", "polar-test")
+	require.NoError(t, err)
+	defer os.RemoveAll(directory)
+
+	options := DefaultCertManagerOptions()
+	manager := NewCertManager(hclog.NewNullLogger(), nil, randomString(), options)
+	manager.configDirectory = directory
+
+	config, err := manager.RenderSDSConfig()
+	require.NoError(t, err)
+	var buffer bytes.Buffer
+	err = json.Indent(&buffer, []byte(config), "", "  ")
+	require.NoError(t, err)
+
+	require.JSONEq(t, expected, buffer.String())
 }

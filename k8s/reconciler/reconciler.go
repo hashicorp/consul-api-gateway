@@ -7,6 +7,7 @@ import (
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
@@ -15,8 +16,6 @@ import (
 	"github.com/hashicorp/polar/k8s/object"
 	"github.com/hashicorp/polar/k8s/routes"
 	"github.com/hashicorp/polar/k8s/utils"
-
-	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
 )
 
 const (

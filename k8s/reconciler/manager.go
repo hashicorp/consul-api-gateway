@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"sync/atomic"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -13,6 +14,8 @@ import (
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
 
+	"github.com/hashicorp/polar/internal/common"
+	"github.com/hashicorp/polar/internal/metrics"
 	"github.com/hashicorp/polar/k8s/object"
 	"github.com/hashicorp/polar/k8s/routes"
 	"github.com/hashicorp/polar/k8s/utils"
@@ -23,10 +26,12 @@ import (
 type GatewayReconcileManager struct {
 	controllerName string
 	ctx            context.Context
+	registry       *common.GatewaySecretRegistry
 	consul         *api.Client
 	routes         *routes.KubernetesRoutes
 	logger         hclog.Logger
 	status         *object.StatusWorker
+	activeGateways int64
 
 	reconcilersMu  sync.Mutex
 	reconcilers    map[types.NamespacedName]*GatewayReconciler
@@ -35,6 +40,7 @@ type GatewayReconcileManager struct {
 
 type ManagerConfig struct {
 	ControllerName string
+	Registry       *common.GatewaySecretRegistry
 	Consul         *api.Client
 	Status         client.StatusWriter
 	Logger         hclog.Logger
@@ -45,6 +51,7 @@ func NewReconcileManager(ctx context.Context, config *ManagerConfig) *GatewayRec
 		controllerName: config.ControllerName,
 		ctx:            ctx,
 		consul:         config.Consul,
+		registry:       config.Registry,
 		reconcilers:    map[types.NamespacedName]*GatewayReconciler{},
 		gatewayClasses: map[string]*object.Object{},
 		routes:         routes.NewKubernetesRoutes(),
@@ -99,6 +106,12 @@ func (m *GatewayReconcileManager) UpsertGateway(g *gw.Gateway) {
 
 	r, ok := m.reconcilers[namespacedName]
 	if !ok {
+		m.registry.AddGateway(common.GatewayInfo{
+			Service:   g.GetName(),
+			Namespace: g.GetNamespace(),
+		}, referencedSecretsForGateway(g)...)
+		activeGateways := atomic.AddInt64(&m.activeGateways, 1)
+		metrics.Registry.SetGauge(metrics.K8sGateways, float32(activeGateways))
 		r = newReconcilerForGateway(m.ctx, &gatewayReconcilerArgs{
 			controllerName: m.controllerName,
 			consul:         m.consul,
@@ -144,6 +157,13 @@ func (m *GatewayReconcileManager) DeleteGateway(name types.NamespacedName) {
 
 	r.stop()
 	delete(m.reconcilers, name)
+
+	m.registry.RemoveGateway(common.GatewayInfo{
+		Service:   name.Name,
+		Namespace: name.Namespace,
+	})
+	activeGateways := atomic.AddInt64(&m.activeGateways, -1)
+	metrics.Registry.SetGauge(metrics.K8sGateways, float32(activeGateways))
 }
 
 func (m *GatewayReconcileManager) DeleteRoute(name types.NamespacedName) {
@@ -155,4 +175,22 @@ func (m *GatewayReconcileManager) signalAll() {
 	for _, r := range m.reconcilers {
 		r.signalReconcile()
 	}
+}
+
+func referencedSecretsForGateway(g *gw.Gateway) []string {
+	secrets := []string{}
+	for _, listener := range g.Spec.Listeners {
+		if listener.TLS != nil {
+			ref := listener.TLS.CertificateRef
+			if ref != nil {
+				n := ref.Namespace
+				namespace := "default"
+				if n != nil {
+					namespace = *n
+				}
+				secrets = append(secrets, fmt.Sprintf("k8s://%s/%s", namespace, ref.Name))
+			}
+		}
+	}
+	return secrets
 }

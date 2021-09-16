@@ -242,7 +242,9 @@ main() {
   if [[ "${start}" == "TRUE" ]]; then
     export CONSUL_HTTP_TOKEN=$(cat token)
     go build
-    ./polar server -ca-secret consul-ca-cert -consul-address https://localhost -sds-server-host host.docker.internal -sds-server-port 9090
+    ./polar server -ca-secret consul-ca-cert -consul-address https://localhost \
+      -sds-server-host host.docker.internal -sds-server-port 9090 \
+      -metrics-port 9091 -pprof-port 9092
     echo "To re-run the server run './scripts/develop -s'"
   fi
 }

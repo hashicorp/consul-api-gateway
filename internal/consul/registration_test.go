@@ -11,9 +11,10 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
+
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
-	"github.com/stretchr/testify/require"
 )
 
 func TestRegister(t *testing.T) {

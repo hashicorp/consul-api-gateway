@@ -82,7 +82,7 @@ endif
 all: bin ctrl-generate
 
 fmt:
-	@for d in $$(go list -f {{.Dir}} ./...); do goimports --local github.com/hashicorp/polar -w -l $$d/*.go; done
+	@for d in $$(go list -f {{.Dir}} ./...); do goimports --local github.com/hashicorp,github.com/hashicorp/polar -w -l $$d/*.go; done
 
 bin:
 	@$(SHELL) $(CURDIR)/build-support/scripts/build-local.sh

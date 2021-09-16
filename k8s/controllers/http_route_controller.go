@@ -16,12 +16,9 @@ import (
 // HTTPRouteReconciler reconciles a HTTPRoute object
 type HTTPRouteReconciler struct {
 	client.Client
-	Log    logr.Logger
-	Scheme *runtime.Scheme
-
+	Log     logr.Logger
+	Scheme  *runtime.Scheme
 	Manager *reconciler.GatewayReconcileManager
-
-	image string
 }
 
 //+kubebuilder:rbac:groups=polar.hashicorp.com,resources=gateways,verbs=get;list;watch;create;update;patch;delete

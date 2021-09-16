@@ -18,6 +18,7 @@ import (
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
 
+	"github.com/hashicorp/polar/internal/common"
 	"github.com/hashicorp/polar/k8s/controllers"
 	"github.com/hashicorp/polar/k8s/log"
 	"github.com/hashicorp/polar/k8s/object"
@@ -43,6 +44,7 @@ type Kubernetes struct {
 	sDSServerPort int
 	k8sManager    ctrl.Manager
 	consul        *api.Client
+	registry      *common.GatewaySecretRegistry
 	logger        hclog.Logger
 	k8sStatus     *object.StatusWorker
 }
@@ -71,7 +73,7 @@ func Defaults() *Options {
 	}
 }
 
-func New(logger hclog.Logger, opts *Options) (*Kubernetes, error) {
+func New(logger hclog.Logger, registry *common.GatewaySecretRegistry, opts *Options) (*Kubernetes, error) {
 	if opts == nil {
 		opts = Defaults()
 	}
@@ -120,6 +122,7 @@ func New(logger hclog.Logger, opts *Options) (*Kubernetes, error) {
 
 	return &Kubernetes{
 		k8sManager:    mgr,
+		registry:      registry,
 		sDSServerHost: opts.SDSServerHost,
 		sDSServerPort: opts.SDSServerPort,
 		logger:        logger.Named("k8s"),
@@ -132,6 +135,8 @@ func (k *Kubernetes) SetConsul(consul *api.Client) {
 
 // Start will run the kubernetes controllers and return a startup error if occurred
 func (k *Kubernetes) Start(ctx context.Context) error {
+	k.logger.Trace("running controller")
+
 	status := object.NewStatusWorker(ctx, k.k8sManager.GetClient().Status(), k.logger)
 	k.k8sStatus = status
 
@@ -139,6 +144,7 @@ func (k *Kubernetes) Start(ctx context.Context) error {
 
 	reconcileManager := reconciler.NewReconcileManager(ctx, &reconciler.ManagerConfig{
 		ControllerName: ControllerName,
+		Registry:       k.registry,
 		Consul:         k.consul,
 		Status:         k.k8sManager.GetClient().Status(),
 		Logger:         k.logger.Named("consul"),
