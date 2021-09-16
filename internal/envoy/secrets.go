@@ -119,7 +119,7 @@ func (s *secretManager) Watch(ctx context.Context, names []string, node string) 
 	for _, name := range names {
 		watcher[name] = struct{}{}
 		if entry, ok := s.registry[name]; ok {
-			// we found an entry in our TLS cert tracking map, add a reference ot it
+			// we found an entry in our TLS cert tracking map, add a reference to it
 			entry.refs[node] = struct{}{}
 			continue
 		}
