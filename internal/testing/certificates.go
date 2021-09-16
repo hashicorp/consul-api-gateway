@@ -146,14 +146,18 @@ func GenerateSignedCertificate(options GenerateCertificateOptions) (*Certificate
 
 	var certificatePEM bytes.Buffer
 	var privateKeyPEM bytes.Buffer
-	pem.Encode(&certificatePEM, &pem.Block{
+	if err := pem.Encode(&certificatePEM, &pem.Block{
 		Type:  "CERTIFICATE",
 		Bytes: data,
-	})
-	pem.Encode(&privateKeyPEM, &pem.Block{
+	}); err != nil {
+		return nil, err
+	}
+	if err := pem.Encode(&privateKeyPEM, &pem.Block{
 		Type:  "RSA PRIVATE KEY",
 		Bytes: x509.MarshalPKCS1PrivateKey(privateKey),
-	})
+	}); err != nil {
+		return nil, err
+	}
 
 	certBytes := certificatePEM.Bytes()
 	privateKeyBytes := privateKeyPEM.Bytes()

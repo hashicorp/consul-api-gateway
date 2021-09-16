@@ -2,20 +2,20 @@ metadata:
   creationTimestamp: null
   labels:
     managedBy: polar
-    name: polar-basic
-  name: basic
+    name: polar-test-loadbalancer
+  name: test-loadbalancer
 spec:
   selector:
     matchLabels:
       managedBy: polar
-      name: polar-basic
+      name: polar-test-loadbalancer
   strategy: {}
   template:
     metadata:
       creationTimestamp: null
       labels:
         managedBy: polar
-        name: polar-basic
+        name: polar-test-loadbalancer
     spec:
       containers:
       - command:
@@ -27,7 +27,7 @@ spec:
         - -gateway-host
         - $(IP)
         - -gateway-name
-        - basic
+        - test-loadbalancer
         - -consul-http-address
         - $(HOST_IP)
         - -consul-http-port
@@ -40,8 +40,6 @@ spec:
         - polar-controller.default.svc.cluster.local
         - -envoy-sds-port
         - "9090"
-        - -consul-ca-cert-file
-        - /ca/tls.crt
         env:
         - name: IP
           valueFrom:
@@ -57,11 +55,8 @@ spec:
         - containerPort: 20000
           name: ready
           protocol: TCP
-        - containerPort: 80
+        - containerPort: 8080
           name: http
-          protocol: TCP
-        - containerPort: 443
-          name: tls
           protocol: TCP
         - containerPort: 8443
           name: https
@@ -72,9 +67,6 @@ spec:
           name: bootstrap
         - mountPath: /certs
           name: certs
-        - mountPath: /ca
-          name: ca
-          readOnly: true
       initContainers:
       - command:
         - cp
@@ -88,15 +80,9 @@ spec:
           name: bootstrap
         - mountPath: /certs
           name: certs
-        - mountPath: /ca
-          name: ca
-          readOnly: true
       volumes:
       - emptyDir: {}
         name: bootstrap
       - emptyDir: {}
         name: certs
-      - name: ca
-        secret:
-          secretName: consul-ca-cert
 status: {}

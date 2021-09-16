@@ -2,20 +2,20 @@ metadata:
   creationTimestamp: null
   labels:
     managedBy: polar
-    name: polar-node-selector
-  name: node-selector
+    name: polar-tls-cert-test
+  name: tls-cert-test
 spec:
   selector:
     matchLabels:
       managedBy: polar
-      name: polar-node-selector
+      name: polar-tls-cert-test
   strategy: {}
   template:
     metadata:
       creationTimestamp: null
       labels:
         managedBy: polar
-        name: polar-node-selector
+        name: polar-tls-cert-test
     spec:
       containers:
       - command:
@@ -27,9 +27,9 @@ spec:
         - -gateway-host
         - $(IP)
         - -gateway-name
-        - node-selector
+        - tls-cert-test
         - -consul-http-address
-        - host.docker.internal:443
+        - $(HOST_IP)
         - -consul-http-port
         - "8500"
         - -consul-xds-port
@@ -51,17 +51,14 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: status.hostIP
-        image: polar:1
+        image: envoyproxy/envoy:v1.19-latest
         name: polar
         ports:
         - containerPort: 20000
           name: ready
           protocol: TCP
-        - containerPort: 8080
+        - containerPort: 80
           name: http
-          protocol: TCP
-        - containerPort: 8443
-          name: https
           protocol: TCP
         resources: {}
         volumeMounts:
@@ -77,7 +74,7 @@ spec:
         - cp
         - /bin/polar
         - /bootstrap/polar
-        image: polar:1
+        image: hashicorp/polar:0.1.0
         name: polar-init
         resources: {}
         volumeMounts:
@@ -88,9 +85,6 @@ spec:
         - mountPath: /ca
           name: ca
           readOnly: true
-      nodeSelector:
-        ingress-ready: "true"
-      serviceAccountName: polar
       volumes:
       - emptyDir: {}
         name: bootstrap
@@ -98,5 +92,5 @@ spec:
         name: certs
       - name: ca
         secret:
-          secretName: consul-ca-cert
+          secretName: super-secret
 status: {}

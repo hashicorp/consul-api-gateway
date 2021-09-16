@@ -25,24 +25,24 @@ func toNamespaceSet(name string, labels map[string]string) klabels.Labels {
 	return klabels.Set(ret)
 }
 
-func parentRefsEqual(a, b gw.ParentRef) bool {
-	return compareStrPtrs(a.Group, b.Group) &&
-		compareStrPtrs(a.Kind, b.Kind) &&
-		compareStrPtrs(a.Namespace, b.Namespace) &&
-		compareStrPtrs(a.SectionName, b.Namespace) &&
-		compareStrPtrs(a.Scope, a.Scope) &&
-		a.Name == b.Name
-}
+// func parentRefsEqual(a, b gw.ParentRef) bool {
+// 	return compareStrPtrs(a.Group, b.Group) &&
+// 		compareStrPtrs(a.Kind, b.Kind) &&
+// 		compareStrPtrs(a.Namespace, b.Namespace) &&
+// 		compareStrPtrs(a.SectionName, b.Namespace) &&
+// 		compareStrPtrs(a.Scope, a.Scope) &&
+// 		a.Name == b.Name
+// }
 
-func compareStrPtrs(a, b *string) bool {
-	if a == nil {
-		return b == nil
-	}
-	if b == nil {
-		return false
-	}
-	return *a == *b
-}
+// func compareStrPtrs(a, b *string) bool {
+// 	if a == nil {
+// 		return b == nil
+// 	}
+// 	if b == nil {
+// 		return false
+// 	}
+// 	return *a == *b
+// }
 
 func getRouteStatusPtr(route interface{}) *gw.RouteStatus {
 	val := reflect.ValueOf(route).Elem()

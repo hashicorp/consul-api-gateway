@@ -202,7 +202,7 @@ func hostnamesMatch(a, b gw.Hostname) bool {
 		}
 
 		for i := 1; i < len(aLabels); i++ {
-			if strings.ToLower(aLabels[i]) != strings.ToLower(bLabels[i]) {
+			if !strings.EqualFold(aLabels[i], bLabels[i]) {
 				return false
 			}
 		}

@@ -1,0 +1,33 @@
+apiVersion: polar.hashicorp.com/v1alpha1
+kind: GatewayClassConfig
+metadata:
+  name: test-gateway-class-config
+spec:
+  consul:
+    scheme: https
+    caSecret: super-secret
+---
+apiVersion: gateway.networking.k8s.io/v1alpha2
+kind: GatewayClass
+metadata:
+  name: test-gateway-class
+spec:
+  controller: "hashicorp.com/polar-gateway-controller"
+  parametersRef:
+    group: polar.hashicorp.com
+    kind: GatewayClassConfig
+    name: test-gateway-class-config
+---
+apiVersion: gateway.networking.k8s.io/v1alpha2
+kind: Gateway
+metadata:
+  name: tls-cert-test
+spec:
+  gatewayClassName: test-gateway-class
+  listeners:  
+  - protocol: HTTP
+    port: 80
+    name: http
+    allowedRoutes:
+      namespaces:
+        from: Same

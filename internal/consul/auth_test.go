@@ -110,7 +110,8 @@ func runACLServer(t *testing.T, failures uint64) *aclServer {
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
-			w.Write([]byte(fmt.Sprintf(`{"SecretID": "%s"}`, server.consulToken)))
+			_, err = w.Write([]byte(fmt.Sprintf(`{"SecretID": "%s"}`, server.consulToken)))
+			require.NoError(t, err)
 			return
 		}
 		w.WriteHeader(http.StatusInternalServerError)

@@ -201,6 +201,10 @@ EOF
   echo $CONSUL_HTTP_TOKEN > token
 }
 
+installPolarCRDs() {
+  kubectl apply -f config/crd/bases/polar.hashicorp.com_gatewayclassconfigs.yaml
+}
+
 buildPolar() {
   echo "Cross-compiling polar for Linux"
   GOOS=linux go build 2>&1 > /dev/null
@@ -234,6 +238,7 @@ main() {
     setupAuthMethod
   fi
   if [[ "${load}" == "TRUE" ]]; then
+    installPolarCRDs
     buildPolar
     buildDocker
     loadDockerImage

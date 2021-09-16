@@ -60,18 +60,18 @@ func NewReconcileManager(ctx context.Context, config *ManagerConfig) *GatewayRec
 	}
 }
 
-func (m *GatewayReconcileManager) UpsertGatewayClass(gc *gw.GatewayClass) {
-	if gc.Spec.Controller == m.controllerName {
-		var currentGen int64
-		m.reconcilersMu.Lock()
-		if current, ok := m.gatewayClasses[gc.Name]; ok {
-			currentGen = current.GetGeneration()
-		}
-		if gc.Generation > currentGen {
-			obj := object.New(gc)
-			m.gatewayClasses[gc.Name] = obj
-			obj.Status.Mutate(func(status interface{}) interface{} {
-				gwcStatus := status.(*gw.GatewayClassStatus)
+func (m *GatewayReconcileManager) UpsertGatewayClass(gc *gw.GatewayClass, validParameters bool) {
+	var currentGen int64
+	m.reconcilersMu.Lock()
+	if current, ok := m.gatewayClasses[gc.Name]; ok {
+		currentGen = current.GetGeneration()
+	}
+	if gc.Generation > currentGen {
+		obj := object.New(gc)
+		m.gatewayClasses[gc.Name] = obj
+		obj.Status.Mutate(func(status interface{}) interface{} {
+			gwcStatus := status.(*gw.GatewayClassStatus)
+			if validParameters {
 				gwcStatus.Conditions = []metav1.Condition{
 					{
 						Type:               string(gw.GatewayClassConditionStatusAdmitted),
@@ -82,16 +82,25 @@ func (m *GatewayReconcileManager) UpsertGatewayClass(gc *gw.GatewayClass) {
 						Message:            fmt.Sprintf("admitted by controller %q", gc.Spec.Controller),
 					},
 				}
-
-				return gwcStatus
-			})
-			if obj.Status.IsDirty() {
-				m.status.Push(obj)
+			} else {
+				gwcStatus.Conditions = []metav1.Condition{
+					{
+						Type:               string(gw.GatewayClassConditionStatusAdmitted),
+						Status:             metav1.ConditionFalse,
+						ObservedGeneration: gc.Generation,
+						LastTransitionTime: metav1.Now(),
+						Reason:             string(gw.GatewayClassReasonInvalidParameters),
+						Message:            fmt.Sprintf("rejected by controller %q", gc.Spec.Controller),
+					},
+				}
 			}
+			return gwcStatus
+		})
+		if obj.Status.IsDirty() {
+			m.status.Push(obj)
 		}
-		m.reconcilersMu.Unlock()
 	}
-
+	m.reconcilersMu.Unlock()
 }
 
 func (m *GatewayReconcileManager) UpsertGateway(g *gw.Gateway) {

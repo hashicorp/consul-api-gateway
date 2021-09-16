@@ -30,7 +30,9 @@ func (c *ConfigEntriesReconciler) SetConfigEntries(entries ...api.ConfigEntry) {
 	for _, entry := range entries {
 		// TODO: handle failures?
 		c.logger.Debug("setting entry", "kind", entry.GetKind(), "name", entry.GetName())
-		c.consul.ConfigEntries().Set(entry, nil)
+		if _, _, err := c.consul.ConfigEntries().Set(entry, nil); err != nil {
+			c.logger.Error("error setting entry", "kind", entry.GetKind(), "name", entry.GetName(), "error", err)
+		}
 	}
 }
 
@@ -38,7 +40,9 @@ func (c *ConfigEntriesReconciler) DeleteConfigEntries(entries ...api.ConfigEntry
 	for _, entry := range entries {
 		// TODO: handle failures?
 		c.logger.Debug("deleting entry", "kind", entry.GetKind(), "name", entry.GetName())
-		c.consul.ConfigEntries().Delete(entry.GetKind(), entry.GetName(), nil)
+		if _, err := c.consul.ConfigEntries().Delete(entry.GetKind(), entry.GetName(), nil); err != nil {
+			c.logger.Error("error deleting entry", "kind", entry.GetKind(), "name", entry.GetName(), "error", err)
+		}
 	}
 }
 

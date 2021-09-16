@@ -2,8 +2,8 @@ metadata:
   creationTimestamp: null
   labels:
     managedBy: polar
-    name: polar-node-selector
-  name: node-selector
+    name: polar-test-clusterip
+  name: test-clusterip
 spec:
   ports:
   - name: http
@@ -16,7 +16,7 @@ spec:
     targetPort: 0
   selector:
     managedBy: polar
-    name: polar-node-selector
-  type: NodePort
+    name: polar-test-clusterip
+  type: ClusterIP
 status:
   loadBalancer: {}

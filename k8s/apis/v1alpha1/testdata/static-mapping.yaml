@@ -1,0 +1,51 @@
+apiVersion: polar.hashicorp.com/v1alpha1
+kind: GatewayClassConfig
+metadata:
+  name: test-gateway-class-config
+spec:
+  logLevel: info
+  consul:
+    authentication:
+      account: polar
+      method: polar
+    address:
+      host.docker.internal
+    ports:
+      http: 443
+  useHostPorts: true
+  images:
+    polar: "polar:1"
+    envoy: "envoy:1"
+  nodeSelector:
+    "ingress-ready": "true"
+---
+apiVersion: gateway.networking.k8s.io/v1alpha2
+kind: GatewayClass
+metadata:
+  name: test-gateway-class
+spec:
+  controller: "hashicorp.com/polar-gateway-controller"
+  parametersRef:
+    group: polar.hashicorp.com
+    kind: GatewayClassConfig
+    name: test-gateway-class-config
+---
+apiVersion: gateway.networking.k8s.io/v1alpha2
+kind: Gateway
+metadata:
+  name: test-static-mapping
+spec:
+  gatewayClassName: test-gateway-class
+  listeners:
+  - protocol: HTTP
+    port: 8083
+    name: http
+    allowedRoutes:
+      namespaces:
+        from: Same
+  - protocol: HTTPS
+    port: 8443
+    name: https
+    allowedRoutes:
+      namespaces:
+        from: Same
