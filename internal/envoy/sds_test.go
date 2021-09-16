@@ -256,7 +256,7 @@ func runTestServer(t *testing.T, ca []byte, registryFn func(*gomock.Controller) 
 	go func() {
 		defer func() {
 			// write an error to the channel, if
-			// the server canceled succesfully the err will be nil
+			// the server canceled successfully the err will be nil
 			// and the read will get that first, this will only
 			// be read if we have some early expectation that calls
 			// runtime.Goexit prior to the server stopping

@@ -66,7 +66,9 @@ func (r *RequestHandler) OnDeltaStreamClosed(streamID int64) {
 
 	if node, deleted := r.nodeMap.LoadAndDelete(streamID); deleted {
 		r.logger.Trace("unwatching all secrets for node", "node", node.(string))
-		r.secretManager.UnwatchAll(r.streamContext(streamID), node.(string))
+		if err := r.secretManager.UnwatchAll(r.streamContext(streamID), node.(string)); err != nil {
+			r.logger.Error("error unwatching secrets", "node", node.(string), "error", err)
+		}
 	} else {
 		r.logger.Warn("node not found for stream", "stream", streamID)
 	}

@@ -1,0 +1,139 @@
+package controllers
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/go-logr/logr"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	gateway "sigs.k8s.io/gateway-api/apis/v1alpha2"
+
+	polarv1alpha1 "github.com/hashicorp/polar/k8s/apis/v1alpha1"
+)
+
+const (
+	gatewayClassConfigFinalizer = "gateway-class-exists-finalizer.polar.hashicorp.com"
+)
+
+// GatewayClassConfigReconciler reconciles a GatewayClassConfig object
+type GatewayClassConfigReconciler struct {
+	client.Client
+	Log    logr.Logger
+	Scheme *runtime.Scheme
+}
+
+//+kubebuilder:rbac:groups=polar.hashicorp.com,resources=gatewayclassconfigs,verbs=get
+//+kubebuilder:rbac:groups=polar.hashicorp.com,resources=gatewayclassconfigs/finalizers,verbs=update
+
+// Reconcile is part of the main kubernetes reconciliation loop which aims to
+// move the current state of the cluster closer to the desired state.
+// For more details, check Reconcile and its Result here:
+// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.8.3/pkg/reconcile
+func (r *GatewayClassConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	_ = r.Log.WithValues("gatewayClassConfig", req.NamespacedName)
+
+	gcc := &polarv1alpha1.GatewayClassConfig{}
+	err := r.Get(ctx, req.NamespacedName, gcc)
+	if k8serrors.IsNotFound(err) {
+		return ctrl.Result{}, nil
+	} else if err != nil {
+		r.Log.Error(err, "failed to get GatewayClassConfig", "name", req.Name, "ns", req.Namespace)
+		return ctrl.Result{}, err
+	}
+
+	if gcc.ObjectMeta.DeletionTimestamp.IsZero() {
+		// we're creating or updating
+		if err := ensureGatewayClassConfigFinalizer(ctx, r.Client, gcc); err != nil {
+			return ctrl.Result{}, err
+		}
+	} else {
+		used, err := gatewayClassConfigInUse(ctx, r.Client, gcc)
+		if err != nil {
+			r.Log.Error(err, "failed to check if the gateway class config is still in use, requeuing", "error", err, "name", gcc.Name)
+			return ctrl.Result{}, err
+		}
+		if used {
+			return ctrl.Result{}, fmt.Errorf("gateway class config '%s' is still in use", gcc.Name)
+		}
+		if err := removeGatewayClassConfigFinalizer(ctx, r.Client, gcc); err != nil {
+			return ctrl.Result{}, err
+		}
+	}
+
+	return ctrl.Result{}, nil
+}
+
+func ensureGatewayClassConfigFinalizer(ctx context.Context, client client.Client, gcc *polarv1alpha1.GatewayClassConfig) error {
+	for _, finalizer := range gcc.Finalizers {
+		if finalizer == gatewayClassConfigFinalizer {
+			return nil
+		}
+	}
+	updated := gcc.DeepCopy()
+	updated.Finalizers = append(updated.Finalizers, gatewayClassConfigFinalizer)
+	if err := client.Update(ctx, updated); err != nil {
+		return fmt.Errorf("failed to add in-use finalizer: %w", err)
+	}
+	return nil
+}
+
+func removeGatewayClassConfigFinalizer(ctx context.Context, client client.Client, gcc *polarv1alpha1.GatewayClassConfig) error {
+	finalizers := []string{}
+	found := false
+	for _, finalizer := range gcc.Finalizers {
+		if finalizer == gatewayClassConfigFinalizer {
+			found = true
+			continue
+		}
+		finalizers = append(finalizers, finalizer)
+	}
+	if found {
+		updated := gcc.DeepCopy()
+		updated.Finalizers = finalizers
+		if err := client.Update(ctx, updated); err != nil {
+			return fmt.Errorf("failed to remove in-use finalizer: %w", err)
+		}
+	}
+	return nil
+}
+
+func gatewayClassConfigInUse(ctx context.Context, client client.Client, gcc *polarv1alpha1.GatewayClassConfig) (bool, error) {
+	list := &gateway.GatewayClassList{}
+	if err := client.List(ctx, list); err != nil {
+		return false, fmt.Errorf("failed to list gateways")
+	}
+	for _, g := range list.Items {
+		paramaterRef := g.Spec.ParametersRef
+		if paramaterRef != nil &&
+			paramaterRef.Group == polarv1alpha1.Group &&
+			paramaterRef.Kind == polarv1alpha1.GatewayClassConfigKind &&
+			paramaterRef.Name == gcc.Name {
+			namespace := ""
+			if paramaterRef.Namespace != nil {
+				namespace = *paramaterRef.Namespace
+			}
+			if namespace == gcc.Namespace {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
+}
+
+// SetupWithManager sets up the controller with the Manager.
+func (r *GatewayClassConfigReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	groupVersion := schema.GroupVersion{Group: "polar.hashicorp.com", Version: "v1alpha1"}
+	r.Scheme.AddKnownTypes(groupVersion, &polarv1alpha1.GatewayClassConfig{}, &polarv1alpha1.GatewayClassConfigList{})
+	metav1.AddToGroupVersion(r.Scheme, groupVersion)
+
+	return ctrl.NewControllerManagedBy(mgr).
+		// Uncomment the following line adding a pointer to an instance of the controlled resource as an argument
+		// For()
+		For(&polarv1alpha1.GatewayClassConfig{}).
+		Complete(r)
+}

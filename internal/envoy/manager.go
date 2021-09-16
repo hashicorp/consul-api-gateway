@@ -95,7 +95,7 @@ func (m *Manager) CommandArgs() (string, []string) {
 	return "envoy", []string{"-l", m.LogLevel, "--log-format", logFormatString, "-c", m.BootstrapFilePath}
 }
 
-// RenderBootstrap persits a bootstrapped envoy template to disk
+// RenderBootstrap persists a bootstrapped envoy template to disk
 func (m *Manager) RenderBootstrap(sdsConfig string) error {
 	var bootstrapConfig bytes.Buffer
 	if err := bootstrapTemplate.Execute(&bootstrapConfig, &bootstrapArgs{

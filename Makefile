@@ -145,7 +145,7 @@ ctrl-deploy: ctrl-manifests kustomize
 
 # Generate manifests e.g. CRD, RBAC etc.
 ctrl-manifests: controller-gen
-	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=manager-role webhook paths="./..." output:crd:artifacts:config=config/crd/bases
+	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=polar-controller webhook paths="./..." output:crd:artifacts:config=config/crd/bases
 
 # Generate code
 ctrl-generate: controller-gen

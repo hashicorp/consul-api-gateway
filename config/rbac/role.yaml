@@ -4,10 +4,36 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   creationTimestamp: null
-  name: manager-role
+  name: polar-controller
 rules:
 - apiGroups:
-  - polar.hashicorp.com
+  - gateway.networking.k8s.io
+  resources:
+  - gatewayclasses
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - gatewayclasses/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - gatewayclasses/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - gateway.networking.k8s.io
   resources:
   - gateways
   verbs:
@@ -19,16 +45,54 @@ rules:
   - update
   - watch
 - apiGroups:
-  - polar.hashicorp.com
+  - gateway.networking.k8s.io
   resources:
   - gateways/finalizers
   verbs:
   - update
 - apiGroups:
-  - polar.hashicorp.com
+  - gateway.networking.k8s.io
   resources:
   - gateways/status
   verbs:
   - get
   - patch
+  - update
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - httproutes
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - httproutes/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - httproutes/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - polar.hashicorp.com
+  resources:
+  - gatewayclassconfigs
+  verbs:
+  - get
+- apiGroups:
+  - polar.hashicorp.com
+  resources:
+  - gatewayclassconfigs/finalizers
+  verbs:
   - update

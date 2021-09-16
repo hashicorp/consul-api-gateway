@@ -117,7 +117,9 @@ func New(logger hclog.Logger, registry *common.GatewaySecretRegistry, opts *Opti
 			return nil, fmt.Errorf("unable to pull Consul CA cert from secret: %w", err)
 		}
 		cert := secret.Data["tls.crt"]
-		os.WriteFile(opts.CACertFile, cert, 0444)
+		if err := os.WriteFile(opts.CACertFile, cert, 0444); err != nil {
+			return nil, fmt.Errorf("unable to write CA cert: %w", err)
+		}
 	}
 
 	return &Kubernetes{
@@ -150,23 +152,34 @@ func (k *Kubernetes) Start(ctx context.Context) error {
 		Logger:         k.logger.Named("consul"),
 	})
 
-	err := (&controllers.GatewayClassReconciler{
-		Client:  k.k8sManager.GetClient(),
-		Log:     klogger.WithName("controllers").WithName("GatewayClass"),
-		Scheme:  k.k8sManager.GetScheme(),
-		Manager: reconcileManager,
+	err := (&controllers.GatewayClassConfigReconciler{
+		Client: k.k8sManager.GetClient(),
+		Log:    klogger.WithName("controllers").WithName("GatewayClassConfig"),
+		Scheme: k.k8sManager.GetScheme(),
 	}).SetupWithManager(k.k8sManager)
 	if err != nil {
-		return fmt.Errorf("failed to create gateway_class controller: %w", err)
+		return fmt.Errorf("failed to create gateway class config controller: %w", err)
+	}
+
+	err = (&controllers.GatewayClassReconciler{
+		ControllerName: ControllerName,
+		Client:         k.k8sManager.GetClient(),
+		Log:            klogger.WithName("controllers").WithName("GatewayClass"),
+		Scheme:         k.k8sManager.GetScheme(),
+		Manager:        reconcileManager,
+	}).SetupWithManager(k.k8sManager)
+	if err != nil {
+		return fmt.Errorf("failed to create gateway class controller: %w", err)
 	}
 
 	err = (&controllers.GatewayReconciler{
-		SDSServerHost: k.sDSServerHost,
-		SDSServerPort: k.sDSServerPort,
-		Client:        k.k8sManager.GetClient(),
-		Log:           klogger.WithName("controllers").WithName("Gateway"),
-		Scheme:        k.k8sManager.GetScheme(),
-		Manager:       reconcileManager,
+		SDSServerHost:  k.sDSServerHost,
+		SDSServerPort:  k.sDSServerPort,
+		ControllerName: ControllerName,
+		Client:         k.k8sManager.GetClient(),
+		Log:            klogger.WithName("controllers").WithName("Gateway"),
+		Scheme:         k.k8sManager.GetScheme(),
+		Manager:        reconcileManager,
 	}).SetupWithManager(k.k8sManager)
 	if err != nil {
 		return fmt.Errorf("failed to create gateway controller: %w", err)
@@ -179,7 +192,7 @@ func (k *Kubernetes) Start(ctx context.Context) error {
 		Manager: reconcileManager,
 	}).SetupWithManager(k.k8sManager)
 	if err != nil {
-		return fmt.Errorf("failed to create http_route controller: %w", err)
+		return fmt.Errorf("failed to create http route controller: %w", err)
 	}
 
 	return k.k8sManager.Start(ctx)

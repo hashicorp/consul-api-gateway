@@ -2,8 +2,8 @@ metadata:
   creationTimestamp: null
   labels:
     managedBy: polar
-    name: polar-loadbalancer
-  name: loadbalancer
+    name: polar-test-loadbalancer
+  name: test-loadbalancer
 spec:
   ports:
   - name: http
@@ -16,7 +16,7 @@ spec:
     targetPort: 0
   selector:
     managedBy: polar
-    name: polar-loadbalancer
+    name: polar-test-loadbalancer
   type: LoadBalancer
 status:
   loadBalancer: {}
