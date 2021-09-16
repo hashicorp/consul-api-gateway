@@ -1,4 +1,6 @@
-package integration
+// +build e2e
+
+package server
 
 import (
 	"context"
@@ -7,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/cenkalti/backoff"
-	"github.com/hashicorp/polar/internal/testing/integration"
+	"github.com/hashicorp/polar/internal/testing/e2e"
 	"github.com/hashicorp/polar/k8s"
 	polarv1alpha1 "github.com/hashicorp/polar/k8s/apis/v1alpha1"
 	"github.com/stretchr/testify/require"
@@ -27,11 +29,11 @@ func TestMain(m *testing.M) {
 	testenv = env.New()
 
 	testenv.Setup(
-		integration.SetUpStack,
+		e2e.SetUpStack,
 	)
 
 	testenv.Finish(
-		integration.TearDownStack,
+		e2e.TearDownStack,
 	)
 
 	testenv.Run(m)
@@ -40,7 +42,7 @@ func TestMain(m *testing.M) {
 func TestGatewayClass(t *testing.T) {
 	feature := features.New("gateway class admission").
 		Assess("admission for valid class config", func(ctx context.Context, t *testing.T, cfg *envconf.Config) context.Context {
-			namespace := integration.Namespace(ctx)
+			namespace := e2e.Namespace(ctx)
 			resources := cfg.Client().Resources(namespace)
 			configName := envconf.RandomName("gcc", 16)
 			className := envconf.RandomName("gc", 16)
@@ -52,14 +54,14 @@ func TestGatewayClass(t *testing.T) {
 				},
 				Spec: polarv1alpha1.GatewayClassConfigSpec{
 					ImageSpec: polarv1alpha1.ImageSpec{
-						Polar: integration.DockerImage(ctx),
+						Polar: e2e.DockerImage(ctx),
 					},
 					ConsulSpec: polarv1alpha1.ConsulSpec{
 						Address: "host.docker.internal", // we're working trough kind
 						Scheme:  "https",
 						PortSpec: polarv1alpha1.PortSpec{
-							GRPC: integration.ConsulGRPCPort(ctx),
-							HTTP: integration.ConsulHTTPPort(ctx),
+							GRPC: e2e.ConsulGRPCPort(ctx),
+							HTTP: e2e.ConsulHTTPPort(ctx),
 						},
 						AuthSpec: polarv1alpha1.AuthSpec{
 							Method:  "polar",
@@ -137,7 +139,7 @@ func TestGatewayClass(t *testing.T) {
 			require.NoError(t, err)
 
 			// check for the service being registered
-			client := integration.ConsulClient(ctx)
+			client := e2e.ConsulClient(ctx)
 			var status string
 			err = backoff.Retry(func() error {
 				services, _, err := client.Catalog().Service(gatewayName, "", nil)

@@ -1,4 +1,4 @@
-package integration
+package e2e
 
 import (
 	"context"
@@ -12,7 +12,6 @@ import (
 	"github.com/hashicorp/polar/internal/common"
 	"github.com/hashicorp/polar/internal/consul"
 	"github.com/hashicorp/polar/internal/envoy"
-	"github.com/hashicorp/polar/internal/metrics"
 	"github.com/hashicorp/polar/k8s"
 	polarv1alpha1 "github.com/hashicorp/polar/k8s/apis/v1alpha1"
 	"golang.org/x/sync/errgroup"
@@ -42,14 +41,13 @@ func (p *polarTestEnvironment) run(ctx context.Context) error {
 
 	// nullLogger := hclog.Default()
 	nullLogger := hclog.NewNullLogger()
-	registry := common.NewGatewayRegistry()
+	registry := common.NewGatewaySecretRegistry()
 
 	// set up the cert manager
 	certManagerOptions := consul.DefaultCertManagerOptions()
 	certManagerOptions.Directory = p.directory
 	certManager := consul.NewCertManager(
 		nullLogger,
-		metrics.Registry.Consul,
 		consulClient,
 		"polar-test-controller",
 		certManagerOptions,
@@ -66,18 +64,18 @@ func (p *polarTestEnvironment) run(ctx context.Context) error {
 		HealthProbeBindAddr:   ":8081",
 		WebhookPort:           8443,
 	}
-	controller, err := k8s.New(nullLogger, registry, metrics.Registry.K8s, options)
+	controller, err := k8s.New(nullLogger, registry, options)
 	if err != nil {
 		return err
 	}
 	controller.SetConsul(consulClient)
 
 	// set up the SDS server
-	secretClient, err := k8s.NewK8sSecretClient(nullLogger, metrics.Registry.SDS)
+	secretClient, err := k8s.NewK8sSecretClient(nullLogger)
 	if err != nil {
 		return err
 	}
-	sds := envoy.NewSDSServer(nullLogger, metrics.Registry.SDS, certManager, secretClient, registry)
+	sds := envoy.NewSDSServer(nullLogger, certManager, secretClient, registry)
 
 	// wait for the first write
 	cancelCtx, cancel := context.WithCancel(ctx)
