@@ -116,21 +116,24 @@ func (s *SDSServer) Run(ctx context.Context) error {
 	}
 
 	go secretManager.Manage(childCtx)
+	errs := make(chan error, 1)
 	go func() {
-		for {
-			select {
-			case <-childCtx.Done():
-				s.Shutdown()
-				return
-			case <-time.After(cachedMetricsTimeout):
-				resources := len(resourceCache.GetResources())
-				metrics.Registry.SetGauge(metrics.SDSCachedResources, float32(resources))
-			}
-		}
+		errs <- s.server.Serve(listener)
 	}()
 
 	s.logger.Trace("running SDS server")
-	return s.server.Serve(listener)
+	for {
+		select {
+		case err := <-errs:
+			return err
+		case <-childCtx.Done():
+			s.Shutdown()
+			return nil
+		case <-time.After(cachedMetricsTimeout):
+			resources := len(resourceCache.GetResources())
+			metrics.Registry.SetGauge(metrics.SDSCachedResources, float32(resources))
+		}
+	}
 }
 
 // Shutdown attempts to gracefully shutdown the server, it
