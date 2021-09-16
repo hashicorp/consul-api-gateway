@@ -92,6 +92,7 @@ type GenerateCertificateOptions struct {
 	ServiceName        string
 	SPIFFEHostOverride string
 	SPIFFEPathOverride string
+	ExtraSANs          []string
 }
 
 // GenerateSignedCertificate generates a certificate with the given options
@@ -112,6 +113,7 @@ func GenerateSignedCertificate(options GenerateCertificateOptions) (*Certificate
 	cert := &x509.Certificate{
 		SerialNumber: big.NewInt(1),
 		URIs:         []*url.URL{spiffe},
+		DNSNames:     options.ExtraSANs,
 		Subject: pkix.Name{
 			Organization:  []string{"Testing, INC."},
 			Country:       []string{"US"},
