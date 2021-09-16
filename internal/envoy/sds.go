@@ -35,11 +35,14 @@ const (
 	cachedMetricsTimeout = 10 * time.Second
 )
 
+// CertificateFetcher is used to fetch the CA and server certificate
+// that the server should use for TLS
 type CertificateFetcher interface {
 	RootCA() []byte
 	TLSCertificate() *tls.Certificate
 }
 
+// SDSServer wraps a gRPC-based SDS Delta server
 type SDSServer struct {
 	logger          hclog.Logger
 	fetcher         CertificateFetcher
@@ -50,6 +53,7 @@ type SDSServer struct {
 	gatewayRegistry GatewayRegistry
 }
 
+// NEWSDSServer initializes an SDSServer instance
 func NewSDSServer(logger hclog.Logger, fetcher CertificateFetcher, client SecretClient, registry GatewayRegistry) *SDSServer {
 	return &SDSServer{
 		logger:          logger,
@@ -61,7 +65,7 @@ func NewSDSServer(logger hclog.Logger, fetcher CertificateFetcher, client Secret
 	}
 }
 
-// GRPC returns a server instance that can handle xDS requests.
+// Run starts the SDS server
 func (s *SDSServer) Run(ctx context.Context) error {
 	childCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -129,6 +133,9 @@ func (s *SDSServer) Run(ctx context.Context) error {
 	return s.server.Serve(listener)
 }
 
+// Shutdown attempts to gracefully shutdown the server, it
+// is called automatically when the context passed into the
+// Run function is canceled.
 func (s *SDSServer) Shutdown() {
 	if s.server != nil {
 		stopped := make(chan struct{})

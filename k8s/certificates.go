@@ -21,11 +21,13 @@ import (
 	polarMetrics "github.com/hashicorp/polar/internal/metrics"
 )
 
+// K8sSecretClient acts as a secret fetcher for kubernetes secrets
 type K8sSecretClient struct {
 	logger hclog.Logger
 	client client.Client
 }
 
+// NewK8sSecretClient initializes a K8sSecretClient instance
 func NewK8sSecretClient(logger hclog.Logger) (*K8sSecretClient, error) {
 	apiClient, err := client.New(ctrl.GetConfigOrDie(), client.Options{
 		Scheme: scheme,
@@ -39,6 +41,7 @@ func NewK8sSecretClient(logger hclog.Logger) (*K8sSecretClient, error) {
 	}, nil
 }
 
+// FetchSecret fetches a kubernetes secret described with the url name of k8s://namespace/secret-name
 func (c *K8sSecretClient) FetchSecret(ctx context.Context, fullName string) (*tls.Secret, time.Time, error) {
 	c.logger.Trace("fetching SDS secret", "name", fullName)
 	polarMetrics.Registry.IncrCounterWithLabels(polarMetrics.SDSCertificateFetches, 1, []metrics.Label{{

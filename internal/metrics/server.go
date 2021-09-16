@@ -12,6 +12,7 @@ import (
 	"github.com/hashicorp/go-hclog"
 )
 
+// RunServer runs a prometheus metrics server
 func RunServer(ctx context.Context, logger hclog.Logger, address string) error {
 	mux := http.NewServeMux()
 	mux.Handle("/metrics", promhttp.Handler())

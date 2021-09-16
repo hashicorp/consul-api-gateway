@@ -48,6 +48,8 @@ func init() {
 	DefaultTestClientCertificate = clientCert
 }
 
+// CertificateInfo wraps all of the information needed to describe a generated
+// certificate
 type CertificateInfo struct {
 	Cert            *x509.Certificate
 	CertBytes       []byte
@@ -57,6 +59,7 @@ type CertificateInfo struct {
 	spiffe          *url.URL
 }
 
+// DefaultCertificates returns an initially generated CA, server, and client certificate
 func DefaultCertificates() (*CertificateInfo, *CertificateInfo, *CertificateInfo) {
 	return DefaultTestCA, DefaultTestServerCertificate, DefaultTestClientCertificate
 }
@@ -82,6 +85,7 @@ func getSVIDServiceURI(root *url.URL, hostOverride, pathOverride, service string
 	return &svid
 }
 
+// GenerateCertificateOptions describe how he want to generate a certificate
 type GenerateCertificateOptions struct {
 	CA                 *CertificateInfo
 	IsCA               bool
@@ -90,6 +94,7 @@ type GenerateCertificateOptions struct {
 	SPIFFEPathOverride string
 }
 
+// GenerateSignedCertificate generates a certificate with the given options
 func GenerateSignedCertificate(options GenerateCertificateOptions) (*CertificateInfo, error) {
 	privateKey, err := rsa.GenerateKey(rand.Reader, 1024)
 	if err != nil {
@@ -99,21 +104,6 @@ func GenerateSignedCertificate(options GenerateCertificateOptions) (*Certificate
 	if options.IsCA {
 		usage = x509.KeyUsageCertSign
 	}
-
-	// 5. Validation
-	// This section describes how an X.509 SVID is validated. The procedure uses standard X.509 validation, in addition to a small set of SPIFFE-specific validation steps.
-	//
-	// 5.1. Path Validation
-	// The validation of trust in a given SVID is based on standard X.509 path validation, and MUST follow RFC 5280 path validation semantics.
-	//
-	// Certificate path validation requires the leaf SVID certificate and one or more SVID signing certificates. The set of signing certificates required for validation is known as the CA bundle. The mechanism through which an entity can retrieve the relevant CA bundle(s) is out of scope for this document, and is instead defined in the SPIFFE Workload API specification.
-	//
-	// 5.2. Leaf Validation
-	// When authenticating a resource or caller, it is necessary to perform validation beyond what is covered by the X.509 standard. Namely, we must ensure that 1) the certificate is a leaf certificate, and 2) that the signing authority was authorized to issue it.
-	//
-	// When validating an X.509 SVID for authentication purposes, the validator MUST ensure that the CA field in the basic constraints extension is set to false, and that keyCertSign and cRLSign are not set in the key usage extension. The validator must also ensure that the scheme of the SPIFFE ID is set to spiffe://.
-	//
-	// As support for URI name constraints becomes more widespread, future versions of this document may update the requirements set forth in this section in order to better leverage name constraint validation.
 
 	spiffe := getSVIDRootURI()
 	if options.CA != nil {

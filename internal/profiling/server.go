@@ -11,6 +11,7 @@ import (
 	"github.com/hashicorp/go-hclog"
 )
 
+// RunServer runs a server with pprof debugging endpoints
 func RunServer(ctx context.Context, logger hclog.Logger, address string) error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/debug/pprof/", pprof.Index)
