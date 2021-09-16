@@ -21,7 +21,6 @@ import (
 
 	"github.com/hashicorp/polar/internal/consul"
 	"github.com/hashicorp/polar/internal/envoy"
-	"github.com/hashicorp/polar/internal/metrics"
 )
 
 // https://github.com/hashicorp/consul-k8s/blob/24be51c58461e71365ca39f113dae0379f7a1b7c/control-plane/connect-inject/container_init.go#L272-L306
@@ -215,7 +214,6 @@ func (c *Command) Run(args []string) (ret int) {
 	options.SDSPort = c.flagSDSServerPort
 	certManager := consul.NewCertManager(
 		c.logger.Named("cert-manager"),
-		metrics.Registry.Consul,
 		consulClient,
 		c.flagGatewayName,
 		options,

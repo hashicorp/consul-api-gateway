@@ -13,7 +13,6 @@ import (
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/polar/internal/envoy/mocks"
-	"github.com/hashicorp/polar/internal/metrics"
 )
 
 func TestOnStreamDeltaRequest(t *testing.T) {
@@ -30,7 +29,7 @@ func TestOnStreamDeltaRequest(t *testing.T) {
 	secrets := mocks.NewMockSecretManager(ctrl)
 	registry := mocks.NewMockGatewayRegistry(ctrl)
 	registry.EXPECT().CanFetchSecrets(gomock.Any(), requestedSecrets).Return(true)
-	handler := NewRequestHandler(hclog.NewNullLogger(), registry, metrics.Registry.SDS, secrets)
+	handler := NewRequestHandler(hclog.NewNullLogger(), registry, secrets)
 
 	request := &discovery.DeltaDiscoveryRequest{
 		ResourceNamesSubscribe: requestedSecrets,
@@ -65,7 +64,7 @@ func TestOnStreamDeltaRequest_PermissionError(t *testing.T) {
 	secrets := mocks.NewMockSecretManager(ctrl)
 	registry := mocks.NewMockGatewayRegistry(ctrl)
 	registry.EXPECT().CanFetchSecrets(gomock.Any(), requestedSecrets).Return(false)
-	handler := NewRequestHandler(hclog.NewNullLogger(), registry, metrics.Registry.SDS, secrets)
+	handler := NewRequestHandler(hclog.NewNullLogger(), registry, secrets)
 
 	request := &discovery.DeltaDiscoveryRequest{
 		ResourceNamesSubscribe: requestedSecrets,
@@ -99,7 +98,7 @@ func TestOnStreamDeltaRequest_WatchError(t *testing.T) {
 	secrets := mocks.NewMockSecretManager(ctrl)
 	registry := mocks.NewMockGatewayRegistry(ctrl)
 	registry.EXPECT().CanFetchSecrets(gomock.Any(), requestedSecrets).Return(true)
-	handler := NewRequestHandler(hclog.NewNullLogger(), registry, metrics.Registry.SDS, secrets)
+	handler := NewRequestHandler(hclog.NewNullLogger(), registry, secrets)
 
 	request := &discovery.DeltaDiscoveryRequest{
 		ResourceNamesSubscribe: requestedSecrets,
@@ -134,7 +133,7 @@ func TestOnStreamDeltaRequest_UnwatchError(t *testing.T) {
 	secrets := mocks.NewMockSecretManager(ctrl)
 	registry := mocks.NewMockGatewayRegistry(ctrl)
 	registry.EXPECT().CanFetchSecrets(gomock.Any(), requestedSecrets).Return(true)
-	handler := NewRequestHandler(hclog.NewNullLogger(), registry, metrics.Registry.SDS, secrets)
+	handler := NewRequestHandler(hclog.NewNullLogger(), registry, secrets)
 
 	request := &discovery.DeltaDiscoveryRequest{
 		ResourceNamesSubscribe: requestedSecrets,
@@ -169,7 +168,7 @@ func TestOnStreamDeltaRequest_Graceful(t *testing.T) {
 	secrets := mocks.NewMockSecretManager(ctrl)
 	registry := mocks.NewMockGatewayRegistry(ctrl)
 	registry.EXPECT().CanFetchSecrets(gomock.Any(), requestedSecrets).Return(true)
-	handler := NewRequestHandler(hclog.NewNullLogger(), registry, metrics.Registry.SDS, secrets)
+	handler := NewRequestHandler(hclog.NewNullLogger(), registry, secrets)
 
 	request := &discovery.DeltaDiscoveryRequest{
 		ResourceNamesSubscribe: requestedSecrets,
@@ -203,7 +202,7 @@ func TestOnDeltaStreamClosed(t *testing.T) {
 	secrets := mocks.NewMockSecretManager(ctrl)
 	registry := mocks.NewMockGatewayRegistry(ctrl)
 	registry.EXPECT().CanFetchSecrets(gomock.Any(), requestedSecrets).Return(true)
-	handler := NewRequestHandler(hclog.NewNullLogger(), registry, metrics.Registry.SDS, secrets)
+	handler := NewRequestHandler(hclog.NewNullLogger(), registry, secrets)
 
 	request := &discovery.DeltaDiscoveryRequest{
 		ResourceNamesSubscribe: requestedSecrets,
@@ -234,7 +233,7 @@ func TestOnDeltaStreamClosed_Graceful(t *testing.T) {
 
 	secrets := mocks.NewMockSecretManager(ctrl)
 	registry := mocks.NewMockGatewayRegistry(ctrl)
-	handler := NewRequestHandler(hclog.NewNullLogger(), registry, metrics.Registry.SDS, secrets)
+	handler := NewRequestHandler(hclog.NewNullLogger(), registry, secrets)
 
 	// no-ops instead of panics without setting up the stream context in the open call
 	handler.OnDeltaStreamClosed(1)
@@ -248,7 +247,7 @@ func TestOnDeltaStreamOpen(t *testing.T) {
 
 	secrets := mocks.NewMockSecretManager(ctrl)
 	registry := mocks.NewMockGatewayRegistry(ctrl)
-	handler := NewRequestHandler(hclog.NewNullLogger(), registry, metrics.Registry.SDS, secrets)
+	handler := NewRequestHandler(hclog.NewNullLogger(), registry, secrets)
 
 	// errors on non secret requests
 	err := handler.OnDeltaStreamOpen(context.Background(), 1, resource.ClusterType)

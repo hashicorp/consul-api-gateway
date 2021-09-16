@@ -13,6 +13,7 @@ import (
 )
 
 const (
+	// this allows for envoy to log to JSON
 	logFormatString = `{"timestamp":"%Y-%m-%d %T.%e","thread":"%t","level":"%l","name":"%n","source":"%g:%#","message":"%v"}`
 )
 
@@ -37,6 +38,7 @@ func init() {
 	}
 }
 
+// ManagerConfig configures a Manager
 type ManagerConfig struct {
 	ID                string
 	ConsulCA          string
@@ -47,13 +49,15 @@ type ManagerConfig struct {
 	LogLevel          string
 }
 
+// Manager wraps and manages an envoy process and its bootstrap configuration
 type Manager struct {
-	logger      hclog.Logger
-	commandFunc func() (string, []string)
-
 	ManagerConfig
+
+	logger      hclog.Logger
+	commandFunc func() (string, []string) // can be overridden in testing
 }
 
+// NewManager returns a new Manager isntance
 func NewManager(logger hclog.Logger, config ManagerConfig) *Manager {
 	m := &Manager{
 		logger:        logger,
@@ -63,6 +67,7 @@ func NewManager(logger hclog.Logger, config ManagerConfig) *Manager {
 	return m
 }
 
+// Run spawns the envoy process
 func (m *Manager) Run(ctx context.Context) error {
 	m.logger.Trace("running envoy")
 	process, args := m.commandFunc()
@@ -79,10 +84,12 @@ func (m *Manager) Run(ctx context.Context) error {
 	}
 }
 
+// CommandArgs returns the actual command for the manager to invoke
 func (m *Manager) CommandArgs() (string, []string) {
 	return "envoy", []string{"-l", m.LogLevel, "--log-format", logFormatString, "-c", m.BootstrapFilePath}
 }
 
+// RenderBootstrap persits a bootstrapped envoy template to disk
 func (m *Manager) RenderBootstrap(sdsConfig string) error {
 	var bootstrapConfig bytes.Buffer
 	if err := bootstrapTemplate.Execute(&bootstrapConfig, &bootstrapArgs{

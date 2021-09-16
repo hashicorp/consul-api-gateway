@@ -18,9 +18,11 @@ import (
 
 //go:generate mockgen -source ./middleware.go -destination ./mocks/middleware.go -package mocks GatewayRegistry
 
-type gatewayInfoKey struct{}
+type contextKey string
 
-var gatewayInfoContextKey = &gatewayInfoKey{}
+const (
+	gatewayInfoContextKey = contextKey("gatewayInfo")
+)
 
 type wrappedStream struct {
 	grpc.ServerStream
@@ -38,6 +40,7 @@ func wrapStream(stream grpc.ServerStream, info *common.GatewayInfo) *wrappedStre
 	}
 }
 
+// GatewayFromContext retrieves info about a gateway from the context or nil if there is none
 func GatewayFromContext(ctx context.Context) *common.GatewayInfo {
 	value := ctx.Value(gatewayInfoContextKey)
 	if value == nil {
@@ -46,8 +49,13 @@ func GatewayFromContext(ctx context.Context) *common.GatewayInfo {
 	return value.(*common.GatewayInfo)
 }
 
+// GatewayRegistry is used as the authority for determining what gateways the SDS server
+// should actually respond to because they're managed by polar
 type GatewayRegistry interface {
+	// GatewayExists is used to determine whether or not we know a particular gateway instance
 	GatewayExists(info *common.GatewayInfo) bool
+	// CanFetchSecrets is used to determine whether a gateway should be able to fetch a set
+	// of secrets it has requested
 	CanFetchSecrets(info *common.GatewayInfo, secrets []string) bool
 }
 
@@ -67,18 +75,25 @@ func SPIFFEStreamMiddleware(logger hclog.Logger, spiffeCA *url.URL, registry Gat
 func verifySPIFFE(ctx context.Context, logger hclog.Logger, spiffeCA *url.URL, registry GatewayRegistry) (*common.GatewayInfo, bool) {
 	if p, ok := peer.FromContext(ctx); ok {
 		if mtls, ok := p.AuthInfo.(credentials.TLSInfo); ok {
+			// grab the peer certificate info
 			for _, item := range mtls.State.PeerCertificates {
+				// check each untyped SAN for spiffee information
 				for _, uri := range item.URIs {
 					if uri.Scheme == "spiffe" {
+						// we've found a spiffee SAN, check that it aligns with the CA info
 						if uri.Host != spiffeCA.Host {
 							logger.Warn("found mismatching spiffe hosts, skipping", "caHost", spiffeCA.Host, "clientHost", uri.Host)
 							continue
 						}
+						// make sure we have a leaf certificate that has been issued by consul
+						// with namespace, datacenter, and service information -- the namespace
+						// and service are used to inform us what gateway is trying to connect
 						info, err := parseURI(uri.Path)
 						if err != nil {
 							logger.Error("error parsing spiffe path, skipping", "error", err, "path", uri.Path)
 							continue
 						}
+						// if we're tracking the gateway then we're good
 						if registry.GatewayExists(info) {
 							return info, true
 						}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"sync/atomic"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -26,11 +27,11 @@ type GatewayReconcileManager struct {
 	controllerName string
 	ctx            context.Context
 	registry       *common.GatewayRegistry
-	metrics        *metrics.K8sMetrics
 	consul         *api.Client
 	routes         *routes.KubernetesRoutes
 	logger         hclog.Logger
 	status         *object.StatusWorker
+	activeGateways int64
 
 	reconcilersMu  sync.Mutex
 	reconcilers    map[types.NamespacedName]*GatewayReconciler
@@ -39,7 +40,6 @@ type GatewayReconcileManager struct {
 
 type ManagerConfig struct {
 	ControllerName string
-	Metrics        *metrics.K8sMetrics
 	Registry       *common.GatewayRegistry
 	Consul         *api.Client
 	Status         client.StatusWriter
@@ -52,7 +52,6 @@ func NewReconcileManager(ctx context.Context, config *ManagerConfig) *GatewayRec
 		ctx:            ctx,
 		consul:         config.Consul,
 		registry:       config.Registry,
-		metrics:        config.Metrics,
 		reconcilers:    map[types.NamespacedName]*GatewayReconciler{},
 		gatewayClasses: map[string]*object.Object{},
 		routes:         routes.NewKubernetesRoutes(),
@@ -111,7 +110,8 @@ func (m *GatewayReconcileManager) UpsertGateway(g *gw.Gateway) {
 			Service:   g.GetName(),
 			Namespace: g.GetNamespace(),
 		}, referencedSecretsForGateway(g)...)
-		m.metrics.Gateways.Inc()
+		activeGateways := atomic.AddInt64(&m.activeGateways, 1)
+		metrics.Registry.SetGauge(metrics.K8sGateways, float32(activeGateways))
 		r = newReconcilerForGateway(m.ctx, &gatewayReconcilerArgs{
 			controllerName: m.controllerName,
 			consul:         m.consul,
@@ -162,7 +162,8 @@ func (m *GatewayReconcileManager) DeleteGateway(name types.NamespacedName) {
 		Service:   name.Name,
 		Namespace: name.Namespace,
 	})
-	m.metrics.Gateways.Dec()
+	activeGateways := atomic.AddInt64(&m.activeGateways, -1)
+	metrics.Registry.SetGauge(metrics.K8sGateways, float32(activeGateways))
 }
 
 func (m *GatewayReconcileManager) DeleteRoute(name types.NamespacedName) {

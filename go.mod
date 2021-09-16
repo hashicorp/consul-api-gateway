@@ -3,6 +3,7 @@ module github.com/hashicorp/polar
 go 1.16
 
 require (
+	github.com/armon/go-metrics v0.3.9
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/envoyproxy/go-control-plane v0.9.10-0.20210908152719-36c2c0845c9e
 	github.com/fatih/color v1.12.0 // indirect

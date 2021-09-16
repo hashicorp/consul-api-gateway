@@ -119,8 +119,6 @@ type CertManager struct {
 	isInitialized    bool
 	initializeSignal chan struct{}
 
-	metrics *metrics.ConsulMetrics
-
 	// cached values
 	ca             []byte
 	certificate    []byte
@@ -132,7 +130,7 @@ type CertManager struct {
 }
 
 // NewCertManager creates a new CertManager instance.
-func NewCertManager(logger hclog.Logger, metrics *metrics.ConsulMetrics, consul *api.Client, service string, options *CertManagerOptions) *CertManager {
+func NewCertManager(logger hclog.Logger, consul *api.Client, service string, options *CertManagerOptions) *CertManager {
 	if options == nil {
 		options = DefaultCertManagerOptions()
 	}
@@ -142,7 +140,6 @@ func NewCertManager(logger hclog.Logger, metrics *metrics.ConsulMetrics, consul 
 		sdsAddress:       options.SDSAddress,
 		sdsPort:          options.SDSPort,
 		service:          service,
-		metrics:          metrics,
 		configDirectory:  options.Directory,
 		directory:        options.Directory,
 		tries:            options.Tries,
@@ -169,7 +166,7 @@ func (c *CertManager) Manage(ctx context.Context) error {
 				c.logger.Error("error requesting certificates", "error", err)
 				return err
 			}
-			c.metrics.LeafCertificateFetches.Inc()
+			metrics.Registry.IncrCounter(metrics.ConsulLeafCertificateFetches, 1)
 
 			c.logger.Trace("persisting certificates")
 			err = c.writeCerts(root, clientCert)

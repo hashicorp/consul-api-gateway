@@ -97,7 +97,6 @@ func (c *Command) Run(args []string) int {
 	if err := c.flagSet.Parse(args); err != nil {
 		return 1
 	}
-	metricsRegistry := metrics.Registry
 	gatewayRegistry := common.NewGatewayRegistry()
 
 	if c.logger == nil {
@@ -138,13 +137,13 @@ func (c *Command) Run(args []string) int {
 		consulCfg.Address = c.flagConsulAddress
 	}
 
-	secretFetcher, err := k8s.NewK8sSecretClient(c.logger.Named("cert-fetcher"), metricsRegistry.SDS)
+	secretFetcher, err := k8s.NewK8sSecretClient(c.logger.Named("cert-fetcher"))
 	if err != nil {
 		c.logger.Error("error initializing the kubernetes secret fetcher", "error", err)
 		return 1
 	}
 
-	controller, err := k8s.New(c.logger, gatewayRegistry, metricsRegistry.K8s, cfg)
+	controller, err := k8s.New(c.logger, gatewayRegistry, cfg)
 	if err != nil {
 		c.logger.Error("error creating the kubernetes controller", "error", err)
 		return 1
@@ -166,7 +165,6 @@ func (c *Command) Run(args []string) int {
 	options.Directory = directory
 	certManager := consul.NewCertManager(
 		c.logger.Named("cert-manager"),
-		metricsRegistry.Consul,
 		consulClient,
 		"polar-controller",
 		options,
@@ -186,7 +184,7 @@ func (c *Command) Run(args []string) int {
 	}
 	c.logger.Trace("initial certificates written")
 
-	server := envoy.NewSDSServer(c.logger.Named("sds-server"), metricsRegistry.SDS, certManager, secretFetcher, gatewayRegistry)
+	server := envoy.NewSDSServer(c.logger.Named("sds-server"), certManager, secretFetcher, gatewayRegistry)
 	group.Go(func() error {
 		return server.Run(groupCtx)
 	})

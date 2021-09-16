@@ -1,64 +1,46 @@
 package metrics
 
 import (
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/armon/go-metrics"
+	"github.com/armon/go-metrics/prometheus"
 )
 
-type ConsulMetrics struct {
-	LeafCertificateFetches prometheus.Counter
-}
+var (
+	SDSActiveStreams             = []string{"sds_active_streams"}
+	SDSCachedResources           = []string{"sds_cached_resources"}
+	SDSCertificateFetches        = []string{"sds_certificate_fetches"}
+	K8sGateways                  = []string{"k8s_gateways"}
+	K8sNewGatewayDeployments     = []string{"k8s_new_gateway_deployments"}
+	ConsulLeafCertificateFetches = []string{"consul_leaf_certificate_fetches"}
+)
 
-type SDSMetrics struct {
-	ActiveStreams      prometheus.Gauge
-	CachedResources    prometheus.Gauge
-	CertificateFetches prometheus.CounterVec
-}
-
-type K8sMetrics struct {
-	Gateways              prometheus.Gauge
-	NewGatewayDeployments prometheus.Counter
-}
-
-type MetricsRegistry struct {
-	SDS    *SDSMetrics
-	K8s    *K8sMetrics
-	Consul *ConsulMetrics
-}
-
-var Registry *MetricsRegistry
+var Registry metrics.MetricSink
 
 func init() {
-	Registry = &MetricsRegistry{
-		SDS: &SDSMetrics{
-			ActiveStreams: promauto.NewGauge(prometheus.GaugeOpts{
-				Name: "sds_active_streams",
-				Help: "The total number of active SDS streams",
-			}),
-			CachedResources: promauto.NewGauge(prometheus.GaugeOpts{
-				Name: "sds_cached_resources",
-				Help: "The total number of resources in the certificate cache",
-			}),
-			CertificateFetches: *promauto.NewCounterVec(prometheus.CounterOpts{
-				Name: "sds_certificate_fetches",
-				Help: "The total number of fetches per certificate",
-			}, []string{"name", "fetcher"}),
-		},
-		K8s: &K8sMetrics{
-			Gateways: promauto.NewGauge(prometheus.GaugeOpts{
-				Name: "k8s_gateways",
-				Help: "The number of gateways the kubernetes controller is tracking",
-			}),
-			NewGatewayDeployments: promauto.NewCounter(prometheus.CounterOpts{
-				Name: "k8s_new_gateway_deployments",
-				Help: "The number of gateways the kubernetes controller has deployed",
-			}),
-		},
-		Consul: &ConsulMetrics{
-			LeafCertificateFetches: promauto.NewCounter(prometheus.CounterOpts{
-				Name: "consul_leaf_certificate_fetches",
-				Help: "The number of times a leaf certificate has been fetched from Consul",
-			}),
-		},
+	sink, err := prometheus.NewPrometheusSinkFrom(prometheus.PrometheusOpts{
+		GaugeDefinitions: []prometheus.GaugeDefinition{{
+			Name: SDSActiveStreams,
+			Help: "The total number of active SDS streams",
+		}, {
+			Name: SDSCachedResources,
+			Help: "The total number of resources in the certificate cache",
+		}, {
+			Name: K8sGateways,
+			Help: "The number of gateways the kubernetes controller is tracking",
+		}},
+		CounterDefinitions: []prometheus.CounterDefinition{{
+			Name: SDSCertificateFetches,
+			Help: "The total number of fetches per certificate segmented by fetcher",
+		}, {
+			Name: K8sNewGatewayDeployments,
+			Help: "The number of gateways the kubernetes controller has deployed",
+		}, {
+			Name: ConsulLeafCertificateFetches,
+			Help: "The number of times a leaf certificate has been fetched from Consul",
+		}},
+	})
+	if err != nil {
+		panic(err)
 	}
+	Registry = sink
 }

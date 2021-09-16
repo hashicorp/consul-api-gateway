@@ -78,7 +78,6 @@ type GatewayReconciler struct {
 	Scheme        *runtime.Scheme
 	SDSServerHost string
 	SDSServerPort int
-	Metrics       *metrics.K8sMetrics
 	Manager       *reconciler.GatewayReconcileManager
 }
 
@@ -149,7 +148,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			}
 		}
 
-		r.Metrics.NewGatewayDeployments.Inc()
+		metrics.Registry.IncrCounter(metrics.K8sNewGatewayDeployments, 1)
 
 		// Deployment created successfully - return and requeue
 		return ctrl.Result{Requeue: true}, nil

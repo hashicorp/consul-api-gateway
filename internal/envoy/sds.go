@@ -31,6 +31,8 @@ import (
 const (
 	defaultGRPCBindAddress = ":9090"
 	defaultShutdownTimeout = 10 * time.Second
+
+	cachedMetricsTimeout = 10 * time.Second
 )
 
 type CertificateFetcher interface {
@@ -41,7 +43,6 @@ type CertificateFetcher interface {
 type SDSServer struct {
 	logger          hclog.Logger
 	fetcher         CertificateFetcher
-	metrics         *metrics.SDSMetrics
 	server          *grpc.Server
 	client          SecretClient
 	bindAddress     string
@@ -49,11 +50,10 @@ type SDSServer struct {
 	gatewayRegistry GatewayRegistry
 }
 
-func NewSDSServer(logger hclog.Logger, metrics *metrics.SDSMetrics, fetcher CertificateFetcher, client SecretClient, registry GatewayRegistry) *SDSServer {
+func NewSDSServer(logger hclog.Logger, fetcher CertificateFetcher, client SecretClient, registry GatewayRegistry) *SDSServer {
 	return &SDSServer{
 		logger:          logger,
 		fetcher:         fetcher,
-		metrics:         metrics,
 		client:          client,
 		bindAddress:     defaultGRPCBindAddress,
 		protocol:        "tcp",
@@ -103,7 +103,7 @@ func (s *SDSServer) Run(ctx context.Context) error {
 
 	resourceCache := cache.NewLinearCache(resource.SecretType, cache.WithLogger(wrapEnvoyLogger(s.logger.Named("cache"))))
 	secretManager := NewSecretManager(s.client, resourceCache, s.logger.Named("secret-manager"))
-	handler := NewRequestHandler(s.logger.Named("handler"), s.gatewayRegistry, s.metrics, secretManager)
+	handler := NewRequestHandler(s.logger.Named("handler"), s.gatewayRegistry, secretManager)
 	sdsServer := server.NewServer(childCtx, resourceCache, handler)
 	secretservice.RegisterSecretDiscoveryServiceServer(s.server, sdsServer)
 	listener, err := net.Listen(s.protocol, s.bindAddress)
@@ -111,21 +111,16 @@ func (s *SDSServer) Run(ctx context.Context) error {
 		return err
 	}
 
-	go func() {
-		secretManager.Manage(childCtx)
-	}()
-	go func() {
-		<-childCtx.Done()
-		s.Shutdown()
-	}()
+	go secretManager.Manage(childCtx)
 	go func() {
 		for {
 			select {
 			case <-childCtx.Done():
+				s.Shutdown()
 				return
-			case <-time.After(10 * time.Second):
+			case <-time.After(cachedMetricsTimeout):
 				resources := len(resourceCache.GetResources())
-				s.metrics.CachedResources.Set(float64(resources))
+				metrics.Registry.SetGauge(metrics.SDSCachedResources, float32(resources))
 			}
 		}
 	}()

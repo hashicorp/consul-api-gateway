@@ -19,7 +19,6 @@ import (
 	"github.com/hashicorp/go-hclog"
 
 	"github.com/hashicorp/polar/internal/common"
-	"github.com/hashicorp/polar/internal/metrics"
 	"github.com/hashicorp/polar/k8s/controllers"
 	"github.com/hashicorp/polar/k8s/log"
 	"github.com/hashicorp/polar/k8s/object"
@@ -46,7 +45,6 @@ type Kubernetes struct {
 	k8sManager    ctrl.Manager
 	consul        *api.Client
 	registry      *common.GatewayRegistry
-	metrics       *metrics.K8sMetrics
 	logger        hclog.Logger
 	k8sStatus     *object.StatusWorker
 }
@@ -75,7 +73,7 @@ func Defaults() *Options {
 	}
 }
 
-func New(logger hclog.Logger, registry *common.GatewayRegistry, metrics *metrics.K8sMetrics, opts *Options) (*Kubernetes, error) {
+func New(logger hclog.Logger, registry *common.GatewayRegistry, opts *Options) (*Kubernetes, error) {
 	if opts == nil {
 		opts = Defaults()
 	}
@@ -125,7 +123,6 @@ func New(logger hclog.Logger, registry *common.GatewayRegistry, metrics *metrics
 	return &Kubernetes{
 		k8sManager:    mgr,
 		registry:      registry,
-		metrics:       metrics,
 		sDSServerHost: opts.SDSServerHost,
 		sDSServerPort: opts.SDSServerPort,
 		logger:        logger.Named("k8s"),
@@ -147,7 +144,6 @@ func (k *Kubernetes) Start(ctx context.Context) error {
 
 	reconcileManager := reconciler.NewReconcileManager(ctx, &reconciler.ManagerConfig{
 		ControllerName: ControllerName,
-		Metrics:        k.metrics,
 		Registry:       k.registry,
 		Consul:         k.consul,
 		Status:         k.k8sManager.GetClient().Status(),
@@ -170,7 +166,6 @@ func (k *Kubernetes) Start(ctx context.Context) error {
 		Client:        k.k8sManager.GetClient(),
 		Log:           klogger.WithName("controllers").WithName("Gateway"),
 		Scheme:        k.k8sManager.GetScheme(),
-		Metrics:       k.metrics,
 		Manager:       reconcileManager,
 	}).SetupWithManager(k.k8sManager)
 	if err != nil {
@@ -181,7 +176,6 @@ func (k *Kubernetes) Start(ctx context.Context) error {
 		Client:  k.k8sManager.GetClient(),
 		Log:     klogger.WithName("controllers").WithName("HTTPRoute"),
 		Scheme:  k.k8sManager.GetScheme(),
-		Metrics: k.metrics,
 		Manager: reconcileManager,
 	}).SetupWithManager(k.k8sManager)
 	if err != nil {

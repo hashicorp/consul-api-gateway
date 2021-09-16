@@ -27,7 +27,6 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/polar/internal/common"
 	"github.com/hashicorp/polar/internal/envoy/mocks"
-	"github.com/hashicorp/polar/internal/metrics"
 	polarTesting "github.com/hashicorp/polar/internal/testing"
 )
 
@@ -245,7 +244,7 @@ func runTestServer(t *testing.T, ca []byte, registryFn func(*gomock.Controller) 
 		Name: "test",
 	}, time.Now(), nil)
 
-	sds := NewSDSServer(hclog.NewNullLogger(), metrics.Registry.SDS, fetcher, secretClient, common.NewGatewayRegistry())
+	sds := NewSDSServer(hclog.NewNullLogger(), fetcher, secretClient, common.NewGatewayRegistry())
 	sds.bindAddress = serverAddress
 	sds.protocol = "unix"
 	if registryFn != nil {

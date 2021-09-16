@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"sync/atomic"
 
 	discovery "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
 	resource "github.com/envoyproxy/go-control-plane/pkg/resource/v3"
@@ -16,25 +17,28 @@ import (
 	"github.com/hashicorp/polar/internal/metrics"
 )
 
+// RequestHandler implements the handlers for an SDS Delta server
 type RequestHandler struct {
 	logger         hclog.Logger
-	metrics        *metrics.SDSMetrics
 	secretManager  SecretManager
 	registry       GatewayRegistry
 	nodeMap        sync.Map
 	streamContexts sync.Map
+	activeStreams  int64
 }
 
-func NewRequestHandler(logger hclog.Logger, registry GatewayRegistry, metrics *metrics.SDSMetrics, secretManager SecretManager) *server.CallbackFuncs {
+// NewRequestHandler initializes a RequestHandler instance and wraps it in a github.com/envoyproxy/go-control-plane/pkg/server/v3,(*CallbackFuncs)
+// so that it can be used by the stock go-control-plane server implementation
+func NewRequestHandler(logger hclog.Logger, registry GatewayRegistry, secretManager SecretManager) *server.CallbackFuncs {
 	handler := &RequestHandler{
 		registry:      registry,
-		metrics:       metrics,
 		logger:        logger,
 		secretManager: secretManager,
 	}
 	return &server.CallbackFuncs{
 		DeltaStreamOpenFunc: func(ctx context.Context, streamID int64, typeURL string) error {
 			logger.Trace("delta stream open")
+			// make sure we're only responding to requests for secrets (we're an SDS server)
 			if typeURL != resource.SecretType {
 				return fmt.Errorf("unsupported type: %s", typeURL)
 			}
@@ -45,13 +49,18 @@ func NewRequestHandler(logger hclog.Logger, registry GatewayRegistry, metrics *m
 	}
 }
 
+// OnDeltaStreamOpen is invoked when an envoy instance first connects to the server
 func (r *RequestHandler) OnDeltaStreamOpen(ctx context.Context, streamID int64) error {
 	r.logger.Trace("beginning stream", "stream_id", streamID)
+	// store the context, because we're never given it again
 	r.streamContexts.Store(streamID, ctx)
-	r.metrics.ActiveStreams.Inc()
+
+	activeStreams := atomic.AddInt64(&r.activeStreams, 1)
+	metrics.Registry.SetGauge(metrics.SDSActiveStreams, float32(activeStreams))
 	return nil
 }
 
+// OnDeltaStreamClosed is invoked when an envoy instance disconnects from the server
 func (r *RequestHandler) OnDeltaStreamClosed(streamID int64) {
 	r.logger.Trace("closing stream", "stream_id", streamID)
 
@@ -62,10 +71,12 @@ func (r *RequestHandler) OnDeltaStreamClosed(streamID int64) {
 		r.logger.Warn("node not found for stream", "stream", streamID)
 	}
 	if _, deleted := r.streamContexts.LoadAndDelete(streamID); deleted {
-		r.metrics.ActiveStreams.Dec()
+		activeStreams := atomic.AddInt64(&r.activeStreams, -1)
+		metrics.Registry.SetGauge(metrics.SDSActiveStreams, float32(activeStreams))
 	}
 }
 
+// OnStreamDeltaRequest is invoked when a request for resources comes in from the envoy instance
 func (r *RequestHandler) OnStreamDeltaRequest(streamID int64, req *discovery.DeltaDiscoveryRequest) error {
 	ctx := r.streamContext(streamID)
 
@@ -74,6 +85,8 @@ func (r *RequestHandler) OnStreamDeltaRequest(streamID int64, req *discovery.Del
 		return status.Errorf(codes.PermissionDenied, "the current gateway does not have permission to fetch the requested secrets")
 	}
 
+	// store the node information that we use to communicate with the manager
+	// this is the only time we get the node id
 	r.nodeMap.Store(streamID, req.Node.Id)
 	if err := r.secretManager.Watch(ctx, req.ResourceNamesSubscribe, req.Node.Id); err != nil {
 		return err
