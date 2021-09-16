@@ -1,4 +1,4 @@
-apiVersion: polar.hashicorp.com/v1alpha1
+apiVersion: consul-api-gateway.hashicorp.com/v1alpha1
 kind: GatewayClassConfig
 metadata:
   name: test-gateway-class-config
@@ -6,15 +6,15 @@ spec:
   logLevel: info
   consul:
     authentication:
-      account: polar
-      method: polar
+      account: consul-api-gateway
+      method: consul-api-gateway
     address:
       host.docker.internal
     ports:
       http: 443
   useHostPorts: true
   images:
-    polar: "polar:1"
+    consul-api-gateway: "consul-api-gateway:1"
     envoy: "envoy:1"
   nodeSelector:
     "ingress-ready": "true"
@@ -24,9 +24,9 @@ kind: GatewayClass
 metadata:
   name: test-gateway-class
 spec:
-  controller: "hashicorp.com/polar-gateway-controller"
+  controller: "hashicorp.com/consul-api-gateway-gateway-controller"
   parametersRef:
-    group: polar.hashicorp.com
+    group: consul-api-gateway.hashicorp.com
     kind: GatewayClassConfig
     name: test-gateway-class-config
 ---

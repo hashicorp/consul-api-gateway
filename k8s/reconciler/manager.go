@@ -14,11 +14,11 @@ import (
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
 
-	"github.com/hashicorp/polar/internal/common"
-	"github.com/hashicorp/polar/internal/metrics"
-	"github.com/hashicorp/polar/k8s/object"
-	"github.com/hashicorp/polar/k8s/routes"
-	"github.com/hashicorp/polar/k8s/utils"
+	"github.com/hashicorp/consul-api-gateway/internal/common"
+	"github.com/hashicorp/consul-api-gateway/internal/metrics"
+	"github.com/hashicorp/consul-api-gateway/k8s/object"
+	"github.com/hashicorp/consul-api-gateway/k8s/routes"
+	"github.com/hashicorp/consul-api-gateway/k8s/utils"
 )
 
 // GatewayReconcileManager manages a GatewayReconciler for each Gateway and is the interface by which Consul operations

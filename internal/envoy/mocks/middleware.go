@@ -8,7 +8,7 @@ import (
 	reflect "reflect"
 
 	gomock "github.com/golang/mock/gomock"
-	common "github.com/hashicorp/polar/internal/common"
+	common "github.com/hashicorp/consul-api-gateway/internal/common"
 )
 
 // MockGatewaySecretRegistry is a mock of GatewaySecretRegistry interface.

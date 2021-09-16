@@ -17,8 +17,8 @@ import (
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
 
-	"github.com/hashicorp/polar/internal/common"
-	"github.com/hashicorp/polar/internal/metrics"
+	"github.com/hashicorp/consul-api-gateway/internal/common"
+	"github.com/hashicorp/consul-api-gateway/internal/metrics"
 )
 
 const (

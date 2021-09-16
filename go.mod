@@ -1,4 +1,4 @@
-module github.com/hashicorp/polar
+module github.com/hashicorp/consul-api-gateway
 
 go 1.16
 

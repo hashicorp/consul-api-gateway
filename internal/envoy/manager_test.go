@@ -59,7 +59,7 @@ func TestManagerRenderBootstrap(t *testing.T) {
 		sdsConfig: `{"kv":"here"}`,
 	}} {
 		t.Run(test.name, func(t *testing.T) {
-			directory, err := os.MkdirTemp("", "polar-test")
+			directory, err := os.MkdirTemp("", "consul-api-gateway-test")
 			require.NoError(t, err)
 			defer os.RemoveAll(directory)
 

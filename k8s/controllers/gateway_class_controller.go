@@ -12,8 +12,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gateway "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
-	polarv1alpha1 "github.com/hashicorp/polar/k8s/apis/v1alpha1"
-	"github.com/hashicorp/polar/k8s/reconciler"
+	consul-api-gatewayv1alpha1 "github.com/hashicorp/consul-api-gateway/k8s/apis/v1alpha1"
+	"github.com/hashicorp/consul-api-gateway/k8s/reconciler"
 )
 
 const (
@@ -129,12 +129,12 @@ func isValidGatewayClass(ctx context.Context, client client.Client, gc *gateway.
 	// only validate if we actually have a config reference
 	if parametersRef := gc.Spec.ParametersRef; parametersRef != nil {
 		// check that we're using a typed config
-		if parametersRef.Group != polarv1alpha1.Group || parametersRef.Kind != polarv1alpha1.GatewayClassConfigKind {
+		if parametersRef.Group != consul-api-gatewayv1alpha1.Group || parametersRef.Kind != consul-api-gatewayv1alpha1.GatewayClassConfigKind {
 			return false, nil
 		}
 
 		// try and retrieve the config
-		found := &polarv1alpha1.GatewayClassConfig{}
+		found := &consul-api-gatewayv1alpha1.GatewayClassConfig{}
 		name := types.NamespacedName{Name: parametersRef.Name}
 		if parametersRef.Namespace != nil {
 			name.Namespace = parametersRef.Name
@@ -151,10 +151,10 @@ func isValidGatewayClass(ctx context.Context, client client.Client, gc *gateway.
 	return true, nil
 }
 
-func gatewayClassConfigForGatewayClass(ctx context.Context, client client.Client, gc *gateway.GatewayClass) (*polarv1alpha1.GatewayClassConfig, error) {
+func gatewayClassConfigForGatewayClass(ctx context.Context, client client.Client, gc *gateway.GatewayClass) (*consul-api-gatewayv1alpha1.GatewayClassConfig, error) {
 	if parametersRef := gc.Spec.ParametersRef; parametersRef != nil {
 		// try and retrieve the config
-		found := &polarv1alpha1.GatewayClassConfig{}
+		found := &consul-api-gatewayv1alpha1.GatewayClassConfig{}
 		name := types.NamespacedName{Name: parametersRef.Name}
 		if parametersRef.Namespace != nil {
 			name.Namespace = parametersRef.Name

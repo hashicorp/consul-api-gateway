@@ -1,5 +1,5 @@
 package v1alpha1
 
-// +groupName=polar.hashicorp.com
+// +groupName=consul-api-gateway.hashicorp.com
 
-const Group = "polar.hashicorp.com"
+const Group = "consul-api-gateway.hashicorp.com"

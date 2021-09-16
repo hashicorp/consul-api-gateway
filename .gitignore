@@ -4,5 +4,5 @@ refresh.yml
 .overmind.sock
 tmp
 /token
-/polar
+/consul-api-gateway
 cover.out

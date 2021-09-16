@@ -11,8 +11,8 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/hashicorp/consul-api-gateway/internal/envoy/mocks"
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/polar/internal/envoy/mocks"
 )
 
 func TestOnStreamDeltaRequest(t *testing.T) {

@@ -19,8 +19,8 @@ import (
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
 
-	"github.com/hashicorp/polar/internal/consul"
-	"github.com/hashicorp/polar/internal/envoy"
+	"github.com/hashicorp/consul-api-gateway/internal/consul"
+	"github.com/hashicorp/consul-api-gateway/internal/envoy"
 )
 
 // https://github.com/hashicorp/consul-k8s/blob/24be51c58461e71365ca39f113dae0379f7a1b7c/control-plane/connect-inject/container_init.go#L272-L306
@@ -140,7 +140,7 @@ func (c *Command) Run(args []string) (ret int) {
 			Level:      hclog.LevelFromString(c.flagLogLevel),
 			Output:     os.Stdout,
 			JSONFormat: c.flagLogJSON,
-		}).Named("polar-exec")
+		}).Named("consul-api-gateway-exec")
 	}
 
 	if err := c.validateFlags(); err != nil {
@@ -248,7 +248,7 @@ func (c *Command) Run(args []string) (ret int) {
 		return envoyManager.Run(ctx)
 	})
 
-	c.logger.Info("started polar api gateway")
+	c.logger.Info("started consul-api-gateway api gateway")
 	if err := group.Wait(); err != nil {
 		c.logger.Error("unexpected error", "error", err)
 		return 1
@@ -308,12 +308,12 @@ func (c *Command) login(ctx context.Context, client *api.Client, cfg *api.Config
 }
 
 func (c *Command) Synopsis() string {
-	return "Polar exec command"
+	return "consul-api-gateway exec command"
 }
 
 func (c *Command) Help() string {
 	return `
-Usage: polar exec [options]
+Usage: consul-api-gateway exec [options]
 
 	Handles service registration, certificate rotation, and spawning envoy.
 `

@@ -136,7 +136,7 @@ function build_consul {
        mkdir -p "${MAIN_GOPATH}/pkg/mod"
    fi
 
-   local container_id=$(docker create -v "${MAIN_GOPATH}/pkg/mod:/go/pkg/mod:ro" -it -e CGO_ENABLED=0 ${image_name} gox -os="${XC_OS}" -arch="${XC_ARCH}" -osarch="!darwin/arm !darwin/arm64" -ldflags "${GOLDFLAGS}" -output "pkg/bin/${extra_dir}{{.OS}}_{{.Arch}}/polar" -tags="${GOTAGS}")
+   local container_id=$(docker create -v "${MAIN_GOPATH}/pkg/mod:/go/pkg/mod:ro" -it -e CGO_ENABLED=0 ${image_name} gox -os="${XC_OS}" -arch="${XC_ARCH}" -osarch="!darwin/arm !darwin/arm64" -ldflags "${GOLDFLAGS}" -output "pkg/bin/${extra_dir}{{.OS}}_{{.Arch}}/consul-api-gateway" -tags="${GOTAGS}")
    ret=$?
 
    if test $ret -eq 0
@@ -243,7 +243,7 @@ function build_consul_local {
          -osarch="!darwin/arm !darwin/arm64" \
          -ldflags="${GOLDFLAGS}" \
          -parallel="${GOXPARALLEL:-"-1"}" \
-         -output "pkg.bin.new/${extra_dir}{{.OS}}_{{.Arch}}/polar" \
+         -output "pkg.bin.new/${extra_dir}{{.OS}}_{{.Arch}}/consul-api-gateway" \
          -tags="${GOTAGS}" \
          .
 
@@ -286,7 +286,7 @@ function build_consul_local {
             else
               OS_BIN_EXTENSION=""
             fi
-            CGO_ENABLED=0 GOOS=${os} GOARCH=${arch} go install -ldflags "${GOLDFLAGS}" -tags "${GOTAGS}" && cp "${MAIN_GOPATH}/bin/${GOBIN_EXTRA}"/polar${OS_BIN_EXTENSION} "${outdir}/polar"
+            CGO_ENABLED=0 GOOS=${os} GOARCH=${arch} go install -ldflags "${GOLDFLAGS}" -tags "${GOTAGS}" && cp "${MAIN_GOPATH}/bin/${GOBIN_EXTRA}"/consul-api-gateway${OS_BIN_EXTENSION} "${outdir}/consul-api-gateway"
             if test $? -ne 0
             then
                err "ERROR: Failed to build Consul for ${osarch}"

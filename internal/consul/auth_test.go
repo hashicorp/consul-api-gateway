@@ -29,22 +29,22 @@ func TestAuthenticate(t *testing.T) {
 		fail         bool
 	}{{
 		name:         "success-no-namespace",
-		service:      "polar-test",
-		expectedMeta: "polar-test",
+		service:      "consul-api-gateway-test",
+		expectedMeta: "consul-api-gateway-test",
 	}, {
 		name:         "success-namespace",
 		namespace:    "foo",
-		service:      "polar-test",
-		expectedMeta: "foo/polar-test",
+		service:      "consul-api-gateway-test",
+		expectedMeta: "foo/consul-api-gateway-test",
 	}, {
 		name:         "retry-success",
-		service:      "polar-test",
-		expectedMeta: "polar-test",
+		service:      "consul-api-gateway-test",
+		expectedMeta: "consul-api-gateway-test",
 		failures:     3,
 		maxAttempts:  3,
 	}, {
 		name:        "retry-failure",
-		service:     "polar-test",
+		service:     "consul-api-gateway-test",
 		failures:    3,
 		maxAttempts: 2,
 		fail:        true,

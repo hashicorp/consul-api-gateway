@@ -18,11 +18,11 @@ import (
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
 
-	"github.com/hashicorp/polar/internal/common"
-	"github.com/hashicorp/polar/k8s/controllers"
-	"github.com/hashicorp/polar/k8s/log"
-	"github.com/hashicorp/polar/k8s/object"
-	"github.com/hashicorp/polar/k8s/reconciler"
+	"github.com/hashicorp/consul-api-gateway/internal/common"
+	"github.com/hashicorp/consul-api-gateway/k8s/controllers"
+	"github.com/hashicorp/consul-api-gateway/k8s/log"
+	"github.com/hashicorp/consul-api-gateway/k8s/object"
+	"github.com/hashicorp/consul-api-gateway/k8s/reconciler"
 )
 
 var (
@@ -30,8 +30,8 @@ var (
 )
 
 const (
-	ControllerName        = "hashicorp.com/polar-gateway-controller"
-	polarLeaderElectionID = "polar.consul.hashicorp.com"
+	ControllerName        = "hashicorp.com/consul-api-gateway-gateway-controller"
+	consul-api-gatewayLeaderElectionID = "consul-api-gateway.consul.hashicorp.com"
 )
 
 func init() {
@@ -65,7 +65,7 @@ func Defaults() *Options {
 		CACertSecretNamespace: "default",
 		CACertSecret:          "",
 		CACertFile:            "",
-		SDSServerHost:         "polar-controller.default.svc.cluster.local",
+		SDSServerHost:         "consul-api-gateway-controller.default.svc.cluster.local",
 		SDSServerPort:         9090,
 		MetricsBindAddr:       ":8080",
 		HealthProbeBindAddr:   ":8081",
@@ -86,7 +86,7 @@ func New(logger hclog.Logger, registry *common.GatewaySecretRegistry, opts *Opti
 		HealthProbeBindAddress:  opts.HealthProbeBindAddr,
 		Port:                    opts.WebhookPort,
 		LeaderElection:          true,
-		LeaderElectionID:        polarLeaderElectionID,
+		LeaderElectionID:        consul-api-gatewayLeaderElectionID,
 		LeaderElectionNamespace: "default",
 		Logger:                  log.FromHCLogger(logger.Named("controller-runtime")),
 	})

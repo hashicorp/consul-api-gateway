@@ -13,12 +13,12 @@ import (
 )
 
 const (
-	serviceCheckName          = "Polar Gateway Listener"
+	serviceCheckName          = "consul-api-gateway Gateway Listener"
 	serviceCheckInterval      = "10s"
 	serviceDeregistrationTime = "1m"
 )
 
-// ServiceRegistry handles the logic for registering a Polar service in Consul.
+// ServiceRegistry handles the logic for registering a consul-api-gateway service in Consul.
 type ServiceRegistry struct {
 	consul *api.Client
 	logger hclog.Logger

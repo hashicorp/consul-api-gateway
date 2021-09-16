@@ -17,7 +17,7 @@ cat <<-EOF
 Usage: ${SCRIPT_NAME} [<options ...>]
 
 Description:
-   This script will build the polar binary on the local system.
+   This script will build the consul-api-gateway binary on the local system.
    All the requisite tooling must be installed for this to be
    successful.
 

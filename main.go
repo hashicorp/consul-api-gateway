@@ -6,11 +6,11 @@ import (
 
 	"github.com/mitchellh/cli"
 
-	"github.com/hashicorp/polar/version"
+	"github.com/hashicorp/consul-api-gateway/version"
 )
 
 func main() {
-	c := cli.NewCLI("polar", version.GetHumanVersion())
+	c := cli.NewCLI("consul-api-gateway", version.GetHumanVersion())
 	c.Args = os.Args[1:]
 	c.Commands = Commands
 	c.HelpFunc = helpFunc()

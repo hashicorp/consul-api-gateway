@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/hashicorp/polar/version"
+	"github.com/hashicorp/consul-api-gateway/version"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -16,7 +16,7 @@ var (
 )
 
 func init() {
-	defaultImage = fmt.Sprintf("hashicorp/polar:%s", version.Version)
+	defaultImage = fmt.Sprintf("hashicorp/consul-api-gateway:%s", version.Version)
 }
 
 const (
@@ -34,7 +34,7 @@ const (
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:scope=Cluster
 
-// GatewayClassConfig describes the configuration of a Polar GatewayClass.
+// GatewayClassConfig describes the configuration of a consul-api-gateway GatewayClass.
 type GatewayClassConfig struct {
 	metav1.TypeMeta `json:",inline"`
 	// Standard object's metadata.
@@ -90,14 +90,14 @@ type PortSpec struct {
 }
 
 type ImageSpec struct {
-	// The image to use for Polar.
-	Polar string `json:"polar,omitempty"`
+	// The image to use for consul-api-gateway.
+	consul-api-gateway string `json:"consul-api-gateway,omitempty"`
 	// The image to use for Envoy.
 	Envoy string `json:"envoy,omitempty"`
 }
 
 type AuthSpec struct {
-	// The Consul auth method used for initial authentication by Polar.
+	// The Consul auth method used for initial authentication by consul-api-gateway.
 	Method string `json:"method,omitempty"`
 	// The Kubernetes service account to authenticate as.
 	Account string `json:"account,omitempty"`
@@ -121,7 +121,7 @@ type SDSConfig struct {
 }
 
 // ServicesFor returns the service configuration for the given gateway.
-// The gateway should be marked with the polar.hashicorp.com/service-type
+// The gateway should be marked with the consul-api-gateway.hashicorp.com/service-type
 // annotation and marked with 'ClusterIP', `NodePort` or `LoadBalancer` to
 // expose the gateway listeners. Any other value does not expose the gateway.
 func (c *GatewayClassConfig) ServiceFor(gw *gateway.Gateway) *corev1.Service {
@@ -188,18 +188,18 @@ func (c *GatewayClassConfig) podSpecFor(gw *gateway.Gateway, sds SDSConfig) core
 		ServiceAccountName: orDefault(c.Spec.ConsulSpec.AuthSpec.Account, ""),
 		// the init container copies the binary into the
 		// next envoy container so we can decouple the envoy
-		// versions from our version of polar.
+		// versions from our version of consul-api-gateway.
 		InitContainers: []corev1.Container{{
-			Image:        orDefault(c.Spec.ImageSpec.Polar, defaultImage),
-			Name:         "polar-init",
+			Image:        orDefault(c.Spec.ImageSpec.consul-api-gateway, defaultImage),
+			Name:         "consul-api-gateway-init",
 			VolumeMounts: mounts,
 			Command: []string{
-				"cp", "/bin/polar", "/bootstrap/polar",
+				"cp", "/bin/consul-api-gateway", "/bootstrap/consul-api-gateway",
 			},
 		}},
 		Containers: []corev1.Container{{
 			Image:        orDefault(c.Spec.ImageSpec.Envoy, defaultEnvoyImage),
-			Name:         "polar",
+			Name:         "consul-api-gateway",
 			VolumeMounts: mounts,
 			Ports:        c.containerPortsFor(gw),
 			Env: []corev1.EnvVar{
@@ -228,7 +228,7 @@ func (c *GatewayClassConfig) podSpecFor(gw *gateway.Gateway, sds SDSConfig) core
 
 func (c *GatewayClassConfig) execCommandFor(gw *gateway.Gateway, sds SDSConfig) []string {
 	initCommand := []string{
-		"/bootstrap/polar", "exec",
+		"/bootstrap/consul-api-gateway", "exec",
 		"-log-json",
 		"-log-level", orDefault(c.Spec.LogLevel, defaultLogLevel),
 		"-gateway-host", "$(IP)",
@@ -329,7 +329,7 @@ func (c *GatewayClassConfig) requiresCA(gw *gateway.Gateway) bool {
 
 func labelsFor(gw *gateway.Gateway) map[string]string {
 	return map[string]string{
-		"name":      "polar-" + gw.Name,
-		"managedBy": "polar",
+		"name":      "consul-api-gateway-" + gw.Name,
+		"managedBy": "consul-api-gateway",
 	}
 }

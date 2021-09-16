@@ -9,7 +9,7 @@ import (
 
 	"github.com/hashicorp/go-hclog"
 
-	"github.com/hashicorp/polar/internal/common"
+	"github.com/hashicorp/consul-api-gateway/internal/common"
 )
 
 const (
