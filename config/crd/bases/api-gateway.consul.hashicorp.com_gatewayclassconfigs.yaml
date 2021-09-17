@@ -6,9 +6,9 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.6.0
   creationTimestamp: null
-  name: gatewayclassconfigs.polar.hashicorp.com
+  name: gatewayclassconfigs.api-gateway.consul.hashicorp.com
 spec:
-  group: polar.hashicorp.com
+  group: api-gateway.consul.hashicorp.com
   names:
     kind: GatewayClassConfig
     listKind: GatewayClassConfigList
@@ -19,7 +19,8 @@ spec:
   - name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: GatewayClassConfig describes the configuration of a Polar GatewayClass.
+        description: GatewayClassConfig describes the configuration of a consul-api-gateway
+          GatewayClass.
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
@@ -53,7 +54,7 @@ spec:
                         type: string
                       method:
                         description: The Consul auth method used for initial authentication
-                          by Polar.
+                          by consul-api-gateway.
                         type: string
                       namespace:
                         description: The Consul namespace to use for authentication.
@@ -75,16 +76,19 @@ spec:
                     type: object
                   scheme:
                     description: The scheme to use for connecting to Consul.
+                    enum:
+                    - http
+                    - https
                     type: string
                 type: object
               image:
                 description: Configuration information about the images to use
                 properties:
+                  consulAPIGateway:
+                    description: The image to use for consul-api-gateway.
+                    type: string
                   envoy:
                     description: The image to use for Envoy.
-                    type: string
-                  polar:
-                    description: The image to use for Polar.
                     type: string
                 type: object
               logLevel:

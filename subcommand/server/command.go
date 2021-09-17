@@ -17,16 +17,16 @@ import (
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
 
-	"github.com/hashicorp/polar/internal/common"
-	"github.com/hashicorp/polar/internal/consul"
-	"github.com/hashicorp/polar/internal/envoy"
-	"github.com/hashicorp/polar/internal/metrics"
-	"github.com/hashicorp/polar/internal/profiling"
-	"github.com/hashicorp/polar/k8s"
+	"github.com/hashicorp/consul-api-gateway/internal/common"
+	"github.com/hashicorp/consul-api-gateway/internal/consul"
+	"github.com/hashicorp/consul-api-gateway/internal/envoy"
+	"github.com/hashicorp/consul-api-gateway/internal/metrics"
+	"github.com/hashicorp/consul-api-gateway/internal/profiling"
+	"github.com/hashicorp/consul-api-gateway/k8s"
 )
 
 const (
-	defaultSDSServerHost = "polar-controller.default.svc.cluster.local"
+	defaultSDSServerHost = "consul-api-gateway-controller.default.svc.cluster.local"
 	defaultSDSServerPort = 9090
 	// The amount of time to wait for the first cert write
 	defaultCertWaitTime = 1 * time.Minute
@@ -104,7 +104,7 @@ func (c *Command) Run(args []string) int {
 			Level:      hclog.LevelFromString(c.flagLogLevel),
 			Output:     os.Stdout,
 			JSONFormat: c.flagLogJSON,
-		}).Named("polar-server")
+		}).Named("consul-api-gateway-server")
 	}
 
 	consulCfg := api.DefaultConfig()
@@ -123,7 +123,7 @@ func (c *Command) Run(args []string) int {
 
 		// if we're pulling the cert from a secret, then we override the location
 		// where we store it
-		file, err := ioutil.TempFile("", "polar")
+		file, err := ioutil.TempFile("", "consul-api-gateway")
 		if err != nil {
 			c.logger.Error("error creating the kubernetes controller", "error", err)
 			return 1
@@ -156,7 +156,7 @@ func (c *Command) Run(args []string) int {
 	}
 	controller.SetConsul(consulClient)
 
-	directory, err := os.MkdirTemp("", "polar-controller")
+	directory, err := os.MkdirTemp("", "consul-api-gateway-controller")
 	if err != nil {
 		c.logger.Error("error making temporary directory", "error", err)
 		return 1
@@ -166,7 +166,7 @@ func (c *Command) Run(args []string) int {
 	certManager := consul.NewCertManager(
 		c.logger.Named("cert-manager"),
 		consulClient,
-		"polar-controller",
+		"consul-api-gateway-controller",
 		options,
 	)
 	group, groupCtx := errgroup.WithContext(ctx)
@@ -214,7 +214,7 @@ func (c *Command) Run(args []string) int {
 }
 
 func (c *Command) Synopsis() string {
-	return "Starts the polar control plane server"
+	return "Starts the consul-api-gateway control plane server"
 }
 
 func (c *Command) Help() string {

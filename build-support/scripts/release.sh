@@ -18,7 +18,7 @@ Usage: ${SCRIPT_NAME}  [<options ...>]
 
 Description:
 
-   This script will do a full release build of polar. Building each component
+   This script will do a full release build of consul-api-gateway. Building each component
    is done within a docker container. In addition to building Consul this
    script will do a few more things.
 

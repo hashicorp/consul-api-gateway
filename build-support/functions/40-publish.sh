@@ -133,7 +133,7 @@ function extract_consul_local {
    local ret=0
    local tfile="$(mktemp) -t "${CONSUL_PKG_NAME}_")"
 
-   unzip -p "${zfile}" "polar" > "${tfile}"
+   unzip -p "${zfile}" "consul-api-gateway" > "${tfile}"
    if test $? -eq 0
    then
       chmod +x "${tfile}"

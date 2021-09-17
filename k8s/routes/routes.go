@@ -9,8 +9,8 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
-	"github.com/hashicorp/polar/k8s/object"
-	"github.com/hashicorp/polar/k8s/utils"
+	"github.com/hashicorp/consul-api-gateway/k8s/object"
+	"github.com/hashicorp/consul-api-gateway/k8s/utils"
 )
 
 type KubernetesRoute struct {

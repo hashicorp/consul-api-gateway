@@ -5,13 +5,13 @@ import (
 
 	"github.com/mitchellh/cli"
 
-	cmdExec "github.com/hashicorp/polar/subcommand/exec"
-	cmdServer "github.com/hashicorp/polar/subcommand/server"
-	cmdVersion "github.com/hashicorp/polar/subcommand/version"
-	"github.com/hashicorp/polar/version"
+	cmdExec "github.com/hashicorp/consul-api-gateway/subcommand/exec"
+	cmdServer "github.com/hashicorp/consul-api-gateway/subcommand/server"
+	cmdVersion "github.com/hashicorp/consul-api-gateway/subcommand/version"
+	"github.com/hashicorp/consul-api-gateway/version"
 )
 
-// Commands is the mapping of all available polar commands.
+// Commands is the mapping of all available consul-api-gateway commands.
 var Commands map[string]cli.CommandFactory
 
 func init() {
@@ -46,5 +46,5 @@ func helpFunc() cli.HelpFunc {
 		}
 	}
 
-	return cli.FilteredHelpFunc(include, cli.BasicHelpFunc("polar"))
+	return cli.FilteredHelpFunc(include, cli.BasicHelpFunc("consul-api-gateway"))
 }

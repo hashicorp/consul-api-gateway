@@ -6,21 +6,21 @@ enableHelmRepo() {
 }
 
 destroyCluster() {
-  local exists=$(kind get clusters | grep polar || true)
-  if [[ "$exists" != "polar" ]]; then
-    echo "Polar cluster not found"
+  local exists=$(kind get clusters | grep consul-api-gateway || true)
+  if [[ "$exists" != "consul-api-gateway" ]]; then
+    echo "consul-api-gateway cluster not found"
     exit 1
   fi
-  kind delete cluster --name polar
+  kind delete cluster --name consul-api-gateway
 }
 
 createCluster() {
-  local exists=$(kind get clusters | grep polar || true)
-  if [[ "$exists" == "polar" ]]; then
-    echo "Polar cluster already exists"
+  local exists=$(kind get clusters | grep consul-api-gateway || true)
+  if [[ "$exists" == "consul-api-gateway" ]]; then
+    echo "consul-api-gateway cluster already exists"
     exit 1
   fi
-  cat <<EOF | kind create cluster --name polar --config=-
+  cat <<EOF | kind create cluster --name consul-api-gateway --config=-
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 nodes:
@@ -47,14 +47,14 @@ installGatewayCRDs() {
 }
 
 createServiceAccountForRBAC() {
-  echo "Creating Polar Service Account"
-  kubectl create serviceaccount polar 2>&1 > /dev/null
+  echo "Creating consul-api-gateway Service Account"
+  kubectl create serviceaccount consul-api-gateway 2>&1 > /dev/null
 
   cat <<EOF | kubectl apply -f - 2>&1 > /dev/null
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: polar-tokenreview-binding
+  name: consul-api-gateway-tokenreview-binding
   namespace: default
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -62,14 +62,14 @@ roleRef:
   name: system:auth-delegator
 subjects:
   - kind: ServiceAccount
-    name: polar
+    name: consul-api-gateway
     namespace: default
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   namespace: default
-  name: polar-auth
+  name: consul-api-gateway-auth
 rules:
 - apiGroups:
   - ""
@@ -80,15 +80,15 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: polar-auth-binding
+  name: consul-api-gateway-auth-binding
   namespace: default
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: polar-auth
+  name: consul-api-gateway-auth
 subjects:
   - kind: ServiceAccount
-    name: polar
+    name: consul-api-gateway
     namespace: default
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -99,7 +99,7 @@ metadata:
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: polar-auth
+  name: consul-api-gateway-auth
 subjects:
   - kind: ServiceAccount
     name: consul-server
@@ -186,38 +186,38 @@ keyring = "write"
 EOF
 )
   echo "Importing Kubernetes Configuration"
-  export K8S_JWT=$(kubectl get secret $(kubectl get serviceaccounts polar -o json | jq '.secrets[0].name' -r) -o json | jq '.data.token' -r | base64 -d)
-  export K8S_HOST=$(kind get kubeconfig --name polar --internal | grep server | tr -s ' '| cut -d' ' -f3)
+  export K8S_JWT=$(kubectl get secret $(kubectl get serviceaccounts consul-api-gateway -o json | jq '.secrets[0].name' -r) -o json | jq '.data.token' -r | base64 -d)
+  export K8S_HOST=$(kind get kubeconfig --name consul-api-gateway --internal | grep server | tr -s ' '| cut -d' ' -f3)
   export K8S_CERT=$(kubectl config view -o jsonpath='{.clusters[].cluster.certificate-authority-data}' --raw | base64 -d)
   echo "Bootstrapping ACLs"
   export CONSUL_HTTP_ADDR="https://localhost"
   export CONSUL_HTTP_SSL_VERIFY=false
   export CONSUL_HTTP_TOKEN=$(consul acl bootstrap -format json | jq '.SecretID' -r)
   export CONSUL_POLICY_ID=$(consul acl policy create -name policy -rules "$consul_policy" -format json | jq '.ID' -r)
-  consul acl role create -name "polar" -policy-id "${CONSUL_POLICY_ID}" > /dev/null
+  consul acl role create -name "consul-api-gateway" -policy-id "${CONSUL_POLICY_ID}" > /dev/null
   echo "Creating ACL Auth Rule Binding"
-  consul acl auth-method create -type "kubernetes" -name "polar" -kubernetes-host "$K8S_HOST" -kubernetes-ca-cert "$K8S_CERT" -kubernetes-service-account-jwt "$K8S_JWT" | grep ServiceAccountJWT | cut -d':' -f 2 | tr -s " " | jq -r > token
-  consul acl binding-rule create -method=polar -bind-type=role -bind-name='polar' -selector='serviceaccount.name=="polar"' > /dev/null
+  consul acl auth-method create -type "kubernetes" -name "consul-api-gateway" -kubernetes-host "$K8S_HOST" -kubernetes-ca-cert "$K8S_CERT" -kubernetes-service-account-jwt "$K8S_JWT" | grep ServiceAccountJWT | cut -d':' -f 2 | tr -s " " | jq -r > token
+  consul acl binding-rule create -method=consul-api-gateway -bind-type=role -bind-name='consul-api-gateway' -selector='serviceaccount.name=="consul-api-gateway"' > /dev/null
   echo $CONSUL_HTTP_TOKEN > token
 }
 
-installPolarCRDs() {
-  kubectl apply -f config/crd/bases/polar.hashicorp.com_gatewayclassconfigs.yaml
+installAPIGatewayCRDs() {
+  kubectl apply -f config/crd/bases/api-gateway.consul.hashicorp.com_gatewayclassconfigs.yaml
 }
 
-buildPolar() {
-  echo "Cross-compiling polar for Linux"
+buildAPIGateway() {
+  echo "Cross-compiling consul-api-gateway for Linux"
   GOOS=linux go build 2>&1 > /dev/null
 }
 
 buildDocker() {
   echo "Building local docker container"
-  docker build . -t polar:1 2>&1 > /dev/null  
+  docker build . -t consul-api-gateway:1 2>&1 > /dev/null
 }
 
 loadDockerImage() {
   echo "Loading docker image into cluster"
-  kind load docker-image polar:1 polar:1 --name polar 2>&1 > /dev/null  
+  kind load docker-image consul-api-gateway:1 consul-api-gateway:1 --name consul-api-gateway 2>&1 > /dev/null
 }
 
 main() {
@@ -238,8 +238,8 @@ main() {
     setupAuthMethod
   fi
   if [[ "${load}" == "TRUE" ]]; then
-    installPolarCRDs
-    buildPolar
+    installAPIGatewayCRDs
+    buildAPIGateway
     buildDocker
     loadDockerImage
     echo "To reload the init container after modifications run './scripts/develop -l'"
@@ -247,7 +247,7 @@ main() {
   if [[ "${start}" == "TRUE" ]]; then
     export CONSUL_HTTP_TOKEN=$(cat token)
     go build
-    ./polar server -ca-secret consul-ca-cert -consul-address https://localhost \
+    ./consul-api-gateway server -ca-secret consul-ca-cert -consul-address https://localhost \
       -sds-server-host host.docker.internal -sds-server-port 9090 \
       -metrics-port 9091 -pprof-port 9092
     echo "To re-run the server run './scripts/develop -s'"
@@ -259,9 +259,9 @@ usage() {
   echo -e ""
   echo -e "Bootstraps a kind environment with Consul and ACLs enabled."
   echo -e "When this script is run without flags it creates the"
-  echo -e "environment, cross-compiles polar, loads it into the kind"
+  echo -e "environment, cross-compiles consul-api-gateway, loads it into the kind"
   echo -e "environment to use for gateway deployments, and builds"
-  echo -e "and runs a local polar controller instance. Subsequent"
+  echo -e "and runs a local consul-api-gateway controller instance. Subsequent"
   echo -e "runs after the kind environment is already bootstrapped"
   echo -e "should leverage the -l and -s flags."
   echo -e ""
@@ -272,7 +272,7 @@ usage() {
   echo -e "  -d\tDestroy cluster"
   echo -e "  -r\tDestroy and then remake cluster"
   echo -e "  -h\tShow usage"
-  echo -e "  -s\tStart polar"
+  echo -e "  -s\tStart consul-api-gateway"
 }
 
 destroy=FALSE

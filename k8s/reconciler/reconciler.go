@@ -12,10 +12,10 @@ import (
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
 
-	"github.com/hashicorp/polar/k8s/consul"
-	"github.com/hashicorp/polar/k8s/object"
-	"github.com/hashicorp/polar/k8s/routes"
-	"github.com/hashicorp/polar/k8s/utils"
+	"github.com/hashicorp/consul-api-gateway/k8s/consul"
+	"github.com/hashicorp/consul-api-gateway/k8s/object"
+	"github.com/hashicorp/consul-api-gateway/k8s/routes"
+	"github.com/hashicorp/consul-api-gateway/k8s/utils"
 )
 
 const (

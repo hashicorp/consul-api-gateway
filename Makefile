@@ -10,12 +10,12 @@ GOTOOLS = \
 	golang.org/x/tools/cmd/cover \
 	golang.org/x/tools/cmd/stringer
 
-DEV_IMAGE?=polar
-GO_BUILD_TAG?=polar-build-go
+DEV_IMAGE?=consul-api-gateway
+GO_BUILD_TAG?=consul-api-gateway-build-go
 GIT_COMMIT?=$(shell git rev-parse --short HEAD)
 GIT_DIRTY?=$(shell test -n "`git status --porcelain`" && echo "+CHANGES" || true)
 GIT_DESCRIBE?=$(shell git describe --tags --always)
-GIT_IMPORT=github.com/hashicorp/polar/version
+GIT_IMPORT=github.com/hashicorp/consul-api-gateway/version
 GOLDFLAGS=-X $(GIT_IMPORT).GitCommit=$(GIT_COMMIT)$(GIT_DIRTY) -X $(GIT_IMPORT).GitDescribe=$(GIT_DESCRIBE)
 
 export GIT_COMMIT
@@ -30,7 +30,7 @@ CRD_OPTIONS ?= "crd:trivialVersions=true,allowDangerousTypes=true"
 # CI Variables #
 ################
 CI_DEV_DOCKER_NAMESPACE?=hashicorpdev
-CI_DEV_DOCKER_IMAGE_NAME?=polar
+CI_DEV_DOCKER_IMAGE_NAME?=consul-api-gateway
 CI_DEV_DOCKER_WORKDIR?=.
 CONSUL_K8S_IMAGE_VERSION?=latest
 ################
@@ -82,7 +82,7 @@ endif
 all: bin ctrl-generate
 
 fmt:
-	@for d in $$(go list -f {{.Dir}} ./...); do goimports --local github.com/hashicorp,github.com/hashicorp/polar -w -l $$d/*.go; done
+	@for d in $$(go list -f {{.Dir}} ./...); do goimports --local github.com/hashicorp,github.com/hashicorp/consul-api-gateway -w -l $$d/*.go; done
 
 bin:
 	@$(SHELL) $(CURDIR)/build-support/scripts/build-local.sh
@@ -145,7 +145,7 @@ ctrl-deploy: ctrl-manifests kustomize
 
 # Generate manifests e.g. CRD, RBAC etc.
 ctrl-manifests: controller-gen
-	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=polar-controller webhook paths="./..." output:crd:artifacts:config=config/crd/bases
+	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=consul-api-gateway-controller webhook paths="./..." output:crd:artifacts:config=config/crd/bases
 
 # Generate code
 ctrl-generate: controller-gen
@@ -191,9 +191,9 @@ endif
 # In CircleCI, the linux binary will be attached from a previous step at pkg/bin/linux_amd64/. This make target
 # should only run in CI and not locally.
 ci.dev-docker:
-	@echo "Pulling polar container image - $(CONSUL_K8S_IMAGE_VERSION)"
+	@echo "Pulling consul-api-gateway container image - $(CONSUL_K8S_IMAGE_VERSION)"
 	@docker pull hashicorp/$(CI_DEV_DOCKER_IMAGE_NAME):$(CONSUL_K8S_IMAGE_VERSION) >/dev/null
-	@echo "Building polar Development container - $(CI_DEV_DOCKER_IMAGE_NAME)"
+	@echo "Building consul-api-gateway Development container - $(CI_DEV_DOCKER_IMAGE_NAME)"
 	@docker build -t '$(CI_DEV_DOCKER_NAMESPACE)/$(CI_DEV_DOCKER_IMAGE_NAME):$(GIT_COMMIT)' \
 	--build-arg CONSUL_K8S_IMAGE_VERSION=$(CONSUL_K8S_IMAGE_VERSION) \
 	--label COMMIT_SHA=$(CIRCLE_SHA1) \

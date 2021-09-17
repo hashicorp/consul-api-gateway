@@ -14,7 +14,7 @@ import (
 
 	"github.com/hashicorp/go-hclog"
 
-	"github.com/hashicorp/polar/internal/metrics"
+	"github.com/hashicorp/consul-api-gateway/internal/metrics"
 )
 
 // RequestHandler implements the handlers for an SDS Delta server

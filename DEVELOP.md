@@ -16,13 +16,13 @@ kind: Gateway
 metadata:
   name: test-gateway
   annotations:
-    "polar.hashicorp.com/image": "polar:1"
-    "polar.hashicorp.com/consul-http-address": "host.docker.internal"
-    "polar.hashicorp.com/consul-http-port": "443"
-    "polar.hashicorp.com/consul-auth-method": "polar"
-    "polar.hashicorp.com/service-account": "polar"
+    "api-gateway.consul.hashicorp.com/image": "consul-api-gateway:1"
+    "api-gateway.consul.hashicorp.com/consul-http-address": "host.docker.internal"
+    "api-gateway.consul.hashicorp.com/consul-http-port": "443"
+    "api-gateway.consul.hashicorp.com/consul-auth-method": "consul-api-gateway"
+    "api-gateway.consul.hashicorp.com/service-account": "consul-api-gateway"
 spec:
-  gatewayClassName: polar
+  gatewayClassName: consul-api-gateway
   listeners:
   - protocol: HTTP
     port: 8083

@@ -8,7 +8,7 @@ import (
 
 	"github.com/hashicorp/consul/api"
 
-	"github.com/hashicorp/polar/k8s/routes"
+	"github.com/hashicorp/consul-api-gateway/k8s/routes"
 )
 
 const (
@@ -63,9 +63,9 @@ func (g *ResolvedGateway) computeConfigEntries() (ingress api.ConfigEntry, route
 		Name:      g.name.Name,
 		Namespace: "", // TODO
 		Meta: map[string]string{
-			"managed_by":                  "polar",
-			"polar/k8s/Gateway.Name":      g.name.Name,
-			"polar/k8s/Gateway.Namespace": g.name.Namespace,
+			"managed_by":                               "consul-api-gateway",
+			"consul-api-gateway/k8s/Gateway.Name":      g.name.Name,
+			"consul-api-gateway/k8s/Gateway.Namespace": g.name.Namespace,
 		},
 	}
 	computedRouters := NewConfigEntryIndex(api.ServiceRouter)
@@ -119,13 +119,13 @@ func (l *resolvedListener) computeDiscoveryChain(gateway types.NamespacedName) (
 	defaults = NewConfigEntryIndex(api.ServiceDefaults)
 	for _, kubeRoute := range l.httpRouteBindings {
 		meta := map[string]string{
-			"managed_by":                    "polar",
-			"polar/k8s/Gateway.Name":        gateway.Name,
-			"polar/k8s/Gateway.Namespace":   gateway.Namespace,
-			"polar/k8s/HTTPRoute.Name":      kubeRoute.Name,
-			"polar/k8s/HTTPRoute.Namespace": kubeRoute.Namespace,
+			"managed_by":                                 "consul-api-gateway",
+			"consul-api-gateway/k8s/Gateway.Name":        gateway.Name,
+			"consul-api-gateway/k8s/Gateway.Namespace":   gateway.Namespace,
+			"consul-api-gateway/k8s/HTTPRoute.Name":      kubeRoute.Name,
+			"consul-api-gateway/k8s/HTTPRoute.Namespace": kubeRoute.Namespace,
 		}
-		prefix := fmt.Sprintf("polar_%s_", gateway.Name)
+		prefix := fmt.Sprintf("consul-api-gateway_%s_", gateway.Name)
 		router, splits := HTTPRouteToServiceDiscoChain(kubeRoute, prefix, meta)
 
 		services = append(services, api.IngressService{

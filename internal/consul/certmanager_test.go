@@ -16,9 +16,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	gwTesting "github.com/hashicorp/consul-api-gateway/internal/testing"
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
-	polarTesting "github.com/hashicorp/polar/internal/testing"
 )
 
 func TestManage(t *testing.T) {
@@ -200,7 +200,7 @@ type certServer struct {
 func runCertServer(t *testing.T, leafFailures, rootFailures uint64, service string, expirations int32) *certServer {
 	t.Helper()
 
-	ca, _, clientCert := polarTesting.DefaultCertificates()
+	ca, _, clientCert := gwTesting.DefaultCertificates()
 	server := &certServer{
 		fakeRootCertPEM:      string(ca.CertBytes),
 		fakeClientCert:       string(clientCert.CertBytes),
@@ -317,7 +317,7 @@ func TestRenderSDS(t *testing.T) {
 	}
 }
 `
-	directory, err := os.MkdirTemp("", "polar-test")
+	directory, err := os.MkdirTemp("", "consul-api-gateway-test")
 	require.NoError(t, err)
 	defer os.RemoveAll(directory)
 

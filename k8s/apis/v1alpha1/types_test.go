@@ -46,7 +46,7 @@ func newGatewayTestConfig() *gatewayTestConfig {
 
 func (g *gatewayTestConfig) EncodeDeployment() runtime.Object {
 	return g.gatewayClassConfig.DeploymentFor(g.gateway, SDSConfig{
-		Host: "polar-controller.default.svc.cluster.local",
+		Host: "consul-api-gateway-controller.default.svc.cluster.local",
 		Port: 9090,
 	})
 }

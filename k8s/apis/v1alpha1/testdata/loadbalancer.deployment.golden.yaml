@@ -1,25 +1,25 @@
 metadata:
   creationTimestamp: null
   labels:
-    managedBy: polar
-    name: polar-test-loadbalancer
+    managedBy: consul-api-gateway
+    name: consul-api-gateway-test-loadbalancer
   name: test-loadbalancer
 spec:
   selector:
     matchLabels:
-      managedBy: polar
-      name: polar-test-loadbalancer
+      managedBy: consul-api-gateway
+      name: consul-api-gateway-test-loadbalancer
   strategy: {}
   template:
     metadata:
       creationTimestamp: null
       labels:
-        managedBy: polar
-        name: polar-test-loadbalancer
+        managedBy: consul-api-gateway
+        name: consul-api-gateway-test-loadbalancer
     spec:
       containers:
       - command:
-        - /bootstrap/polar
+        - /bootstrap/consul-api-gateway
         - exec
         - -log-json
         - -log-level
@@ -37,7 +37,7 @@ spec:
         - -envoy-bootstrap-path
         - /bootstrap/envoy.json
         - -envoy-sds-address
-        - polar-controller.default.svc.cluster.local
+        - consul-api-gateway-controller.default.svc.cluster.local
         - -envoy-sds-port
         - "9090"
         env:
@@ -50,7 +50,7 @@ spec:
             fieldRef:
               fieldPath: status.hostIP
         image: envoyproxy/envoy:v1.19-latest
-        name: polar
+        name: consul-api-gateway
         ports:
         - containerPort: 20000
           name: ready
@@ -70,10 +70,10 @@ spec:
       initContainers:
       - command:
         - cp
-        - /bin/polar
-        - /bootstrap/polar
-        image: hashicorp/polar:0.1.0
-        name: polar-init
+        - /bin/consul-api-gateway
+        - /bootstrap/consul-api-gateway
+        image: hashicorp/consul-api-gateway:0.1.0
+        name: consul-api-gateway-init
         resources: {}
         volumeMounts:
         - mountPath: /bootstrap

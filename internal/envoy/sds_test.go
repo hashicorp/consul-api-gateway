@@ -24,16 +24,16 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/status"
 
+	"github.com/hashicorp/consul-api-gateway/internal/common"
+	"github.com/hashicorp/consul-api-gateway/internal/envoy/mocks"
+	gwTesting "github.com/hashicorp/consul-api-gateway/internal/testing"
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/polar/internal/common"
-	"github.com/hashicorp/polar/internal/envoy/mocks"
-	polarTesting "github.com/hashicorp/polar/internal/testing"
 )
 
 func TestSDSRunCertificateVerification(t *testing.T) {
 	t.Parallel()
 
-	ca, server, client := polarTesting.DefaultCertificates()
+	ca, server, client := gwTesting.DefaultCertificates()
 
 	err := runTestServer(t, ca.CertBytes, func(ctrl *gomock.Controller) GatewaySecretRegistry {
 		gatewayRegistry := mocks.NewMockGatewaySecretRegistry(ctrl)
@@ -52,12 +52,12 @@ func TestSDSRunCertificateVerification(t *testing.T) {
 func TestSDSRunServerParseError(t *testing.T) {
 	t.Parallel()
 
-	ca, _, client := polarTesting.DefaultCertificates()
-	newCA, err := polarTesting.GenerateSignedCertificate(polarTesting.GenerateCertificateOptions{
+	ca, _, client := gwTesting.DefaultCertificates()
+	newCA, err := gwTesting.GenerateSignedCertificate(gwTesting.GenerateCertificateOptions{
 		IsCA: true,
 	})
 	require.NoError(t, err)
-	server, err := polarTesting.GenerateSignedCertificate(polarTesting.GenerateCertificateOptions{
+	server, err := gwTesting.GenerateSignedCertificate(gwTesting.GenerateCertificateOptions{
 		CA:          newCA,
 		ServiceName: "server",
 	})
@@ -78,12 +78,12 @@ func TestSDSRunServerParseError(t *testing.T) {
 func TestSDSRunClientVerificationError(t *testing.T) {
 	t.Parallel()
 
-	ca, server, _ := polarTesting.DefaultCertificates()
-	newCA, err := polarTesting.GenerateSignedCertificate(polarTesting.GenerateCertificateOptions{
+	ca, server, _ := gwTesting.DefaultCertificates()
+	newCA, err := gwTesting.GenerateSignedCertificate(gwTesting.GenerateCertificateOptions{
 		IsCA: true,
 	})
 	require.NoError(t, err)
-	client, err := polarTesting.GenerateSignedCertificate(polarTesting.GenerateCertificateOptions{
+	client, err := gwTesting.GenerateSignedCertificate(gwTesting.GenerateCertificateOptions{
 		CA:          newCA,
 		ServiceName: "client",
 	})
@@ -105,8 +105,8 @@ func TestSDSRunClientVerificationError(t *testing.T) {
 func TestSDSSPIFFEHostMismatch(t *testing.T) {
 	t.Parallel()
 
-	ca, server, _ := polarTesting.DefaultCertificates()
-	client, err := polarTesting.GenerateSignedCertificate(polarTesting.GenerateCertificateOptions{
+	ca, server, _ := gwTesting.DefaultCertificates()
+	client, err := gwTesting.GenerateSignedCertificate(gwTesting.GenerateCertificateOptions{
 		CA:                 ca,
 		ServiceName:        "client",
 		SPIFFEHostOverride: "mismatch.consul",
@@ -125,8 +125,8 @@ func TestSDSSPIFFEHostMismatch(t *testing.T) {
 func TestSDSSPIFFEPathParsing(t *testing.T) {
 	t.Parallel()
 
-	ca, server, _ := polarTesting.DefaultCertificates()
-	client, err := polarTesting.GenerateSignedCertificate(polarTesting.GenerateCertificateOptions{
+	ca, server, _ := gwTesting.DefaultCertificates()
+	client, err := gwTesting.GenerateSignedCertificate(gwTesting.GenerateCertificateOptions{
 		CA:                 ca,
 		ServiceName:        "client",
 		SPIFFEPathOverride: "/invalid/path",
@@ -145,8 +145,8 @@ func TestSDSSPIFFEPathParsing(t *testing.T) {
 func TestSDSSPIFFEPathParsingFieldMismatch(t *testing.T) {
 	t.Parallel()
 
-	ca, server, _ := polarTesting.DefaultCertificates()
-	client, err := polarTesting.GenerateSignedCertificate(polarTesting.GenerateCertificateOptions{
+	ca, server, _ := gwTesting.DefaultCertificates()
+	client, err := gwTesting.GenerateSignedCertificate(gwTesting.GenerateCertificateOptions{
 		CA:                 ca,
 		ServiceName:        "client",
 		SPIFFEPathOverride: "/ns/1/dc/2/something/3",
@@ -165,7 +165,7 @@ func TestSDSSPIFFEPathParsingFieldMismatch(t *testing.T) {
 func TestSDSSPIFFENoMatchingGateway(t *testing.T) {
 	t.Parallel()
 
-	ca, server, client := polarTesting.DefaultCertificates()
+	ca, server, client := gwTesting.DefaultCertificates()
 
 	err := runTestServer(t, ca.CertBytes, func(ctrl *gomock.Controller) GatewaySecretRegistry {
 		gatewayRegistry := mocks.NewMockGatewaySecretRegistry(ctrl)
@@ -180,7 +180,7 @@ func TestSDSSPIFFENoMatchingGateway(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func testClientSDS(t *testing.T, address string, cert *polarTesting.CertificateInfo, ca []byte) error {
+func testClientSDS(t *testing.T, address string, cert *gwTesting.CertificateInfo, ca []byte) error {
 	t.Helper()
 
 	certPool := x509.NewCertPool()
@@ -229,7 +229,7 @@ func runTestServer(t *testing.T, ca []byte, registryFn func(*gomock.Controller) 
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	directory, err := os.MkdirTemp("", "polar-test")
+	directory, err := os.MkdirTemp("", "consul-api-gateway-test")
 	require.NoError(t, err)
 	defer os.RemoveAll(directory)
 	socketPath := path.Join(directory, "sds.sock")

@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	authMetaKey = "polar"
+	authMetaKey = "consul-api-gateway"
 )
 
 // Authenticator handles Consul auth login logic.
@@ -60,18 +60,18 @@ func (a *Authenticator) Authenticate(ctx context.Context, service, bearerToken s
 }
 
 func (a *Authenticator) authenticate(ctx context.Context, service, bearerToken string) (string, error) {
-	polarName := service
+	gwName := service
 
 	opts := &api.WriteOptions{}
 	if a.namespace != "" && a.namespace != "default" {
 		opts.Namespace = a.namespace
-		polarName = fmt.Sprintf("%s/%s", a.namespace, service)
+		gwName = fmt.Sprintf("%s/%s", a.namespace, service)
 	}
 
 	token, _, err := a.consul.ACL().Login(&api.ACLLoginParams{
 		AuthMethod:  a.method,
 		BearerToken: bearerToken,
-		Meta:        map[string]string{authMetaKey: polarName},
+		Meta:        map[string]string{authMetaKey: gwName},
 	}, opts.WithContext(ctx))
 	if err != nil {
 		return "", err

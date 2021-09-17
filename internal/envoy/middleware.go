@@ -12,8 +12,8 @@ import (
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 
+	"github.com/hashicorp/consul-api-gateway/internal/common"
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/polar/internal/common"
 )
 
 //go:generate mockgen -source ./middleware.go -destination ./mocks/middleware.go -package mocks GatewaySecretRegistry
@@ -50,7 +50,7 @@ func GatewayFromContext(ctx context.Context) common.GatewayInfo {
 }
 
 // GatewaySecretRegistry is used as the authority for determining what gateways the SDS server
-// should actually respond to because they're managed by polar
+// should actually respond to because they're managed by consul-api-gateway
 type GatewaySecretRegistry interface {
 	// GatewayExists is used to determine whether or not we know a particular gateway instance
 	GatewayExists(info common.GatewayInfo) bool

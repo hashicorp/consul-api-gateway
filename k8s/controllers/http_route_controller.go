@@ -10,7 +10,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gateway "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
-	"github.com/hashicorp/polar/k8s/reconciler"
+	"github.com/hashicorp/consul-api-gateway/k8s/reconciler"
 )
 
 // HTTPRouteReconciler reconciles a HTTPRoute object

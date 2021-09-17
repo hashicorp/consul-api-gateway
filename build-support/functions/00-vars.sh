@@ -2,7 +2,7 @@
 HASHICORP_GPG_KEY="348FFC4C"
 
 # Default Image Names
-GO_BUILD_CONTAINER_DEFAULT="polar-build-go"
+GO_BUILD_CONTAINER_DEFAULT="consul-api-gateway-build-go"
 
 # Whether to colorize shell output
 COLORIZE=${COLORIZE-1}
@@ -23,9 +23,9 @@ BUILD_DEBUG=${BUILD_DEBUG-0}
 PUBLISH_GIT_HOST="${PUBLISH_GIT_HOST-github.com}"
 
 # default publish repo is hashicorp/consul - useful to override for testing as well as in the enterprise repo
-PUBLISH_GIT_REPO="${PUBLISH_GIT_REPO-hashicorp/polar.git}"
+PUBLISH_GIT_REPO="${PUBLISH_GIT_REPO-hashicorp/consul-api-gateway.git}"
 
-CONSUL_PKG_NAME="polar"
+CONSUL_PKG_NAME="consul-api-gateway"
 
 if test "$(uname)" == "Darwin"
 then

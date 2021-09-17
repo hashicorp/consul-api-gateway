@@ -18,13 +18,13 @@ jobs:
       # Restore go module cache if there is one
       - restore_cache:
           keys:
-            - polar-modcache-v1-{{ checksum "go.mod" }}
+            - consul-api-gateway-modcache-v1-{{ checksum "go.mod" }}
 
       - run: go mod download
 
       # Save go module cache if the go.mod file has changed
       - save_cache:
-          key: polar-modcache-v1-{{ checksum "go.mod" }}
+          key: consul-api-gateway-modcache-v1-{{ checksum "go.mod" }}
           paths:
             - "/go/pkg/mod"
 
@@ -58,7 +58,7 @@ jobs:
       # Restore go module cache if there is one
       - restore_cache:
           keys:
-            - polar-modcache-v1-{{ checksum "go.mod" }}
+            - consul-api-gateway-modcache-v1-{{ checksum "go.mod" }}
 
       # run go tests with gotestsum
       - run: |
@@ -86,7 +86,7 @@ jobs:
       # Restore go module cache if there is one
       - restore_cache:
           keys:
-            - polar-modcache-v1-{{ checksum "go.mod" }}
+            - consul-api-gateway-modcache-v1-{{ checksum "go.mod" }}
 
       # run go tests with gotestsum
       - run: |
@@ -122,7 +122,7 @@ jobs:
       # Restore go module cache if there is one
       - restore_cache:
           keys:
-            - polar-modcache-v1-{{ checksum "go.mod" }}
+            - consul-api-gateway-modcache-v1-{{ checksum "go.mod" }}
       - run: XC_OS="<< parameters.OS >>" XC_ARCH="<< parameters.ARCH >>" ./build-support/scripts/build-local.sh
       # persist to downstream job
       - persist_to_workspace:
@@ -138,7 +138,7 @@ jobs:
     executor: go
     steps:
       - checkout
-      # get polar binary
+      # get consul-api-gateway binary
       - attach_workspace:
           at: .
       - setup_remote_docker
