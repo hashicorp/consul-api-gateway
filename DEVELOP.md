@@ -46,21 +46,82 @@ metadata:
 spec:
   gatewayClassName: test-gateway-class
   listeners:
-  - protocol: HTTP
-    port: 8083
-    name: my-http
-    allowedRoutes:
-      namespaces:
-        from: Same
   - protocol: HTTPS
     port: 8443
-    name: my-https
+    name: https
     allowedRoutes:
       namespaces:
         from: Same
     tls:
       certificateRef:
         name: consul-server-cert
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: echo
+  name: echo
+spec:
+  ports:
+  - port: 8080
+    name: high
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app: echo
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: echo
+  name: echo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: echo
+  template:
+    metadata:
+      labels:
+        app: echo
+    spec:
+      containers:
+      - image: gcr.io/kubernetes-e2e-test-images/echoserver:2.2
+        name: echo
+        ports:
+        - containerPort: 8080
+        env:
+          - name: NODE_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: spec.nodeName
+          - name: POD_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
+          - name: POD_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+          - name: POD_IP
+            valueFrom:
+              fieldRef:
+                fieldPath: status.podIP
+---
+apiVersion: gateway.networking.k8s.io/v1alpha2
+kind: HTTPRoute
+metadata:
+  name: test-route
+spec:
+  parentRefs:
+  - name: test-gateway
+  rules:
+  - backendRefs:
+    - kind: Service
+      name: echo
+      port: 8080
 EOF
 ```
 

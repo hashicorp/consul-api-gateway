@@ -117,7 +117,7 @@ func (c *GatewayReconciler) reconcile() error {
 					continue
 				}
 
-				admit, reason, message := kubeRoute.IsAdmittedByGatewayListener(gatewayName, kubeListener.Routes)
+				admit, reason, message := kubeRoute.IsAdmittedByGatewayListener(gatewayName, kubeListener.AllowedRoutes)
 				status.addRef(ref, admit, reason, message)
 				if admit {
 					resolvedGateway.AddRoute(kubeListener, kubeRoute)
@@ -169,7 +169,7 @@ func (b *routeStatusBuilder) build(controller string, current []gw.RouteParentSt
 
 	// first add any existing Status that aren't managed by this controller
 	for _, status := range current {
-		if status.Controller != controller {
+		if string(status.Controller) != controller {
 			result = append(result, status)
 		}
 	}
@@ -191,7 +191,7 @@ func (b *routeStatusBuilder) build(controller string, current []gw.RouteParentSt
 		}
 		result = append(result, gw.RouteParentStatus{
 			ParentRef:  ref,
-			Controller: controller,
+			Controller: gw.GatewayController(controller),
 			Conditions: []metav1.Condition{condition},
 		})
 	}
@@ -204,13 +204,22 @@ func (b *routeStatusBuilder) build(controller string, current []gw.RouteParentSt
 	return result
 }
 
-func drefString(s *string) string {
-	if s == nil {
-		return ""
-	}
-	return *s
-}
-
 func parentRefString(ref gw.ParentRef) string {
-	return fmt.Sprintf("%s/%s/%s/%s/%s", drefString(ref.Group), drefString(ref.Kind), drefString(ref.Namespace), ref.Name, drefString(ref.SectionName))
+	group := ""
+	if ref.Group != nil {
+		group = string(*ref.Group)
+	}
+	kind := ""
+	if ref.Kind != nil {
+		kind = string(*ref.Kind)
+	}
+	namespace := ""
+	if ref.Namespace != nil {
+		namespace = string(*ref.Namespace)
+	}
+	sectionName := ""
+	if ref.SectionName != nil {
+		sectionName = string(*ref.SectionName)
+	}
+	return fmt.Sprintf("%s/%s/%s/%s/%s", group, kind, namespace, ref.Name, sectionName)
 }

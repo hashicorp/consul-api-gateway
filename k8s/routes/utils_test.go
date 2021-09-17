@@ -21,8 +21,8 @@ func Test_getRouteStatusPtr(t *testing.T) {
 	status := getRouteStatusPtr(route)
 	require.NotNil(t, status)
 	require.Len(t, status.Parents, 1)
-	require.Equal(t, "test", status.Parents[0].Controller)
+	require.Equal(t, gw.GatewayController("test"), status.Parents[0].Controller)
 
 	status.Parents[0].Controller = "foo"
-	require.Equal(t, "foo", route.Status.RouteStatus.Parents[0].Controller)
+	require.Equal(t, gw.GatewayController("foo"), route.Status.RouteStatus.Parents[0].Controller)
 }

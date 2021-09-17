@@ -195,7 +195,7 @@ func referencedSecretsForGateway(g *gw.Gateway) []string {
 				n := ref.Namespace
 				namespace := "default"
 				if n != nil {
-					namespace = *n
+					namespace = string(*n)
 				}
 				secrets = append(secrets, fmt.Sprintf("k8s://%s/%s", namespace, ref.Name))
 			}
