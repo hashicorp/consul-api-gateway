@@ -2,14 +2,14 @@
 
 Install Docker for Mac. Execute the following:
 
-```/bin/bash
+```bash
 brew install kubectl kind helm consul jq go
 ./scripts/develop
 ```
 
 Test out the Gateway controller:
 
-```/bin/bash
+```bash
 cat <<EOF | kubectl apply -f -
 apiVersion: api-gateway.consul.hashicorp.com/v1alpha1
 kind: GatewayClassConfig
@@ -17,6 +17,7 @@ metadata:
   name: test-gateway-class-config
 spec:
   useHostPorts: true
+  logLevel: trace
   image:
     consulAPIGateway: "consul-api-gateway:1"
   consul:
@@ -57,6 +58,13 @@ spec:
     tls:
       certificateRef:
         name: consul-server-cert
+---
+apiVersion: consul.hashicorp.com/v1alpha1
+kind: ServiceDefaults
+metadata:
+  name: echo
+spec:
+  protocol: http
 ---
 apiVersion: v1
 kind: Service
@@ -121,6 +129,8 @@ metadata:
 spec:
   parentRefs:
   - name: test-gateway
+  hostnames:
+    - localhost
   rules:
   - backendRefs:
     - kind: Service
@@ -129,12 +139,20 @@ spec:
 EOF
 ```
 
+Make sure that the echo container is routable:
+
+```bash
+# update this when we figure out SSL and hostname stuff
+curl localhost:8443 -H "Host: consul-api-gateway_test-gateway_test-route.ingress.foo"
+```
+
 Clean up the gateway you just created:
 
-```
+```bash
 kubectl delete httproute test-route
 kubectl delete deployment echo
 kubectl delete service echo
+kubectl delete servicedefaults echo
 kubectl delete gateway test-gateway
 kubectl delete gatewayclass test-gateway-class
 kubectl delete gatewayclassconfig test-gateway-class-config

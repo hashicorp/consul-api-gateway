@@ -59,9 +59,10 @@ func (c *ConfigEntriesReconciler) ReconcileGateway(gw *ResolvedGateway) error {
 	// Third the removal of any service-defaults, routers or splitters that no longer exist
 	// TODO: what happens if we get an error here? we could leak config entries if we get an error on removal, maybe they should get garbage collected by consul-api-gateway?
 
+	// defaults need to go first, otherwise the routers are always configured to use tcp
+	c.SetConfigEntries(computedDefaults.ToArray()...)
 	c.SetConfigEntries(computedRouters.ToArray()...)
 	c.SetConfigEntries(computedSplitters.ToArray()...)
-	c.SetConfigEntries(computedDefaults.ToArray()...)
 
 	c.SetConfigEntries(igw)
 

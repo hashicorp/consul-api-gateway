@@ -147,10 +147,13 @@ global:
     - consul-server.default.svc.cluster.local
 connectInject:
   enabled: true
+controller:
+  enabled: true
 server:
   replicas: 1
   extraConfig: |
     {
+      "log_level": "trace",
       "acl": {
         "enabled": true,
         "default_policy": "allow",
@@ -179,10 +182,10 @@ ui:
       "nginx.ingress.kubernetes.io/ssl-passthrough": "true"
 EOF
   echo "Waiting for consul to stabilize"
-  sleep 10
-  kubectl wait --for=condition=ready pod --selector=app=consul,component=server,release=consul --timeout=90s
   kubectl patch statefulset consul-server --type='json' -p='[{"op": "add", "path": "/spec/template/spec/containers/0/ports/-", "value": {"containerPort": 8502, "protocol": "TCP", "name": "grpc"}}]'
   kubectl patch svc consul-server --type='json' -p='[{"op": "add", "path": "/spec/ports/-", "value": {"port": 8502, "targetPort": 8502, "protocol": "TCP", "name": "grpc"}}]'
+  sleep 10
+  kubectl wait --for=condition=ready pod --selector=app=consul,component=server,release=consul --timeout=90s
   echo "Consul is now accessible at https://localhost"
 }
 
