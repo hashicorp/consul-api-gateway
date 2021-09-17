@@ -30,7 +30,7 @@ var (
 )
 
 const (
-	ControllerName             = "hashicorp.com/consul-api-gateway-gateway-controller"
+	ControllerName             = "hashicorp.com/consul-api-gateway-controller"
 	controllerLeaderElectionID = "consul-api-gateway.consul.hashicorp.com"
 )
 
