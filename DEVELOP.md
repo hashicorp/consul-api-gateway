@@ -16,14 +16,16 @@ kind: GatewayClassConfig
 metadata:
   name: test-gateway-class-config
 spec:
+  useHostPorts: true
   image:
     consulAPIGateway: "consul-api-gateway:1"
   consul:
-    address: "host.docker.internal"
+    address: consul-server.default.svc.cluster.local
     scheme: https
     caSecret: consul-ca-cert
     ports:
-      http: 443
+      http: 8501
+      grpc: 8502
     authentication:
       account: consul-api-gateway
       method: consul-api-gateway
@@ -86,6 +88,8 @@ spec:
     metadata:
       labels:
         app: echo
+      annotations:
+        'consul.hashicorp.com/connect-inject': 'true'
     spec:
       containers:
       - image: gcr.io/kubernetes-e2e-test-images/echoserver:2.2
@@ -128,6 +132,9 @@ EOF
 Clean up the gateway you just created:
 
 ```
+kubectl delete httproute test-route
+kubectl delete deployment echo
+kubectl delete service echo
 kubectl delete gateway test-gateway
 kubectl delete gatewayclass test-gateway-class
 kubectl delete gatewayclassconfig test-gateway-class-config
