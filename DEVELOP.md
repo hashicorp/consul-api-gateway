@@ -11,18 +11,40 @@ Test out the Gateway controller:
 
 ```/bin/bash
 cat <<EOF | kubectl apply -f -
+apiVersion: api-gateway.consul.hashicorp.com/v1alpha1
+kind: GatewayClassConfig
+metadata:
+  name: test-gateway-class-config
+spec:
+  image:
+    consulAPIGateway: "consul-api-gateway:1"
+  consul:
+    address: "host.docker.internal"
+    scheme: https
+    caSecret: consul-ca-cert
+    ports:
+      http: 443
+    authentication:
+      account: consul-api-gateway
+      method: consul-api-gateway
+---
+apiVersion: gateway.networking.k8s.io/v1alpha2
+kind: GatewayClass
+metadata:
+  name: test-gateway-class
+spec:
+  controller: "hashicorp.com/consul-api-gateway-controller"
+  parametersRef:
+    group: api-gateway.consul.hashicorp.com
+    kind: GatewayClassConfig
+    name: test-gateway-class-config
+---
 apiVersion: gateway.networking.k8s.io/v1alpha2
 kind: Gateway
 metadata:
   name: test-gateway
-  annotations:
-    "api-gateway.consul.hashicorp.com/image": "consul-api-gateway:1"
-    "api-gateway.consul.hashicorp.com/consul-http-address": "host.docker.internal"
-    "api-gateway.consul.hashicorp.com/consul-http-port": "443"
-    "api-gateway.consul.hashicorp.com/consul-auth-method": "consul-api-gateway"
-    "api-gateway.consul.hashicorp.com/service-account": "consul-api-gateway"
 spec:
-  gatewayClassName: consul-api-gateway
+  gatewayClassName: test-gateway-class
   listeners:
   - protocol: HTTP
     port: 8083
@@ -46,4 +68,6 @@ Clean up the gateway you just created:
 
 ```
 kubectl delete gateway test-gateway
+kubectl delete gatewayclass test-gateway-class
+kubectl delete gatewayclassconfig test-gateway-class-config
 ```
