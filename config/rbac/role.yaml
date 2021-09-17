@@ -7,6 +7,18 @@ metadata:
   name: consul-api-gateway-controller
 rules:
 - apiGroups:
+  - api-gateway.consul.hashicorp.com
+  resources:
+  - gatewayclassconfigs
+  verbs:
+  - get
+- apiGroups:
+  - api-gateway.consul.hashicorp.com
+  resources:
+  - gatewayclassconfigs/finalizers
+  verbs:
+  - update
+- apiGroups:
   - gateway.networking.k8s.io
   resources:
   - gatewayclasses
@@ -83,16 +95,4 @@ rules:
   verbs:
   - get
   - patch
-  - update
-- apiGroups:
-  - api-gateway.consul.hashicorp.com
-  resources:
-  - gatewayclassconfigs
-  verbs:
-  - get
-- apiGroups:
-  - api-gateway.consul.hashicorp.com
-  resources:
-  - gatewayclassconfigs/finalizers
-  verbs:
   - update
