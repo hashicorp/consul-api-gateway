@@ -16,9 +16,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	gwTesting "github.com/hashicorp/consul-api-gateway/internal/testing"
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
-	consul-api-gatewayTesting "github.com/hashicorp/consul-api-gateway/internal/testing"
 )
 
 func TestManage(t *testing.T) {
@@ -200,7 +200,7 @@ type certServer struct {
 func runCertServer(t *testing.T, leafFailures, rootFailures uint64, service string, expirations int32) *certServer {
 	t.Helper()
 
-	ca, _, clientCert := consul-api-gatewayTesting.DefaultCertificates()
+	ca, _, clientCert := gwTesting.DefaultCertificates()
 	server := &certServer{
 		fakeRootCertPEM:      string(ca.CertBytes),
 		fakeClientCert:       string(clientCert.CertBytes),

@@ -30,8 +30,8 @@ var (
 )
 
 const (
-	ControllerName        = "hashicorp.com/consul-api-gateway-gateway-controller"
-	consul-api-gatewayLeaderElectionID = "consul-api-gateway.consul.hashicorp.com"
+	ControllerName             = "hashicorp.com/consul-api-gateway-gateway-controller"
+	controllerLeaderElectionID = "consul-api-gateway.consul.hashicorp.com"
 )
 
 func init() {
@@ -86,7 +86,7 @@ func New(logger hclog.Logger, registry *common.GatewaySecretRegistry, opts *Opti
 		HealthProbeBindAddress:  opts.HealthProbeBindAddr,
 		Port:                    opts.WebhookPort,
 		LeaderElection:          true,
-		LeaderElectionID:        consul-api-gatewayLeaderElectionID,
+		LeaderElectionID:        controllerLeaderElectionID,
 		LeaderElectionNamespace: "default",
 		Logger:                  log.FromHCLogger(logger.Named("controller-runtime")),
 	})

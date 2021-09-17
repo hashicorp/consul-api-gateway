@@ -22,7 +22,7 @@ import (
 
 	"github.com/hashicorp/go-hclog"
 
-	consul-api-gatewayGRPC "github.com/hashicorp/consul-api-gateway/internal/grpc"
+	grpcint "github.com/hashicorp/consul-api-gateway/internal/grpc"
 	"github.com/hashicorp/consul-api-gateway/internal/metrics"
 )
 
@@ -70,7 +70,7 @@ func (s *SDSServer) Run(ctx context.Context) error {
 	childCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	grpclog.SetLoggerV2(consul-api-gatewayGRPC.NewHCLogLogger(s.logger))
+	grpclog.SetLoggerV2(grpcint.NewHCLogLogger(s.logger))
 
 	ca := s.fetcher.RootCA()
 	block, _ := pem.Decode(ca)

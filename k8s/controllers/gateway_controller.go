@@ -16,7 +16,7 @@ import (
 	gateway "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	"github.com/hashicorp/consul-api-gateway/internal/metrics"
-	consul-api-gatewayv1alpha1 "github.com/hashicorp/consul-api-gateway/k8s/apis/v1alpha1"
+	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/k8s/apis/v1alpha1"
 	"github.com/hashicorp/consul-api-gateway/k8s/reconciler"
 )
 
@@ -73,7 +73,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 				return ctrl.Result{}, err
 			}
 
-			deployment := gcc.DeploymentFor(gw, consul-api-gatewayv1alpha1.SDSConfig{
+			deployment := gcc.DeploymentFor(gw, apigwv1alpha1.SDSConfig{
 				Host: r.SDSServerHost,
 				Port: r.SDSServerPort,
 			})

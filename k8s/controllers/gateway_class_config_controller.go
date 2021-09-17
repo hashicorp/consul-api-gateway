@@ -13,7 +13,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gateway "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
-	consul-api-gatewayv1alpha1 "github.com/hashicorp/consul-api-gateway/k8s/apis/v1alpha1"
+	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/k8s/apis/v1alpha1"
 )
 
 const (
@@ -37,7 +37,7 @@ type GatewayClassConfigReconciler struct {
 func (r *GatewayClassConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	_ = r.Log.WithValues("gatewayClassConfig", req.NamespacedName)
 
-	gcc := &consul-api-gatewayv1alpha1.GatewayClassConfig{}
+	gcc := &apigwv1alpha1.GatewayClassConfig{}
 	err := r.Get(ctx, req.NamespacedName, gcc)
 	if k8serrors.IsNotFound(err) {
 		return ctrl.Result{}, nil
@@ -68,7 +68,7 @@ func (r *GatewayClassConfigReconciler) Reconcile(ctx context.Context, req ctrl.R
 	return ctrl.Result{}, nil
 }
 
-func ensureGatewayClassConfigFinalizer(ctx context.Context, client client.Client, gcc *consul-api-gatewayv1alpha1.GatewayClassConfig) error {
+func ensureGatewayClassConfigFinalizer(ctx context.Context, client client.Client, gcc *apigwv1alpha1.GatewayClassConfig) error {
 	for _, finalizer := range gcc.Finalizers {
 		if finalizer == gatewayClassConfigFinalizer {
 			return nil
@@ -82,7 +82,7 @@ func ensureGatewayClassConfigFinalizer(ctx context.Context, client client.Client
 	return nil
 }
 
-func removeGatewayClassConfigFinalizer(ctx context.Context, client client.Client, gcc *consul-api-gatewayv1alpha1.GatewayClassConfig) error {
+func removeGatewayClassConfigFinalizer(ctx context.Context, client client.Client, gcc *apigwv1alpha1.GatewayClassConfig) error {
 	finalizers := []string{}
 	found := false
 	for _, finalizer := range gcc.Finalizers {
@@ -102,7 +102,7 @@ func removeGatewayClassConfigFinalizer(ctx context.Context, client client.Client
 	return nil
 }
 
-func gatewayClassConfigInUse(ctx context.Context, client client.Client, gcc *consul-api-gatewayv1alpha1.GatewayClassConfig) (bool, error) {
+func gatewayClassConfigInUse(ctx context.Context, client client.Client, gcc *apigwv1alpha1.GatewayClassConfig) (bool, error) {
 	list := &gateway.GatewayClassList{}
 	if err := client.List(ctx, list); err != nil {
 		return false, fmt.Errorf("failed to list gateways")
@@ -110,8 +110,8 @@ func gatewayClassConfigInUse(ctx context.Context, client client.Client, gcc *con
 	for _, g := range list.Items {
 		paramaterRef := g.Spec.ParametersRef
 		if paramaterRef != nil &&
-			paramaterRef.Group == consul-api-gatewayv1alpha1.Group &&
-			paramaterRef.Kind == consul-api-gatewayv1alpha1.GatewayClassConfigKind &&
+			paramaterRef.Group == apigwv1alpha1.Group &&
+			paramaterRef.Kind == apigwv1alpha1.GatewayClassConfigKind &&
 			paramaterRef.Name == gcc.Name {
 			namespace := ""
 			if paramaterRef.Namespace != nil {
@@ -128,12 +128,12 @@ func gatewayClassConfigInUse(ctx context.Context, client client.Client, gcc *con
 // SetupWithManager sets up the controller with the Manager.
 func (r *GatewayClassConfigReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	groupVersion := schema.GroupVersion{Group: "consul-api-gateway.hashicorp.com", Version: "v1alpha1"}
-	r.Scheme.AddKnownTypes(groupVersion, &consul-api-gatewayv1alpha1.GatewayClassConfig{}, &consul-api-gatewayv1alpha1.GatewayClassConfigList{})
+	r.Scheme.AddKnownTypes(groupVersion, &apigwv1alpha1.GatewayClassConfig{}, &apigwv1alpha1.GatewayClassConfigList{})
 	metav1.AddToGroupVersion(r.Scheme, groupVersion)
 
 	return ctrl.NewControllerManagedBy(mgr).
 		// Uncomment the following line adding a pointer to an instance of the controlled resource as an argument
 		// For()
-		For(&consul-api-gatewayv1alpha1.GatewayClassConfig{}).
+		For(&apigwv1alpha1.GatewayClassConfig{}).
 		Complete(r)
 }

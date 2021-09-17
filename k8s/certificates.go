@@ -18,7 +18,7 @@ import (
 	"github.com/armon/go-metrics"
 	"github.com/hashicorp/go-hclog"
 
-	consul-api-gatewayMetrics "github.com/hashicorp/consul-api-gateway/internal/metrics"
+	gwMetrics "github.com/hashicorp/consul-api-gateway/internal/metrics"
 )
 
 // K8sSecretClient acts as a secret fetcher for kubernetes secrets
@@ -44,7 +44,7 @@ func NewK8sSecretClient(logger hclog.Logger) (*K8sSecretClient, error) {
 // FetchSecret fetches a kubernetes secret described with the url name of k8s://namespace/secret-name
 func (c *K8sSecretClient) FetchSecret(ctx context.Context, fullName string) (*tls.Secret, time.Time, error) {
 	c.logger.Trace("fetching SDS secret", "name", fullName)
-	consul-api-gatewayMetrics.Registry.IncrCounterWithLabels(consul-api-gatewayMetrics.SDSCertificateFetches, 1, []metrics.Label{{
+	gwMetrics.Registry.IncrCounterWithLabels(gwMetrics.SDSCertificateFetches, 1, []metrics.Label{{
 		Name:  "fetcher",
 		Value: "k8s",
 	}, {

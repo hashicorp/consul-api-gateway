@@ -201,11 +201,11 @@ EOF
   echo $CONSUL_HTTP_TOKEN > token
 }
 
-installconsul-api-gatewayCRDs() {
+installAPIGatewayCRDs() {
   kubectl apply -f config/crd/bases/consul-api-gateway.hashicorp.com_gatewayclassconfigs.yaml
 }
 
-buildconsul-api-gateway() {
+buildAPIGateway() {
   echo "Cross-compiling consul-api-gateway for Linux"
   GOOS=linux go build 2>&1 > /dev/null
 }
@@ -238,8 +238,8 @@ main() {
     setupAuthMethod
   fi
   if [[ "${load}" == "TRUE" ]]; then
-    installconsul-api-gatewayCRDs
-    buildconsul-api-gateway
+    installAPIGatewayCRDs
+    buildAPIGateway
     buildDocker
     loadDockerImage
     echo "To reload the init container after modifications run './scripts/develop -l'"

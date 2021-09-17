@@ -4,11 +4,12 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/hashicorp/consul-api-gateway/version"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	gateway "sigs.k8s.io/gateway-api/apis/v1alpha2"
+
+	"github.com/hashicorp/consul-api-gateway/version"
 )
 
 var (
@@ -91,7 +92,7 @@ type PortSpec struct {
 
 type ImageSpec struct {
 	// The image to use for consul-api-gateway.
-	consul-api-gateway string `json:"consul-api-gateway,omitempty"`
+	ConsulAPIGateway string `json:"consulAPIGateway,omitempty"`
 	// The image to use for Envoy.
 	Envoy string `json:"envoy,omitempty"`
 }
@@ -190,7 +191,7 @@ func (c *GatewayClassConfig) podSpecFor(gw *gateway.Gateway, sds SDSConfig) core
 		// next envoy container so we can decouple the envoy
 		// versions from our version of consul-api-gateway.
 		InitContainers: []corev1.Container{{
-			Image:        orDefault(c.Spec.ImageSpec.consul-api-gateway, defaultImage),
+			Image:        orDefault(c.Spec.ImageSpec.ConsulAPIGateway, defaultImage),
 			Name:         "consul-api-gateway-init",
 			VolumeMounts: mounts,
 			Command: []string{
