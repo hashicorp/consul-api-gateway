@@ -50,6 +50,7 @@ spec:
   gatewayClassName: test-gateway-class
   listeners:
   - protocol: HTTPS
+    hostname: localhost
     port: 8443
     name: https
     allowedRoutes:
@@ -129,8 +130,6 @@ metadata:
 spec:
   parentRefs:
   - name: test-gateway
-  hostnames:
-    - localhost
   rules:
   - backendRefs:
     - kind: Service
@@ -143,7 +142,7 @@ Make sure that the echo container is routable:
 
 ```bash
 # update this when we figure out SSL and hostname stuff
-curl localhost:8443 -H "Host: consul-api-gateway_test-gateway_test-route.ingress.foo"
+curl localhost:8443
 ```
 
 Clean up the gateway you just created:
