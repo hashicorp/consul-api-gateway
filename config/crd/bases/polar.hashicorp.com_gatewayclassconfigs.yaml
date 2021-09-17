@@ -6,9 +6,9 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.6.0
   creationTimestamp: null
-  name: gatewayclassconfigs.consul-api-gateway.hashicorp.com
+  name: gatewayclassconfigs.api-gateway.consul.hashicorp.com
 spec:
-  group: consul-api-gateway.hashicorp.com
+  group: api-gateway.consul.hashicorp.com
   names:
     kind: GatewayClassConfig
     listKind: GatewayClassConfigList

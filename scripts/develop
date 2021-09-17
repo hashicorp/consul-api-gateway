@@ -202,7 +202,7 @@ EOF
 }
 
 installAPIGatewayCRDs() {
-  kubectl apply -f config/crd/bases/consul-api-gateway.hashicorp.com_gatewayclassconfigs.yaml
+  kubectl apply -f config/crd/bases/api-gateway.consul.hashicorp.com_gatewayclassconfigs.yaml
 }
 
 buildAPIGateway() {

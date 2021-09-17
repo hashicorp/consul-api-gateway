@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	gatewayClassConfigFinalizer = "gateway-class-exists-finalizer.consul-api-gateway.hashicorp.com"
+	gatewayClassConfigFinalizer = "gateway-class-exists-finalizer.api-gateway.consul.hashicorp.com"
 )
 
 // GatewayClassConfigReconciler reconciles a GatewayClassConfig object
@@ -27,8 +27,8 @@ type GatewayClassConfigReconciler struct {
 	Scheme *runtime.Scheme
 }
 
-//+kubebuilder:rbac:groups=consul-api-gateway.hashicorp.com,resources=gatewayclassconfigs,verbs=get
-//+kubebuilder:rbac:groups=consul-api-gateway.hashicorp.com,resources=gatewayclassconfigs/finalizers,verbs=update
+//+kubebuilder:rbac:groups=api-gateway.consul.hashicorp.com,resources=gatewayclassconfigs,verbs=get
+//+kubebuilder:rbac:groups=api-gateway.consul.hashicorp.com,resources=gatewayclassconfigs/finalizers,verbs=update
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -127,7 +127,7 @@ func gatewayClassConfigInUse(ctx context.Context, client client.Client, gcc *api
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *GatewayClassConfigReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	groupVersion := schema.GroupVersion{Group: "consul-api-gateway.hashicorp.com", Version: "v1alpha1"}
+	groupVersion := schema.GroupVersion{Group: "api-gateway.consul.hashicorp.com", Version: "v1alpha1"}
 	r.Scheme.AddKnownTypes(groupVersion, &apigwv1alpha1.GatewayClassConfig{}, &apigwv1alpha1.GatewayClassConfigList{})
 	metav1.AddToGroupVersion(r.Scheme, groupVersion)
 

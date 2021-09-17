@@ -122,7 +122,7 @@ type SDSConfig struct {
 }
 
 // ServicesFor returns the service configuration for the given gateway.
-// The gateway should be marked with the consul-api-gateway.hashicorp.com/service-type
+// The gateway should be marked with the api-gateway.consul.hashicorp.com/service-type
 // annotation and marked with 'ClusterIP', `NodePort` or `LoadBalancer` to
 // expose the gateway listeners. Any other value does not expose the gateway.
 func (c *GatewayClassConfig) ServiceFor(gw *gateway.Gateway) *corev1.Service {

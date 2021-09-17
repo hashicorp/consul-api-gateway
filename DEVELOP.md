@@ -16,11 +16,11 @@ kind: Gateway
 metadata:
   name: test-gateway
   annotations:
-    "consul-api-gateway.hashicorp.com/image": "consul-api-gateway:1"
-    "consul-api-gateway.hashicorp.com/consul-http-address": "host.docker.internal"
-    "consul-api-gateway.hashicorp.com/consul-http-port": "443"
-    "consul-api-gateway.hashicorp.com/consul-auth-method": "consul-api-gateway"
-    "consul-api-gateway.hashicorp.com/service-account": "consul-api-gateway"
+    "api-gateway.consul.hashicorp.com/image": "consul-api-gateway:1"
+    "api-gateway.consul.hashicorp.com/consul-http-address": "host.docker.internal"
+    "api-gateway.consul.hashicorp.com/consul-http-port": "443"
+    "api-gateway.consul.hashicorp.com/consul-auth-method": "consul-api-gateway"
+    "api-gateway.consul.hashicorp.com/service-account": "consul-api-gateway"
 spec:
   gatewayClassName: consul-api-gateway
   listeners:

@@ -85,13 +85,13 @@ rules:
   - patch
   - update
 - apiGroups:
-  - consul-api-gateway.hashicorp.com
+  - api-gateway.consul.hashicorp.com
   resources:
   - gatewayclassconfigs
   verbs:
   - get
 - apiGroups:
-  - consul-api-gateway.hashicorp.com
+  - api-gateway.consul.hashicorp.com
   resources:
   - gatewayclassconfigs/finalizers
   verbs:

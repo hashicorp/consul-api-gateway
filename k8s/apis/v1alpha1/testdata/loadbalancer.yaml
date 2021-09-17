@@ -1,4 +1,4 @@
-apiVersion: consul-api-gateway.hashicorp.com/v1alpha1
+apiVersion: api-gateway.consul.hashicorp.com/v1alpha1
 kind: GatewayClassConfig
 metadata:
   name: test-gateway-class-config
@@ -12,7 +12,7 @@ metadata:
 spec:
   controller: "hashicorp.com/consul-api-gateway-gateway-controller"
   parametersRef:
-    group: consul-api-gateway.hashicorp.com
+    group: api-gateway.consul.hashicorp.com
     kind: GatewayClassConfig
     name: test-gateway-class-config
 ---
