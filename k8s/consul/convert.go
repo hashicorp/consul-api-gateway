@@ -103,7 +103,7 @@ func HTTPRouteMatchToServiceRouteHTTPMatch(route gw.HTTPRouteMatch) *api.Service
 		switch *header.Type {
 		case gw.HeaderMatchExact:
 			match.Header = append(match.Header, api.ServiceRouteHTTPMatchHeader{
-				Name:  header.Name,
+				Name:  string(header.Name),
 				Exact: header.Value,
 			})
 		}

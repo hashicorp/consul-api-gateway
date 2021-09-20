@@ -132,7 +132,7 @@ func (c *GatewayClassConfig) ServiceFor(gw *gateway.Gateway) *corev1.Service {
 	ports := []corev1.ServicePort{}
 	for _, listener := range gw.Spec.Listeners {
 		ports = append(ports, corev1.ServicePort{
-			Name:     listener.Name,
+			Name:     string(listener.Name),
 			Protocol: "TCP",
 			Port:     int32(listener.Port),
 		})
@@ -312,7 +312,7 @@ func (c *GatewayClassConfig) containerPortsFor(gw *gateway.Gateway) []corev1.Con
 	}}
 	for _, listener := range gw.Spec.Listeners {
 		port := corev1.ContainerPort{
-			Name:          listener.Name,
+			Name:          string(listener.Name),
 			Protocol:      "TCP",
 			ContainerPort: int32(listener.Port),
 		}

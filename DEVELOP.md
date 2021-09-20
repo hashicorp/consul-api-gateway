@@ -2,28 +2,31 @@
 
 Install Docker for Mac. Execute the following:
 
-```/bin/bash
+```bash
 brew install kubectl kind helm consul jq go
 ./scripts/develop
 ```
 
 Test out the Gateway controller:
 
-```/bin/bash
+```bash
 cat <<EOF | kubectl apply -f -
 apiVersion: api-gateway.consul.hashicorp.com/v1alpha1
 kind: GatewayClassConfig
 metadata:
   name: test-gateway-class-config
 spec:
+  useHostPorts: true
+  logLevel: trace
   image:
     consulAPIGateway: "consul-api-gateway:1"
   consul:
-    address: "host.docker.internal"
+    address: consul-server.default.svc.cluster.local
     scheme: https
     caSecret: consul-ca-cert
     ports:
-      http: 443
+      http: 8501
+      grpc: 8502
     authentication:
       account: consul-api-gateway
       method: consul-api-gateway
@@ -46,27 +49,109 @@ metadata:
 spec:
   gatewayClassName: test-gateway-class
   listeners:
-  - protocol: HTTP
-    port: 8083
-    name: my-http
-    allowedRoutes:
-      namespaces:
-        from: Same
   - protocol: HTTPS
+    hostname: localhost
     port: 8443
-    name: my-https
+    name: https
     allowedRoutes:
       namespaces:
         from: Same
     tls:
       certificateRef:
         name: consul-server-cert
+---
+apiVersion: consul.hashicorp.com/v1alpha1
+kind: ServiceDefaults
+metadata:
+  name: echo
+spec:
+  protocol: http
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: echo
+  name: echo
+spec:
+  ports:
+  - port: 8080
+    name: high
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app: echo
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: echo
+  name: echo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: echo
+  template:
+    metadata:
+      labels:
+        app: echo
+      annotations:
+        'consul.hashicorp.com/connect-inject': 'true'
+    spec:
+      containers:
+      - image: gcr.io/kubernetes-e2e-test-images/echoserver:2.2
+        name: echo
+        ports:
+        - containerPort: 8080
+        env:
+          - name: NODE_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: spec.nodeName
+          - name: POD_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
+          - name: POD_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+          - name: POD_IP
+            valueFrom:
+              fieldRef:
+                fieldPath: status.podIP
+---
+apiVersion: gateway.networking.k8s.io/v1alpha2
+kind: HTTPRoute
+metadata:
+  name: test-route
+spec:
+  parentRefs:
+  - name: test-gateway
+  rules:
+  - backendRefs:
+    - kind: Service
+      name: echo
+      port: 8080
 EOF
+```
+
+Make sure that the echo container is routable:
+
+```bash
+# update this when we figure out SSL and hostname stuff
+curl localhost:8443
 ```
 
 Clean up the gateway you just created:
 
-```
+```bash
+kubectl delete httproute test-route
+kubectl delete deployment echo
+kubectl delete service echo
+kubectl delete servicedefaults echo
 kubectl delete gateway test-gateway
 kubectl delete gatewayclass test-gateway-class
 kubectl delete gatewayclassconfig test-gateway-class-config

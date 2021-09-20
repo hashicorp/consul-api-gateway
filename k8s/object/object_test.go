@@ -36,9 +36,9 @@ func TestObject(t *testing.T) {
 
 	obj.Status.Mutate(func(status interface{}) interface{} {
 		httpStatus, _ := status.(*gw.HTTPRouteStatus)
-		httpStatus.Parents[0].Controller = "test"
+		httpStatus.Parents[0].Controller = gw.GatewayController("test")
 		return status
 	})
 	require.True(t, obj.Status.IsDirty())
-	require.Equal(t, "test", route.Status.Parents[0].Controller)
+	require.Equal(t, gw.GatewayController("test"), route.Status.Parents[0].Controller)
 }

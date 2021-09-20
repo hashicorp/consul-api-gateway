@@ -115,7 +115,7 @@ func gatewayClassConfigInUse(ctx context.Context, client client.Client, gcc *api
 			paramaterRef.Name == gcc.Name {
 			namespace := ""
 			if paramaterRef.Namespace != nil {
-				namespace = *paramaterRef.Namespace
+				namespace = string(*paramaterRef.Namespace)
 			}
 			if namespace == gcc.Namespace {
 				return true, nil

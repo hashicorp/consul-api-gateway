@@ -28,7 +28,7 @@ func NewResolvedGateway(name types.NamespacedName) *ResolvedGateway {
 }
 
 func (g *ResolvedGateway) AddRoute(lis gw.Listener, route *routes.KubernetesRoute) {
-	rLis, ok := g.listeners[lis.Name]
+	rLis, ok := g.listeners[string(lis.Name)]
 	if !ok {
 		rLis = g.newListener(&lis)
 	}
@@ -38,7 +38,7 @@ func (g *ResolvedGateway) AddRoute(lis gw.Listener, route *routes.KubernetesRout
 func (g *ResolvedGateway) newListener(lis *gw.Listener) *resolvedListener {
 	name := defaultListenerName
 	if lis.Name != "" {
-		name = lis.Name
+		name = string(lis.Name)
 	}
 	var hostname string
 	if lis.Hostname != nil {

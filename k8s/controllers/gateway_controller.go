@@ -67,7 +67,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		if err != nil {
 			return ctrl.Result{}, err
 		}
-		if gc.Spec.Controller == r.ControllerName {
+		if string(gc.Spec.Controller) == r.ControllerName {
 			gcc, err := gatewayClassConfigForGatewayClass(ctx, r.Client, gc)
 			if err != nil {
 				return ctrl.Result{}, err

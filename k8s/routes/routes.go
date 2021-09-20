@@ -43,7 +43,7 @@ func (r *KubernetesRoute) CommonRouteSpec() gw.CommonRouteSpec {
 	return gw.CommonRouteSpec{}
 }
 
-func (r *KubernetesRoute) IsAdmittedByGatewayListener(gatewayName types.NamespacedName, routes *gw.ListenerRoutes) (admitted bool, reason, message string) {
+func (r *KubernetesRoute) IsAdmittedByGatewayListener(gatewayName types.NamespacedName, routes *gw.AllowedRoutes) (admitted bool, reason, message string) {
 	gvk := r.GroupVersionKind()
 	// check selector kind and group
 
@@ -52,9 +52,9 @@ func (r *KubernetesRoute) IsAdmittedByGatewayListener(gatewayName types.Namespac
 		for _, rgk := range routes.Kinds {
 			group := gw.GroupName
 			if rgk.Group != nil && *rgk.Group != "" {
-				group = *rgk.Group
+				group = string(*rgk.Group)
 			}
-			if rgk.Kind == gvk.Kind && group == gvk.Group {
+			if string(rgk.Kind) == gvk.Kind && group == gvk.Group {
 				gkMatch = true
 				break
 			}
@@ -67,18 +67,18 @@ func (r *KubernetesRoute) IsAdmittedByGatewayListener(gatewayName types.Namespac
 	// check gateway namespace
 	namespaceSelector := routes.Namespaces
 	// set default is namespace selector is nil
-	from := gw.RouteSelectSame
+	from := gw.NamespacesFromSame
 	if namespaceSelector != nil && namespaceSelector.From != nil && *namespaceSelector.From != "" {
 		from = *namespaceSelector.From
 	}
 	switch from {
-	case gw.RouteSelectAll:
+	case gw.NamespacesFromAll:
 	// matches continue
-	case gw.RouteSelectSame:
+	case gw.NamespacesFromSame:
 		if gatewayName.Namespace != r.GetNamespace() {
 			return false, "InvalidRoutesRef", "gateway namespace does not match route"
 		}
-	case gw.RouteSelectSelector:
+	case gw.NamespacesFromSelector:
 		ns, err := metav1.LabelSelectorAsSelector(namespaceSelector.Selector)
 		if err != nil {
 			return false, "InvalidRoutesRef", "namespace selector could not be parsed"
@@ -113,7 +113,7 @@ func (r *KubernetesRoute) ParentRefAllowed(ref gw.ParentRef, gatewayName types.N
 		}
 	}
 
-	return routeParentRefMatches(ref, gatewayName, listener.Name, r.GetNamespace())
+	return routeParentRefMatches(ref, gatewayName, string(listener.Name), r.GetNamespace())
 }
 
 type KubernetesRoutes struct {
@@ -172,7 +172,7 @@ func routeParentRefMatches(ref gw.ParentRef, gatewayName types.NamespacedName, l
 	// match gateway namesapce
 	namespace := localNamespace
 	if ref.Namespace != nil && *ref.Namespace != "" {
-		namespace = *ref.Namespace
+		namespace = string(*ref.Namespace)
 	}
 	if gatewayName.Namespace != namespace {
 		return fmt.Errorf("no matching parents with namespace: %s", namespace)
@@ -182,7 +182,7 @@ func routeParentRefMatches(ref gw.ParentRef, gatewayName types.NamespacedName, l
 		return fmt.Errorf("no matching parents with name: %s", ref.Name)
 	}
 
-	if listenerName != "" && ref.SectionName != nil && *ref.SectionName != listenerName {
+	if listenerName != "" && ref.SectionName != nil && string(*ref.SectionName) != listenerName {
 		return fmt.Errorf("no matching parent sections with name: %s", *ref.SectionName)
 	}
 
