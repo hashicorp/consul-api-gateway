@@ -11,3 +11,15 @@ func KubeObjectNamespacedName(o metav1.Object) types.NamespacedName {
 		Name:      o.GetName(),
 	}
 }
+
+func IsManagedGateway(labels map[string]string) (string, bool) {
+	managedBy, ok := labels["managedBy"]
+	if !ok || managedBy != "consul-api-gateway" {
+		return "", false
+	}
+	name, ok := labels["name"]
+	if !ok {
+		return "", false
+	}
+	return name, true
+}

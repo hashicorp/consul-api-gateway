@@ -2,13 +2,11 @@ package controllers
 
 import (
 	"context"
-	"strings"
 
 	"github.com/go-logr/logr"
 	"github.com/hashicorp/consul-api-gateway/k8s/utils"
 	core "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
-	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -43,7 +41,7 @@ func (r *PodReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 		log.Error(err, "failed to get Pod")
 		return ctrl.Result{}, err
 	}
-	gwName, managed := managedGateway(pod.ObjectMeta.Labels)
+	gwName, managed := utils.IsManagedGateway(pod.ObjectMeta.Labels)
 	if !managed {
 		return ctrl.Result{}, nil
 	}
@@ -69,7 +67,7 @@ func (r *PodReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 		return ctrl.Result{}, nil
 	}
 
-	conditions := mapGatewayConditions(pod.Generation, pod.Status)
+	conditions := utils.MapGatewayConditionsFromPod(pod)
 	if r.Tracker.UpdateStatus(pod, conditions) {
 		log.Info("gateway deployment pod status updated", "conditions", conditions)
 	}
@@ -81,130 +79,4 @@ func (r *PodReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&core.Pod{}).
 		Complete(r)
-}
-
-func managedGateway(labels map[string]string) (string, bool) {
-	managedBy, ok := labels["managedBy"]
-	if !ok || managedBy != "consul-api-gateway" {
-		return "", false
-	}
-	name, ok := labels["name"]
-	if !ok {
-		return "", false
-	}
-	return name, true
-}
-
-func mapGatewayConditions(generation int64, status core.PodStatus) []meta.Condition {
-	// TODO: real state tracking for fsm
-
-	// Pending: The pod has been accepted by the Kubernetes system, but one or more of the
-	// container images has not been created. This includes time before being scheduled as
-	// well as time spent downloading images over the network, which could take a while.
-	// Running: The pod has been bound to a node, and all of the containers have been created.
-	// At least one container is still running, or is in the process of starting or restarting.
-	// Succeeded: All containers in the pod have terminated in success, and will not be restarted.
-	// Failed: All containers in the pod have terminated, and at least one container has
-	// terminated in failure. The container either exited with non-zero status or was terminated
-	// by the system.
-	// Unknown: For some reason the state of the pod could not be obtained, typically due to an
-	// error in communicating with the host of the pod.
-	switch status.Phase {
-	case core.PodPending:
-		return mapStatusPending(generation, status)
-	case core.PodRunning:
-		return mapStatusRunning(generation, status)
-	case core.PodSucceeded:
-		// this should never happen, occurs when the pod terminates
-		// with a 0 status code, consider this a failed deployment
-		fallthrough
-	case core.PodFailed:
-		// we have a failed deployment, set the status accordingly
-		// for now we just consider the pods unschedulable.
-		// TODO: more fine-grained
-		return []meta.Condition{{
-			Type:               string(gateway.GatewayConditionScheduled),
-			Reason:             string(gateway.GatewayReasonNoResources),
-			Status:             meta.ConditionFalse,
-			ObservedGeneration: generation,
-			LastTransitionTime: meta.Now(),
-		}}
-	default: // Unknown pod status
-		// we don't have a known pod status, just consider this unreconciled
-		return []meta.Condition{{
-			Type:               string(gateway.GatewayConditionScheduled),
-			Reason:             string(gateway.GatewayReasonNotReconciled),
-			Status:             meta.ConditionFalse,
-			ObservedGeneration: generation,
-			LastTransitionTime: meta.Now(),
-		}}
-	}
-}
-
-func mapStatusPending(generation int64, status core.PodStatus) []meta.Condition {
-	for _, condition := range status.Conditions {
-		if condition.Type == core.PodScheduled && condition.Status == core.ConditionFalse &&
-			strings.Contains(condition.Reason, "Unschedulable") {
-			return []meta.Condition{{
-				Type:               string(gateway.GatewayConditionScheduled),
-				Reason:             string(gateway.GatewayReasonNoResources),
-				Status:             meta.ConditionFalse,
-				ObservedGeneration: generation,
-				LastTransitionTime: meta.Now(),
-			}}
-		}
-		if condition.Type == core.PodScheduled && condition.Status == core.ConditionTrue {
-			return []meta.Condition{{
-				Type:               string(gateway.GatewayConditionScheduled),
-				Reason:             string(gateway.GatewayReasonScheduled),
-				Status:             meta.ConditionTrue,
-				ObservedGeneration: generation,
-				LastTransitionTime: meta.Now(),
-			}}
-		}
-	}
-	// if no conditions exist, or we haven't found a specific above condition, just default
-	// to not reconciled
-	return []meta.Condition{{
-		Type:               string(gateway.GatewayConditionScheduled),
-		Reason:             string(gateway.GatewayReasonNotReconciled),
-		Status:             meta.ConditionFalse,
-		ObservedGeneration: generation,
-		LastTransitionTime: meta.Now(),
-	}}
-}
-
-func mapStatusRunning(generation int64, status core.PodStatus) []meta.Condition {
-	for _, condition := range status.Conditions {
-		if condition.Type == core.PodReady && condition.Status == core.ConditionTrue {
-			return []meta.Condition{{
-				Type:               string(gateway.GatewayConditionScheduled),
-				Reason:             string(gateway.GatewayReasonScheduled),
-				Status:             meta.ConditionTrue,
-				ObservedGeneration: generation,
-				LastTransitionTime: meta.Now(),
-			}, {
-				Type:               string(gateway.GatewayConditionReady),
-				Reason:             string(gateway.GatewayReasonReady),
-				Status:             meta.ConditionTrue,
-				ObservedGeneration: generation,
-				LastTransitionTime: meta.Now(),
-			}}
-		}
-	}
-	// if no conditions exist, or we haven't found a specific above condition, just default
-	// to no listeners ready
-	return []meta.Condition{{
-		Type:               string(gateway.GatewayConditionScheduled),
-		Reason:             string(gateway.GatewayReasonScheduled),
-		Status:             meta.ConditionTrue,
-		ObservedGeneration: generation,
-		LastTransitionTime: meta.Now(),
-	}, {
-		Type:               string(gateway.GatewayConditionReady),
-		Reason:             string(gateway.GatewayReasonListenersNotReady),
-		Status:             meta.ConditionFalse,
-		ObservedGeneration: generation,
-		LastTransitionTime: meta.Now(),
-	}}
 }

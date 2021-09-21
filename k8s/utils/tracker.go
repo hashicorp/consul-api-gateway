@@ -64,7 +64,8 @@ func (p *PodTracker) UpdateStatus(pod *core.Pod, conditions []meta.Condition) bo
 		// we already have a newer status, ignore
 		return false
 	}
-	if status.isUpdate(conditions) {
+	newerPod := pod.CreationTimestamp.Time.After(status.createdAt.Time)
+	if newerPod || status.isUpdate(conditions) {
 		status.createdAt = pod.CreationTimestamp
 		status.generation = pod.Generation
 		status.conditions = conditions
