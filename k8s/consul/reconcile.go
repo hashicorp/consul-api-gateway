@@ -59,16 +59,25 @@ func (c *ConfigEntriesReconciler) ReconcileGateway(gw *ResolvedGateway) error {
 	// Third the removal of any service-defaults, routers or splitters that no longer exist
 	// TODO: what happens if we get an error here? we could leak config entries if we get an error on removal, maybe they should get garbage collected by consul-api-gateway?
 
+	addedRouters := computedRouters.ToArray()
+	addedDefaults := computedDefaults.ToArray()
+	addedSplitters := computedSplitters.ToArray()
+	c.logger.Trace("adding config entries", "routers", addedRouters, "splitters", addedSplitters, "defaults", addedDefaults)
+
 	// defaults need to go first, otherwise the routers are always configured to use tcp
-	c.SetConfigEntries(computedDefaults.ToArray()...)
-	c.SetConfigEntries(computedRouters.ToArray()...)
-	c.SetConfigEntries(computedSplitters.ToArray()...)
+	c.SetConfigEntries(addedDefaults...)
+	c.SetConfigEntries(addedRouters...)
+	c.SetConfigEntries(addedSplitters...)
 
 	c.SetConfigEntries(igw)
 
-	c.DeleteConfigEntries(computedRouters.Difference(c.routers).ToArray()...)
-	c.DeleteConfigEntries(computedSplitters.Difference(c.splitters).ToArray()...)
-	c.DeleteConfigEntries(computedDefaults.Difference(c.defaults).ToArray()...)
+	removedRouters := computedRouters.Difference(c.routers).ToArray()
+	removedSplitters := computedSplitters.Difference(c.splitters).ToArray()
+	removedDefaults := computedDefaults.Difference(c.defaults).ToArray()
+	c.logger.Trace("removing config entries", "routers", removedRouters, "splitters", removedSplitters, "defaults", removedDefaults)
+	c.DeleteConfigEntries(removedRouters...)
+	c.DeleteConfigEntries(removedSplitters...)
+	c.DeleteConfigEntries(removedDefaults...)
 
 	c.routers = computedRouters
 	c.splitters = computedSplitters
