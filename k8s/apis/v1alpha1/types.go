@@ -339,7 +339,7 @@ func (c *GatewayClassConfig) requiresCA(gw *gateway.Gateway) bool {
 
 func labelsFor(gw *gateway.Gateway) map[string]string {
 	return map[string]string{
-		"name":      "consul-api-gateway-" + gw.Name,
+		"name":      gw.Name,
 		"managedBy": "consul-api-gateway",
 	}
 }
