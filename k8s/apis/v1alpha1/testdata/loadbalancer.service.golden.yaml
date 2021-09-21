@@ -2,7 +2,7 @@ metadata:
   creationTimestamp: null
   labels:
     managedBy: consul-api-gateway
-    name: consul-api-gateway-test-loadbalancer
+    name: test-loadbalancer
   name: test-loadbalancer
 spec:
   ports:
@@ -16,7 +16,7 @@ spec:
     targetPort: 0
   selector:
     managedBy: consul-api-gateway
-    name: consul-api-gateway-test-loadbalancer
+    name: test-loadbalancer
   type: LoadBalancer
 status:
   loadBalancer: {}

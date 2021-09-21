@@ -2,20 +2,20 @@ metadata:
   creationTimestamp: null
   labels:
     managedBy: consul-api-gateway
-    name: consul-api-gateway-tls-cert-test
+    name: tls-cert-test
   name: tls-cert-test
 spec:
   selector:
     matchLabels:
       managedBy: consul-api-gateway
-      name: consul-api-gateway-tls-cert-test
+      name: tls-cert-test
   strategy: {}
   template:
     metadata:
       creationTimestamp: null
       labels:
         managedBy: consul-api-gateway
-        name: consul-api-gateway-tls-cert-test
+        name: tls-cert-test
     spec:
       containers:
       - command:
@@ -60,6 +60,10 @@ spec:
         - containerPort: 80
           name: http
           protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 20000
         resources: {}
         volumeMounts:
         - mountPath: /bootstrap

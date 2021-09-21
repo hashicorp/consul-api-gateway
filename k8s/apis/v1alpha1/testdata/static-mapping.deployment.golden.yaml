@@ -2,20 +2,20 @@ metadata:
   creationTimestamp: null
   labels:
     managedBy: consul-api-gateway
-    name: consul-api-gateway-test-static-mapping
+    name: test-static-mapping
   name: test-static-mapping
 spec:
   selector:
     matchLabels:
       managedBy: consul-api-gateway
-      name: consul-api-gateway-test-static-mapping
+      name: test-static-mapping
   strategy: {}
   template:
     metadata:
       creationTimestamp: null
       labels:
         managedBy: consul-api-gateway
-        name: consul-api-gateway-test-static-mapping
+        name: test-static-mapping
     spec:
       containers:
       - command:
@@ -65,6 +65,10 @@ spec:
           hostPort: 8443
           name: https
           protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 20000
         resources: {}
         volumeMounts:
         - mountPath: /bootstrap

@@ -2,7 +2,7 @@ metadata:
   creationTimestamp: null
   labels:
     managedBy: consul-api-gateway
-    name: consul-api-gateway-test-clusterip
+    name: test-clusterip
   name: test-clusterip
 spec:
   ports:
@@ -16,7 +16,7 @@ spec:
     targetPort: 0
   selector:
     managedBy: consul-api-gateway
-    name: consul-api-gateway-test-clusterip
+    name: test-clusterip
   type: ClusterIP
 status:
   loadBalancer: {}
