@@ -7,6 +7,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	gateway "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	"github.com/hashicorp/consul-api-gateway/version"
@@ -222,6 +223,14 @@ func (c *GatewayClassConfig) podSpecFor(gw *gateway.Gateway, sds SDSConfig) core
 				},
 			},
 			Command: c.execCommandFor(gw, sds),
+			ReadinessProbe: &corev1.Probe{
+				Handler: corev1.Handler{
+					HTTPGet: &corev1.HTTPGetAction{
+						Path: "/ready",
+						Port: intstr.FromInt(20000),
+					},
+				},
+			},
 		}},
 		Volumes: volumes,
 	}
