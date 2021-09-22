@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -16,9 +17,13 @@ import (
 
 	"github.com/hashicorp/consul-api-gateway/internal/common"
 	"github.com/hashicorp/consul-api-gateway/internal/metrics"
-	"github.com/hashicorp/consul-api-gateway/k8s/object"
 	"github.com/hashicorp/consul-api-gateway/k8s/routes"
 	"github.com/hashicorp/consul-api-gateway/k8s/utils"
+)
+
+const (
+	statusUpdateTimeout     = 10 * time.Second
+	maxStatusUpdateAttempts = 5
 )
 
 // GatewayReconcileManager manages a GatewayReconciler for each Gateway and is the interface by which Consul operations
@@ -27,20 +32,21 @@ type GatewayReconcileManager struct {
 	controllerName string
 	ctx            context.Context
 	registry       *common.GatewaySecretRegistry
+	client         client.Client
 	consul         *api.Client
 	routes         *routes.KubernetesRoutes
 	logger         hclog.Logger
-	status         *object.StatusWorker
 	activeGateways int64
 
 	reconcilersMu  sync.Mutex
 	reconcilers    map[types.NamespacedName]*GatewayReconciler
-	gatewayClasses map[string]*object.Object
+	gatewayClasses map[string]client.Object
 }
 
 type ManagerConfig struct {
 	ControllerName string
 	Registry       *common.GatewaySecretRegistry
+	Client         client.Client
 	Consul         *api.Client
 	Status         client.StatusWriter
 	Logger         hclog.Logger
@@ -50,57 +56,64 @@ func NewReconcileManager(ctx context.Context, config *ManagerConfig) *GatewayRec
 	return &GatewayReconcileManager{
 		controllerName: config.ControllerName,
 		ctx:            ctx,
+		client:         config.Client,
 		consul:         config.Consul,
 		registry:       config.Registry,
 		reconcilers:    map[types.NamespacedName]*GatewayReconciler{},
-		gatewayClasses: map[string]*object.Object{},
+		gatewayClasses: map[string]client.Object{},
 		routes:         routes.NewKubernetesRoutes(),
 		logger:         config.Logger,
-		status:         object.NewStatusWorker(ctx, config.Status, config.Logger.Named("Status")),
 	}
 }
 
-func (m *GatewayReconcileManager) UpsertGatewayClass(gc *gw.GatewayClass, validParameters bool) {
-	var currentGen int64
+func (m *GatewayReconcileManager) UpsertGatewayClass(gc *gw.GatewayClass, validParameters bool) error {
 	m.reconcilersMu.Lock()
+
+	var currentGen int64
 	if current, ok := m.gatewayClasses[gc.Name]; ok {
 		currentGen = current.GetGeneration()
 	}
 	if gc.Generation > currentGen {
-		obj := object.New(gc)
-		m.gatewayClasses[gc.Name] = obj
-		obj.Status.Mutate(func(status interface{}) interface{} {
-			gwcStatus := status.(*gw.GatewayClassStatus)
-			if validParameters {
-				gwcStatus.Conditions = []metav1.Condition{
-					{
-						Type:               string(gw.GatewayClassConditionStatusAdmitted),
-						Status:             metav1.ConditionTrue,
-						ObservedGeneration: gc.Generation,
-						LastTransitionTime: metav1.Now(),
-						Reason:             string(gw.GatewayClassReasonAdmitted),
-						Message:            fmt.Sprintf("admitted by controller %q", gc.Spec.Controller),
-					},
-				}
-			} else {
-				gwcStatus.Conditions = []metav1.Condition{
-					{
-						Type:               string(gw.GatewayClassConditionStatusAdmitted),
-						Status:             metav1.ConditionFalse,
-						ObservedGeneration: gc.Generation,
-						LastTransitionTime: metav1.Now(),
-						Reason:             string(gw.GatewayClassReasonInvalidParameters),
-						Message:            fmt.Sprintf("rejected by controller %q", gc.Spec.Controller),
-					},
-				}
+		m.gatewayClasses[gc.Name] = gc
+		m.reconcilersMu.Unlock()
+
+		conditions := gatewayClassConditions(gc, validParameters)
+		if utils.IsFieldUpdated(gc.Status.Conditions, conditions) {
+			gc.Status.Conditions = conditions
+			if err := updateStatus(m.ctx, m.client.Status(), gc); err != nil {
+				m.logger.Error("error updating gatewayclass status", "error", err)
+				return err
 			}
-			return gwcStatus
-		})
-		if obj.Status.IsDirty() {
-			m.status.Push(obj)
+		}
+	} else {
+		m.reconcilersMu.Unlock()
+	}
+	return nil
+}
+
+func gatewayClassConditions(gc *gw.GatewayClass, validParameters bool) []metav1.Condition {
+	if validParameters {
+		return []metav1.Condition{
+			{
+				Type:               string(gw.GatewayClassConditionStatusAdmitted),
+				Status:             metav1.ConditionTrue,
+				ObservedGeneration: gc.Generation,
+				LastTransitionTime: metav1.Now(),
+				Reason:             string(gw.GatewayClassReasonAdmitted),
+				Message:            fmt.Sprintf("admitted by controller %q", gc.Spec.Controller),
+			},
 		}
 	}
-	m.reconcilersMu.Unlock()
+	return []metav1.Condition{
+		{
+			Type:               string(gw.GatewayClassConditionStatusAdmitted),
+			Status:             metav1.ConditionFalse,
+			ObservedGeneration: gc.Generation,
+			LastTransitionTime: metav1.Now(),
+			Reason:             string(gw.GatewayClassReasonInvalidParameters),
+			Message:            fmt.Sprintf("rejected by controller %q", gc.Spec.Controller),
+		},
+	}
 }
 
 func (m *GatewayReconcileManager) UpsertGateway(g *gw.Gateway) {
@@ -124,10 +137,10 @@ func (m *GatewayReconcileManager) UpsertGateway(g *gw.Gateway) {
 		r = newReconcilerForGateway(m.ctx, &gatewayReconcilerArgs{
 			controllerName: m.controllerName,
 			consul:         m.consul,
+			client:         m.client,
 			logger:         m.logger,
 			gateway:        g,
 			routes:         m.routes,
-			status:         m.status,
 		})
 		go r.loop()
 		m.reconcilers[namespacedName] = r
