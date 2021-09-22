@@ -62,7 +62,14 @@ func (c *ConfigEntriesReconciler) ReconcileGateway(gw *ResolvedGateway) error {
 	addedRouters := computedRouters.ToArray()
 	addedDefaults := computedDefaults.ToArray()
 	addedSplitters := computedSplitters.ToArray()
-	c.logger.Trace("adding config entries", "routers", addedRouters, "splitters", addedSplitters, "defaults", addedDefaults)
+	removedRouters := computedRouters.Difference(c.routers).ToArray()
+	removedSplitters := computedSplitters.Difference(c.splitters).ToArray()
+	removedDefaults := computedDefaults.Difference(c.defaults).ToArray()
+
+	if c.logger.IsTrace() {
+		c.logger.Trace("adding config entries", "routers", entryNames(addedRouters), "splitters", entryNames(addedSplitters), "defaults", entryNames(addedDefaults))
+		c.logger.Trace("removing config entries", "routers", entryNames(removedRouters), "splitters", entryNames(removedSplitters), "defaults", entryNames(removedDefaults))
+	}
 
 	// defaults need to go first, otherwise the routers are always configured to use tcp
 	c.SetConfigEntries(addedDefaults...)
@@ -71,10 +78,6 @@ func (c *ConfigEntriesReconciler) ReconcileGateway(gw *ResolvedGateway) error {
 
 	c.SetConfigEntries(igw)
 
-	removedRouters := computedRouters.Difference(c.routers).ToArray()
-	removedSplitters := computedSplitters.Difference(c.splitters).ToArray()
-	removedDefaults := computedDefaults.Difference(c.defaults).ToArray()
-	c.logger.Trace("removing config entries", "routers", removedRouters, "splitters", removedSplitters, "defaults", removedDefaults)
 	c.DeleteConfigEntries(removedRouters...)
 	c.DeleteConfigEntries(removedSplitters...)
 	c.DeleteConfigEntries(removedDefaults...)
@@ -84,4 +87,12 @@ func (c *ConfigEntriesReconciler) ReconcileGateway(gw *ResolvedGateway) error {
 	c.defaults = computedDefaults
 
 	return nil
+}
+
+func entryNames(entries []api.ConfigEntry) []string {
+	names := make([]string, len(entries))
+	for i, entry := range entries {
+		names[i] = entry.GetName()
+	}
+	return names
 }
