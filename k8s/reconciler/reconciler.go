@@ -7,13 +7,13 @@ import (
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
 
 	"github.com/hashicorp/consul-api-gateway/k8s/consul"
-	"github.com/hashicorp/consul-api-gateway/k8s/object"
 	"github.com/hashicorp/consul-api-gateway/k8s/routes"
 	"github.com/hashicorp/consul-api-gateway/k8s/utils"
 )
@@ -25,6 +25,7 @@ const (
 
 type GatewayReconciler struct {
 	controllerName    string
+	client            client.Client
 	ctx               context.Context
 	signalReconcileCh chan struct{}
 	stopReconcileCh   chan struct{}
@@ -33,7 +34,6 @@ type GatewayReconciler struct {
 
 	kubeGateway *gw.Gateway
 	kubeRoutes  *routes.KubernetesRoutes
-	status      *object.StatusWorker
 
 	logger hclog.Logger
 }
@@ -41,9 +41,9 @@ type GatewayReconciler struct {
 type gatewayReconcilerArgs struct {
 	controllerName string
 	consul         *api.Client
+	client         client.Client
 	gateway        *gw.Gateway
 	routes         *routes.KubernetesRoutes
-	status         *object.StatusWorker
 	logger         hclog.Logger
 }
 
@@ -52,12 +52,12 @@ func newReconcilerForGateway(ctx context.Context, args *gatewayReconcilerArgs) *
 	return &GatewayReconciler{
 		controllerName:    args.controllerName,
 		ctx:               ctx,
+		client:            args.client,
 		signalReconcileCh: make(chan struct{}, 1), // buffered chan allow for a single pending reconcile signal
 		stopReconcileCh:   make(chan struct{}),
 		consul:            consul.NewReconciler(args.consul, logger),
 		kubeGateway:       args.gateway,
 		kubeRoutes:        args.routes,
-		status:            args.status,
 
 		logger: logger,
 	}
@@ -124,20 +124,23 @@ func (c *GatewayReconciler) reconcile() error {
 				}
 			}
 		}
-		kubeRoute.Status.Mutate(func(s interface{}) interface{} {
-			r, _ := s.(*gw.HTTPRouteStatus)
-			r.Parents = status.build(c.controllerName, r.Parents)
-			return r
-		})
-		if kubeRoute.Status.IsDirty() {
-			c.status.Push(kubeRoute.Object)
+		currentRouteStatus := kubeRoute.RouteStatus()
+		updatedRouteStatus := gw.RouteStatus{Parents: status.build(c.controllerName, currentRouteStatus.Parents)}
+		c.logger.Debug("checking route status for updates", "route", kubeRoute.GetName())
+		if utils.IsFieldUpdated(currentRouteStatus, updatedRouteStatus) {
+			c.logger.Debug("updatng route status", "route", kubeRoute.GetName())
+			kubeRoute.SetStatus(updatedRouteStatus)
+			if err := updateStatus(c.ctx, c.client.Status(), kubeRoute.Route); err != nil {
+				c.logger.Error("error updating route status", "error", err)
+				return err
+			}
 		}
 	}
 	return c.consul.ReconcileGateway(resolvedGateway)
 }
 
 type routeStatusBuilder struct {
-	route object.KubeObj
+	route routes.Route
 	refs  map[gw.ParentRef]routeStatus
 }
 
@@ -147,7 +150,7 @@ type routeStatus struct {
 	message  string
 }
 
-func newRouteStatusBuilder(route object.KubeObj) *routeStatusBuilder {
+func newRouteStatusBuilder(route routes.Route) *routeStatusBuilder {
 	return &routeStatusBuilder{
 		route: route,
 		refs:  map[gw.ParentRef]routeStatus{},
