@@ -41,7 +41,7 @@ func (i *ConfigEntryIndex) Count() int {
 	return len(i.idx)
 }
 
-// Difference will return an ConfigEntryIndex with entries that not found in the input ConfigEntryIndex
+// Difference will return an ConfigEntryIndex with entries that not found in the current ConfigEntryIndex
 func (i *ConfigEntryIndex) Difference(other *ConfigEntryIndex) *ConfigEntryIndex {
 	return i.filter(other, false)
 }
@@ -54,6 +54,10 @@ func (i *ConfigEntryIndex) filter(other *ConfigEntryIndex, include bool) *Config
 	result := NewConfigEntryIndex(i.kind)
 	for _, c := range other.idx {
 		if _, ok := i.idx[c.GetName()]; ok && include {
+			// we're looking for the set that is in i
+			result.Add(c)
+		} else if !ok && !include {
+			// we're looking for the set that isn't in i
 			result.Add(c)
 		}
 	}
