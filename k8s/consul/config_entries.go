@@ -41,7 +41,7 @@ func (i *ConfigEntryIndex) Count() int {
 	return len(i.idx)
 }
 
-// Difference will return an ConfigEntryIndex with entries that not found in the input ConfigEntryIndex
+// Difference will return an ConfigEntryIndex with entries that not found in the current ConfigEntryIndex
 func (i *ConfigEntryIndex) Difference(other *ConfigEntryIndex) *ConfigEntryIndex {
 	return i.filter(other, false)
 }
