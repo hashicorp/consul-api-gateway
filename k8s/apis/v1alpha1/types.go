@@ -10,6 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	gateway "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
+	"github.com/hashicorp/consul-api-gateway/k8s/utils"
 	"github.com/hashicorp/consul-api-gateway/version"
 )
 
@@ -138,7 +139,7 @@ func (c *GatewayClassConfig) ServiceFor(gw *gateway.Gateway) *corev1.Service {
 			Port:     int32(listener.Port),
 		})
 	}
-	labels := labelsFor(gw)
+	labels := utils.LabelsForGateway(gw)
 	return &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      gw.Name,
@@ -162,7 +163,7 @@ func (c *GatewayClassConfig) serviceType() corev1.ServiceType {
 
 // DeploymentsFor returns the deployment configuration for the given gateway.
 func (c *GatewayClassConfig) DeploymentFor(gw *gateway.Gateway, sds SDSConfig) *appsv1.Deployment {
-	labels := labelsFor(gw)
+	labels := utils.LabelsForGateway(gw)
 	return &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      gw.Name,
@@ -335,11 +336,4 @@ func (c *GatewayClassConfig) containerPortsFor(gw *gateway.Gateway) []corev1.Con
 
 func (c *GatewayClassConfig) requiresCA(gw *gateway.Gateway) bool {
 	return c.Spec.ConsulSpec.Scheme == "https"
-}
-
-func labelsFor(gw *gateway.Gateway) map[string]string {
-	return map[string]string{
-		"name":      gw.Name,
-		"managedBy": "consul-api-gateway",
-	}
 }

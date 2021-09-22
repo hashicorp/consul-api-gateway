@@ -17,20 +17,20 @@ func TestIsManagedGateway(t *testing.T) {
 	}{{
 		name: "unmanaged",
 		labels: map[string]string{
-			"name": "unmanaged",
+			nameLabel: "unmanaged",
 		},
 		expected: false,
 	}, {
 		name: "unnamed",
 		labels: map[string]string{
-			"managedBy": "consul-api-gateway",
+			ManagedLabel: "true",
 		},
 		expected: false,
 	}, {
 		name: "valid",
 		labels: map[string]string{
-			"managedBy": "consul-api-gateway",
-			"name":      "test-gateway",
+			ManagedLabel: "true",
+			nameLabel:    "test-gateway",
 		},
 		expected: true,
 		gateway:  "test-gateway",

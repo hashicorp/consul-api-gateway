@@ -1,21 +1,24 @@
 metadata:
   creationTimestamp: null
   labels:
-    managedBy: consul-api-gateway
-    name: test-static-mapping
+    api-gateway.consul.hashicorp.com/managed: "true"
+    api-gateway.consul.hashicorp.com/name: test-static-mapping
+    api-gateway.consul.hashicorp.com/namespace: ""
   name: test-static-mapping
 spec:
   selector:
     matchLabels:
-      managedBy: consul-api-gateway
-      name: test-static-mapping
+      api-gateway.consul.hashicorp.com/managed: "true"
+      api-gateway.consul.hashicorp.com/name: test-static-mapping
+      api-gateway.consul.hashicorp.com/namespace: ""
   strategy: {}
   template:
     metadata:
       creationTimestamp: null
       labels:
-        managedBy: consul-api-gateway
-        name: test-static-mapping
+        api-gateway.consul.hashicorp.com/managed: "true"
+        api-gateway.consul.hashicorp.com/name: test-static-mapping
+        api-gateway.consul.hashicorp.com/namespace: ""
     spec:
       containers:
       - command:

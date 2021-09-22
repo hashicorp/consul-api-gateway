@@ -169,20 +169,11 @@ func (k *Kubernetes) Start(ctx context.Context) error {
 		return fmt.Errorf("failed to create gateway class controller: %w", err)
 	}
 
-	err = (&controllers.PodReconciler{
-		Client:  k.k8sManager.GetClient(),
-		Log:     klogger.WithName("controllers").WithName("Pod"),
-		Scheme:  k.k8sManager.GetScheme(),
-		Tracker: utils.NewPodTracker(),
-	}).SetupWithManager(k.k8sManager)
-	if err != nil {
-		return fmt.Errorf("failed to create pod controller: %w", err)
-	}
-
 	err = (&controllers.GatewayReconciler{
 		SDSServerHost:  k.sDSServerHost,
 		SDSServerPort:  k.sDSServerPort,
 		ControllerName: ControllerName,
+		Tracker:        utils.NewPodTracker(),
 		Client:         k.k8sManager.GetClient(),
 		Log:            klogger.WithName("controllers").WithName("Gateway"),
 		Scheme:         k.k8sManager.GetScheme(),

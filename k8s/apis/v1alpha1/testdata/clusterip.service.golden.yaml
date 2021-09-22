@@ -1,8 +1,9 @@
 metadata:
   creationTimestamp: null
   labels:
-    managedBy: consul-api-gateway
-    name: test-clusterip
+    api-gateway.consul.hashicorp.com/managed: "true"
+    api-gateway.consul.hashicorp.com/name: test-clusterip
+    api-gateway.consul.hashicorp.com/namespace: ""
   name: test-clusterip
 spec:
   ports:
@@ -15,8 +16,9 @@ spec:
     protocol: TCP
     targetPort: 0
   selector:
-    managedBy: consul-api-gateway
-    name: test-clusterip
+    api-gateway.consul.hashicorp.com/managed: "true"
+    api-gateway.consul.hashicorp.com/name: test-clusterip
+    api-gateway.consul.hashicorp.com/namespace: ""
   type: ClusterIP
 status:
   loadBalancer: {}
