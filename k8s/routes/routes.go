@@ -6,23 +6,31 @@ import (
 	"sync"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
-	"github.com/hashicorp/consul-api-gateway/k8s/object"
 	"github.com/hashicorp/consul-api-gateway/k8s/utils"
 )
 
+// all kubernetes routes implement the following two interfaces
+type Route interface {
+	client.Object
+	schema.ObjectKind
+}
+
 type KubernetesRoute struct {
-	*object.Object
+	Route
 }
 
 func (r *KubernetesRoute) IsHTTPRoute() bool {
-	return r.GroupVersionKind().GroupKind().String() == "HTTPRoute."+gw.GroupName
+	_, ok := r.Route.(*gw.HTTPRoute)
+	return ok
 }
 
 func (r *KubernetesRoute) AsHTTPRoute() (*gw.HTTPRoute, bool) {
-	val, ok := r.KubeObj.(*gw.HTTPRoute)
+	val, ok := r.Route.(*gw.HTTPRoute)
 	if !ok {
 		return nil, false
 	}
@@ -30,7 +38,7 @@ func (r *KubernetesRoute) AsHTTPRoute() (*gw.HTTPRoute, bool) {
 }
 
 func (r *KubernetesRoute) CommonRouteSpec() gw.CommonRouteSpec {
-	switch route := r.KubeObj.(type) {
+	switch route := r.Route.(type) {
 	case *gw.HTTPRoute:
 		return route.Spec.CommonRouteSpec
 	case *gw.TCPRoute:
@@ -41,6 +49,33 @@ func (r *KubernetesRoute) CommonRouteSpec() gw.CommonRouteSpec {
 		return route.Spec.CommonRouteSpec
 	}
 	return gw.CommonRouteSpec{}
+}
+
+func (r *KubernetesRoute) RouteStatus() gw.RouteStatus {
+	switch route := r.Route.(type) {
+	case *gw.HTTPRoute:
+		return route.Status.RouteStatus
+	case *gw.TCPRoute:
+		return route.Status.RouteStatus
+	case *gw.UDPRoute:
+		return route.Status.RouteStatus
+	case *gw.TLSRoute:
+		return route.Status.RouteStatus
+	}
+	return gw.RouteStatus{}
+}
+
+func (r *KubernetesRoute) SetStatus(status gw.RouteStatus) {
+	switch route := r.Route.(type) {
+	case *gw.HTTPRoute:
+		route.Status.RouteStatus = status
+	case *gw.TCPRoute:
+		route.Status.RouteStatus = status
+	case *gw.UDPRoute:
+		route.Status.RouteStatus = status
+	case *gw.TLSRoute:
+		route.Status.RouteStatus = status
+	}
 }
 
 func (r *KubernetesRoute) IsAdmittedByGatewayListener(gatewayName types.NamespacedName, routes *gw.AllowedRoutes) (admitted bool, reason, message string) {
@@ -127,15 +162,15 @@ func NewKubernetesRoutes() *KubernetesRoutes {
 	}
 }
 
-func (r *KubernetesRoutes) Set(obj object.KubeObj) bool {
-	name := utils.KubeObjectNamespacedName(obj)
+func (r *KubernetesRoutes) Set(route Route) bool {
+	name := utils.KubeObjectNamespacedName(route)
 	r.lock.Lock()
 	defer r.lock.Unlock()
 	cur, ok := r.routes[name]
-	if ok && cur.KubeObj.GetGeneration() == obj.GetGeneration() {
+	if ok && cur.Route.GetGeneration() == route.GetGeneration() {
 		return false
 	}
-	r.routes[name] = &KubernetesRoute{object.New(obj)}
+	r.routes[name] = &KubernetesRoute{route}
 	return true
 }
 

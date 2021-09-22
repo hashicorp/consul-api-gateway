@@ -21,7 +21,6 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/common"
 	"github.com/hashicorp/consul-api-gateway/k8s/controllers"
 	"github.com/hashicorp/consul-api-gateway/k8s/log"
-	"github.com/hashicorp/consul-api-gateway/k8s/object"
 	"github.com/hashicorp/consul-api-gateway/k8s/reconciler"
 )
 
@@ -46,7 +45,6 @@ type Kubernetes struct {
 	consul        *api.Client
 	registry      *common.GatewaySecretRegistry
 	logger        hclog.Logger
-	k8sStatus     *object.StatusWorker
 }
 
 type Options struct {
@@ -139,14 +137,12 @@ func (k *Kubernetes) SetConsul(consul *api.Client) {
 func (k *Kubernetes) Start(ctx context.Context) error {
 	k.logger.Trace("running controller")
 
-	status := object.NewStatusWorker(ctx, k.k8sManager.GetClient().Status(), k.logger)
-	k.k8sStatus = status
-
 	klogger := log.FromHCLogger(k.logger)
 
 	reconcileManager := reconciler.NewReconcileManager(ctx, &reconciler.ManagerConfig{
 		ControllerName: ControllerName,
 		Registry:       k.registry,
+		Client:         k.k8sManager.GetClient(),
 		Consul:         k.consul,
 		Status:         k.k8sManager.GetClient().Status(),
 		Logger:         k.logger.Named("consul"),
