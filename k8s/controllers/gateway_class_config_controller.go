@@ -14,6 +14,7 @@ import (
 	gateway "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/k8s/apis/v1alpha1"
+	"github.com/hashicorp/consul-api-gateway/k8s/utils"
 )
 
 const (
@@ -48,7 +49,7 @@ func (r *GatewayClassConfigReconciler) Reconcile(ctx context.Context, req ctrl.R
 
 	if gcc.ObjectMeta.DeletionTimestamp.IsZero() {
 		// we're creating or updating
-		if err := ensureGatewayClassConfigFinalizer(ctx, r.Client, gcc); err != nil {
+		if _, err := utils.EnsureFinalizer(ctx, r.Client, gcc, gatewayClassConfigFinalizer); err != nil {
 			return ctrl.Result{}, err
 		}
 	} else {
@@ -60,46 +61,12 @@ func (r *GatewayClassConfigReconciler) Reconcile(ctx context.Context, req ctrl.R
 		if used {
 			return ctrl.Result{}, fmt.Errorf("gateway class config '%s' is still in use", gcc.Name)
 		}
-		if err := removeGatewayClassConfigFinalizer(ctx, r.Client, gcc); err != nil {
+		if _, err := utils.RemoveFinalizer(ctx, r.Client, gcc, gatewayClassConfigFinalizer); err != nil {
 			return ctrl.Result{}, err
 		}
 	}
 
 	return ctrl.Result{}, nil
-}
-
-func ensureGatewayClassConfigFinalizer(ctx context.Context, client client.Client, gcc *apigwv1alpha1.GatewayClassConfig) error {
-	for _, finalizer := range gcc.Finalizers {
-		if finalizer == gatewayClassConfigFinalizer {
-			return nil
-		}
-	}
-	updated := gcc.DeepCopy()
-	updated.Finalizers = append(updated.Finalizers, gatewayClassConfigFinalizer)
-	if err := client.Update(ctx, updated); err != nil {
-		return fmt.Errorf("failed to add in-use finalizer: %w", err)
-	}
-	return nil
-}
-
-func removeGatewayClassConfigFinalizer(ctx context.Context, client client.Client, gcc *apigwv1alpha1.GatewayClassConfig) error {
-	finalizers := []string{}
-	found := false
-	for _, finalizer := range gcc.Finalizers {
-		if finalizer == gatewayClassConfigFinalizer {
-			found = true
-			continue
-		}
-		finalizers = append(finalizers, finalizer)
-	}
-	if found {
-		updated := gcc.DeepCopy()
-		updated.Finalizers = finalizers
-		if err := client.Update(ctx, updated); err != nil {
-			return fmt.Errorf("failed to remove in-use finalizer: %w", err)
-		}
-	}
-	return nil
 }
 
 func gatewayClassConfigInUse(ctx context.Context, client client.Client, gcc *apigwv1alpha1.GatewayClassConfig) (bool, error) {

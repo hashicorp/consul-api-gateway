@@ -87,7 +87,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		if err != nil {
 			if errors.Is(err, ErrPodNotCreated) {
 				// the pod wasn't found, we'll just ignore this and remove the finalizer
-				if err := removeGatewayFinalizer(ctx, r.Client, gw); err != nil {
+				if _, err := utils.RemoveFinalizer(ctx, r.Client, gw, gatewayFinalizer); err != nil {
 					logger.Error(err, "failed to remove gateway finalizer")
 					return ctrl.Result{}, err
 				}
@@ -102,7 +102,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		r.Tracker.DeleteStatus(pod)
 
 		// remove the finalizer so we can continue with deletion
-		if err := removeGatewayFinalizer(ctx, r.Client, gw); err != nil {
+		if _, err := utils.RemoveFinalizer(ctx, r.Client, gw, gatewayFinalizer); err != nil {
 			logger.Error(err, "failed to remove gateway finalizer")
 			return ctrl.Result{}, err
 		}
@@ -110,7 +110,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	// first we ensure our finalizer exists
-	updated, err := ensureGatewayFinalizer(ctx, r.Client, gw)
+	updated, err := utils.EnsureFinalizer(ctx, r.Client, gw, gatewayFinalizer)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -256,38 +256,4 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			builder.WithPredicates(predicate),
 		).
 		Complete(r)
-}
-
-func ensureGatewayFinalizer(ctx context.Context, client client.Client, gw *gateway.Gateway) (bool, error) {
-	for _, finalizer := range gw.Finalizers {
-		if finalizer == gatewayFinalizer {
-			return false, nil
-		}
-	}
-	updated := gw.DeepCopy()
-	updated.Finalizers = append(updated.Finalizers, gatewayFinalizer)
-	if err := client.Update(ctx, updated); err != nil {
-		return false, fmt.Errorf("failed to add in-use finalizer: %w", err)
-	}
-	return true, nil
-}
-
-func removeGatewayFinalizer(ctx context.Context, client client.Client, gw *gateway.Gateway) error {
-	finalizers := []string{}
-	found := false
-	for _, finalizer := range gw.Finalizers {
-		if finalizer == gatewayFinalizer {
-			found = true
-			continue
-		}
-		finalizers = append(finalizers, finalizer)
-	}
-	if found {
-		updated := gw.DeepCopy()
-		updated.Finalizers = finalizers
-		if err := client.Update(ctx, updated); err != nil {
-			return fmt.Errorf("failed to remove in-use finalizer: %w", err)
-		}
-	}
-	return nil
 }
