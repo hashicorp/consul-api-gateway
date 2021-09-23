@@ -6,7 +6,7 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient/mocks"
-	reconcilerMocks "github.com/hashicorp/consul-api-gateway/k8s/reconciler/mocks"
+	reconcilerMocks "github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/mocks"
 	"github.com/hashicorp/go-hclog"
 	"github.com/stretchr/testify/require"
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"

@@ -1,4 +1,4 @@
-package consul
+package reconciler
 
 import (
 	"fmt"
@@ -7,8 +7,6 @@ import (
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	"github.com/hashicorp/consul/api"
-
-	"github.com/hashicorp/consul-api-gateway/k8s/routes"
 )
 
 const (
@@ -27,7 +25,7 @@ func NewResolvedGateway(name types.NamespacedName) *ResolvedGateway {
 	}
 }
 
-func (g *ResolvedGateway) AddRoute(lis gw.Listener, route *routes.KubernetesRoute) {
+func (g *ResolvedGateway) AddRoute(lis gw.Listener, route *KubernetesRoute) {
 	rLis, ok := g.listeners[string(lis.Name)]
 	if !ok {
 		rLis = g.newListener(&lis)
@@ -105,7 +103,7 @@ type resolvedListener struct {
 	httpRouteBindings []*gw.HTTPRoute
 }
 
-func (l *resolvedListener) addRoute(route *routes.KubernetesRoute) {
+func (l *resolvedListener) addRoute(route *KubernetesRoute) {
 	if route.IsHTTPRoute() {
 		if httpRoute, ok := route.AsHTTPRoute(); ok {
 			l.httpRouteBindings = append(l.httpRouteBindings, httpRoute.DeepCopy())

@@ -1,4 +1,4 @@
-package consul
+package reconciler
 
 import (
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"

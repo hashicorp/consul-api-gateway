@@ -14,8 +14,6 @@ import (
 
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
-	"github.com/hashicorp/consul-api-gateway/k8s/consul"
-	"github.com/hashicorp/consul-api-gateway/k8s/routes"
 )
 
 const (
@@ -30,10 +28,10 @@ type GatewayReconciler struct {
 	signalReconcileCh chan struct{}
 	stopReconcileCh   chan struct{}
 
-	consul *consul.ConfigEntriesReconciler
+	consul *ConfigEntriesReconciler
 
 	kubeGateway *gw.Gateway
-	kubeRoutes  *routes.KubernetesRoutes
+	kubeRoutes  *KubernetesRoutes
 
 	logger hclog.Logger
 }
@@ -43,7 +41,7 @@ type gatewayReconcilerArgs struct {
 	consul         *api.Client
 	client         gatewayclient.Client
 	gateway        *gw.Gateway
-	routes         *routes.KubernetesRoutes
+	routes         *KubernetesRoutes
 	logger         hclog.Logger
 }
 
@@ -55,7 +53,7 @@ func newReconcilerForGateway(ctx context.Context, args *gatewayReconcilerArgs) *
 		client:            args.client,
 		signalReconcileCh: make(chan struct{}, 1), // buffered chan allow for a single pending reconcile signal
 		stopReconcileCh:   make(chan struct{}),
-		consul:            consul.NewReconciler(args.consul, logger),
+		consul:            NewReconciler(args.consul, logger),
 		kubeGateway:       args.gateway,
 		kubeRoutes:        args.routes,
 
@@ -104,7 +102,7 @@ func (c *GatewayReconciler) reconcile() error {
 		defer c.logger.Trace("reconcile finished", "duration", hclog.Fmt("%dms", time.Since(start).Milliseconds()))
 	}
 	gatewayName := utils.NamespacedName(c.kubeGateway)
-	resolvedGateway := consul.NewResolvedGateway(gatewayName)
+	resolvedGateway := NewResolvedGateway(gatewayName)
 
 	for _, kubeRoute := range c.kubeRoutes.HTTPRoutes() {
 		status := newRouteStatusBuilder(kubeRoute)
@@ -140,7 +138,7 @@ func (c *GatewayReconciler) reconcile() error {
 }
 
 type routeStatusBuilder struct {
-	route routes.Route
+	route Route
 	refs  map[gw.ParentRef]routeStatus
 }
 
@@ -150,7 +148,7 @@ type routeStatus struct {
 	message  string
 }
 
-func newRouteStatusBuilder(route routes.Route) *routeStatusBuilder {
+func newRouteStatusBuilder(route Route) *routeStatusBuilder {
 	return &routeStatusBuilder{
 		route: route,
 		refs:  map[gw.ParentRef]routeStatus{},

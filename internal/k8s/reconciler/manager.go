@@ -18,7 +18,6 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	"github.com/hashicorp/consul-api-gateway/internal/metrics"
-	"github.com/hashicorp/consul-api-gateway/k8s/routes"
 )
 
 //go:generate mockgen -source ./manager.go -destination ./mocks/manager.go -package mocks ReconcileManager
@@ -40,7 +39,7 @@ type GatewayReconcileManager struct {
 	registry       *common.GatewaySecretRegistry
 	client         gatewayclient.Client
 	consul         *api.Client
-	routes         *routes.KubernetesRoutes
+	routes         *KubernetesRoutes
 	logger         hclog.Logger
 	activeGateways int64
 
@@ -67,7 +66,7 @@ func NewReconcileManager(ctx context.Context, config *ManagerConfig) *GatewayRec
 		registry:       config.Registry,
 		reconcilers:    map[types.NamespacedName]*GatewayReconciler{},
 		gatewayClasses: map[string]client.Object{},
-		routes:         routes.NewKubernetesRoutes(),
+		routes:         NewKubernetesRoutes(),
 		logger:         config.Logger,
 	}
 }
