@@ -5,9 +5,9 @@ import (
 
 	"github.com/mitchellh/cli"
 
-	cmdExec "github.com/hashicorp/consul-api-gateway/subcommand/exec"
-	cmdServer "github.com/hashicorp/consul-api-gateway/subcommand/server"
-	cmdVersion "github.com/hashicorp/consul-api-gateway/subcommand/version"
+	cmdExec "github.com/hashicorp/consul-api-gateway/internal/commands/exec"
+	cmdServer "github.com/hashicorp/consul-api-gateway/internal/commands/server"
+	cmdVersion "github.com/hashicorp/consul-api-gateway/internal/commands/version"
 	"github.com/hashicorp/consul-api-gateway/version"
 )
 
