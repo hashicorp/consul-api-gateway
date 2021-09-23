@@ -62,6 +62,7 @@ func TestRegister(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
+			require.Equal(t, id, registry.ID())
 			require.Equal(t, id, server.lastRegistrationRequest.ID)
 			require.Equal(t, service, server.lastRegistrationRequest.Name)
 			require.Equal(t, namespace, server.lastRegistrationRequest.Namespace)

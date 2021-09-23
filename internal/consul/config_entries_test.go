@@ -42,6 +42,9 @@ func TestConfigEntryIndexMerge(t *testing.T) {
 		other.Add(entry)
 	}
 	different := NewConfigEntryIndex(api.IngressGateway)
+	different.Add(&api.IngressGatewayConfigEntry{
+		Kind: api.IngressGateway,
+	})
 	different.Add(&api.IngressGatewayConfigEntry{})
 
 	require.Equal(t, 3, main.Count())
@@ -203,4 +206,21 @@ func TestConfigEntryIndexIntersection(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestConfigEntryIndexToArray(t *testing.T) {
+	entryOne := &api.IngressGatewayConfigEntry{
+		Kind: api.IngressGateway,
+		Name: "one",
+	}
+	entryTwo := &api.IngressGatewayConfigEntry{
+		Kind: api.IngressGateway,
+		Name: "two",
+	}
+	index := NewConfigEntryIndex(api.IngressGateway)
+	index.Add(entryOne)
+	index.Add(entryTwo)
+	entries := index.ToArray()
+	require.Len(t, entries, 2)
+	require.ElementsMatch(t, entries, []api.ConfigEntry{entryOne, entryTwo})
 }
