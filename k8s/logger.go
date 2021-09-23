@@ -1,4 +1,4 @@
-package log
+package k8s
 
 import (
 	"github.com/go-logr/logr"
@@ -6,7 +6,7 @@ import (
 	"github.com/hashicorp/go-hclog"
 )
 
-func FromHCLogger(log hclog.Logger) logr.Logger {
+func fromHCLogger(log hclog.Logger) logr.Logger {
 	return &logger{log}
 }
 

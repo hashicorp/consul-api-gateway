@@ -21,7 +21,6 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/common"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/k8s/controllers"
-	"github.com/hashicorp/consul-api-gateway/k8s/log"
 	"github.com/hashicorp/consul-api-gateway/k8s/reconciler"
 )
 
@@ -78,7 +77,7 @@ func New(logger hclog.Logger, registry *common.GatewaySecretRegistry, opts *Opti
 	}
 
 	// this sets the internal logger that the kubernetes client uses
-	klogv2.SetLogger(log.FromHCLogger(logger.Named("kubernetes-client")))
+	klogv2.SetLogger(fromHCLogger(logger.Named("kubernetes-client")))
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                  scheme,
 		MetricsBindAddress:      opts.MetricsBindAddr,
@@ -87,7 +86,7 @@ func New(logger hclog.Logger, registry *common.GatewaySecretRegistry, opts *Opti
 		LeaderElection:          true,
 		LeaderElectionID:        controllerLeaderElectionID,
 		LeaderElectionNamespace: "default",
-		Logger:                  log.FromHCLogger(logger.Named("controller-runtime")),
+		Logger:                  fromHCLogger(logger.Named("controller-runtime")),
 	})
 
 	if err != nil {
