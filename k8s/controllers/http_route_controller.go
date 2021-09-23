@@ -3,7 +3,6 @@ package controllers
 import (
 	"context"
 
-	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	gateway "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
@@ -63,7 +62,7 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager, scheme *runtime.Scheme) error {
+func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&gateway.HTTPRoute{}).
 		Complete(r)

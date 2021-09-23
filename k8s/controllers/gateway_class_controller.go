@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 
-	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	gateway "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
@@ -93,7 +92,7 @@ func (r *GatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *GatewayClassReconciler) SetupWithManager(mgr ctrl.Manager, scheme *runtime.Scheme) error {
+func (r *GatewayClassReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&gateway.GatewayClass{}).
 		Complete(r)

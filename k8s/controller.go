@@ -20,6 +20,7 @@ import (
 
 	"github.com/hashicorp/consul-api-gateway/internal/common"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
+	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/k8s/apis/v1alpha1"
 	"github.com/hashicorp/consul-api-gateway/k8s/controllers"
 	"github.com/hashicorp/consul-api-gateway/k8s/reconciler"
 )
@@ -114,7 +115,7 @@ func New(logger hclog.Logger, registry *common.GatewaySecretRegistry, opts *Opti
 		if err != nil {
 			return nil, fmt.Errorf("unable to pull Consul CA cert from secret: %w", err)
 		}
-		cert := secret.Data["tls.crt"]
+		cert := secret.Data[corev1.TLSCertKey]
 		if err := os.WriteFile(opts.CACertFile, cert, 0444); err != nil {
 			return nil, fmt.Errorf("unable to write CA cert: %w", err)
 		}
@@ -138,6 +139,8 @@ func (k *Kubernetes) Start(ctx context.Context) error {
 	k.logger.Trace("running controller")
 
 	scheme := k.k8sManager.GetScheme()
+	apigwv1alpha1.RegisterTypes(scheme)
+
 	gwClient := gatewayclient.New(k.k8sManager.GetClient(), scheme)
 
 	reconcileManager := reconciler.NewReconcileManager(ctx, &reconciler.ManagerConfig{
@@ -152,7 +155,7 @@ func (k *Kubernetes) Start(ctx context.Context) error {
 	err := (&controllers.GatewayClassConfigReconciler{
 		Client: gwClient,
 		Log:    k.logger.Named("GatewayClassConfig"),
-	}).SetupWithManager(k.k8sManager, scheme)
+	}).SetupWithManager(k.k8sManager)
 	if err != nil {
 		return fmt.Errorf("failed to create gateway class config controller: %w", err)
 	}
@@ -162,7 +165,7 @@ func (k *Kubernetes) Start(ctx context.Context) error {
 		Log:            k.logger.Named("GatewayClass"),
 		Manager:        reconcileManager,
 		ControllerName: ControllerName,
-	}).SetupWithManager(k.k8sManager, scheme)
+	}).SetupWithManager(k.k8sManager)
 	if err != nil {
 		return fmt.Errorf("failed to create gateway class controller: %w", err)
 	}
@@ -175,7 +178,7 @@ func (k *Kubernetes) Start(ctx context.Context) error {
 		Tracker:        reconciler.NewStatusTracker(),
 		SDSServerHost:  k.sDSServerHost,
 		SDSServerPort:  k.sDSServerPort,
-	}).SetupWithManager(k.k8sManager, scheme)
+	}).SetupWithManager(k.k8sManager)
 	if err != nil {
 		return fmt.Errorf("failed to create gateway controller: %w", err)
 	}
@@ -185,7 +188,7 @@ func (k *Kubernetes) Start(ctx context.Context) error {
 		Log:            k.logger.Named("HTTPRoute"),
 		Manager:        reconcileManager,
 		ControllerName: ControllerName,
-	}).SetupWithManager(k.k8sManager, scheme)
+	}).SetupWithManager(k.k8sManager)
 	if err != nil {
 		return fmt.Errorf("failed to create http route controller: %w", err)
 	}

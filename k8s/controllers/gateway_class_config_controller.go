@@ -4,9 +4,6 @@ import (
 	"context"
 	"errors"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
@@ -73,11 +70,7 @@ func (r *GatewayClassConfigReconciler) Reconcile(ctx context.Context, req ctrl.R
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *GatewayClassConfigReconciler) SetupWithManager(mgr ctrl.Manager, scheme *runtime.Scheme) error {
-	groupVersion := schema.GroupVersion{Group: apigwv1alpha1.Group, Version: "v1alpha1"}
-	scheme.AddKnownTypes(groupVersion, &apigwv1alpha1.GatewayClassConfig{}, &apigwv1alpha1.GatewayClassConfigList{})
-	metav1.AddToGroupVersion(scheme, groupVersion)
-
+func (r *GatewayClassConfigReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&apigwv1alpha1.GatewayClassConfig{}).
 		Complete(r)

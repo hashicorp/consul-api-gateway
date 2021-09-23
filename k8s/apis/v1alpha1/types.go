@@ -148,17 +148,10 @@ func (c *GatewayClassConfig) ServiceFor(gw *gateway.Gateway) *corev1.Service {
 		},
 		Spec: corev1.ServiceSpec{
 			Selector: labels,
-			Type:     c.serviceType(),
+			Type:     *c.Spec.ServiceType,
 			Ports:    ports,
 		},
 	}
-}
-
-func (c *GatewayClassConfig) serviceType() corev1.ServiceType {
-	if c.Spec.ServiceType == nil {
-		return ""
-	}
-	return *c.Spec.ServiceType
 }
 
 // DeploymentsFor returns the deployment configuration for the given gateway.
