@@ -173,7 +173,7 @@ func (k *Kubernetes) Start(ctx context.Context) error {
 		SDSServerHost:  k.sDSServerHost,
 		SDSServerPort:  k.sDSServerPort,
 		ControllerName: ControllerName,
-		Tracker:        utils.NewPodTracker(),
+		Tracker:        utils.NewStatusTracker(),
 		Client:         k.k8sManager.GetClient(),
 		Log:            klogger.WithName("controllers").WithName("Gateway"),
 		Scheme:         k.k8sManager.GetScheme(),

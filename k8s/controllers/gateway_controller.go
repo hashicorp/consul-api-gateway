@@ -27,10 +27,6 @@ import (
 	"github.com/hashicorp/consul-api-gateway/k8s/utils"
 )
 
-const (
-	gatewayFinalizer = "gateway-finalizer.api-gateway.consul.hashicorp.com"
-)
-
 var ErrPodNotCreated = errors.New("pod not yet created for gateway")
 
 // GatewayReconciler reconciles a Gateway object
@@ -41,7 +37,7 @@ type GatewayReconciler struct {
 	SDSServerHost  string
 	SDSServerPort  int
 	ControllerName string
-	Tracker        *utils.PodTracker
+	Tracker        *utils.StatusTracker
 	Manager        *reconciler.GatewayReconcileManager
 }
 
@@ -58,12 +54,13 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	gw := &gateway.Gateway{}
 	err := r.Get(ctx, req.NamespacedName, gw)
-	// If the gateway object has been deleted (and we get an IsNotFound
-	// error), we need to clean up the cached resources. Owned objects
-	// get deleted automatically
 	if err != nil {
+		// If the gateway object has been deleted (and we get an IsNotFound
+		// error), we need to clean up the cached resources. Owned objects
+		// get deleted automatically
 		if k8serrors.IsNotFound(err) {
 			r.Manager.DeleteGateway(req.NamespacedName)
+			r.Tracker.DeleteStatus(req.NamespacedName)
 			return ctrl.Result{}, nil
 		}
 		logger.Error(err, "failed to get Gateway")
@@ -79,44 +76,6 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	if string(gc.Spec.Controller) != r.ControllerName {
 		// we don't manage this gateway
 		return ctrl.Result{}, err
-	}
-
-	if !gw.DeletionTimestamp.IsZero() {
-		// we're getting deleted, clean up cached resources
-		pod, err := podWithLabels(ctx, r.Client, utils.LabelsForNamedGateway(req.NamespacedName))
-		if err != nil {
-			if errors.Is(err, ErrPodNotCreated) {
-				// the pod wasn't found, we'll just ignore this and remove the finalizer
-				if _, err := utils.RemoveFinalizer(ctx, r.Client, gw, gatewayFinalizer); err != nil {
-					logger.Error(err, "failed to remove gateway finalizer")
-					return ctrl.Result{}, err
-				}
-				return ctrl.Result{}, nil
-			}
-			// something bad happened, requeue
-			logger.Error(err, "failed to get gateway pod")
-			return ctrl.Result{}, err
-		}
-		// since we're doing this in a finalizr block, we should always get pod info
-		// prior to the gateway actually getting removed
-		r.Tracker.DeleteStatus(pod)
-
-		// remove the finalizer so we can continue with deletion
-		if _, err := utils.RemoveFinalizer(ctx, r.Client, gw, gatewayFinalizer); err != nil {
-			logger.Error(err, "failed to remove gateway finalizer")
-			return ctrl.Result{}, err
-		}
-		return ctrl.Result{}, nil
-	}
-
-	// first we ensure our finalizer exists
-	updated, err := utils.EnsureFinalizer(ctx, r.Client, gw, gatewayFinalizer)
-	if err != nil {
-		return ctrl.Result{}, err
-	}
-	if updated {
-		// requeue
-		return ctrl.Result{Requeue: true}, nil
 	}
 
 	r.Manager.UpsertGateway(gw)
@@ -139,7 +98,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, err
 	}
 	conditions := utils.MapGatewayConditionsFromPod(pod)
-	if r.Tracker.UpdateStatus(pod, conditions) {
+	if r.Tracker.UpdateStatus(req.NamespacedName, pod.Generation, pod.CreationTimestamp.Time, conditions) {
 		logger.Info("gateway deployment pod status updated", "conditions", conditions)
 	}
 

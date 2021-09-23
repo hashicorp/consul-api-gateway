@@ -1,15 +1,15 @@
 package utils
 
 import (
-	"fmt"
 	"sync"
+	"time"
 
-	core "k8s.io/api/core/v1"
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 type podStatus struct {
-	createdAt  meta.Time
+	createdAt  time.Time
 	generation int64
 	conditions []meta.Condition
 }
@@ -31,65 +31,51 @@ func (p *podStatus) isUpdate(conditions []meta.Condition) bool {
 	return false
 }
 
-type PodTracker struct {
-	statuses map[string]*podStatus
+type StatusTracker struct {
+	statuses map[types.NamespacedName]*podStatus
 	mutex    sync.Mutex
 }
 
-func NewPodTracker() *PodTracker {
-	return &PodTracker{
-		statuses: make(map[string]*podStatus),
+func NewStatusTracker() *StatusTracker {
+	return &StatusTracker{
+		statuses: make(map[types.NamespacedName]*podStatus),
 	}
 }
 
-func (p *PodTracker) UpdateStatus(pod *core.Pod, conditions []meta.Condition) bool {
+func (p *StatusTracker) UpdateStatus(name types.NamespacedName, generation int64, createdAt time.Time, conditions []meta.Condition) bool {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
 
-	key := podKey(pod)
-	status, found := p.statuses[key]
+	status, found := p.statuses[name]
 	if !found {
-		p.statuses[key] = &podStatus{
-			createdAt:  pod.CreationTimestamp,
-			generation: pod.Generation,
+		p.statuses[name] = &podStatus{
+			createdAt:  createdAt,
+			generation: generation,
 			conditions: conditions,
 		}
 		return true
 	}
-	if status.createdAt.After(pod.CreationTimestamp.Time) {
+	if status.createdAt.After(createdAt) {
 		// we have an old pod that's checking in, just ignore it
 		return false
 	}
-	if status.generation > pod.Generation {
+	if status.generation > generation {
 		// we already have a newer status, ignore
 		return false
 	}
-	newerPod := pod.CreationTimestamp.Time.After(status.createdAt.Time)
+	newerPod := createdAt.After(status.createdAt)
 	if newerPod || status.isUpdate(conditions) {
-		status.createdAt = pod.CreationTimestamp
-		status.generation = pod.Generation
+		status.createdAt = createdAt
+		status.generation = generation
 		status.conditions = conditions
 		return true
 	}
 	return false
 }
 
-func (p *PodTracker) DeleteStatus(pod *core.Pod) {
+func (p *StatusTracker) DeleteStatus(name types.NamespacedName) {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
 
-	key := podKey(pod)
-	status, found := p.statuses[key]
-	if !found {
-		return
-	}
-	if status.createdAt.After(pod.CreationTimestamp.Time) {
-		// we have an old pod that's being deleted, just ignore it
-		return
-	}
-	delete(p.statuses, key)
-}
-
-func podKey(pod *core.Pod) string {
-	return fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
+	delete(p.statuses, name)
 }
