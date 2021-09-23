@@ -36,7 +36,7 @@ type GatewayReconciler struct {
 	SDSServerHost  string
 	SDSServerPort  int
 	ControllerName string
-	Tracker        *utils.StatusTracker
+	Tracker        reconciler.GatewayStatusTracker
 	Manager        reconciler.ReconcileManager
 }
 

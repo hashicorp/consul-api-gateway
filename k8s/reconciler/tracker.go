@@ -1,4 +1,4 @@
-package utils
+package reconciler
 
 import (
 	"sync"
@@ -7,6 +7,8 @@ import (
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
+
+//go:generate mockgen -source ./tracker.go -destination ./mocks/tracker.go -package mocks GatewayStatusTracker
 
 type podStatus struct {
 	createdAt  meta.Time
@@ -29,6 +31,11 @@ func (p *podStatus) isUpdate(conditions []meta.Condition) bool {
 		}
 	}
 	return false
+}
+
+type GatewayStatusTracker interface {
+	UpdateStatus(name types.NamespacedName, pod *core.Pod, conditions []meta.Condition) bool
+	DeleteStatus(name types.NamespacedName)
 }
 
 type StatusTracker struct {

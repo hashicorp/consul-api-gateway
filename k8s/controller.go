@@ -23,7 +23,6 @@ import (
 	"github.com/hashicorp/consul-api-gateway/k8s/controllers"
 	"github.com/hashicorp/consul-api-gateway/k8s/log"
 	"github.com/hashicorp/consul-api-gateway/k8s/reconciler"
-	"github.com/hashicorp/consul-api-gateway/k8s/utils"
 )
 
 var (
@@ -174,7 +173,7 @@ func (k *Kubernetes) Start(ctx context.Context) error {
 		Log:            k.logger.Named("Gateway"),
 		Manager:        reconcileManager,
 		ControllerName: ControllerName,
-		Tracker:        utils.NewStatusTracker(),
+		Tracker:        reconciler.NewStatusTracker(),
 		SDSServerHost:  k.sDSServerHost,
 		SDSServerPort:  k.sDSServerPort,
 	}).SetupWithManager(k.k8sManager, scheme)
