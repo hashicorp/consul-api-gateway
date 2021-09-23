@@ -17,7 +17,7 @@ type HTTPRouteReconciler struct {
 	Client         gatewayclient.Client
 	Log            hclog.Logger
 	ControllerName string
-	Manager        *reconciler.GatewayReconcileManager
+	Manager        reconciler.ReconcileManager
 }
 
 //+kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=httproutes,verbs=get;list;watch;create;update;patch;delete

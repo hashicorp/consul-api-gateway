@@ -37,7 +37,7 @@ type GatewayReconciler struct {
 	SDSServerPort  int
 	ControllerName string
 	Tracker        *utils.StatusTracker
-	Manager        *reconciler.GatewayReconcileManager
+	Manager        reconciler.ReconcileManager
 }
 
 //+kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways,verbs=get;list;watch;create;update;patch;delete

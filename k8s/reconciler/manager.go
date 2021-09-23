@@ -21,6 +21,17 @@ import (
 	"github.com/hashicorp/consul-api-gateway/k8s/utils"
 )
 
+//go:generate mockgen -source ./manager.go -destination ./mocks/manager.go -package mocks ReconcileManager
+
+type ReconcileManager interface {
+	UpsertGatewayClass(gc *gw.GatewayClass, validParameters bool) error
+	UpsertGateway(g *gw.Gateway)
+	UpsertHTTPRoute(r *gw.HTTPRoute)
+	DeleteGatewayClass(name string)
+	DeleteGateway(name types.NamespacedName)
+	DeleteRoute(name types.NamespacedName)
+}
+
 // GatewayReconcileManager manages a GatewayReconciler for each Gateway and is the interface by which Consul operations
 // should be invoked in a kubernetes controller.
 type GatewayReconcileManager struct {
