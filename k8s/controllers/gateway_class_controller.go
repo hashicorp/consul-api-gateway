@@ -2,7 +2,7 @@ package controllers
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -11,6 +11,10 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/k8s/reconciler"
 	"github.com/hashicorp/go-hclog"
+)
+
+var (
+	errGatewayClassInUse = errors.New("gateway class is still in use")
 )
 
 const (
@@ -61,7 +65,7 @@ func (r *GatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			return ctrl.Result{}, err
 		}
 		if used {
-			return ctrl.Result{}, fmt.Errorf("gateway class '%s' is still in use", gc.Name)
+			return ctrl.Result{}, errGatewayClassInUse
 		}
 		// remove finalizer
 		if _, err := r.Client.RemoveFinalizer(ctx, gc, gatewayClassFinalizer); err != nil {

@@ -2,7 +2,6 @@ package controllers
 
 import (
 	"context"
-	"errors"
 	"testing"
 
 	"github.com/golang/mock/gomock"
@@ -16,431 +15,190 @@ import (
 	gateway "sigs.k8s.io/gateway-api/apis/v1alpha2"
 )
 
+var (
+	className = types.NamespacedName{
+		Name:      "class",
+		Namespace: "default",
+	}
+)
+
 const mockControllerName = "mock.controller.name"
 
-func TestGatewayClass_GetError(t *testing.T) {
+func TestGatewayClass(t *testing.T) {
 	t.Parallel()
 
-	namespacedName := types.NamespacedName{
-		Name:      "class",
-		Namespace: "default",
-	}
-	expectedErr := errors.New("expected")
-
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	client := mocks.NewMockClient(ctrl)
-	reconciler := reconcilerMocks.NewMockReconcileManager(ctrl)
-
-	client.EXPECT().GetGatewayClass(gomock.Any(), namespacedName).Return(nil, expectedErr)
-
-	controller := &GatewayClassReconciler{
-		Client:         client,
-		Log:            hclog.NewNullLogger(),
-		ControllerName: mockControllerName,
-		Manager:        reconciler,
-	}
-	_, err := controller.Reconcile(context.Background(), reconcile.Request{
-		NamespacedName: namespacedName,
-	})
-	require.Error(t, err)
-	require.Equal(t, expectedErr, err)
-}
-
-func TestGatewayClass_Deleted(t *testing.T) {
-	t.Parallel()
-
-	namespacedName := types.NamespacedName{
-		Name:      "class",
-		Namespace: "default",
-	}
-
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	client := mocks.NewMockClient(ctrl)
-	reconciler := reconcilerMocks.NewMockReconcileManager(ctrl)
-
-	client.EXPECT().GetGatewayClass(gomock.Any(), namespacedName).Return(nil, nil)
-	reconciler.EXPECT().DeleteGatewayClass(namespacedName.Name)
-
-	controller := &GatewayClassReconciler{
-		Client:         client,
-		Log:            hclog.NewNullLogger(),
-		ControllerName: mockControllerName,
-		Manager:        reconciler,
-	}
-	result, err := controller.Reconcile(context.Background(), reconcile.Request{
-		NamespacedName: namespacedName,
-	})
-	require.NoError(t, err)
-	require.Equal(t, reconcile.Result{}, result)
-}
-
-func TestGatewayClass_NotManaged(t *testing.T) {
-	t.Parallel()
-
-	namespacedName := types.NamespacedName{
-		Name:      "class",
-		Namespace: "default",
-	}
-
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	client := mocks.NewMockClient(ctrl)
-	reconciler := reconcilerMocks.NewMockReconcileManager(ctrl)
-
-	client.EXPECT().GetGatewayClass(gomock.Any(), namespacedName).Return(&gateway.GatewayClass{
-		Spec: gateway.GatewayClassSpec{
-			Controller: gateway.GatewayController("other"),
+	for _, test := range []struct {
+		name          string
+		err           error
+		result        reconcile.Result
+		expectationCB func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager)
+	}{{
+		name: "get-error",
+		err:  errExpected,
+		expectationCB: func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager) {
+			client.EXPECT().GetGatewayClass(gomock.Any(), className).Return(nil, errExpected)
 		},
-	}, nil)
-
-	controller := &GatewayClassReconciler{
-		Client:         client,
-		Log:            hclog.NewNullLogger(),
-		ControllerName: mockControllerName,
-		Manager:        reconciler,
-	}
-	result, err := controller.Reconcile(context.Background(), reconcile.Request{
-		NamespacedName: namespacedName,
-	})
-	require.NoError(t, err)
-	require.Equal(t, reconcile.Result{}, result)
-}
-
-func TestGatewayClass_DeletingInUseError(t *testing.T) {
-	t.Parallel()
-
-	now := meta.Now()
-	namespacedName := types.NamespacedName{
-		Name:      "class",
-		Namespace: "default",
-	}
-	expectedErr := errors.New("expected")
-
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	client := mocks.NewMockClient(ctrl)
-	reconciler := reconcilerMocks.NewMockReconcileManager(ctrl)
-
-	client.EXPECT().GetGatewayClass(gomock.Any(), namespacedName).Return(&gateway.GatewayClass{
-		ObjectMeta: meta.ObjectMeta{
-			DeletionTimestamp: &now,
+	}, {
+		name: "deleted",
+		expectationCB: func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager) {
+			client.EXPECT().GetGatewayClass(gomock.Any(), className).Return(nil, nil)
+			reconciler.EXPECT().DeleteGatewayClass(className.Name)
 		},
-		Spec: gateway.GatewayClassSpec{
-			Controller: gateway.GatewayController(mockControllerName),
+	}, {
+		name: "not-managed",
+		expectationCB: func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager) {
+			client.EXPECT().GetGatewayClass(gomock.Any(), className).Return(&gateway.GatewayClass{
+				Spec: gateway.GatewayClassSpec{
+					Controller: gateway.GatewayController("other"),
+				},
+			}, nil)
 		},
-	}, nil)
-	client.EXPECT().GatewayClassInUse(gomock.Any(), gomock.Any()).Return(false, expectedErr)
-
-	controller := &GatewayClassReconciler{
-		Client:         client,
-		Log:            hclog.NewNullLogger(),
-		ControllerName: mockControllerName,
-		Manager:        reconciler,
-	}
-	_, err := controller.Reconcile(context.Background(), reconcile.Request{
-		NamespacedName: namespacedName,
-	})
-	require.Error(t, err)
-	require.Equal(t, expectedErr, err)
-}
-
-func TestGatewayClass_DeletingInUse(t *testing.T) {
-	t.Parallel()
-
-	now := meta.Now()
-	namespacedName := types.NamespacedName{
-		Name:      "class",
-		Namespace: "default",
-	}
-
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	client := mocks.NewMockClient(ctrl)
-	reconciler := reconcilerMocks.NewMockReconcileManager(ctrl)
-
-	client.EXPECT().GetGatewayClass(gomock.Any(), namespacedName).Return(&gateway.GatewayClass{
-		ObjectMeta: meta.ObjectMeta{
-			DeletionTimestamp: &now,
+	}, {
+		name: "deleting-in-use-error",
+		err:  errExpected,
+		expectationCB: func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager) {
+			now := meta.Now()
+			client.EXPECT().GetGatewayClass(gomock.Any(), className).Return(&gateway.GatewayClass{
+				ObjectMeta: meta.ObjectMeta{
+					DeletionTimestamp: &now,
+				},
+				Spec: gateway.GatewayClassSpec{
+					Controller: gateway.GatewayController(mockControllerName),
+				},
+			}, nil)
+			client.EXPECT().GatewayClassInUse(gomock.Any(), gomock.Any()).Return(false, errExpected)
 		},
-		Spec: gateway.GatewayClassSpec{
-			Controller: gateway.GatewayController(mockControllerName),
+	}, {
+		name: "deleting-in-use",
+		err:  errGatewayClassInUse,
+		expectationCB: func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager) {
+			now := meta.Now()
+			client.EXPECT().GetGatewayClass(gomock.Any(), className).Return(&gateway.GatewayClass{
+				ObjectMeta: meta.ObjectMeta{
+					DeletionTimestamp: &now,
+				},
+				Spec: gateway.GatewayClassSpec{
+					Controller: gateway.GatewayController(mockControllerName),
+				},
+			}, nil)
+			client.EXPECT().GatewayClassInUse(gomock.Any(), gomock.Any()).Return(true, nil)
 		},
-	}, nil)
-	client.EXPECT().GatewayClassInUse(gomock.Any(), gomock.Any()).Return(true, nil)
-
-	controller := &GatewayClassReconciler{
-		Client:         client,
-		Log:            hclog.NewNullLogger(),
-		ControllerName: mockControllerName,
-		Manager:        reconciler,
-	}
-	_, err := controller.Reconcile(context.Background(), reconcile.Request{
-		NamespacedName: namespacedName,
-	})
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "in use")
-}
-
-func TestGatewayClass_DeletingFinalizerError(t *testing.T) {
-	t.Parallel()
-
-	now := meta.Now()
-	namespacedName := types.NamespacedName{
-		Name:      "class",
-		Namespace: "default",
-	}
-	expectedErr := errors.New("expected")
-
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	client := mocks.NewMockClient(ctrl)
-	reconciler := reconcilerMocks.NewMockReconcileManager(ctrl)
-
-	client.EXPECT().GetGatewayClass(gomock.Any(), namespacedName).Return(&gateway.GatewayClass{
-		ObjectMeta: meta.ObjectMeta{
-			DeletionTimestamp: &now,
+	}, {
+		name: "deleting-finalizer-error",
+		err:  errExpected,
+		expectationCB: func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager) {
+			now := meta.Now()
+			client.EXPECT().GetGatewayClass(gomock.Any(), className).Return(&gateway.GatewayClass{
+				ObjectMeta: meta.ObjectMeta{
+					DeletionTimestamp: &now,
+				},
+				Spec: gateway.GatewayClassSpec{
+					Controller: gateway.GatewayController(mockControllerName),
+				},
+			}, nil)
+			client.EXPECT().GatewayClassInUse(gomock.Any(), gomock.Any()).Return(false, nil)
+			client.EXPECT().RemoveFinalizer(gomock.Any(), gomock.Any(), gatewayClassFinalizer).Return(false, errExpected)
 		},
-		Spec: gateway.GatewayClassSpec{
-			Controller: gateway.GatewayController(mockControllerName),
+	}, {
+		name: "deleting",
+		expectationCB: func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager) {
+			now := meta.Now()
+			client.EXPECT().GetGatewayClass(gomock.Any(), className).Return(&gateway.GatewayClass{
+				ObjectMeta: meta.ObjectMeta{
+					DeletionTimestamp: &now,
+				},
+				Spec: gateway.GatewayClassSpec{
+					Controller: gateway.GatewayController(mockControllerName),
+				},
+			}, nil)
+			client.EXPECT().GatewayClassInUse(gomock.Any(), gomock.Any()).Return(false, nil)
+			client.EXPECT().RemoveFinalizer(gomock.Any(), gomock.Any(), gatewayClassFinalizer).Return(true, nil)
 		},
-	}, nil)
-	client.EXPECT().GatewayClassInUse(gomock.Any(), gomock.Any()).Return(false, nil)
-	client.EXPECT().RemoveFinalizer(gomock.Any(), gomock.Any(), gatewayClassFinalizer).Return(false, expectedErr)
-
-	controller := &GatewayClassReconciler{
-		Client:         client,
-		Log:            hclog.NewNullLogger(),
-		ControllerName: mockControllerName,
-		Manager:        reconciler,
-	}
-	_, err := controller.Reconcile(context.Background(), reconcile.Request{
-		NamespacedName: namespacedName,
-	})
-	require.Error(t, err)
-	require.Equal(t, expectedErr, err)
-}
-
-func TestGatewayClass_Deleting(t *testing.T) {
-	t.Parallel()
-
-	now := meta.Now()
-	namespacedName := types.NamespacedName{
-		Name:      "class",
-		Namespace: "default",
-	}
-
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	client := mocks.NewMockClient(ctrl)
-	reconciler := reconcilerMocks.NewMockReconcileManager(ctrl)
-
-	client.EXPECT().GetGatewayClass(gomock.Any(), namespacedName).Return(&gateway.GatewayClass{
-		ObjectMeta: meta.ObjectMeta{
-			DeletionTimestamp: &now,
+	}, {
+		name: "create-finalizer-error",
+		err:  errExpected,
+		expectationCB: func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager) {
+			client.EXPECT().GetGatewayClass(gomock.Any(), className).Return(&gateway.GatewayClass{
+				Spec: gateway.GatewayClassSpec{
+					Controller: gateway.GatewayController(mockControllerName),
+				},
+			}, nil)
+			client.EXPECT().EnsureFinalizer(gomock.Any(), gomock.Any(), gatewayClassFinalizer).Return(false, errExpected)
 		},
-		Spec: gateway.GatewayClassSpec{
-			Controller: gateway.GatewayController(mockControllerName),
+	}, {
+		name:   "create-finalizer-updated",
+		result: reconcile.Result{Requeue: true},
+		expectationCB: func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager) {
+			client.EXPECT().GetGatewayClass(gomock.Any(), className).Return(&gateway.GatewayClass{
+				Spec: gateway.GatewayClassSpec{
+					Controller: gateway.GatewayController(mockControllerName),
+				},
+			}, nil)
+			client.EXPECT().EnsureFinalizer(gomock.Any(), gomock.Any(), gatewayClassFinalizer).Return(true, nil)
 		},
-	}, nil)
-	client.EXPECT().GatewayClassInUse(gomock.Any(), gomock.Any()).Return(false, nil)
-	client.EXPECT().RemoveFinalizer(gomock.Any(), gomock.Any(), gatewayClassFinalizer).Return(true, nil)
-
-	controller := &GatewayClassReconciler{
-		Client:         client,
-		Log:            hclog.NewNullLogger(),
-		ControllerName: mockControllerName,
-		Manager:        reconciler,
-	}
-	result, err := controller.Reconcile(context.Background(), reconcile.Request{
-		NamespacedName: namespacedName,
-	})
-	require.NoError(t, err)
-	require.Equal(t, reconcile.Result{}, result)
-}
-
-func TestGatewayClass_CreateFinalizerError(t *testing.T) {
-	t.Parallel()
-
-	namespacedName := types.NamespacedName{
-		Name:      "class",
-		Namespace: "default",
-	}
-	expectedErr := errors.New("expected")
-
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	client := mocks.NewMockClient(ctrl)
-	reconciler := reconcilerMocks.NewMockReconcileManager(ctrl)
-
-	client.EXPECT().GetGatewayClass(gomock.Any(), namespacedName).Return(&gateway.GatewayClass{
-		Spec: gateway.GatewayClassSpec{
-			Controller: gateway.GatewayController(mockControllerName),
+	}, {
+		name: "create-validation-error",
+		err:  errExpected,
+		expectationCB: func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager) {
+			client.EXPECT().GetGatewayClass(gomock.Any(), className).Return(&gateway.GatewayClass{
+				Spec: gateway.GatewayClassSpec{
+					Controller: gateway.GatewayController(mockControllerName),
+				},
+			}, nil)
+			client.EXPECT().EnsureFinalizer(gomock.Any(), gomock.Any(), gatewayClassFinalizer).Return(false, nil)
+			client.EXPECT().IsValidGatewayClass(gomock.Any(), gomock.Any()).Return(false, errExpected)
 		},
-	}, nil)
-	client.EXPECT().EnsureFinalizer(gomock.Any(), gomock.Any(), gatewayClassFinalizer).Return(false, expectedErr)
-
-	controller := &GatewayClassReconciler{
-		Client:         client,
-		Log:            hclog.NewNullLogger(),
-		ControllerName: mockControllerName,
-		Manager:        reconciler,
-	}
-	_, err := controller.Reconcile(context.Background(), reconcile.Request{
-		NamespacedName: namespacedName,
-	})
-	require.Error(t, err)
-	require.Equal(t, expectedErr, err)
-}
-
-func TestGatewayClass_CreateFinalizerUpdated(t *testing.T) {
-	t.Parallel()
-
-	namespacedName := types.NamespacedName{
-		Name:      "class",
-		Namespace: "default",
-	}
-
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	client := mocks.NewMockClient(ctrl)
-	reconciler := reconcilerMocks.NewMockReconcileManager(ctrl)
-
-	client.EXPECT().GetGatewayClass(gomock.Any(), namespacedName).Return(&gateway.GatewayClass{
-		Spec: gateway.GatewayClassSpec{
-			Controller: gateway.GatewayController(mockControllerName),
+	}, {
+		name: "create-validation-true",
+		expectationCB: func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager) {
+			client.EXPECT().GetGatewayClass(gomock.Any(), className).Return(&gateway.GatewayClass{
+				Spec: gateway.GatewayClassSpec{
+					Controller: gateway.GatewayController(mockControllerName),
+				},
+			}, nil)
+			client.EXPECT().EnsureFinalizer(gomock.Any(), gomock.Any(), gatewayClassFinalizer).Return(false, nil)
+			client.EXPECT().IsValidGatewayClass(gomock.Any(), gomock.Any()).Return(true, nil)
+			reconciler.EXPECT().UpsertGatewayClass(gomock.Any(), true)
 		},
-	}, nil)
-	client.EXPECT().EnsureFinalizer(gomock.Any(), gomock.Any(), gatewayClassFinalizer).Return(true, nil)
-
-	controller := &GatewayClassReconciler{
-		Client:         client,
-		Log:            hclog.NewNullLogger(),
-		ControllerName: mockControllerName,
-		Manager:        reconciler,
-	}
-	result, err := controller.Reconcile(context.Background(), reconcile.Request{
-		NamespacedName: namespacedName,
-	})
-	require.NoError(t, err)
-	// ensure we requeue
-	require.Equal(t, reconcile.Result{Requeue: true}, result)
-}
-
-func TestGatewayClass_CreateValidationError(t *testing.T) {
-	t.Parallel()
-
-	namespacedName := types.NamespacedName{
-		Name:      "class",
-		Namespace: "default",
-	}
-	expectedErr := errors.New("expected")
-
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	client := mocks.NewMockClient(ctrl)
-	reconciler := reconcilerMocks.NewMockReconcileManager(ctrl)
-
-	client.EXPECT().GetGatewayClass(gomock.Any(), namespacedName).Return(&gateway.GatewayClass{
-		Spec: gateway.GatewayClassSpec{
-			Controller: gateway.GatewayController(mockControllerName),
+	}, {
+		name: "create-validation-false",
+		expectationCB: func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager) {
+			client.EXPECT().GetGatewayClass(gomock.Any(), className).Return(&gateway.GatewayClass{
+				Spec: gateway.GatewayClassSpec{
+					Controller: gateway.GatewayController(mockControllerName),
+				},
+			}, nil)
+			client.EXPECT().EnsureFinalizer(gomock.Any(), gomock.Any(), gatewayClassFinalizer).Return(false, nil)
+			client.EXPECT().IsValidGatewayClass(gomock.Any(), gomock.Any()).Return(false, nil)
+			reconciler.EXPECT().UpsertGatewayClass(gomock.Any(), false)
 		},
-	}, nil)
-	client.EXPECT().EnsureFinalizer(gomock.Any(), gomock.Any(), gatewayClassFinalizer).Return(false, nil)
-	client.EXPECT().IsValidGatewayClass(gomock.Any(), gomock.Any()).Return(false, expectedErr)
+	}} {
+		t.Run(test.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
 
-	controller := &GatewayClassReconciler{
-		Client:         client,
-		Log:            hclog.NewNullLogger(),
-		ControllerName: mockControllerName,
-		Manager:        reconciler,
+			client := mocks.NewMockClient(ctrl)
+			reconciler := reconcilerMocks.NewMockReconcileManager(ctrl)
+			if test.expectationCB != nil {
+				test.expectationCB(client, reconciler)
+			}
+
+			controller := &GatewayClassReconciler{
+				Client:         client,
+				Log:            hclog.NewNullLogger(),
+				ControllerName: mockControllerName,
+				Manager:        reconciler,
+			}
+			result, err := controller.Reconcile(context.Background(), reconcile.Request{
+				NamespacedName: className,
+			})
+			if test.err != nil {
+				require.Error(t, err)
+				require.ErrorIs(t, err, test.err)
+			} else {
+				require.NoError(t, err)
+			}
+			require.Equal(t, test.result, result)
+		})
 	}
-	_, err := controller.Reconcile(context.Background(), reconcile.Request{
-		NamespacedName: namespacedName,
-	})
-	require.Error(t, err)
-	require.Equal(t, expectedErr, err)
-}
-
-func TestGatewayClass_CreateValidationTrue(t *testing.T) {
-	t.Parallel()
-
-	namespacedName := types.NamespacedName{
-		Name:      "class",
-		Namespace: "default",
-	}
-
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	client := mocks.NewMockClient(ctrl)
-	reconciler := reconcilerMocks.NewMockReconcileManager(ctrl)
-
-	client.EXPECT().GetGatewayClass(gomock.Any(), namespacedName).Return(&gateway.GatewayClass{
-		Spec: gateway.GatewayClassSpec{
-			Controller: gateway.GatewayController(mockControllerName),
-		},
-	}, nil)
-	client.EXPECT().EnsureFinalizer(gomock.Any(), gomock.Any(), gatewayClassFinalizer).Return(false, nil)
-	client.EXPECT().IsValidGatewayClass(gomock.Any(), gomock.Any()).Return(true, nil)
-	reconciler.EXPECT().UpsertGatewayClass(gomock.Any(), true)
-
-	controller := &GatewayClassReconciler{
-		Client:         client,
-		Log:            hclog.NewNullLogger(),
-		ControllerName: mockControllerName,
-		Manager:        reconciler,
-	}
-	result, err := controller.Reconcile(context.Background(), reconcile.Request{
-		NamespacedName: namespacedName,
-	})
-	require.NoError(t, err)
-	require.Equal(t, reconcile.Result{}, result)
-}
-
-func TestGatewayClass_CreateValidationFalse(t *testing.T) {
-	t.Parallel()
-
-	namespacedName := types.NamespacedName{
-		Name:      "class",
-		Namespace: "default",
-	}
-
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	client := mocks.NewMockClient(ctrl)
-	reconciler := reconcilerMocks.NewMockReconcileManager(ctrl)
-
-	client.EXPECT().GetGatewayClass(gomock.Any(), namespacedName).Return(&gateway.GatewayClass{
-		Spec: gateway.GatewayClassSpec{
-			Controller: gateway.GatewayController(mockControllerName),
-		},
-	}, nil)
-	client.EXPECT().EnsureFinalizer(gomock.Any(), gomock.Any(), gatewayClassFinalizer).Return(false, nil)
-	client.EXPECT().IsValidGatewayClass(gomock.Any(), gomock.Any()).Return(false, nil)
-	reconciler.EXPECT().UpsertGatewayClass(gomock.Any(), false)
-
-	controller := &GatewayClassReconciler{
-		Client:         client,
-		Log:            hclog.NewNullLogger(),
-		ControllerName: mockControllerName,
-		Manager:        reconciler,
-	}
-	result, err := controller.Reconcile(context.Background(), reconcile.Request{
-		NamespacedName: namespacedName,
-	})
-	require.NoError(t, err)
-	require.Equal(t, reconcile.Result{}, result)
 }

@@ -2,7 +2,6 @@ package controllers
 
 import (
 	"context"
-	"errors"
 	"testing"
 
 	"github.com/golang/mock/gomock"
@@ -15,155 +14,81 @@ import (
 	gateway "sigs.k8s.io/gateway-api/apis/v1alpha2"
 )
 
-func TestHTTPRoute_GetError(t *testing.T) {
-	t.Parallel()
-
-	namespacedName := types.NamespacedName{
-		Name:      "route",
+var (
+	httpRouteName = types.NamespacedName{
+		Name:      "http-route",
 		Namespace: "default",
 	}
-	expectedErr := errors.New("expected")
+)
 
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	client := mocks.NewMockClient(ctrl)
-	reconciler := reconcilerMocks.NewMockReconcileManager(ctrl)
-
-	client.EXPECT().GetHTTPRoute(gomock.Any(), namespacedName).Return(nil, expectedErr)
-
-	controller := &HTTPRouteReconciler{
-		Client:         client,
-		Log:            hclog.NewNullLogger(),
-		ControllerName: mockControllerName,
-		Manager:        reconciler,
-	}
-	_, err := controller.Reconcile(context.Background(), reconcile.Request{
-		NamespacedName: namespacedName,
-	})
-	require.Error(t, err)
-	require.Equal(t, expectedErr, err)
-}
-
-func TestHTTPRoute_Deleted(t *testing.T) {
+func TestHTTPRoute(t *testing.T) {
 	t.Parallel()
 
-	namespacedName := types.NamespacedName{
-		Name:      "route",
-		Namespace: "default",
+	for _, test := range []struct {
+		name          string
+		err           error
+		result        reconcile.Result
+		expectationCB func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager)
+	}{{
+		name: "get-error",
+		err:  errExpected,
+		expectationCB: func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager) {
+			client.EXPECT().GetHTTPRoute(gomock.Any(), httpRouteName).Return(nil, errExpected)
+		},
+	}, {
+		name: "deleted",
+		expectationCB: func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager) {
+			client.EXPECT().GetHTTPRoute(gomock.Any(), httpRouteName).Return(nil, nil)
+			reconciler.EXPECT().DeleteRoute(httpRouteName)
+		},
+	}, {
+		name: "managed-error",
+		err:  errExpected,
+		expectationCB: func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager) {
+			client.EXPECT().GetHTTPRoute(gomock.Any(), httpRouteName).Return(&gateway.HTTPRoute{}, nil)
+			client.EXPECT().IsManagedRoute(gomock.Any(), gomock.Any(), mockControllerName).Return(false, errExpected)
+		},
+	}, {
+		name: "not-managed",
+		expectationCB: func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager) {
+			client.EXPECT().GetHTTPRoute(gomock.Any(), httpRouteName).Return(&gateway.HTTPRoute{}, nil)
+			client.EXPECT().IsManagedRoute(gomock.Any(), gomock.Any(), mockControllerName).Return(false, nil)
+			reconciler.EXPECT().DeleteRoute(httpRouteName)
+		},
+	}, {
+		name: "managed",
+		expectationCB: func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager) {
+			client.EXPECT().GetHTTPRoute(gomock.Any(), httpRouteName).Return(&gateway.HTTPRoute{}, nil)
+			client.EXPECT().IsManagedRoute(gomock.Any(), gomock.Any(), mockControllerName).Return(true, nil)
+			reconciler.EXPECT().UpsertHTTPRoute(gomock.Any())
+		},
+	}} {
+		t.Run(test.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			client := mocks.NewMockClient(ctrl)
+			reconciler := reconcilerMocks.NewMockReconcileManager(ctrl)
+			if test.expectationCB != nil {
+				test.expectationCB(client, reconciler)
+			}
+
+			controller := &HTTPRouteReconciler{
+				Client:         client,
+				Log:            hclog.NewNullLogger(),
+				ControllerName: mockControllerName,
+				Manager:        reconciler,
+			}
+			result, err := controller.Reconcile(context.Background(), reconcile.Request{
+				NamespacedName: httpRouteName,
+			})
+			if test.err != nil {
+				require.Error(t, err)
+				require.ErrorIs(t, err, test.err)
+			} else {
+				require.NoError(t, err)
+			}
+			require.Equal(t, test.result, result)
+		})
 	}
-
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	client := mocks.NewMockClient(ctrl)
-	reconciler := reconcilerMocks.NewMockReconcileManager(ctrl)
-
-	client.EXPECT().GetHTTPRoute(gomock.Any(), namespacedName).Return(nil, nil)
-	reconciler.EXPECT().DeleteRoute(namespacedName)
-
-	controller := &HTTPRouteReconciler{
-		Client:         client,
-		Log:            hclog.NewNullLogger(),
-		ControllerName: mockControllerName,
-		Manager:        reconciler,
-	}
-	result, err := controller.Reconcile(context.Background(), reconcile.Request{
-		NamespacedName: namespacedName,
-	})
-	require.NoError(t, err)
-	require.Equal(t, reconcile.Result{}, result)
-}
-
-func TestHTTPRoute_ManagedError(t *testing.T) {
-	t.Parallel()
-
-	namespacedName := types.NamespacedName{
-		Name:      "route",
-		Namespace: "default",
-	}
-	expectedErr := errors.New("expected")
-
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	client := mocks.NewMockClient(ctrl)
-	reconciler := reconcilerMocks.NewMockReconcileManager(ctrl)
-
-	client.EXPECT().GetHTTPRoute(gomock.Any(), namespacedName).Return(&gateway.HTTPRoute{}, nil)
-	client.EXPECT().IsManagedRoute(gomock.Any(), gomock.Any(), mockControllerName).Return(false, expectedErr)
-
-	controller := &HTTPRouteReconciler{
-		Client:         client,
-		Log:            hclog.NewNullLogger(),
-		ControllerName: mockControllerName,
-		Manager:        reconciler,
-	}
-	_, err := controller.Reconcile(context.Background(), reconcile.Request{
-		NamespacedName: namespacedName,
-	})
-	require.Error(t, err)
-	require.Equal(t, expectedErr, err)
-}
-
-func TestHTTPRoute_NotManaged(t *testing.T) {
-	t.Parallel()
-
-	namespacedName := types.NamespacedName{
-		Name:      "route",
-		Namespace: "default",
-	}
-
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	client := mocks.NewMockClient(ctrl)
-	reconciler := reconcilerMocks.NewMockReconcileManager(ctrl)
-
-	client.EXPECT().GetHTTPRoute(gomock.Any(), namespacedName).Return(&gateway.HTTPRoute{}, nil)
-	client.EXPECT().IsManagedRoute(gomock.Any(), gomock.Any(), mockControllerName).Return(false, nil)
-	reconciler.EXPECT().DeleteRoute(namespacedName)
-
-	controller := &HTTPRouteReconciler{
-		Client:         client,
-		Log:            hclog.NewNullLogger(),
-		ControllerName: mockControllerName,
-		Manager:        reconciler,
-	}
-	result, err := controller.Reconcile(context.Background(), reconcile.Request{
-		NamespacedName: namespacedName,
-	})
-	require.NoError(t, err)
-	require.Equal(t, reconcile.Result{}, result)
-}
-
-func TestHTTPRoute_Managed(t *testing.T) {
-	t.Parallel()
-
-	namespacedName := types.NamespacedName{
-		Name:      "route",
-		Namespace: "default",
-	}
-
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	client := mocks.NewMockClient(ctrl)
-	reconciler := reconcilerMocks.NewMockReconcileManager(ctrl)
-
-	client.EXPECT().GetHTTPRoute(gomock.Any(), namespacedName).Return(&gateway.HTTPRoute{}, nil)
-	client.EXPECT().IsManagedRoute(gomock.Any(), gomock.Any(), mockControllerName).Return(true, nil)
-	reconciler.EXPECT().UpsertHTTPRoute(gomock.Any())
-
-	controller := &HTTPRouteReconciler{
-		Client:         client,
-		Log:            hclog.NewNullLogger(),
-		ControllerName: mockControllerName,
-		Manager:        reconciler,
-	}
-	result, err := controller.Reconcile(context.Background(), reconcile.Request{
-		NamespacedName: namespacedName,
-	})
-	require.NoError(t, err)
-	require.Equal(t, reconcile.Result{}, result)
 }
