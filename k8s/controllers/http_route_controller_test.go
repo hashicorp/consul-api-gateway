@@ -21,6 +21,10 @@ var (
 	}
 )
 
+func TestHTTPRouteSetup(t *testing.T) {
+	require.Error(t, (&HTTPRouteReconciler{}).SetupWithManager(nil))
+}
+
 func TestHTTPRoute(t *testing.T) {
 	t.Parallel()
 

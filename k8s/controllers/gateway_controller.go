@@ -154,14 +154,11 @@ func (r *GatewayReconciler) ensureDeployment(ctx context.Context, gc *gateway.Ga
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	predicate, err := predicate.LabelSelectorPredicate(
+	predicate, _ := predicate.LabelSelectorPredicate(
 		*metav1.SetAsLabelSelector(map[string]string{
 			utils.ManagedLabel: "true",
 		}),
 	)
-	if err != nil {
-		return err
-	}
 
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&gateway.Gateway{}).
@@ -169,20 +166,22 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&corev1.Service{}).
 		Watches(
 			&source.Kind{Type: &corev1.Pod{}},
-			handler.EnqueueRequestsFromMapFunc(func(object client.Object) []reconcile.Request {
-				gateway, managed := utils.IsManagedGateway(object.GetLabels())
-
-				if managed {
-					return []reconcile.Request{
-						{NamespacedName: types.NamespacedName{
-							Name:      gateway,
-							Namespace: object.GetNamespace(),
-						}},
-					}
-				}
-				return nil
-			}),
+			handler.EnqueueRequestsFromMapFunc(podToGatewayRequest),
 			builder.WithPredicates(predicate),
 		).
 		Complete(r)
+}
+
+func podToGatewayRequest(object client.Object) []reconcile.Request {
+	gateway, managed := utils.IsManagedGateway(object.GetLabels())
+
+	if managed {
+		return []reconcile.Request{
+			{NamespacedName: types.NamespacedName{
+				Name:      gateway,
+				Namespace: object.GetNamespace(),
+			}},
+		}
+	}
+	return nil
 }

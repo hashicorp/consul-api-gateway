@@ -24,6 +24,9 @@ var (
 
 const mockControllerName = "mock.controller.name"
 
+func TestGatewayClassSetup(t *testing.T) {
+	require.Error(t, (&GatewayClassReconciler{}).SetupWithManager(nil))
+}
 func TestGatewayClass(t *testing.T) {
 	t.Parallel()
 

@@ -23,6 +23,10 @@ var (
 	}
 )
 
+func TestGatewayClassConfigRegister(t *testing.T) {
+	require.Error(t, (&GatewayClassConfigReconciler{}).SetupWithManager(nil))
+}
+
 func TestGatewayClassConfig(t *testing.T) {
 	t.Parallel()
 
