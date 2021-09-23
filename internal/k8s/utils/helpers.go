@@ -2,6 +2,7 @@ package utils
 
 import (
 	"reflect"
+	"strings"
 
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -36,4 +37,30 @@ func hostnamesToSlice(hostnames []gateway.Hostname) []string {
 		result[i] = string(h)
 	}
 	return result
+}
+
+// HostnamesMatch checks listener and route hostnames based off of the Gateway Spec. The spec states that a route
+// cannot be admitted unless one of the hostnames match the listener's hostname. If the route or listener hostnames are not
+// set, '*' is assumed which allows all.
+func HostnamesMatch(a, b gateway.Hostname) bool {
+	if a == "" || a == "*" || b == "" || b == "*" {
+		// any wildcard always matches
+		return true
+	}
+
+	if strings.HasPrefix(string(a), "*.") || strings.HasPrefix(string(b), "*.") {
+		aLabels, bLabels := strings.Split(string(a), "."), strings.Split(string(b), ".")
+		if len(aLabels) != len(bLabels) {
+			return false
+		}
+
+		for i := 1; i < len(aLabels); i++ {
+			if !strings.EqualFold(aLabels[i], bLabels[i]) {
+				return false
+			}
+		}
+		return true
+	}
+
+	return a == b
 }

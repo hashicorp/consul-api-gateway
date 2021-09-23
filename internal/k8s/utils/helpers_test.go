@@ -63,3 +63,19 @@ func TestHostnamesForHTTPRoute(t *testing.T) {
 	require.Equal(t, "1.host.name", hostnames[0])
 	require.Equal(t, "2.host.name", hostnames[1])
 }
+
+func TestHostnamesMatch(t *testing.T) {
+	require.True(t, HostnamesMatch("*", "*"))
+	require.True(t, HostnamesMatch("", "*"))
+	require.True(t, HostnamesMatch("*", ""))
+	require.True(t, HostnamesMatch("", ""))
+	require.True(t, HostnamesMatch("*.test", "*.test"))
+	require.True(t, HostnamesMatch("a.test", "*.test"))
+	require.True(t, HostnamesMatch("*.test", "a.test"))
+	require.False(t, HostnamesMatch("*.test", "a.b.test"))
+	require.False(t, HostnamesMatch("a.b.test", "*.test"))
+	require.True(t, HostnamesMatch("a.b.test", "*.b.test"))
+	require.True(t, HostnamesMatch("*.b.test", "a.b.test"))
+	require.False(t, HostnamesMatch("*.b.test", "a.c.test"))
+	require.True(t, HostnamesMatch("a.b.test", "a.b.test"))
+}

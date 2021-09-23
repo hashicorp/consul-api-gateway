@@ -2,7 +2,6 @@ package reconciler
 
 import (
 	"fmt"
-	"strings"
 	"sync"
 
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
@@ -132,14 +131,13 @@ func (r *KubernetesRoute) IsAdmittedByGatewayListener(gatewayName types.Namespac
 
 func (r *KubernetesRoute) ParentRefAllowed(ref gw.ParentRef, gatewayName types.NamespacedName, listener gw.Listener) error {
 	// First check if any hostnames match the listener for HTTPRoutes. The spec states that even if a parent can be referenced, the route
-	// cannot be admitted unless one of the host names match the listener's Hostname. If the route or listener Hostnames are not
-	// set, '*' is assumed which allows all.
+	// cannot be admitted unless one of the hostnames match the listener's hostname.
 	if r.IsHTTPRoute() {
 		route, _ := r.AsHTTPRoute()
 		if len(route.Spec.Hostnames) > 0 && listener.Hostname != nil {
 			var match bool
 			for _, name := range route.Spec.Hostnames {
-				if hostnamesMatch(name, *listener.Hostname) {
+				if utils.HostnamesMatch(name, *listener.Hostname) {
 					match = true
 					break
 				}
@@ -225,29 +223,6 @@ func routeParentRefMatches(ref gw.ParentRef, gatewayName types.NamespacedName, l
 	}
 
 	return nil
-}
-
-func hostnamesMatch(a, b gw.Hostname) bool {
-	if a == "" || a == "*" || b == "" || b == "*" {
-		// any wildcard always matches
-		return true
-	}
-
-	if strings.HasPrefix(string(a), "*.") || strings.HasPrefix(string(b), "*.") {
-		aLabels, bLabels := strings.Split(string(a), "."), strings.Split(string(b), ".")
-		if len(aLabels) != len(bLabels) {
-			return false
-		}
-
-		for i := 1; i < len(aLabels); i++ {
-			if !strings.EqualFold(aLabels[i], bLabels[i]) {
-				return false
-			}
-		}
-	}
-
-	return a == b
-
 }
 
 func toNamespaceSet(name string, labels map[string]string) klabels.Labels {
