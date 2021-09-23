@@ -4,6 +4,7 @@ import (
 	"sync"
 	"time"
 
+	core "k8s.io/api/core/v1"
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
@@ -42,31 +43,31 @@ func NewStatusTracker() *StatusTracker {
 	}
 }
 
-func (p *StatusTracker) UpdateStatus(name types.NamespacedName, generation int64, createdAt time.Time, conditions []meta.Condition) bool {
+func (p *StatusTracker) UpdateStatus(name types.NamespacedName, pod *core.Pod, conditions []meta.Condition) bool {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
 
 	status, found := p.statuses[name]
 	if !found {
 		p.statuses[name] = &podStatus{
-			createdAt:  createdAt,
-			generation: generation,
+			createdAt:  pod.CreationTimestamp.Time,
+			generation: pod.Generation,
 			conditions: conditions,
 		}
 		return true
 	}
-	if status.createdAt.After(createdAt) {
+	if status.createdAt.After(pod.CreationTimestamp.Time) {
 		// we have an old pod that's checking in, just ignore it
 		return false
 	}
-	if status.generation > generation {
+	if status.generation > pod.Generation {
 		// we already have a newer status, ignore
 		return false
 	}
-	newerPod := createdAt.After(status.createdAt)
+	newerPod := pod.CreationTimestamp.After(status.createdAt)
 	if newerPod || status.isUpdate(conditions) {
-		status.createdAt = createdAt
-		status.generation = generation
+		status.createdAt = pod.CreationTimestamp.Time
+		status.generation = pod.Generation
 		status.conditions = conditions
 		return true
 	}

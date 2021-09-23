@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	core "k8s.io/api/core/v1"
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	gateway "sigs.k8s.io/gateway-api/apis/v1alpha2"
@@ -13,28 +14,35 @@ import (
 func TestStatusTracker(t *testing.T) {
 	t.Parallel()
 
-	initialDeployTime := time.Now()
 	type gatewayDeployment struct {
-		name          types.NamespacedName
-		podGeneration int64
-		podCreatedAt  time.Time
+		name types.NamespacedName
+		pod  *core.Pod
 	}
 
+	initialDeployTime := meta.Now()
 	initialDeployment := &gatewayDeployment{
 		name: types.NamespacedName{
 			Name:      "pod",
 			Namespace: "default",
 		},
-		podGeneration: 0,
-		podCreatedAt:  initialDeployTime,
+		pod: &core.Pod{
+			ObjectMeta: meta.ObjectMeta{
+				Generation:        0,
+				CreationTimestamp: initialDeployTime,
+			},
+		},
 	}
 	currentDeployment := &gatewayDeployment{
 		name: types.NamespacedName{
 			Name:      "pod",
 			Namespace: "default",
 		},
-		podGeneration: 1,
-		podCreatedAt:  initialDeployTime,
+		pod: &core.Pod{
+			ObjectMeta: meta.ObjectMeta{
+				Generation:        1,
+				CreationTimestamp: initialDeployTime,
+			},
+		},
 	}
 
 	laterDeployment := &gatewayDeployment{
@@ -42,8 +50,12 @@ func TestStatusTracker(t *testing.T) {
 			Name:      "pod",
 			Namespace: "default",
 		},
-		podGeneration: 1,
-		podCreatedAt:  initialDeployTime.Add(1 * time.Hour),
+		pod: &core.Pod{
+			ObjectMeta: meta.ObjectMeta{
+				Generation:        1,
+				CreationTimestamp: meta.NewTime(initialDeployTime.Time.Add(1 * time.Hour)),
+			},
+		},
 	}
 
 	untrackedDeployment := &gatewayDeployment{
@@ -51,52 +63,56 @@ func TestStatusTracker(t *testing.T) {
 			Name:      "untracked",
 			Namespace: "default",
 		},
-		podGeneration: 1,
-		podCreatedAt:  initialDeployTime.Add(1 * time.Hour),
+		pod: &core.Pod{
+			ObjectMeta: meta.ObjectMeta{
+				Generation:        1,
+				CreationTimestamp: meta.NewTime(initialDeployTime.Time.Add(1 * time.Hour)),
+			},
+		},
 	}
 
 	tracker := NewStatusTracker()
 	// not found
 	condition := testCondition()
-	updated := tracker.UpdateStatus(currentDeployment.name, currentDeployment.podGeneration, currentDeployment.podCreatedAt, []meta.Condition{condition})
+	updated := tracker.UpdateStatus(currentDeployment.name, currentDeployment.pod, []meta.Condition{condition})
 	require.True(t, updated)
 
 	// same conditions - cached
-	updated = tracker.UpdateStatus(currentDeployment.name, currentDeployment.podGeneration, currentDeployment.podCreatedAt, []meta.Condition{condition})
+	updated = tracker.UpdateStatus(currentDeployment.name, currentDeployment.pod, []meta.Condition{condition})
 	require.False(t, updated)
 
 	// check condition Types
 	condition.Type = "new type"
-	updated = tracker.UpdateStatus(currentDeployment.name, currentDeployment.podGeneration, currentDeployment.podCreatedAt, []meta.Condition{condition})
+	updated = tracker.UpdateStatus(currentDeployment.name, currentDeployment.pod, []meta.Condition{condition})
 	require.True(t, updated)
 
 	// check condition Reason
 	condition.Reason = "new reason"
-	updated = tracker.UpdateStatus(currentDeployment.name, currentDeployment.podGeneration, currentDeployment.podCreatedAt, []meta.Condition{condition})
+	updated = tracker.UpdateStatus(currentDeployment.name, currentDeployment.pod, []meta.Condition{condition})
 	require.True(t, updated)
 
 	// check condition Status
 	condition.Status = meta.ConditionUnknown
-	updated = tracker.UpdateStatus(currentDeployment.name, currentDeployment.podGeneration, currentDeployment.podCreatedAt, []meta.Condition{condition})
+	updated = tracker.UpdateStatus(currentDeployment.name, currentDeployment.pod, []meta.Condition{condition})
 	require.True(t, updated)
 
 	// check condition lengths
-	updated = tracker.UpdateStatus(currentDeployment.name, currentDeployment.podGeneration, currentDeployment.podCreatedAt, []meta.Condition{condition, testCondition()})
+	updated = tracker.UpdateStatus(currentDeployment.name, currentDeployment.pod, []meta.Condition{condition, testCondition()})
 	require.True(t, updated)
 
 	// check pod generation
 	condition = testCondition()
-	updated = tracker.UpdateStatus(currentDeployment.name, currentDeployment.podGeneration, currentDeployment.podCreatedAt, []meta.Condition{condition})
+	updated = tracker.UpdateStatus(currentDeployment.name, currentDeployment.pod, []meta.Condition{condition})
 	require.True(t, updated)
-	updated = tracker.UpdateStatus(initialDeployment.name, initialDeployment.podGeneration, initialDeployment.podCreatedAt, []meta.Condition{condition, condition})
+	updated = tracker.UpdateStatus(initialDeployment.name, initialDeployment.pod, []meta.Condition{condition, condition})
 	require.False(t, updated)
 
 	// check pod timestamp
-	updated = tracker.UpdateStatus(currentDeployment.name, currentDeployment.podGeneration, currentDeployment.podCreatedAt, []meta.Condition{condition})
+	updated = tracker.UpdateStatus(currentDeployment.name, currentDeployment.pod, []meta.Condition{condition})
 	require.False(t, updated)
-	updated = tracker.UpdateStatus(laterDeployment.name, laterDeployment.podGeneration, laterDeployment.podCreatedAt, []meta.Condition{condition})
+	updated = tracker.UpdateStatus(laterDeployment.name, laterDeployment.pod, []meta.Condition{condition})
 	require.True(t, updated)
-	updated = tracker.UpdateStatus(currentDeployment.name, currentDeployment.podGeneration, currentDeployment.podCreatedAt, []meta.Condition{condition})
+	updated = tracker.UpdateStatus(currentDeployment.name, currentDeployment.pod, []meta.Condition{condition})
 	require.False(t, updated)
 
 	// check old delete
