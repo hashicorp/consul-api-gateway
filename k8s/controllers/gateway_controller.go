@@ -106,49 +106,51 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 }
 
 func (r *GatewayReconciler) ensureDeployment(ctx context.Context, gc *gateway.GatewayClass, gw *gateway.Gateway) error {
-	deployment := &appsv1.Deployment{}
-	err := r.Get(ctx, types.NamespacedName{Name: gw.Name, Namespace: gw.Namespace}, deployment)
-	if err != nil {
-		if !k8serrors.IsNotFound(err) {
-			return fmt.Errorf("failed to get deployment: %w", err)
-		}
-
-		// Create deployment for the gateway
-		gcc, err := gatewayClassConfigForGatewayClass(ctx, r.Client, gc)
-		if err != nil {
-			return fmt.Errorf("failed to get gateway class config: %w", err)
-		}
-
-		deployment := gcc.DeploymentFor(gw, apigwv1alpha1.SDSConfig{
-			Host: r.SDSServerHost,
-			Port: r.SDSServerPort,
-		})
-		// Create service for the gateway
-		service := gcc.ServiceFor(gw)
-
-		// Set Gateway instance as the owner and controller
-		if err := ctrl.SetControllerReference(gw, deployment, r.Scheme); err != nil {
-			return fmt.Errorf("failed to initialize gateway deployment: %w", err)
-		}
-		err = r.Create(ctx, deployment)
-		if err != nil {
-			return fmt.Errorf("failed to create new gateway deployment: %w", err)
-		}
-
-		if service != nil {
-			// Set Service instance as the owner and controller
-			if err := ctrl.SetControllerReference(gw, service, r.Scheme); err != nil {
-				return fmt.Errorf("failed to initialize gateway service: %w", err)
-			}
-			err = r.Create(ctx, service)
-			if err != nil {
-				return fmt.Errorf("failed to create gateway service: %w", err)
-			}
-		}
-
-		metrics.Registry.IncrCounter(metrics.K8sNewGatewayDeployments, 1)
+	err := r.Get(ctx, types.NamespacedName{Name: gw.Name, Namespace: gw.Namespace}, &appsv1.Deployment{})
+	if err == nil {
+		// we aleady have a gateway deployment
+		return nil
 	}
 
+	if !k8serrors.IsNotFound(err) {
+		// we have an unexpected error
+		return fmt.Errorf("failed to get deployment: %w", err)
+	}
+
+	// no deployment exists, create deployment for the gateway
+	gcc, err := gatewayClassConfigForGatewayClass(ctx, r.Client, gc)
+	if err != nil {
+		return fmt.Errorf("failed to get gateway class config: %w", err)
+	}
+
+	deployment := gcc.DeploymentFor(gw, apigwv1alpha1.SDSConfig{
+		Host: r.SDSServerHost,
+		Port: r.SDSServerPort,
+	})
+	// Create service for the gateway
+	service := gcc.ServiceFor(gw)
+
+	// Set Gateway instance as the owner and controller
+	if err := ctrl.SetControllerReference(gw, deployment, r.Scheme); err != nil {
+		return fmt.Errorf("failed to initialize gateway deployment: %w", err)
+	}
+	err = r.Create(ctx, deployment)
+	if err != nil {
+		return fmt.Errorf("failed to create new gateway deployment: %w", err)
+	}
+
+	if service != nil {
+		// Set Service instance as the owner and controller
+		if err := ctrl.SetControllerReference(gw, service, r.Scheme); err != nil {
+			return fmt.Errorf("failed to initialize gateway service: %w", err)
+		}
+		err = r.Create(ctx, service)
+		if err != nil {
+			return fmt.Errorf("failed to create gateway service: %w", err)
+		}
+	}
+
+	metrics.Registry.IncrCounter(metrics.K8sNewGatewayDeployments, 1)
 	return nil
 }
 
