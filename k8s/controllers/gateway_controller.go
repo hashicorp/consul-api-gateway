@@ -56,10 +56,10 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	gw := &gateway.Gateway{}
 	err := r.Get(ctx, req.NamespacedName, gw)
 	if err != nil {
-		// If the gateway object has been deleted (and we get an IsNotFound
-		// error), we need to clean up the cached resources. Owned objects
-		// get deleted automatically
 		if k8serrors.IsNotFound(err) {
+			// If the gateway object has been deleted (and we get an IsNotFound
+			// error), we need to clean up the cached resources. Owned objects
+			// get deleted automatically
 			r.Manager.DeleteGateway(req.NamespacedName)
 			r.Tracker.DeleteStatus(req.NamespacedName)
 			return ctrl.Result{}, nil

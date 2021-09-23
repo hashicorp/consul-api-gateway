@@ -184,10 +184,11 @@ func (k *Kubernetes) Start(ctx context.Context) error {
 	}
 
 	err = (&controllers.HTTPRouteReconciler{
-		Client:  k.k8sManager.GetClient(),
-		Log:     klogger.WithName("controllers").WithName("HTTPRoute"),
-		Scheme:  k.k8sManager.GetScheme(),
-		Manager: reconcileManager,
+		Client:         k.k8sManager.GetClient(),
+		Log:            klogger.WithName("controllers").WithName("HTTPRoute"),
+		Scheme:         k.k8sManager.GetScheme(),
+		Manager:        reconcileManager,
+		ControllerName: ControllerName,
 	}).SetupWithManager(k.k8sManager)
 	if err != nil {
 		return fmt.Errorf("failed to create http route controller: %w", err)
