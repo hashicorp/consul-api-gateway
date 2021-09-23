@@ -2,7 +2,6 @@ package utils
 
 import (
 	"sync"
-	"time"
 
 	core "k8s.io/api/core/v1"
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -10,7 +9,7 @@ import (
 )
 
 type podStatus struct {
-	createdAt  time.Time
+	createdAt  meta.Time
 	generation int64
 	conditions []meta.Condition
 }
@@ -50,7 +49,7 @@ func (p *StatusTracker) UpdateStatus(name types.NamespacedName, pod *core.Pod, c
 	status, found := p.statuses[name]
 	if !found {
 		p.statuses[name] = &podStatus{
-			createdAt:  pod.CreationTimestamp.Time,
+			createdAt:  pod.CreationTimestamp,
 			generation: pod.Generation,
 			conditions: conditions,
 		}
@@ -60,13 +59,11 @@ func (p *StatusTracker) UpdateStatus(name types.NamespacedName, pod *core.Pod, c
 		// we have an old pod that's checking in, just ignore it
 		return false
 	}
-	if status.generation > pod.Generation {
-		// we already have a newer status, ignore
-		return false
-	}
-	newerPod := pod.CreationTimestamp.After(status.createdAt)
-	if newerPod || status.isUpdate(conditions) {
-		status.createdAt = pod.CreationTimestamp.Time
+	// we only care about the current generation of pod updates or higher
+	isCurrentGeneration := pod.Generation >= status.generation
+	newerPod := pod.CreationTimestamp.After(status.createdAt.Time)
+	if newerPod || (isCurrentGeneration && status.isUpdate(conditions)) {
+		status.createdAt = pod.CreationTimestamp
 		status.generation = pod.Generation
 		status.conditions = conditions
 		return true
