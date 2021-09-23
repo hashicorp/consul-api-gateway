@@ -19,6 +19,7 @@ import (
 	"github.com/hashicorp/go-hclog"
 
 	"github.com/hashicorp/consul-api-gateway/internal/common"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/k8s/controllers"
 	"github.com/hashicorp/consul-api-gateway/k8s/log"
 	"github.com/hashicorp/consul-api-gateway/k8s/reconciler"
@@ -138,58 +139,55 @@ func (k *Kubernetes) SetConsul(consul *api.Client) {
 func (k *Kubernetes) Start(ctx context.Context) error {
 	k.logger.Trace("running controller")
 
-	klogger := log.FromHCLogger(k.logger)
+	scheme := k.k8sManager.GetScheme()
+	gwClient := gatewayclient.New(k.k8sManager.GetClient(), scheme)
 
 	reconcileManager := reconciler.NewReconcileManager(ctx, &reconciler.ManagerConfig{
 		ControllerName: ControllerName,
 		Registry:       k.registry,
-		Client:         k.k8sManager.GetClient(),
+		Client:         gwClient,
 		Consul:         k.consul,
 		Status:         k.k8sManager.GetClient().Status(),
-		Logger:         k.logger.Named("consul"),
+		Logger:         k.logger.Named("Reconciler"),
 	})
 
 	err := (&controllers.GatewayClassConfigReconciler{
-		Client: k.k8sManager.GetClient(),
-		Log:    klogger.WithName("controllers").WithName("GatewayClassConfig"),
-		Scheme: k.k8sManager.GetScheme(),
-	}).SetupWithManager(k.k8sManager)
+		Client: gwClient,
+		Log:    k.logger.Named("GatewayClassConfig"),
+	}).SetupWithManager(k.k8sManager, scheme)
 	if err != nil {
 		return fmt.Errorf("failed to create gateway class config controller: %w", err)
 	}
 
 	err = (&controllers.GatewayClassReconciler{
-		ControllerName: ControllerName,
-		Client:         k.k8sManager.GetClient(),
-		Log:            klogger.WithName("controllers").WithName("GatewayClass"),
-		Scheme:         k.k8sManager.GetScheme(),
+		Client:         gwClient,
+		Log:            k.logger.Named("GatewayClass"),
 		Manager:        reconcileManager,
-	}).SetupWithManager(k.k8sManager)
+		ControllerName: ControllerName,
+	}).SetupWithManager(k.k8sManager, scheme)
 	if err != nil {
 		return fmt.Errorf("failed to create gateway class controller: %w", err)
 	}
 
 	err = (&controllers.GatewayReconciler{
-		SDSServerHost:  k.sDSServerHost,
-		SDSServerPort:  k.sDSServerPort,
+		Client:         gwClient,
+		Log:            k.logger.Named("Gateway"),
+		Manager:        reconcileManager,
 		ControllerName: ControllerName,
 		Tracker:        utils.NewStatusTracker(),
-		Client:         k.k8sManager.GetClient(),
-		Log:            klogger.WithName("controllers").WithName("Gateway"),
-		Scheme:         k.k8sManager.GetScheme(),
-		Manager:        reconcileManager,
-	}).SetupWithManager(k.k8sManager)
+		SDSServerHost:  k.sDSServerHost,
+		SDSServerPort:  k.sDSServerPort,
+	}).SetupWithManager(k.k8sManager, scheme)
 	if err != nil {
 		return fmt.Errorf("failed to create gateway controller: %w", err)
 	}
 
 	err = (&controllers.HTTPRouteReconciler{
-		Client:         k.k8sManager.GetClient(),
-		Log:            klogger.WithName("controllers").WithName("HTTPRoute"),
-		Scheme:         k.k8sManager.GetScheme(),
+		Client:         gwClient,
+		Log:            k.logger.Named("HTTPRoute"),
 		Manager:        reconcileManager,
 		ControllerName: ControllerName,
-	}).SetupWithManager(k.k8sManager)
+	}).SetupWithManager(k.k8sManager, scheme)
 	if err != nil {
 		return fmt.Errorf("failed to create http route controller: %w", err)
 	}

@@ -4,17 +4,14 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/go-logr/logr"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	gateway "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/k8s/apis/v1alpha1"
-	"github.com/hashicorp/consul-api-gateway/k8s/utils"
+	"github.com/hashicorp/go-hclog"
 )
 
 const (
@@ -23,9 +20,8 @@ const (
 
 // GatewayClassConfigReconciler reconciles a GatewayClassConfig object
 type GatewayClassConfigReconciler struct {
-	client.Client
-	Log    logr.Logger
-	Scheme *runtime.Scheme
+	Client gatewayclient.Client
+	Log    hclog.Logger
 }
 
 //+kubebuilder:rbac:groups=api-gateway.consul.hashicorp.com,resources=gatewayclassconfigs,verbs=get
@@ -36,69 +32,47 @@ type GatewayClassConfigReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.8.3/pkg/reconcile
 func (r *GatewayClassConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = r.Log.WithValues("gatewayClassConfig", req.NamespacedName)
+	logger := r.Log.With("gatewayClassConfig", req.NamespacedName)
 
-	gcc := &apigwv1alpha1.GatewayClassConfig{}
-	if err := r.Get(ctx, req.NamespacedName, gcc); err != nil {
-		if k8serrors.IsNotFound(err) {
-			// no-op on deleted, nothing to do
-			return ctrl.Result{}, nil
-		}
-		r.Log.Error(err, "failed to get GatewayClassConfig", "name", req.Name, "ns", req.Namespace)
+	gcc, err := r.Client.GetGatewayClassConfig(ctx, req.NamespacedName)
+	if err != nil {
+		logger.Error("failed to get GatewayClassConfig", "error", err)
 		return ctrl.Result{}, err
+	}
+
+	if gcc == nil {
+		// we've been deleted, no-op
+		return ctrl.Result{}, nil
 	}
 
 	if !gcc.ObjectMeta.DeletionTimestamp.IsZero() {
 		// we have a deletion, ensure we're not in use
-		used, err := gatewayClassConfigInUse(ctx, r.Client, gcc)
+		used, err := r.Client.GatewayClassConfigInUse(ctx, gcc)
 		if err != nil {
-			r.Log.Error(err, "failed to check if the gateway class config is still in use, requeuing", "error", err, "name", gcc.Name)
+			logger.Error("failed to check if the gateway class config is still in use", "error", err)
 			return ctrl.Result{}, err
 		}
 		if used {
 			return ctrl.Result{}, fmt.Errorf("gateway class config '%s' is still in use", gcc.Name)
 		}
-		if _, err := utils.RemoveFinalizer(ctx, r.Client, gcc, gatewayClassConfigFinalizer); err != nil {
+		if _, err := r.Client.RemoveFinalizer(ctx, gcc, gatewayClassConfigFinalizer); err != nil {
 			return ctrl.Result{}, err
 		}
 		return ctrl.Result{}, nil
 	}
 
 	// we're creating or updating
-	if _, err := utils.EnsureFinalizer(ctx, r.Client, gcc, gatewayClassConfigFinalizer); err != nil {
+	if _, err := r.Client.EnsureFinalizer(ctx, gcc, gatewayClassConfigFinalizer); err != nil {
 		return ctrl.Result{}, err
 	}
 	return ctrl.Result{}, nil
 }
 
-func gatewayClassConfigInUse(ctx context.Context, client client.Client, gcc *apigwv1alpha1.GatewayClassConfig) (bool, error) {
-	list := &gateway.GatewayClassList{}
-	if err := client.List(ctx, list); err != nil {
-		return false, fmt.Errorf("failed to list gateways")
-	}
-	for _, g := range list.Items {
-		paramaterRef := g.Spec.ParametersRef
-		if paramaterRef != nil &&
-			paramaterRef.Group == apigwv1alpha1.Group &&
-			paramaterRef.Kind == apigwv1alpha1.GatewayClassConfigKind &&
-			paramaterRef.Name == gcc.Name {
-			namespace := ""
-			if paramaterRef.Namespace != nil {
-				namespace = string(*paramaterRef.Namespace)
-			}
-			if namespace == gcc.Namespace {
-				return true, nil
-			}
-		}
-	}
-	return false, nil
-}
-
 // SetupWithManager sets up the controller with the Manager.
-func (r *GatewayClassConfigReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *GatewayClassConfigReconciler) SetupWithManager(mgr ctrl.Manager, scheme *runtime.Scheme) error {
 	groupVersion := schema.GroupVersion{Group: apigwv1alpha1.Group, Version: "v1alpha1"}
-	r.Scheme.AddKnownTypes(groupVersion, &apigwv1alpha1.GatewayClassConfig{}, &apigwv1alpha1.GatewayClassConfigList{})
-	metav1.AddToGroupVersion(r.Scheme, groupVersion)
+	scheme.AddKnownTypes(groupVersion, &apigwv1alpha1.GatewayClassConfig{}, &apigwv1alpha1.GatewayClassConfigList{})
+	metav1.AddToGroupVersion(scheme, groupVersion)
 
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&apigwv1alpha1.GatewayClassConfig{}).

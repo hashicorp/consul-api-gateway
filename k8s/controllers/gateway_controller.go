@@ -5,10 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -21,19 +19,20 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 	gateway "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/metrics"
 	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/k8s/apis/v1alpha1"
 	"github.com/hashicorp/consul-api-gateway/k8s/reconciler"
 	"github.com/hashicorp/consul-api-gateway/k8s/utils"
+	"github.com/hashicorp/go-hclog"
 )
 
-var ErrPodNotCreated = errors.New("pod not yet created for gateway")
+// var ErrPodNotCreated = errors.New("pod not yet created for gateway")
 
 // GatewayReconciler reconciles a Gateway object
 type GatewayReconciler struct {
-	client.Client
-	Log            logr.Logger
-	Scheme         *runtime.Scheme
+	Client         gatewayclient.Client
+	Log            hclog.Logger
 	SDSServerHost  string
 	SDSServerPort  int
 	ControllerName string
@@ -51,26 +50,26 @@ type GatewayReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.8.3/pkg/reconcile
 func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	logger := r.Log.WithValues("gateway", req.NamespacedName)
+	logger := r.Log.With("gateway", req.NamespacedName)
 
-	gw := &gateway.Gateway{}
-	err := r.Get(ctx, req.NamespacedName, gw)
+	gw, err := r.Client.GetGateway(ctx, req.NamespacedName)
 	if err != nil {
-		if k8serrors.IsNotFound(err) {
-			// If the gateway object has been deleted (and we get an IsNotFound
-			// error), we need to clean up the cached resources. Owned objects
-			// get deleted automatically
-			r.Manager.DeleteGateway(req.NamespacedName)
-			r.Tracker.DeleteStatus(req.NamespacedName)
-			return ctrl.Result{}, nil
-		}
-		logger.Error(err, "failed to get Gateway")
+		logger.Error("failed to get Gateway", "error", err)
 		return ctrl.Result{}, err
 	}
 
-	gc, err := gatewayClassForGateway(ctx, r.Client, gw)
+	if gw == nil {
+		// If the gateway object has been deleted (and we get an IsNotFound
+		// error), we need to clean up the cached resources. Owned objects
+		// get deleted automatically
+		r.Manager.DeleteGateway(req.NamespacedName)
+		r.Tracker.DeleteStatus(req.NamespacedName)
+		return ctrl.Result{}, nil
+	}
+
+	gc, err := r.Client.GatewayClassForGateway(ctx, gw)
 	if err != nil {
-		logger.Error(err, "failed to get GatewayClass")
+		logger.Error("failed to get GatewayClass", "error", err)
 		return ctrl.Result{}, err
 	}
 
@@ -83,19 +82,19 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	// Check if the deployment already exists, if not create a new one
 	if err := r.ensureDeployment(ctx, gc, gw); err != nil {
-		logger.Error(err, "failed to ensure gateway deployment exists")
+		logger.Error("failed to ensure gateway deployment exists", "error", err)
 		return ctrl.Result{}, err
 	}
 
 	// update status based on pod
-	pod, err := podWithLabels(ctx, r.Client, utils.LabelsForGateway(gw))
+	pod, err := r.Client.PodWithLabels(ctx, utils.LabelsForGateway(gw))
 	if err != nil {
-		if errors.Is(err, ErrPodNotCreated) {
+		if errors.Is(err, gatewayclient.ErrPodNotCreated) {
 			// the pod hasn't been created yet, just no-op since we'll
 			// eventually get the event from our Watch
 			return ctrl.Result{}, nil
 		}
-		logger.Error(err, "failed to get gateway pod")
+		logger.Error("failed to get gateway pod", "error", err)
 		return ctrl.Result{}, err
 	}
 	conditions := utils.MapGatewayConditionsFromPod(pod)
@@ -107,24 +106,23 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 }
 
 func (r *GatewayReconciler) ensureDeployment(ctx context.Context, gc *gateway.GatewayClass, gw *gateway.Gateway) error {
-	err := r.Get(ctx, types.NamespacedName{Name: gw.Name, Namespace: gw.Namespace}, &appsv1.Deployment{})
-	if err == nil {
-		// we aleady have a gateway deployment
-		return nil
-	}
-
-	if !k8serrors.IsNotFound(err) {
-		// we have an unexpected error
+	deployment, err := r.Client.DeploymentForGateway(ctx, gw)
+	if err != nil {
 		return fmt.Errorf("failed to get deployment: %w", err)
 	}
 
+	if deployment != nil {
+		// we found a deployment, no-op
+		return nil
+	}
+
 	// no deployment exists, create deployment for the gateway
-	gcc, err := gatewayClassConfigForGatewayClass(ctx, r.Client, gc)
+	gcc, err := r.Client.GatewayClassConfigForGatewayClass(ctx, gc)
 	if err != nil {
 		return fmt.Errorf("failed to get gateway class config: %w", err)
 	}
 
-	deployment := gcc.DeploymentFor(gw, apigwv1alpha1.SDSConfig{
+	deployment = gcc.DeploymentFor(gw, apigwv1alpha1.SDSConfig{
 		Host: r.SDSServerHost,
 		Port: r.SDSServerPort,
 	})
@@ -132,20 +130,20 @@ func (r *GatewayReconciler) ensureDeployment(ctx context.Context, gc *gateway.Ga
 	service := gcc.ServiceFor(gw)
 
 	// Set Gateway instance as the owner and controller
-	if err := ctrl.SetControllerReference(gw, deployment, r.Scheme); err != nil {
+	if err := r.Client.SetControllerOwnership(gw, deployment); err != nil {
 		return fmt.Errorf("failed to initialize gateway deployment: %w", err)
 	}
-	err = r.Create(ctx, deployment)
+	err = r.Client.CreateDeployment(ctx, deployment)
 	if err != nil {
 		return fmt.Errorf("failed to create new gateway deployment: %w", err)
 	}
 
 	if service != nil {
 		// Set Service instance as the owner and controller
-		if err := ctrl.SetControllerReference(gw, service, r.Scheme); err != nil {
+		if err := r.Client.SetControllerOwnership(gw, service); err != nil {
 			return fmt.Errorf("failed to initialize gateway service: %w", err)
 		}
-		err = r.Create(ctx, service)
+		err = r.Client.CreateService(ctx, service)
 		if err != nil {
 			return fmt.Errorf("failed to create gateway service: %w", err)
 		}
@@ -155,38 +153,8 @@ func (r *GatewayReconciler) ensureDeployment(ctx context.Context, gc *gateway.Ga
 	return nil
 }
 
-func podWithLabels(ctx context.Context, k8sClient client.Client, labels map[string]string) (*corev1.Pod, error) {
-	list := &corev1.PodList{}
-	if err := k8sClient.List(ctx, list, client.MatchingLabels(labels)); err != nil {
-		return nil, err
-	}
-
-	// if we only have a single item, return it
-	if len(list.Items) == 1 {
-		return &list.Items[0], nil
-	}
-
-	// we could potentially have two pods based off of one in the process of deletion
-	// return the first with a zero deletion timestamp
-	for _, pod := range list.Items {
-		if pod.DeletionTimestamp.IsZero() {
-			return &pod, nil
-		}
-	}
-
-	return nil, ErrPodNotCreated
-}
-
-func gatewayClassForGateway(ctx context.Context, client client.Client, gw *gateway.Gateway) (*gateway.GatewayClass, error) {
-	gc := &gateway.GatewayClass{}
-	if err := client.Get(ctx, types.NamespacedName{Name: gw.Spec.GatewayClassName}, gc); err != nil {
-		return nil, fmt.Errorf("failed to get gateway")
-	}
-	return gc, nil
-}
-
 // SetupWithManager sets up the controller with the Manager.
-func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager, scheme *runtime.Scheme) error {
 	predicate, err := predicate.LabelSelectorPredicate(
 		*metav1.SetAsLabelSelector(map[string]string{
 			utils.ManagedLabel: "true",

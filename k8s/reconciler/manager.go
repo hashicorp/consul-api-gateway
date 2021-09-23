@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"sync"
 	"sync/atomic"
-	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -16,14 +15,10 @@ import (
 	"github.com/hashicorp/go-hclog"
 
 	"github.com/hashicorp/consul-api-gateway/internal/common"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/metrics"
 	"github.com/hashicorp/consul-api-gateway/k8s/routes"
 	"github.com/hashicorp/consul-api-gateway/k8s/utils"
-)
-
-const (
-	statusUpdateTimeout     = 10 * time.Second
-	maxStatusUpdateAttempts = 5
 )
 
 // GatewayReconcileManager manages a GatewayReconciler for each Gateway and is the interface by which Consul operations
@@ -32,7 +27,7 @@ type GatewayReconcileManager struct {
 	controllerName string
 	ctx            context.Context
 	registry       *common.GatewaySecretRegistry
-	client         client.Client
+	client         gatewayclient.Client
 	consul         *api.Client
 	routes         *routes.KubernetesRoutes
 	logger         hclog.Logger
@@ -46,7 +41,7 @@ type GatewayReconcileManager struct {
 type ManagerConfig struct {
 	ControllerName string
 	Registry       *common.GatewaySecretRegistry
-	Client         client.Client
+	Client         gatewayclient.Client
 	Consul         *api.Client
 	Status         client.StatusWriter
 	Logger         hclog.Logger
@@ -80,7 +75,7 @@ func (m *GatewayReconcileManager) UpsertGatewayClass(gc *gw.GatewayClass, validP
 		conditions := gatewayClassConditions(gc, validParameters)
 		if utils.IsFieldUpdated(gc.Status.Conditions, conditions) {
 			gc.Status.Conditions = conditions
-			if err := updateStatus(m.ctx, m.client.Status(), gc); err != nil {
+			if err := m.client.UpdateStatus(m.ctx, gc); err != nil {
 				m.logger.Error("error updating gatewayclass status", "error", err)
 				return err
 			}
