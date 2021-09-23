@@ -19,10 +19,10 @@ import (
 	gateway "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	"github.com/hashicorp/consul-api-gateway/internal/metrics"
 	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/k8s/apis/v1alpha1"
 	"github.com/hashicorp/consul-api-gateway/k8s/reconciler"
-	"github.com/hashicorp/consul-api-gateway/k8s/utils"
 	"github.com/hashicorp/go-hclog"
 )
 

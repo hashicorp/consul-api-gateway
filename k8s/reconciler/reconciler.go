@@ -13,9 +13,9 @@ import (
 	"github.com/hashicorp/go-hclog"
 
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	"github.com/hashicorp/consul-api-gateway/k8s/consul"
 	"github.com/hashicorp/consul-api-gateway/k8s/routes"
-	"github.com/hashicorp/consul-api-gateway/k8s/utils"
 )
 
 const (
@@ -103,7 +103,7 @@ func (c *GatewayReconciler) reconcile() error {
 		c.logger.Trace("reconcile started")
 		defer c.logger.Trace("reconcile finished", "duration", hclog.Fmt("%dms", time.Since(start).Milliseconds()))
 	}
-	gatewayName := utils.KubeObjectNamespacedName(c.kubeGateway)
+	gatewayName := utils.NamespacedName(c.kubeGateway)
 	resolvedGateway := consul.NewResolvedGateway(gatewayName)
 
 	for _, kubeRoute := range c.kubeRoutes.HTTPRoutes() {

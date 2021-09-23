@@ -10,7 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	gateway "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
-	"github.com/hashicorp/consul-api-gateway/k8s/utils"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	"github.com/hashicorp/consul-api-gateway/version"
 )
 

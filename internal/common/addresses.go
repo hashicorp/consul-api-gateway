@@ -1,6 +1,8 @@
 package common
 
-import "net"
+import (
+	"net"
+)
 
 // AddressTypeForAddress returns whether envoy should
 // treat the given address as a static ip or as a DNS name

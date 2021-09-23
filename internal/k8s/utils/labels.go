@@ -20,7 +20,7 @@ func LabelsForNamedGateway(name types.NamespacedName) map[string]string {
 }
 
 func LabelsForGateway(gw *gateway.Gateway) map[string]string {
-	return LabelsForNamedGateway(KubeObjectNamespacedName(gw))
+	return LabelsForNamedGateway(NamespacedName(gw))
 }
 
 func IsManagedGateway(labels map[string]string) (string, bool) {

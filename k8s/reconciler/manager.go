@@ -16,9 +16,9 @@ import (
 
 	"github.com/hashicorp/consul-api-gateway/internal/common"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	"github.com/hashicorp/consul-api-gateway/internal/metrics"
 	"github.com/hashicorp/consul-api-gateway/k8s/routes"
-	"github.com/hashicorp/consul-api-gateway/k8s/utils"
 )
 
 //go:generate mockgen -source ./manager.go -destination ./mocks/manager.go -package mocks ReconcileManager
@@ -123,7 +123,7 @@ func gatewayClassConditions(gc *gw.GatewayClass, validParameters bool) []metav1.
 }
 
 func (m *GatewayReconcileManager) UpsertGateway(g *gw.Gateway) {
-	namespacedName := utils.KubeObjectNamespacedName(g)
+	namespacedName := utils.NamespacedName(g)
 	m.reconcilersMu.Lock()
 	defer m.reconcilersMu.Unlock()
 

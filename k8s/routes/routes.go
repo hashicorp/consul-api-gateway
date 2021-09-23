@@ -5,14 +5,17 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	klabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
-
-	"github.com/hashicorp/consul-api-gateway/k8s/utils"
 )
+
+// NamespaceNameLabel represents that label added automatically to namespaces is newer Kubernetes clusters
+const NamespaceNameLabel = "kubernetes.io/metadata.name"
 
 // all kubernetes routes implement the following two interfaces
 type Route interface {
@@ -163,7 +166,7 @@ func NewKubernetesRoutes() *KubernetesRoutes {
 }
 
 func (r *KubernetesRoutes) Set(route Route) bool {
-	name := utils.KubeObjectNamespacedName(route)
+	name := utils.NamespacedName(route)
 	r.lock.Lock()
 	defer r.lock.Unlock()
 	cur, ok := r.routes[name]
@@ -245,4 +248,19 @@ func hostnamesMatch(a, b gw.Hostname) bool {
 
 	return a == b
 
+}
+
+func toNamespaceSet(name string, labels map[string]string) klabels.Labels {
+	// If namespace label is not set, implicitly insert it to support older Kubernetes versions
+	if labels[NamespaceNameLabel] == name {
+		// Already set, avoid copies
+		return klabels.Set(labels)
+	}
+	// First we need a copy to not modify the underlying object
+	ret := make(map[string]string, len(labels)+1)
+	for k, v := range labels {
+		ret[k] = v
+	}
+	ret[NamespaceNameLabel] = name
+	return klabels.Set(ret)
 }
