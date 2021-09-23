@@ -1,4 +1,4 @@
-package reconciler
+package consul
 
 import (
 	"fmt"

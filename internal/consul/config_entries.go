@@ -1,4 +1,4 @@
-package reconciler
+package consul
 
 import (
 	"github.com/hashicorp/consul/api"

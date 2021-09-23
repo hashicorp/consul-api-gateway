@@ -3,6 +3,7 @@ package reconciler
 import (
 	"fmt"
 
+	"github.com/hashicorp/consul-api-gateway/internal/consul"
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
 )
@@ -11,18 +12,18 @@ type ConfigEntriesReconciler struct {
 	consul *api.Client
 	logger hclog.Logger
 
-	routers   *ConfigEntryIndex
-	splitters *ConfigEntryIndex
-	defaults  *ConfigEntryIndex
+	routers   *consul.ConfigEntryIndex
+	splitters *consul.ConfigEntryIndex
+	defaults  *consul.ConfigEntryIndex
 }
 
 func NewReconciler(c *api.Client, logger hclog.Logger) *ConfigEntriesReconciler {
 	return &ConfigEntriesReconciler{
 		consul:    c,
 		logger:    logger.Named("consul"),
-		routers:   NewConfigEntryIndex(api.ServiceRouter),
-		splitters: NewConfigEntryIndex(api.ServiceSplitter),
-		defaults:  NewConfigEntryIndex(api.ServiceDefaults),
+		routers:   consul.NewConfigEntryIndex(api.ServiceRouter),
+		splitters: consul.NewConfigEntryIndex(api.ServiceSplitter),
+		defaults:  consul.NewConfigEntryIndex(api.ServiceDefaults),
 	}
 }
 

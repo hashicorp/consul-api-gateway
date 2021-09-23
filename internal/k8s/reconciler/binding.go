@@ -6,6 +6,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
+	"github.com/hashicorp/consul-api-gateway/internal/consul"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	"github.com/hashicorp/consul/api"
 )
@@ -56,7 +57,7 @@ func (g *ResolvedGateway) newListener(lis *gw.Listener) *resolvedListener {
 	return l
 }
 
-func (g *ResolvedGateway) computeConfigEntries() (ingress api.ConfigEntry, routers *ConfigEntryIndex, splitters *ConfigEntryIndex, defaults *ConfigEntryIndex, err error) {
+func (g *ResolvedGateway) computeConfigEntries() (ingress api.ConfigEntry, routers, splitters, defaults *consul.ConfigEntryIndex, err error) {
 	igw := &api.IngressGatewayConfigEntry{
 		Kind:      api.IngressGateway,
 		Name:      g.name.Name,
@@ -67,9 +68,9 @@ func (g *ResolvedGateway) computeConfigEntries() (ingress api.ConfigEntry, route
 			"consul-api-gateway/k8s/Gateway.Namespace": g.name.Namespace,
 		},
 	}
-	computedRouters := NewConfigEntryIndex(api.ServiceRouter)
-	computedSplitters := NewConfigEntryIndex(api.ServiceSplitter)
-	computedDefaults := NewConfigEntryIndex(api.ServiceDefaults)
+	computedRouters := consul.NewConfigEntryIndex(api.ServiceRouter)
+	computedSplitters := consul.NewConfigEntryIndex(api.ServiceSplitter)
+	computedDefaults := consul.NewConfigEntryIndex(api.ServiceDefaults)
 
 	for _, kubeListener := range g.listeners {
 		// kube gateway protocol to ingress gateway conversion
@@ -112,10 +113,10 @@ func (l *resolvedListener) addRoute(route *KubernetesRoute) {
 	}
 }
 
-func (l *resolvedListener) computeDiscoveryChain(gateway types.NamespacedName) (services []api.IngressService, routers *ConfigEntryIndex, splitters *ConfigEntryIndex, defaults *ConfigEntryIndex) {
-	routers = NewConfigEntryIndex(api.ServiceRouter)
-	splitters = NewConfigEntryIndex(api.ServiceSplitter)
-	defaults = NewConfigEntryIndex(api.ServiceDefaults)
+func (l *resolvedListener) computeDiscoveryChain(gateway types.NamespacedName) (services []api.IngressService, routers, splitters, defaults *consul.ConfigEntryIndex) {
+	routers = consul.NewConfigEntryIndex(api.ServiceRouter)
+	splitters = consul.NewConfigEntryIndex(api.ServiceSplitter)
+	defaults = consul.NewConfigEntryIndex(api.ServiceDefaults)
 	for _, kubeRoute := range l.httpRouteBindings {
 		meta := map[string]string{
 			"managed_by":                                 "consul-api-gateway",
