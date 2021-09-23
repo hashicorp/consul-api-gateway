@@ -7,7 +7,7 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient/mocks"
-	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/k8s/apis/v1alpha1"
+	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 	"github.com/hashicorp/go-hclog"
 	"github.com/stretchr/testify/require"
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -23,7 +23,7 @@ var (
 	}
 )
 
-func TestGatewayClassConfigRegister(t *testing.T) {
+func TestGatewayClassConfigSetup(t *testing.T) {
 	require.Error(t, (&GatewayClassConfigReconciler{}).SetupWithManager(nil))
 }
 

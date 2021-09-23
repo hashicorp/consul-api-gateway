@@ -9,7 +9,7 @@ import (
 	reflect "reflect"
 
 	gomock "github.com/golang/mock/gomock"
-	v1alpha1 "github.com/hashicorp/consul-api-gateway/k8s/apis/v1alpha1"
+	v1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 	v1 "k8s.io/api/apps/v1"
 	v10 "k8s.io/api/core/v1"
 	types "k8s.io/apimachinery/pkg/types"

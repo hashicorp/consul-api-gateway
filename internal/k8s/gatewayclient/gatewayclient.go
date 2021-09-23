@@ -16,7 +16,7 @@ import (
 	gateway "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	"github.com/cenkalti/backoff"
-	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/k8s/apis/v1alpha1"
+	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 )
 
 //go:generate mockgen -source ./gatewayclient.go -destination ./mocks/gatewayclient.go -package mocks Client
