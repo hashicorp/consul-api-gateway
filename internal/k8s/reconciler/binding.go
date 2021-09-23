@@ -6,6 +6,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	"github.com/hashicorp/consul/api"
 )
 
@@ -43,7 +44,7 @@ func (g *ResolvedGateway) newListener(lis *gw.Listener) *resolvedListener {
 		hostname = string(*lis.Hostname)
 	}
 
-	proto, tls := kubeProtocolToConsul(lis.Protocol)
+	proto, tls := utils.ProtocolToConsul(lis.Protocol)
 	l := &resolvedListener{
 		name:     name,
 		protocol: proto,
@@ -128,7 +129,7 @@ func (l *resolvedListener) computeDiscoveryChain(gateway types.NamespacedName) (
 
 		services = append(services, api.IngressService{
 			Name:      router.Name,
-			Hosts:     hostnamesForHTTPRoute(l.hostname, kubeRoute),
+			Hosts:     utils.HostnamesForHTTPRoute(l.hostname, kubeRoute),
 			Namespace: "", // TODO
 		})
 		routers.Add(router)
