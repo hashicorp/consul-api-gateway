@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
+	gateway "sigs.k8s.io/gateway-api/apis/v1alpha2"
 )
 
 func TestIsManagedGateway(t *testing.T) {
@@ -41,4 +43,20 @@ func TestIsManagedGateway(t *testing.T) {
 			require.Equal(t, test.gateway, actualGateway)
 		})
 	}
+}
+
+func TestLabelsForGateway(t *testing.T) {
+	t.Parallel()
+
+	labels := LabelsForGateway(&gateway.Gateway{
+		ObjectMeta: meta.ObjectMeta{
+			Name:      "gateway",
+			Namespace: "default",
+		},
+	})
+	require.Equal(t, map[string]string{
+		nameLabel:      "gateway",
+		namespaceLabel: "default",
+		ManagedLabel:   "true",
+	}, labels)
 }

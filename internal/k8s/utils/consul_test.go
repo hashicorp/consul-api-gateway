@@ -8,6 +8,8 @@ import (
 )
 
 func TestProtocolToConsul(t *testing.T) {
+	t.Parallel()
+
 	proto, tls := ProtocolToConsul(gateway.TCPProtocolType)
 	require.Equal(t, proto, "tcp")
 	require.False(t, tls)

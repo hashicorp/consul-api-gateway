@@ -10,6 +10,8 @@ import (
 )
 
 func TestNamespacedName(t *testing.T) {
+	t.Parallel()
+
 	namespacedName := NamespacedName(&core.Pod{
 		ObjectMeta: meta.ObjectMeta{
 			Name:      "pod",
@@ -21,6 +23,8 @@ func TestNamespacedName(t *testing.T) {
 }
 
 func TestIsFieldUpdated(t *testing.T) {
+	t.Parallel()
+
 	input := map[string]string{
 		"test": "value",
 	}
@@ -33,6 +37,8 @@ func TestIsFieldUpdated(t *testing.T) {
 }
 
 func TestHostnamesForHTTPRoute(t *testing.T) {
+	t.Parallel()
+
 	hostnames := HostnamesForHTTPRoute("", &gateway.HTTPRoute{})
 	require.Len(t, hostnames, 0)
 
