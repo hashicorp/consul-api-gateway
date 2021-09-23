@@ -32,7 +32,7 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 
 	route, err := r.Client.GetHTTPRoute(ctx, req.NamespacedName)
 	if err != nil {
-		logger.Error("failed to get HTTPRoute", "error", err)
+		logger.Error("failed to get http route", "error", err)
 		return ctrl.Result{}, err
 	}
 

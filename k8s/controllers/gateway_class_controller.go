@@ -41,7 +41,7 @@ func (r *GatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 	gc, err := r.Client.GetGatewayClass(ctx, req.NamespacedName)
 	if err != nil {
-		logger.Error("failed to get GatewayClass", "error", err)
+		logger.Error("failed to get gateway class", "error", err)
 		return ctrl.Result{}, err
 	}
 
@@ -60,14 +60,16 @@ func (r *GatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		// we have a deletion, ensure we're not in use
 		used, err := r.Client.GatewayClassInUse(ctx, gc)
 		if err != nil {
-			logger.Error("failed to check if the gateway class is still in use", "error", err, "name", gc.Name)
+			logger.Error("failed to check if the gateway class is still in use", "error", err)
 			return ctrl.Result{}, err
 		}
 		if used {
+			logger.Trace("gateway class still in use")
 			return ctrl.Result{}, errGatewayClassInUse
 		}
 		// remove finalizer
 		if _, err := r.Client.RemoveFinalizer(ctx, gc, gatewayClassFinalizer); err != nil {
+			logger.Error("error removing gateway class finalizer", "error", err)
 			return ctrl.Result{}, err
 		}
 		return ctrl.Result{}, nil
@@ -76,6 +78,7 @@ func (r *GatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	// we're creating or updating
 	updated, err := r.Client.EnsureFinalizer(ctx, gc, gatewayClassFinalizer)
 	if err != nil {
+		logger.Error("error adding gateway class finalizer", "error", err)
 		return ctrl.Result{}, err
 	}
 	if updated {
@@ -85,9 +88,14 @@ func (r *GatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	// this validation is used for setting the gateway class accepted status
 	valid, err := r.Client.IsValidGatewayClass(ctx, gc)
 	if err != nil {
+		logger.Error("error validating gateway class", "error", err)
 		return ctrl.Result{}, err
 	}
-	r.Manager.UpsertGatewayClass(gc, valid)
+	if err := r.Manager.UpsertGatewayClass(gc, valid); err != nil {
+		logger.Error("error upserting gateway class", "error", err)
+		return ctrl.Result{}, err
+	}
+
 	return ctrl.Result{}, nil
 }
 

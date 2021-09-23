@@ -223,8 +223,6 @@ func (g *gatewayClient) GetHTTPRoute(ctx context.Context, key types.NamespacedNa
 func (g *gatewayClient) getOrNil(ctx context.Context, key types.NamespacedName, object client.Object) error {
 	if err := g.Get(ctx, key, object); err != nil {
 		if k8serrors.IsNotFound(err) {
-			// ensure that we're nil
-			object = nil
 			return nil
 		}
 		return err

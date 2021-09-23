@@ -37,7 +37,7 @@ func (r *GatewayClassConfigReconciler) Reconcile(ctx context.Context, req ctrl.R
 
 	gcc, err := r.Client.GetGatewayClassConfig(ctx, req.NamespacedName)
 	if err != nil {
-		logger.Error("failed to get GatewayClassConfig", "error", err)
+		logger.Error("failed to get gateway class config", "error", err)
 		return ctrl.Result{}, err
 	}
 
@@ -54,9 +54,11 @@ func (r *GatewayClassConfigReconciler) Reconcile(ctx context.Context, req ctrl.R
 			return ctrl.Result{}, err
 		}
 		if used {
+			logger.Trace("gateway class config still in use")
 			return ctrl.Result{}, errGatewayClassConfigInUse
 		}
 		if _, err := r.Client.RemoveFinalizer(ctx, gcc, gatewayClassConfigFinalizer); err != nil {
+			logger.Error("error removing gateway class config finalizer", "error", err)
 			return ctrl.Result{}, err
 		}
 		return ctrl.Result{}, nil
@@ -64,6 +66,7 @@ func (r *GatewayClassConfigReconciler) Reconcile(ctx context.Context, req ctrl.R
 
 	// we're creating or updating
 	if _, err := r.Client.EnsureFinalizer(ctx, gcc, gatewayClassConfigFinalizer); err != nil {
+		logger.Error("error adding gateway class config finalizer", "error", err)
 		return ctrl.Result{}, err
 	}
 	return ctrl.Result{}, nil

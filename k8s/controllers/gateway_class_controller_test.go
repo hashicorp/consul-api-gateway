@@ -175,6 +175,19 @@ func TestGatewayClass(t *testing.T) {
 			client.EXPECT().IsValidGatewayClass(gomock.Any(), gomock.Any()).Return(false, nil)
 			reconciler.EXPECT().UpsertGatewayClass(gomock.Any(), false)
 		},
+	}, {
+		name: "create-upsert-error",
+		err:  errExpected,
+		expectationCB: func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager) {
+			client.EXPECT().GetGatewayClass(gomock.Any(), className).Return(&gateway.GatewayClass{
+				Spec: gateway.GatewayClassSpec{
+					Controller: gateway.GatewayController(mockControllerName),
+				},
+			}, nil)
+			client.EXPECT().EnsureFinalizer(gomock.Any(), gomock.Any(), gatewayClassFinalizer).Return(false, nil)
+			client.EXPECT().IsValidGatewayClass(gomock.Any(), gomock.Any()).Return(true, nil)
+			reconciler.EXPECT().UpsertGatewayClass(gomock.Any(), true).Return(errExpected)
+		},
 	}} {
 		t.Run(test.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)

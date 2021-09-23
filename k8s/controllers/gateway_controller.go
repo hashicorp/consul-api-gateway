@@ -53,7 +53,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	gw, err := r.Client.GetGateway(ctx, req.NamespacedName)
 	if err != nil {
-		logger.Error("failed to get Gateway", "error", err)
+		logger.Error("failed to get gateway", "error", err)
 		return ctrl.Result{}, err
 	}
 
@@ -68,13 +68,13 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	gc, err := r.Client.GatewayClassForGateway(ctx, gw)
 	if err != nil {
-		logger.Error("failed to get GatewayClass", "error", err)
+		logger.Error("failed to get gateway class", "error", err)
 		return ctrl.Result{}, err
 	}
 
 	if string(gc.Spec.Controller) != r.ControllerName {
 		// we don't manage this gateway
-		return ctrl.Result{}, err
+		return ctrl.Result{}, nil
 	}
 
 	r.Manager.UpsertGateway(gw)
@@ -91,9 +91,10 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		if errors.Is(err, gatewayclient.ErrPodNotCreated) {
 			// the pod hasn't been created yet, just no-op since we'll
 			// eventually get the event from our Watch
+			logger.Trace("gateway deployment pod not yet created")
 			return ctrl.Result{}, nil
 		}
-		logger.Error("failed to get gateway pod", "error", err)
+		logger.Error("failed to get gateway deployment pod", "error", err)
 		return ctrl.Result{}, err
 	}
 	conditions := utils.MapGatewayConditionsFromPod(pod)
