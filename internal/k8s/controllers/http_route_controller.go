@@ -42,7 +42,7 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return ctrl.Result{}, nil
 	}
 
-	managed, err := r.Client.IsManagedRoute(ctx, route.Spec.CommonRouteSpec, r.ControllerName)
+	managed, err := r.Client.IsManagedRoute(ctx, route.Spec.CommonRouteSpec, route.Namespace, r.ControllerName)
 	if err != nil {
 		logger.Error("error validating gateway usage for route", "error", err)
 		return ctrl.Result{}, err

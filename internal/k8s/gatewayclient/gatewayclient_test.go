@@ -544,7 +544,7 @@ func TestIsManagedRoute(t *testing.T) {
 			Name:      "gateway",
 			Namespace: &namespace,
 		}},
-	}, "controller")
+	}, "", "controller")
 	require.NoError(t, err)
 	require.True(t, managed)
 
@@ -553,7 +553,7 @@ func TestIsManagedRoute(t *testing.T) {
 			Name:      "othergateway",
 			Namespace: &namespace,
 		}},
-	}, "controller")
+	}, "", "controller")
 	require.NoError(t, err)
 	require.False(t, managed)
 
@@ -562,7 +562,7 @@ func TestIsManagedRoute(t *testing.T) {
 			Name:      "gateway",
 			Namespace: &otherNamespace,
 		}},
-	}, "controller")
+	}, "", "controller")
 	require.Error(t, err)
 	require.False(t, managed)
 
@@ -571,9 +571,18 @@ func TestIsManagedRoute(t *testing.T) {
 			Name:      "othergateway",
 			Namespace: &otherNamespace,
 		}},
-	}, "controller")
+	}, "", "controller")
 	require.Error(t, err)
 	require.False(t, managed)
+
+	// implicit namespace
+	managed, err = gatewayclient.IsManagedRoute(context.Background(), gateway.CommonRouteSpec{
+		ParentRefs: []gateway.ParentRef{{
+			Name: "gateway",
+		}},
+	}, "namespace", "controller")
+	require.NoError(t, err)
+	require.True(t, managed)
 }
 
 func newTestClient(list client.ObjectList, objects ...client.Object) Client {

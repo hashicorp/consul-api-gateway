@@ -219,18 +219,18 @@ func (mr *MockClientMockRecorder) GetHTTPRoute(ctx, key interface{}) *gomock.Cal
 }
 
 // IsManagedRoute mocks base method.
-func (m *MockClient) IsManagedRoute(ctx context.Context, spec v1alpha2.CommonRouteSpec, controllerName string) (bool, error) {
+func (m *MockClient) IsManagedRoute(ctx context.Context, spec v1alpha2.CommonRouteSpec, routeNamespace, controllerName string) (bool, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "IsManagedRoute", ctx, spec, controllerName)
+	ret := m.ctrl.Call(m, "IsManagedRoute", ctx, spec, routeNamespace, controllerName)
 	ret0, _ := ret[0].(bool)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // IsManagedRoute indicates an expected call of IsManagedRoute.
-func (mr *MockClientMockRecorder) IsManagedRoute(ctx, spec, controllerName interface{}) *gomock.Call {
+func (mr *MockClientMockRecorder) IsManagedRoute(ctx, spec, routeNamespace, controllerName interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsManagedRoute", reflect.TypeOf((*MockClient)(nil).IsManagedRoute), ctx, spec, controllerName)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsManagedRoute", reflect.TypeOf((*MockClient)(nil).IsManagedRoute), ctx, spec, routeNamespace, controllerName)
 }
 
 // IsValidGatewayClass mocks base method.

@@ -56,7 +56,7 @@ type Client interface {
 	// validation
 
 	IsValidGatewayClass(ctx context.Context, gc *gateway.GatewayClass) (bool, error)
-	IsManagedRoute(ctx context.Context, spec gateway.CommonRouteSpec, controllerName string) (bool, error)
+	IsManagedRoute(ctx context.Context, spec gateway.CommonRouteSpec, routeNamespace, controllerName string) (bool, error)
 
 	// status updates
 
@@ -278,10 +278,11 @@ func (g *gatewayClient) RemoveFinalizer(ctx context.Context, object client.Objec
 	return found, nil
 }
 
-func (g *gatewayClient) IsManagedRoute(ctx context.Context, spec gateway.CommonRouteSpec, controllerName string) (bool, error) {
+func (g *gatewayClient) IsManagedRoute(ctx context.Context, spec gateway.CommonRouteSpec, routeNamespace, controllerName string) (bool, error) {
 	for _, ref := range spec.ParentRefs {
 		gw := &gateway.Gateway{}
 		name := types.NamespacedName{Name: ref.Name}
+		name.Namespace = routeNamespace
 		if ref.Namespace != nil {
 			name.Namespace = string(*ref.Namespace)
 		}

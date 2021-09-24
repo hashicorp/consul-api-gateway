@@ -87,7 +87,6 @@ type CertManagerOptions struct {
 // DefaultCertManagerOptions returns the default options for a CertManager instance.
 func DefaultCertManagerOptions() *CertManagerOptions {
 	return &CertManagerOptions{
-		Directory:  defaultCertificateDirectory,
 		Tries:      defaultMaxAttempts,
 		SDSAddress: defaultSDSAddress,
 		SDSPort:    defaultSDSPort,
@@ -219,14 +218,16 @@ func (c *CertManager) persist(root *api.CARoot, client *api.LeafCert) error {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
-	if err := os.WriteFile(rootCAFile, []byte(root.RootCertPEM), 0600); err != nil {
-		return fmt.Errorf("error writing root CA fiile: %w", err)
-	}
-	if err := os.WriteFile(clientCertFile, []byte(client.CertPEM), 0600); err != nil {
-		return fmt.Errorf("error writing client cert fiile: %w", err)
-	}
-	if err := os.WriteFile(clientPrivateKeyFile, []byte(client.PrivateKeyPEM), 0600); err != nil {
-		return fmt.Errorf("error writing client private key fiile: %w", err)
+	if c.directory != "" {
+		if err := os.WriteFile(rootCAFile, []byte(root.RootCertPEM), 0600); err != nil {
+			return fmt.Errorf("error writing root CA fiile: %w", err)
+		}
+		if err := os.WriteFile(clientCertFile, []byte(client.CertPEM), 0600); err != nil {
+			return fmt.Errorf("error writing client cert fiile: %w", err)
+		}
+		if err := os.WriteFile(clientPrivateKeyFile, []byte(client.PrivateKeyPEM), 0600); err != nil {
+			return fmt.Errorf("error writing client private key fiile: %w", err)
+		}
 	}
 
 	tlsCertificate, err := tls.X509KeyPair([]byte(client.CertPEM), []byte(client.PrivateKeyPEM))
@@ -291,6 +292,10 @@ func (c *CertManager) WaitForWrite(ctx context.Context) error {
 }
 
 func (c *CertManager) RenderSDSConfig() (string, error) {
+	if c.directory == "" {
+		return "", errors.New("CertManager must be configured to persist to a directory")
+	}
+	
 	var (
 		sdsCertConfig bytes.Buffer
 		sdsCAConfig   bytes.Buffer

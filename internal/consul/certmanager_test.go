@@ -322,6 +322,7 @@ func TestRenderSDS(t *testing.T) {
 	defer os.RemoveAll(directory)
 
 	options := DefaultCertManagerOptions()
+	options.Directory = "/certs"
 	manager := NewCertManager(hclog.NewNullLogger(), nil, gwTesting.RandomString(), options)
 	manager.configDirectory = directory
 

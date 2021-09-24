@@ -50,20 +50,20 @@ func TestHTTPRoute(t *testing.T) {
 		err:  errExpected,
 		expectationCB: func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager) {
 			client.EXPECT().GetHTTPRoute(gomock.Any(), httpRouteName).Return(&gateway.HTTPRoute{}, nil)
-			client.EXPECT().IsManagedRoute(gomock.Any(), gomock.Any(), mockControllerName).Return(false, errExpected)
+			client.EXPECT().IsManagedRoute(gomock.Any(), gomock.Any(), gomock.Any(), mockControllerName).Return(false, errExpected)
 		},
 	}, {
 		name: "not-managed",
 		expectationCB: func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager) {
 			client.EXPECT().GetHTTPRoute(gomock.Any(), httpRouteName).Return(&gateway.HTTPRoute{}, nil)
-			client.EXPECT().IsManagedRoute(gomock.Any(), gomock.Any(), mockControllerName).Return(false, nil)
+			client.EXPECT().IsManagedRoute(gomock.Any(), gomock.Any(), gomock.Any(), mockControllerName).Return(false, nil)
 			reconciler.EXPECT().DeleteRoute(httpRouteName)
 		},
 	}, {
 		name: "managed",
 		expectationCB: func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager) {
 			client.EXPECT().GetHTTPRoute(gomock.Any(), httpRouteName).Return(&gateway.HTTPRoute{}, nil)
-			client.EXPECT().IsManagedRoute(gomock.Any(), gomock.Any(), mockControllerName).Return(true, nil)
+			client.EXPECT().IsManagedRoute(gomock.Any(), gomock.Any(), gomock.Any(), mockControllerName).Return(true, nil)
 			reconciler.EXPECT().UpsertHTTPRoute(gomock.Any())
 		},
 	}} {

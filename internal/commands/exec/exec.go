@@ -132,6 +132,7 @@ func RunExec(config ExecConfig) (ret int) {
 	options := consul.DefaultCertManagerOptions()
 	options.SDSAddress = config.EnvoyConfig.SDSAddress
 	options.SDSPort = config.EnvoyConfig.SDSPort
+	options.Directory = "/certs"
 	if config.EnvoyConfig.CertificateDirectory != "" {
 		options.Directory = config.EnvoyConfig.CertificateDirectory
 	}

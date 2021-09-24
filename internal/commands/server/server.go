@@ -66,13 +66,7 @@ func RunServer(config ServerConfig) int {
 	}
 	controller.SetConsul(consulClient)
 
-	directory, err := os.MkdirTemp("", "consul-api-gateway-controller")
-	if err != nil {
-		config.Logger.Error("error making temporary directory", "error", err)
-		return 1
-	}
 	options := consul.DefaultCertManagerOptions()
-	options.Directory = directory
 	certManager := consul.NewCertManager(
 		config.Logger.Named("cert-manager"),
 		consulClient,
