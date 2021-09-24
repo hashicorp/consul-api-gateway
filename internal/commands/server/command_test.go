@@ -10,7 +10,7 @@ import (
 )
 
 func TestServer(t *testing.T) {
-	require.Equal(t, "", testCmd().Help())
+	require.NotEmpty(t, testCmd().Help())
 	require.Equal(t, "Starts the consul-api-gateway control plane server", testCmd().Synopsis())
 
 	ctx := context.Background()

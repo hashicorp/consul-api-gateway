@@ -13,7 +13,7 @@ func TestVersion(t *testing.T) {
 		UI:      ui,
 		Version: "1",
 	}
-	require.Equal(t, "", cmd.Help())
+	require.NotEmpty(t, cmd.Help())
 	require.Equal(t, "Prints the version", cmd.Synopsis())
 
 	require.Equal(t, 0, cmd.Run(nil))
