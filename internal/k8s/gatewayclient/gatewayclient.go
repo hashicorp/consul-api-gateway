@@ -91,13 +91,9 @@ func (g *gatewayClient) GatewayClassConfigInUse(ctx context.Context, gcc *apigwv
 			paramaterRef.Group == apigwv1alpha1.Group &&
 			paramaterRef.Kind == apigwv1alpha1.GatewayClassConfigKind &&
 			paramaterRef.Name == gcc.Name {
-			namespace := ""
-			if paramaterRef.Namespace != nil {
-				namespace = string(*paramaterRef.Namespace)
-			}
-			if namespace == gcc.Namespace {
-				return true, nil
-			}
+
+			// no need to check on namespaces since we're cluster-scoped
+			return true, nil
 		}
 	}
 	return false, nil
@@ -114,9 +110,7 @@ func (g *gatewayClient) IsValidGatewayClass(ctx context.Context, gc *gateway.Gat
 		// try and retrieve the config
 		found := &apigwv1alpha1.GatewayClassConfig{}
 		name := types.NamespacedName{Name: parametersRef.Name}
-		if parametersRef.Namespace != nil {
-			name.Namespace = parametersRef.Name
-		}
+		// ignore namespace since we're cluster-scoped
 		err := g.Get(ctx, name, found)
 		if err != nil {
 			if k8serrors.IsNotFound(err) {
@@ -132,12 +126,14 @@ func (g *gatewayClient) IsValidGatewayClass(ctx context.Context, gc *gateway.Gat
 
 func (g *gatewayClient) GatewayClassConfigForGatewayClass(ctx context.Context, gc *gateway.GatewayClass) (*apigwv1alpha1.GatewayClassConfig, error) {
 	if parametersRef := gc.Spec.ParametersRef; parametersRef != nil {
+		if parametersRef.Group != apigwv1alpha1.Group || parametersRef.Kind != apigwv1alpha1.GatewayClassConfigKind {
+			// don't try and retrieve if it's not the right type
+			return nil, errors.New("wrong gateway class config type")
+		}
 		// try and retrieve the config
 		found := &apigwv1alpha1.GatewayClassConfig{}
+		// no namespaces since we're cluster-scoped
 		name := types.NamespacedName{Name: parametersRef.Name}
-		if parametersRef.Namespace != nil {
-			name.Namespace = parametersRef.Name
-		}
 		err := g.Get(ctx, name, found)
 		if err != nil {
 			return nil, err

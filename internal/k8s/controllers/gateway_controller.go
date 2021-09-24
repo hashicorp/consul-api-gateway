@@ -122,6 +122,10 @@ func (r *GatewayReconciler) ensureDeployment(ctx context.Context, gc *gateway.Ga
 		return fmt.Errorf("failed to get gateway class config: %w", err)
 	}
 
+	if gcc == nil {
+		gcc = &apigwv1alpha1.GatewayClassConfig{}
+	}
+
 	deployment = gcc.DeploymentFor(gw, apigwv1alpha1.SDSConfig{
 		Host: r.SDSServerHost,
 		Port: r.SDSServerPort,
