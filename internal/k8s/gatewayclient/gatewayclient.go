@@ -271,7 +271,7 @@ func (g *gatewayClient) RemoveFinalizer(ctx context.Context, object client.Objec
 			found = true
 			continue
 		}
-		finalizers = append(finalizers, finalizer)
+		finalizers = append(finalizers, f)
 	}
 	if found {
 		object.SetFinalizers(finalizers)
