@@ -192,42 +192,58 @@ func (g *gatewayClient) GatewayClassForGateway(ctx context.Context, gw *gateway.
 
 func (g *gatewayClient) DeploymentForGateway(ctx context.Context, gw *gateway.Gateway) (*apps.Deployment, error) {
 	deployment := &apps.Deployment{}
-	err := g.getOrNil(ctx, types.NamespacedName{Name: gw.Name, Namespace: gw.Namespace}, deployment)
-	return deployment, err
+	key := types.NamespacedName{Name: gw.Name, Namespace: gw.Namespace}
+	if err := g.Get(ctx, key, deployment); err != nil {
+		if k8serrors.IsNotFound(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return deployment, nil
 }
 
 func (g *gatewayClient) GetGatewayClassConfig(ctx context.Context, key types.NamespacedName) (*apigwv1alpha1.GatewayClassConfig, error) {
 	gcc := &apigwv1alpha1.GatewayClassConfig{}
-	err := g.getOrNil(ctx, key, gcc)
-	return gcc, err
+	if err := g.Get(ctx, key, gcc); err != nil {
+		if k8serrors.IsNotFound(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return gcc, nil
 }
 
 func (g *gatewayClient) GetGatewayClass(ctx context.Context, key types.NamespacedName) (*gateway.GatewayClass, error) {
 	gc := &gateway.GatewayClass{}
-	err := g.getOrNil(ctx, key, gc)
-	return gc, err
+	if err := g.Get(ctx, key, gc); err != nil {
+		if k8serrors.IsNotFound(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return gc, nil
 }
 
 func (g *gatewayClient) GetGateway(ctx context.Context, key types.NamespacedName) (*gateway.Gateway, error) {
 	gw := &gateway.Gateway{}
-	err := g.getOrNil(ctx, key, gw)
-	return gw, err
+	if err := g.Get(ctx, key, gw); err != nil {
+		if k8serrors.IsNotFound(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return gw, nil
 }
 
 func (g *gatewayClient) GetHTTPRoute(ctx context.Context, key types.NamespacedName) (*gateway.HTTPRoute, error) {
 	route := &gateway.HTTPRoute{}
-	err := g.getOrNil(ctx, key, route)
-	return route, err
-}
-
-func (g *gatewayClient) getOrNil(ctx context.Context, key types.NamespacedName, object client.Object) error {
-	if err := g.Get(ctx, key, object); err != nil {
+	if err := g.Get(ctx, key, route); err != nil {
 		if k8serrors.IsNotFound(err) {
-			return nil
+			return nil, nil
 		}
-		return err
+		return nil, err
 	}
-	return nil
+	return route, nil
 }
 
 func (g *gatewayClient) EnsureFinalizer(ctx context.Context, object client.Object, finalizer string) (bool, error) {
