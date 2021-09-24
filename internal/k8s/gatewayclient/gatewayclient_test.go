@@ -15,8 +15,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	gateway "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
-	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 	"github.com/stretchr/testify/require"
+
+	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 )
 
 func TestGetGateway(t *testing.T) {

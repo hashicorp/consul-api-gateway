@@ -14,9 +14,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
-	"github.com/stretchr/testify/require"
 
 	gwTesting "github.com/hashicorp/consul-api-gateway/internal/testing"
 )

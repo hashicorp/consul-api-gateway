@@ -16,6 +16,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/armon/go-metrics"
+
 	"github.com/hashicorp/go-hclog"
 
 	gwMetrics "github.com/hashicorp/consul-api-gateway/internal/metrics"

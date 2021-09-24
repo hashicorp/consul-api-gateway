@@ -9,11 +9,12 @@ import (
 	"syscall"
 	"time"
 
+	"golang.org/x/sync/errgroup"
+
 	"github.com/hashicorp/consul-api-gateway/internal/consul"
 	"github.com/hashicorp/consul-api-gateway/internal/envoy"
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
-	"golang.org/x/sync/errgroup"
 )
 
 type AuthConfig struct {

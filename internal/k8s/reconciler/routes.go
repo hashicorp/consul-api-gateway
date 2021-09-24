@@ -4,13 +4,14 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	klabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
+
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 )
 
 // NamespaceNameLabel represents that label added automatically to namespaces is newer Kubernetes clusters

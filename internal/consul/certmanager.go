@@ -295,7 +295,7 @@ func (c *CertManager) RenderSDSConfig() (string, error) {
 	if c.directory == "" {
 		return "", errors.New("CertManager must be configured to persist to a directory")
 	}
-	
+
 	var (
 		sdsCertConfig bytes.Buffer
 		sdsCAConfig   bytes.Buffer
