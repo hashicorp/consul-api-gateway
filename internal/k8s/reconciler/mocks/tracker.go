@@ -49,15 +49,15 @@ func (mr *MockGatewayStatusTrackerMockRecorder) DeleteStatus(name interface{}) *
 }
 
 // UpdateStatus mocks base method.
-func (m *MockGatewayStatusTracker) UpdateStatus(name types.NamespacedName, pod *v1.Pod, conditions []v10.Condition) bool {
+func (m *MockGatewayStatusTracker) UpdateStatus(name types.NamespacedName, pod *v1.Pod, conditions []v10.Condition, cb func() error) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateStatus", name, pod, conditions)
-	ret0, _ := ret[0].(bool)
+	ret := m.ctrl.Call(m, "UpdateStatus", name, pod, conditions, cb)
+	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // UpdateStatus indicates an expected call of UpdateStatus.
-func (mr *MockGatewayStatusTrackerMockRecorder) UpdateStatus(name, pod, conditions interface{}) *gomock.Call {
+func (mr *MockGatewayStatusTrackerMockRecorder) UpdateStatus(name, pod, conditions, cb interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateStatus", reflect.TypeOf((*MockGatewayStatusTracker)(nil).UpdateStatus), name, pod, conditions)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateStatus", reflect.TypeOf((*MockGatewayStatusTracker)(nil).UpdateStatus), name, pod, conditions, cb)
 }

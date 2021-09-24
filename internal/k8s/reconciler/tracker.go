@@ -34,7 +34,7 @@ func (p *podStatus) isUpdate(conditions []meta.Condition) bool {
 }
 
 type GatewayStatusTracker interface {
-	UpdateStatus(name types.NamespacedName, pod *core.Pod, conditions []meta.Condition) bool
+	UpdateStatus(name types.NamespacedName, pod *core.Pod, conditions []meta.Condition, cb func() error) error
 	DeleteStatus(name types.NamespacedName)
 }
 
@@ -49,33 +49,43 @@ func NewStatusTracker() *StatusTracker {
 	}
 }
 
-func (p *StatusTracker) UpdateStatus(name types.NamespacedName, pod *core.Pod, conditions []meta.Condition) bool {
+// UpdateStatus calls the given callback if a pod status has been updated
+// it does this so that it internally holds a synchronized mutex in order for
+// updates to be consistent with the state of its internal cache.
+func (p *StatusTracker) UpdateStatus(name types.NamespacedName, pod *core.Pod, conditions []meta.Condition, cb func() error) error {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
 
 	status, found := p.statuses[name]
 	if !found {
+		if err := cb(); err != nil {
+			return err
+		}
 		p.statuses[name] = &podStatus{
 			createdAt:  pod.CreationTimestamp,
 			generation: pod.Generation,
 			conditions: conditions,
 		}
-		return true
+		return nil
 	}
 	if status.createdAt.After(pod.CreationTimestamp.Time) {
 		// we have an old pod that's checking in, just ignore it
-		return false
+		return nil
 	}
 	// we only care about the current generation of pod updates or higher
 	isCurrentGeneration := pod.Generation >= status.generation
 	newerPod := pod.CreationTimestamp.After(status.createdAt.Time)
 	if newerPod || (isCurrentGeneration && status.isUpdate(conditions)) {
+		if err := cb(); err != nil {
+			return err
+		}
 		status.createdAt = pod.CreationTimestamp
 		status.generation = pod.Generation
 		status.conditions = conditions
-		return true
+		return nil
 	}
-	return false
+	// we have no update, just no-op
+	return nil
 }
 
 func (p *StatusTracker) DeleteStatus(name types.NamespacedName) {

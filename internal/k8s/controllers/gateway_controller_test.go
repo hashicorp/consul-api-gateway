@@ -238,10 +238,11 @@ func TestGateway(t *testing.T) {
 			client.EXPECT().SetControllerOwnership(gomock.Any(), gomock.Any()).Return(nil)
 			client.EXPECT().CreateDeployment(gomock.Any(), gomock.Any()).Return(nil)
 			client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(&core.Pod{}, nil)
-			tracker.EXPECT().UpdateStatus(gatewayName, gomock.Any(), gomock.Any()).Return(true)
+			tracker.EXPECT().UpdateStatus(gatewayName, gomock.Any(), gomock.Any(), gomock.Any())
 		},
 	}, {
-		name: "pod-conditions-not-updated",
+		name: "pod-conditions-update-error",
+		err:  errExpected,
 		expectationCB: func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager, tracker *reconcilerMocks.MockGatewayStatusTracker) {
 			client.EXPECT().GetGateway(gomock.Any(), gatewayName).Return(&gateway.Gateway{}, nil)
 			client.EXPECT().GatewayClassForGateway(gomock.Any(), gomock.Any()).Return(&gateway.GatewayClass{
@@ -255,7 +256,7 @@ func TestGateway(t *testing.T) {
 			client.EXPECT().SetControllerOwnership(gomock.Any(), gomock.Any()).Return(nil)
 			client.EXPECT().CreateDeployment(gomock.Any(), gomock.Any()).Return(nil)
 			client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(&core.Pod{}, nil)
-			tracker.EXPECT().UpdateStatus(gatewayName, gomock.Any(), gomock.Any()).Return(false)
+			tracker.EXPECT().UpdateStatus(gatewayName, gomock.Any(), gomock.Any(), gomock.Any()).Return(errExpected)
 		},
 	}} {
 		t.Run(test.name, func(t *testing.T) {
