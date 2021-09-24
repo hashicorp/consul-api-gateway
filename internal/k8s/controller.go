@@ -3,15 +3,13 @@ package k8s
 import (
 	"context"
 	"fmt"
-	"os"
 
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/rest"
 	klogv2 "k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
-	clientruntime "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
@@ -22,6 +20,7 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/controllers"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 )
 
@@ -48,7 +47,7 @@ type Kubernetes struct {
 	logger        hclog.Logger
 }
 
-type Options struct {
+type Config struct {
 	CACertSecretNamespace string
 	CACertSecret          string
 	CACertFile            string
@@ -57,10 +56,12 @@ type Options struct {
 	MetricsBindAddr       string
 	HealthProbeBindAddr   string
 	WebhookPort           int
+	Registry              *common.GatewaySecretRegistry
+	RestConfig            *rest.Config
 }
 
-func Defaults() *Options {
-	return &Options{
+func Defaults() *Config {
+	return &Config{
 		CACertSecretNamespace: "default",
 		CACertSecret:          "",
 		CACertFile:            "",
@@ -72,18 +73,18 @@ func Defaults() *Options {
 	}
 }
 
-func New(logger hclog.Logger, registry *common.GatewaySecretRegistry, opts *Options) (*Kubernetes, error) {
-	if opts == nil {
-		opts = Defaults()
+func New(logger hclog.Logger, config *Config) (*Kubernetes, error) {
+	if config == nil {
+		config = Defaults()
 	}
 
 	// this sets the internal logger that the kubernetes client uses
 	klogv2.SetLogger(fromHCLogger(logger.Named("kubernetes-client")))
-	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
+	mgr, err := ctrl.NewManager(config.RestConfig, ctrl.Options{
 		Scheme:                  scheme,
-		MetricsBindAddress:      opts.MetricsBindAddr,
-		HealthProbeBindAddress:  opts.HealthProbeBindAddr,
-		Port:                    opts.WebhookPort,
+		MetricsBindAddress:      config.MetricsBindAddr,
+		HealthProbeBindAddress:  config.HealthProbeBindAddr,
+		Port:                    config.WebhookPort,
 		LeaderElection:          true,
 		LeaderElectionID:        controllerLeaderElectionID,
 		LeaderElectionNamespace: "default",
@@ -100,32 +101,17 @@ func New(logger hclog.Logger, registry *common.GatewaySecretRegistry, opts *Opti
 		return nil, fmt.Errorf("unable to set up ready check: %w", err)
 	}
 
-	if opts.CACertSecret != "" && opts.CACertFile != "" {
-		client, err := clientruntime.New(ctrl.GetConfigOrDie(), clientruntime.Options{
-			Scheme: scheme,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to get k8s client: %w", err)
-		}
-		secret := &corev1.Secret{}
-		err = client.Get(context.Background(), clientruntime.ObjectKey{
-			Namespace: opts.CACertSecretNamespace,
-			Name:      opts.CACertSecret,
-		}, secret)
-		if err != nil {
-			return nil, fmt.Errorf("unable to pull Consul CA cert from secret: %w", err)
-		}
-		cert := secret.Data[corev1.TLSCertKey]
-		if err := os.WriteFile(opts.CACertFile, cert, 0444); err != nil {
-			return nil, fmt.Errorf("unable to write CA cert: %w", err)
+	if config.CACertSecret != "" && config.CACertFile != "" {
+		if err := utils.WriteSecretCertFile(config.RestConfig, config.CACertSecret, config.CACertFile, config.CACertSecretNamespace); err != nil {
+			return nil, fmt.Errorf("unable to write CA cert file: %w", err)
 		}
 	}
 
 	return &Kubernetes{
 		k8sManager:    mgr,
-		registry:      registry,
-		sDSServerHost: opts.SDSServerHost,
-		sDSServerPort: opts.SDSServerPort,
+		registry:      config.Registry,
+		sDSServerHost: config.SDSServerHost,
+		sDSServerPort: config.SDSServerPort,
 		logger:        logger.Named("k8s"),
 	}, nil
 }

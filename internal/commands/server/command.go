@@ -3,27 +3,20 @@ package server
 import (
 	"context"
 	"flag"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
-	"os/signal"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/mitchellh/cli"
-	"golang.org/x/sync/errgroup"
+	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
 
 	"github.com/hashicorp/consul-api-gateway/internal/common"
-	"github.com/hashicorp/consul-api-gateway/internal/consul"
-	"github.com/hashicorp/consul-api-gateway/internal/envoy"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s"
-	"github.com/hashicorp/consul-api-gateway/internal/metrics"
-	"github.com/hashicorp/consul-api-gateway/internal/profiling"
 )
 
 const (
@@ -35,7 +28,10 @@ const (
 
 type Command struct {
 	UI     cli.Ui
-	logger hclog.Logger
+	output io.Writer
+	ctx    context.Context
+
+	isTest bool
 
 	flagCAFile            string // CA File for CA for Consul server
 	flagCASecret          string // CA Secret for Consul server
@@ -45,6 +41,7 @@ type Command struct {
 	flagSDSServerPort     int    // SDS server port
 	flagMetricsPort       int    // Port for prometheus metrics
 	flagPprofPort         int    // Port for pprof profiling
+	flagK8sContext        string // context to use
 
 	// Logging
 	flagLogLevel string
@@ -54,6 +51,11 @@ type Command struct {
 	once    sync.Once
 }
 
+// New returns a new server command
+func New(ctx context.Context, ui cli.Ui, logOutput io.Writer) *Command {
+	return &Command{UI: ui, output: logOutput, ctx: ctx}
+}
+
 func (c *Command) init() {
 	c.flagSet = flag.NewFlagSet("", flag.ContinueOnError)
 	c.flagSet.StringVar(&c.flagCAFile, "ca-file", "", "Path to CA for Consul server.")
@@ -61,6 +63,7 @@ func (c *Command) init() {
 	c.flagSet.StringVar(&c.flagCASecretNamespace, "ca-secret-namespace", "", "CA Secret namespace for Consul server.")
 	c.flagSet.StringVar(&c.flagConsulAddress, "consul-address", "", "Consul Address.")
 	c.flagSet.StringVar(&c.flagSDSServerHost, "sds-server-host", defaultSDSServerHost, "SDS Server Host.")
+	c.flagSet.StringVar(&c.flagK8sContext, "k8s-context", "", "Kubernetes context to use.")
 	c.flagSet.IntVar(&c.flagSDSServerPort, "sds-server-port", defaultSDSServerPort, "SDS Server Port.")
 	c.flagSet.IntVar(&c.flagMetricsPort, "metrics-port", 0, "Metrics port, if not set, metrics are not enabled.")
 	c.flagSet.IntVar(&c.flagPprofPort, "pprof-port", 0, "Go pprof port, if not set, profiling is not enabled.")
@@ -75,46 +78,23 @@ func (c *Command) init() {
 }
 
 func (c *Command) Run(args []string) int {
-	ctx := context.Background()
-	return c.run(ctx, os.Stdout, args)
-}
-
-func (c *Command) run(ctx context.Context, output io.Writer, args []string) int {
 	c.once.Do(c.init)
-	c.flagSet.SetOutput(output)
-
-	// Set up signal handlers and global context
-	ctx, cancel := context.WithCancel(ctx)
-	interrupt := make(chan os.Signal, 1)
-	signal.Notify(interrupt, os.Interrupt, syscall.SIGTERM)
-	defer func() {
-		signal.Stop(interrupt)
-		cancel()
-	}()
-	go func() {
-		select {
-		case <-interrupt:
-			c.logger.Debug("received shutdown signal")
-			cancel()
-		case <-ctx.Done():
-		}
-	}()
+	c.flagSet.SetOutput(c.output)
 
 	if err := c.flagSet.Parse(args); err != nil {
 		return 1
 	}
-	gatewaySecretRegistry := common.NewGatewaySecretRegistry()
 
-	if c.logger == nil {
-		c.logger = hclog.New(&hclog.LoggerOptions{
-			Level:      hclog.LevelFromString(c.flagLogLevel),
-			Output:     output,
-			JSONFormat: c.flagLogJSON,
-		}).Named("consul-api-gateway-server")
-	}
+	logger := hclog.New(&hclog.LoggerOptions{
+		Level:      hclog.LevelFromString(c.flagLogLevel),
+		Output:     c.output,
+		JSONFormat: c.flagLogJSON,
+	}).Named("consul-api-gateway-server")
 
 	consulCfg := api.DefaultConfig()
 	cfg := k8s.Defaults()
+	gatewaySecretRegistry := common.NewGatewaySecretRegistry()
+	cfg.Registry = gatewaySecretRegistry
 
 	if c.flagCAFile != "" {
 		consulCfg.TLSConfig.CAFile = c.flagCAFile
@@ -131,7 +111,7 @@ func (c *Command) run(ctx context.Context, output io.Writer, args []string) int 
 		// where we store it
 		file, err := ioutil.TempFile("", "consul-api-gateway")
 		if err != nil {
-			c.logger.Error("error creating the kubernetes controller", "error", err)
+			logger.Error("error creating the kubernetes controller", "error", err)
 			return 1
 		}
 		defer os.Remove(file.Name())
@@ -143,80 +123,22 @@ func (c *Command) run(ctx context.Context, output io.Writer, args []string) int 
 		consulCfg.Address = c.flagConsulAddress
 	}
 
-	secretFetcher, err := k8s.NewK8sSecretClient(c.logger.Named("cert-fetcher"))
+	restConfig, err := config.GetConfigWithContext(c.flagK8sContext)
 	if err != nil {
-		c.logger.Error("error initializing the kubernetes secret fetcher", "error", err)
+		logger.Error("error getting kubernetes configuration", "error", err)
 		return 1
 	}
+	cfg.RestConfig = restConfig
 
-	controller, err := k8s.New(c.logger, gatewaySecretRegistry, cfg)
-	if err != nil {
-		c.logger.Error("error creating the kubernetes controller", "error", err)
-		return 1
-	}
-
-	consulClient, err := api.NewClient(consulCfg)
-	if err != nil {
-		c.logger.Error("error creating a Consul API client", "error", err)
-		return 1
-	}
-	controller.SetConsul(consulClient)
-
-	directory, err := os.MkdirTemp("", "consul-api-gateway-controller")
-	if err != nil {
-		c.logger.Error("error making temporary directory", "error", err)
-		return 1
-	}
-	options := consul.DefaultCertManagerOptions()
-	options.Directory = directory
-	certManager := consul.NewCertManager(
-		c.logger.Named("cert-manager"),
-		consulClient,
-		"consul-api-gateway-controller",
-		options,
-	)
-	group, groupCtx := errgroup.WithContext(ctx)
-	group.Go(func() error {
-		return certManager.Manage(groupCtx)
+	return RunServer(ServerConfig{
+		Context:       context.Background(),
+		Logger:        logger,
+		ConsulConfig:  consulCfg,
+		K8sConfig:     cfg,
+		ProfilingPort: c.flagPprofPort,
+		MetricsPort:   c.flagMetricsPort,
+		isTest:        c.isTest,
 	})
-
-	// wait until we've written once before booting envoy
-	waitCtx, waitCancel := context.WithTimeout(ctx, defaultCertWaitTime)
-	defer waitCancel()
-	c.logger.Trace("waiting for initial certs to be written")
-	if err := certManager.WaitForWrite(waitCtx); err != nil {
-		c.logger.Error("timeout waiting for certs to be written", "error", err)
-		return 1
-	}
-	c.logger.Trace("initial certificates written")
-
-	server := envoy.NewSDSServer(c.logger.Named("sds-server"), certManager, secretFetcher, gatewaySecretRegistry)
-	group.Go(func() error {
-		return server.Run(groupCtx)
-	})
-	group.Go(func() error {
-		return controller.Start(groupCtx)
-	})
-
-	if c.flagMetricsPort != 0 {
-		group.Go(func() error {
-			return metrics.RunServer(groupCtx, c.logger.Named("metrics"), fmt.Sprintf("127.0.0.1:%d", c.flagMetricsPort))
-		})
-	}
-
-	if c.flagPprofPort != 0 {
-		group.Go(func() error {
-			return profiling.RunServer(groupCtx, c.logger.Named("pprof"), fmt.Sprintf("127.0.0.1:%d", c.flagPprofPort))
-		})
-	}
-
-	if err := group.Wait(); err != nil {
-		c.logger.Error("unexpected error", "error", err)
-		return 1
-	}
-
-	c.logger.Info("shutting down")
-	return 0
 }
 
 func (c *Command) Synopsis() string {

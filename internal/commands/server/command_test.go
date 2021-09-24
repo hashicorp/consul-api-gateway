@@ -9,23 +9,55 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestServer(t *testing.T) {
-	require.NotEmpty(t, testCmd().Help())
-	require.Equal(t, "Starts the consul-api-gateway control plane server", testCmd().Synopsis())
+func TestServerHelpSynopsis(t *testing.T) {
+	t.Parallel()
 
 	ctx := context.Background()
-
-	// flag checking
+	ui := cli.NewMockUi()
 	var buffer bytes.Buffer
+	cmd := New(ctx, ui, &buffer)
+	cmd.isTest = true
 
-	require.Equal(t, 1, testCmd().run(ctx, &buffer, []string{
-		"-not-a-flag",
-	}))
-	require.Contains(t, buffer.String(), "flag provided but not defined: -not-a-flag")
-	buffer.Reset()
+	require.Equal(t, "Starts the consul-api-gateway control plane server", cmd.Synopsis())
+	require.NotEmpty(t, cmd.Help())
 }
 
-func testCmd() *Command {
-	ui := cli.NewMockUi()
-	return &Command{UI: ui}
+func TestExec(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		name   string
+		args   []string
+		retVal int
+		output string
+	}{{
+		name: "flag-parse-error",
+		args: []string{
+			"-not-a-flag",
+		},
+		retVal: 1,
+		output: "flag provided but not defined: -not-a-flag",
+	}, {
+		name: "invalid-context",
+		args: []string{
+			"-ca-file", "file",
+			"-ca-secret-namespace", "namespace",
+			"-ca-secret", "secret",
+			"-consul-address", "localhost",
+			"-k8s-context", "thiscontextdoesnotexist",
+		},
+		retVal: 1,
+		output: "error getting kubernetes configuration",
+	}} {
+		t.Run(test.name, func(t *testing.T) {
+			ctx := context.Background()
+			ui := cli.NewMockUi()
+			var buffer bytes.Buffer
+			cmd := New(ctx, ui, &buffer)
+			cmd.isTest = true
+
+			require.Equal(t, test.retVal, cmd.Run(test.args))
+			require.Contains(t, buffer.String(), test.output)
+		})
+	}
 }

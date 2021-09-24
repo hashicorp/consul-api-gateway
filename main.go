@@ -36,7 +36,7 @@ func run(args []string, ui cli.Ui, logOutput io.Writer) int {
 func initializeCommands(ui cli.Ui, logOutput io.Writer) map[string]cli.CommandFactory {
 	return map[string]cli.CommandFactory{
 		"server": func() (cli.Command, error) {
-			return &cmdServer.Command{UI: ui}, nil
+			return cmdServer.New(context.Background(), ui, logOutput), nil
 		},
 		"exec": func() (cli.Command, error) {
 			return cmdExec.New(context.Background(), ui, logOutput), nil

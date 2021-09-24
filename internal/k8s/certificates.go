@@ -12,7 +12,7 @@ import (
 	core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	tls "github.com/envoyproxy/go-control-plane/envoy/extensions/transport_sockets/tls/v3"
 	corev1 "k8s.io/api/core/v1"
-	ctrl "sigs.k8s.io/controller-runtime"
+	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/armon/go-metrics"
@@ -28,8 +28,8 @@ type K8sSecretClient struct {
 }
 
 // NewK8sSecretClient initializes a K8sSecretClient instance
-func NewK8sSecretClient(logger hclog.Logger) (*K8sSecretClient, error) {
-	apiClient, err := client.New(ctrl.GetConfigOrDie(), client.Options{
+func NewK8sSecretClient(logger hclog.Logger, config *rest.Config) (*K8sSecretClient, error) {
+	apiClient, err := client.New(config, client.Options{
 		Scheme: scheme,
 	})
 	if err != nil {
