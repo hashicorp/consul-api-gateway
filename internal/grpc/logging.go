@@ -22,11 +22,12 @@ const (
 // Logger implements google.golang.org/grpc/grpclog.LoggerV2 using hclog
 type Logger struct {
 	logger hclog.Logger
+	exit   func()
 }
 
 // NewHCLogLogger returns a GRPC-compatible logger that wraps an hclog.Logger
 func NewHCLogLogger(logger hclog.Logger) *Logger {
-	return &Logger{logger: logger}
+	return &Logger{logger: logger, exit: exit}
 }
 
 // Info logs to INFO log. Arguments are handled in the manner of fmt.Print.
@@ -79,7 +80,7 @@ func (l *Logger) Errorf(format string, args ...interface{}) {
 // Implementations may also call os.Exit() with a non-zero exit code.
 func (l *Logger) Fatal(args ...interface{}) {
 	l.logger.Error(fmt.Sprint(args...))
-	os.Exit(1)
+	l.exit()
 }
 
 // Fatalln logs to ERROR log. Arguments are handled in the manner of fmt.Println.
@@ -87,7 +88,7 @@ func (l *Logger) Fatal(args ...interface{}) {
 // Implementations may also call os.Exit() with a non-zero exit code.
 func (l *Logger) Fatalln(args ...interface{}) {
 	l.logger.Error(fmt.Sprint(args...))
-	os.Exit(1)
+	l.exit()
 }
 
 // Fatalf logs to ERROR log. Arguments are handled in the manner of fmt.Printf.
@@ -95,7 +96,7 @@ func (l *Logger) Fatalln(args ...interface{}) {
 // Implementations may also call os.Exit() with a non-zero exit code.
 func (l *Logger) Fatalf(format string, args ...interface{}) {
 	l.logger.Error(fmt.Sprintf(format, args...))
-	os.Exit(1)
+	l.exit()
 }
 
 // V reports whether verbosity level l is at least the requested verbose level.
@@ -104,15 +105,19 @@ func (l *Logger) V(level int) bool {
 	// this makes things more explicit
 	switch level {
 	case infoLog:
-		return l.logger.IsInfo()
+		return l.logger.IsInfo() || l.logger.IsDebug() || l.logger.IsTrace()
 	case warningLog:
-		return l.logger.IsWarn()
+		return l.logger.IsWarn() || l.logger.IsInfo() || l.logger.IsDebug() || l.logger.IsTrace()
 	case errorLog:
-		return l.logger.IsError()
+		return l.logger.IsError() || l.logger.IsWarn() || l.logger.IsInfo() || l.logger.IsDebug() || l.logger.IsTrace()
 	case fatalLog:
 		// we don't have a fatal level in hclog
 		return false
 	default:
 		return false
 	}
+}
+
+func exit() {
+	os.Exit(1)
 }

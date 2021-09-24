@@ -6,7 +6,7 @@ import (
 
 	"github.com/mitchellh/cli"
 
-	"github.com/hashicorp/consul-api-gateway/version"
+	"github.com/hashicorp/consul-api-gateway/internal/version"
 )
 
 func main() {

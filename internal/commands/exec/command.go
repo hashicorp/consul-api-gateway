@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"strings"
@@ -34,6 +35,8 @@ const (
 	// The amount of time to wait for the first cert write
 	defaultCertWaitTime = 1 * time.Minute
 )
+
+var isTest bool
 
 type Command struct {
 	UI cli.Ui
@@ -110,7 +113,12 @@ func (c *Command) init() {
 }
 
 func (c *Command) Run(args []string) (ret int) {
+	return c.run(os.Stdout, args)
+}
+
+func (c *Command) run(output io.Writer, args []string) (ret int) {
 	c.once.Do(c.init)
+	c.flagSet.SetOutput(output)
 
 	// Set up signal handlers and global context
 	ctx := context.Background()
@@ -138,7 +146,7 @@ func (c *Command) Run(args []string) (ret int) {
 	if c.logger == nil {
 		c.logger = hclog.New(&hclog.LoggerOptions{
 			Level:      hclog.LevelFromString(c.flagLogLevel),
-			Output:     os.Stdout,
+			Output:     output,
 			JSONFormat: c.flagLogJSON,
 		}).Named("consul-api-gateway-exec")
 	}
@@ -180,6 +188,9 @@ func (c *Command) Run(args []string) (ret int) {
 		c.flagGatewayNamespace,
 		c.flagGatewayHost,
 	)
+	if isTest {
+		registry = registry.WithTries(1)
+	}
 
 	c.logger.Debug("registering service")
 	if err := registry.Register(ctx); err != nil {
@@ -287,12 +298,17 @@ func (c *Command) login(ctx context.Context, client *api.Client, cfg *api.Config
 	}
 	bearerToken := strings.TrimSpace(string(data))
 
-	token, err := consul.NewAuthenticator(
+	authenticator := consul.NewAuthenticator(
 		c.logger.Named("authenticator"),
 		client,
 		c.flagACLAuthMethod,
 		c.flagAuthMethodNamespace,
-	).Authenticate(ctx, c.flagGatewayName, bearerToken)
+	)
+	if isTest {
+		authenticator = authenticator.WithTries(1)
+	}
+
+	token, err := authenticator.Authenticate(ctx, c.flagGatewayName, bearerToken)
 
 	if err != nil {
 		return nil, "", fmt.Errorf("error logging in to consul: %w", err)

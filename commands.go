@@ -8,7 +8,7 @@ import (
 	cmdExec "github.com/hashicorp/consul-api-gateway/internal/commands/exec"
 	cmdServer "github.com/hashicorp/consul-api-gateway/internal/commands/server"
 	cmdVersion "github.com/hashicorp/consul-api-gateway/internal/commands/version"
-	"github.com/hashicorp/consul-api-gateway/version"
+	"github.com/hashicorp/consul-api-gateway/internal/version"
 )
 
 // Commands is the mapping of all available consul-api-gateway commands.
