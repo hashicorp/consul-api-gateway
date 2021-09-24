@@ -7,8 +7,17 @@ import (
 )
 
 func TestVersion(t *testing.T) {
-	version := GetHumanVersion()
-	req := require.New(t)
-	req.NotEmpty(version, "Version cannot be empty")
+	t.Parallel()
 
+	require.Equal(t, "0.1.0-dev", GetHumanVersion())
+
+	GitCommit = "1"
+	require.Equal(t, "0.1.0-dev (1)", GetHumanVersion())
+
+	GitDescribe = "description"
+	require.Equal(t, "description-dev (1)", GetHumanVersion())
+
+	GitDescribe = ""
+	VersionPrerelease = ""
+	require.Equal(t, "0.1.0-dev (1)", GetHumanVersion())
 }
