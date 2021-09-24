@@ -28,9 +28,8 @@ const (
 	SDSCertConfigFile    = "tls-sds.json"
 	SDSCAConfigFile      = "validation-context-sds.json"
 
-	defaultCertificateDirectory = "/certs"
-	defaultSDSAddress           = "localhost"
-	defaultSDSPort              = 9090
+	defaultSDSAddress = "localhost"
+	defaultSDSPort    = 9090
 
 	// if we're within certExpirationBuffer of a certificate
 	// expiring, request a new one

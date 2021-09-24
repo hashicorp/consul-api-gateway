@@ -253,7 +253,8 @@ func TestEnsureFinalizer(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, gatewayclass.Finalizers, 0)
 
-	gatewayclient.EnsureFinalizer(context.Background(), gatewayclass, "finalizer")
+	_, err = gatewayclient.EnsureFinalizer(context.Background(), gatewayclass, "finalizer")
+	require.NoError(t, err)
 	gatewayclass, err = gatewayclient.GatewayClassForGateway(context.Background(), &gateway.Gateway{
 		Spec: gateway.GatewaySpec{
 			GatewayClassName: "gatewayclass",
@@ -264,7 +265,8 @@ func TestEnsureFinalizer(t *testing.T) {
 	require.Equal(t, "finalizer", gatewayclass.Finalizers[0])
 
 	// make sure it only adds it once
-	gatewayclient.EnsureFinalizer(context.Background(), gatewayclass, "finalizer")
+	_, err = gatewayclient.EnsureFinalizer(context.Background(), gatewayclass, "finalizer")
+	require.NoError(t, err)
 	gatewayclass, err = gatewayclient.GatewayClassForGateway(context.Background(), &gateway.Gateway{
 		Spec: gateway.GatewaySpec{
 			GatewayClassName: "gatewayclass",
@@ -292,7 +294,8 @@ func TestRemoveFinalizer(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, gatewayclass.Finalizers, 2)
 
-	gatewayclient.RemoveFinalizer(context.Background(), gatewayclass, "other")
+	_, err = gatewayclient.RemoveFinalizer(context.Background(), gatewayclass, "other")
+	require.NoError(t, err)
 	gatewayclass, err = gatewayclient.GatewayClassForGateway(context.Background(), &gateway.Gateway{
 		Spec: gateway.GatewaySpec{
 			GatewayClassName: "gatewayclass",
@@ -302,7 +305,8 @@ func TestRemoveFinalizer(t *testing.T) {
 	require.Len(t, gatewayclass.Finalizers, 1)
 	require.Equal(t, "finalizer", gatewayclass.Finalizers[0])
 
-	gatewayclient.RemoveFinalizer(context.Background(), gatewayclass, "finalizer")
+	_, err = gatewayclient.RemoveFinalizer(context.Background(), gatewayclass, "finalizer")
+	require.NoError(t, err)
 	gatewayclass, err = gatewayclient.GatewayClassForGateway(context.Background(), &gateway.Gateway{
 		Spec: gateway.GatewaySpec{
 			GatewayClassName: "gatewayclass",
@@ -312,7 +316,8 @@ func TestRemoveFinalizer(t *testing.T) {
 	require.Len(t, gatewayclass.Finalizers, 0)
 
 	// make sure it handles non-existent finalizers
-	gatewayclient.RemoveFinalizer(context.Background(), gatewayclass, "nonexistent")
+	_, err = gatewayclient.RemoveFinalizer(context.Background(), gatewayclass, "nonexistent")
+	require.NoError(t, err)
 	gatewayclass, err = gatewayclient.GatewayClassForGateway(context.Background(), &gateway.Gateway{
 		Spec: gateway.GatewaySpec{
 			GatewayClassName: "gatewayclass",
