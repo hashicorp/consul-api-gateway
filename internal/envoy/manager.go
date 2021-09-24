@@ -3,6 +3,7 @@ package envoy
 import (
 	"bytes"
 	"context"
+	"io"
 	"os"
 	"os/exec"
 	"text/template"
@@ -47,6 +48,9 @@ type ManagerConfig struct {
 	Token             string
 	BootstrapFilePath string
 	LogLevel          string
+	EnvoyBinary       string
+	ExtraArgs         []string
+	Output            io.Writer
 }
 
 // Manager wraps and manages an envoy process and its bootstrap configuration
@@ -59,6 +63,9 @@ type Manager struct {
 
 // NewManager returns a new Manager isntance
 func NewManager(logger hclog.Logger, config ManagerConfig) *Manager {
+	if config.Output == nil {
+		config.Output = os.Stdout
+	}
 	m := &Manager{
 		logger:        logger,
 		ManagerConfig: config,
@@ -72,8 +79,8 @@ func (m *Manager) Run(ctx context.Context) error {
 	m.logger.Trace("running envoy")
 	process, args := m.commandFunc()
 	cmd := exec.CommandContext(ctx, process, args...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	cmd.Stdout = m.Output
+	cmd.Stderr = m.Output
 	err := cmd.Run()
 
 	// Turns out that when a command spawned with CommandContext
@@ -92,7 +99,8 @@ func (m *Manager) Run(ctx context.Context) error {
 
 // CommandArgs returns the actual command for the manager to invoke
 func (m *Manager) CommandArgs() (string, []string) {
-	return "envoy", []string{"-l", m.LogLevel, "--log-format", logFormatString, "-c", m.BootstrapFilePath}
+	args := append([]string{"-l", m.LogLevel, "--log-format", logFormatString, "-c", m.BootstrapFilePath}, m.ExtraArgs...)
+	return m.EnvoyBinary, args
 }
 
 // RenderBootstrap persists a bootstrapped envoy template to disk

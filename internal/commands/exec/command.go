@@ -7,21 +7,15 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/signal"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/mitchellh/cli"
-	"golang.org/x/sync/errgroup"
 
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
-
-	"github.com/hashicorp/consul-api-gateway/internal/consul"
-	"github.com/hashicorp/consul-api-gateway/internal/envoy"
 )
 
 // https://github.com/hashicorp/consul-k8s/blob/24be51c58461e71365ca39f113dae0379f7a1b7c/control-plane/connect-inject/container_init.go#L272-L306
@@ -36,10 +30,12 @@ const (
 	defaultCertWaitTime = 1 * time.Minute
 )
 
-var isTest bool
-
 type Command struct {
-	UI cli.Ui
+	UI     cli.Ui
+	output io.Writer
+	ctx    context.Context
+
+	isTest bool
 
 	// Consul params
 	flagConsulHTTPAddress string // Address for Consul HTTP API.
@@ -69,9 +65,12 @@ type Command struct {
 
 	flagSet *flag.FlagSet
 
-	logger hclog.Logger
-
 	once sync.Once
+}
+
+// New returns a new exec command
+func New(ctx context.Context, ui cli.Ui, logOutput io.Writer) *Command {
+	return &Command{UI: ui, output: logOutput, ctx: ctx}
 }
 
 func (c *Command) init() {
@@ -112,47 +111,23 @@ func (c *Command) init() {
 	}
 }
 
-func (c *Command) Run(args []string) int {
-	ctx := context.Background()
-	return c.run(ctx, os.Stdout, args)
-}
-
-func (c *Command) run(ctx context.Context, output io.Writer, args []string) (ret int) {
+func (c *Command) Run(args []string) (ret int) {
 	c.once.Do(c.init)
-	c.flagSet.SetOutput(output)
-
-	// Set up signal handlers and global context
-	ctx, cancel := context.WithCancel(ctx)
-	interrupt := make(chan os.Signal, 1)
-	signal.Notify(interrupt, os.Interrupt, syscall.SIGTERM)
-	defer func() {
-		signal.Stop(interrupt)
-		cancel()
-	}()
-	go func() {
-		select {
-		case <-interrupt:
-			c.logger.Debug("received shutdown signal")
-			cancel()
-		case <-ctx.Done():
-		}
-	}()
+	c.flagSet.SetOutput(c.output)
 
 	if err := c.flagSet.Parse(args); err != nil {
 		c.UI.Error("There was an error parsing the command line flags:\n\t" + err.Error())
 		return 1
 	}
 
-	if c.logger == nil {
-		c.logger = hclog.New(&hclog.LoggerOptions{
-			Level:      hclog.LevelFromString(c.flagLogLevel),
-			Output:     output,
-			JSONFormat: c.flagLogJSON,
-		}).Named("consul-api-gateway-exec")
-	}
+	logger := hclog.New(&hclog.LoggerOptions{
+		Level:      hclog.LevelFromString(c.flagLogLevel),
+		Output:     c.output,
+		JSONFormat: c.flagLogJSON,
+	}).Named("consul-api-gateway-exec")
 
 	if err := c.validateFlags(); err != nil {
-		c.logger.Error("invalid flags", "error", err)
+		logger.Error("invalid flags", "error", err)
 		return 1
 	}
 
@@ -165,108 +140,48 @@ func (c *Command) run(ctx context.Context, output io.Writer, args []string) (ret
 	}
 	consulClient, err := api.NewClient(cfg)
 	if err != nil {
-		c.logger.Error("error creating consul client", "error", err)
+		logger.Error("error creating consul client", "error", err)
 		return 1
 	}
 
-	// First do the ACL Login, if necessary.
-	var token string
+	var bearerToken string
 	if c.flagACLAuthMethod != "" {
-		c.logger.Trace("logging in to consul")
-		consulClient, token, err = c.login(ctx, consulClient, cfg)
+		data, err := os.ReadFile(c.flagBearerTokenFile)
 		if err != nil {
-			c.logger.Error("error logging into consul", "error", err)
+			logger.Error("error reading bearer token", "error", err)
 			return 1
 		}
-		c.logger.Trace("consul login complete")
+		bearerToken = strings.TrimSpace(string(data))
 	}
 
-	registry := consul.NewServiceRegistry(
-		c.logger.Named("service-registry"),
-		consulClient,
-		c.flagGatewayName,
-		c.flagGatewayNamespace,
-		c.flagGatewayHost,
-	)
-	if isTest {
-		registry = registry.WithTries(1)
-	}
-
-	c.logger.Debug("registering service")
-	if err := registry.Register(ctx); err != nil {
-		c.logger.Error("error registering service", "error", err)
-		return 1
-	}
-	defer func() {
-		c.logger.Debug("deregistering service")
-		// using context.Background here since the global context has
-		// already been canceled at this point and we're just in a cleanup
-		// function
-		if err := registry.Deregister(context.Background()); err != nil {
-			c.logger.Error("error deregistering service", "error", err)
-			ret = 1
-		}
-	}()
-
-	envoyManager := envoy.NewManager(
-		c.logger.Named("envoy-manager"),
-		envoy.ManagerConfig{
-			ID:                registry.ID(),
-			ConsulCA:          c.flagConsulCACertFile,
-			ConsulAddress:     c.flagConsulHTTPAddress,
-			ConsulXDSPort:     c.flagConsulXDSPort,
-			BootstrapFilePath: c.flagBootstrapPath,
-			LogLevel:          c.flagLogLevel,
-			Token:             token,
+	return RunExec(ExecConfig{
+		Context:      c.ctx,
+		Logger:       logger,
+		LogLevel:     c.flagLogLevel,
+		ConsulClient: consulClient,
+		ConsulConfig: *cfg,
+		AuthConfig: AuthConfig{
+			Method:    c.flagACLAuthMethod,
+			Namespace: c.flagAuthMethodNamespace,
+			Token:     bearerToken,
 		},
-	)
-	options := consul.DefaultCertManagerOptions()
-	options.SDSAddress = c.flagSDSServerAddress
-	options.SDSPort = c.flagSDSServerPort
-	certManager := consul.NewCertManager(
-		c.logger.Named("cert-manager"),
-		consulClient,
-		c.flagGatewayName,
-		options,
-	)
-	sdsConfig, err := certManager.RenderSDSConfig()
-	if err != nil {
-		c.logger.Error("error rendering SDS configuration files", "error", err)
-		return 1
-	}
-	err = envoyManager.RenderBootstrap(sdsConfig)
-	if err != nil {
-		c.logger.Error("error rendering Envoy configuration file", "error", err)
-		return 1
-	}
-
-	group, groupCtx := errgroup.WithContext(ctx)
-	group.Go(func() error {
-		return certManager.Manage(groupCtx)
+		GatewayConfig: GatewayConfig{
+			Host:      c.flagGatewayHost,
+			Name:      c.flagGatewayName,
+			Namespace: c.flagGatewayNamespace,
+		},
+		EnvoyConfig: EnvoyConfig{
+			CACertificateFile: c.flagConsulCACertFile,
+			XDSAddress:        c.flagConsulHTTPAddress,
+			XDSPort:           c.flagConsulXDSPort,
+			SDSAddress:        c.flagSDSServerAddress,
+			SDSPort:           c.flagSDSServerPort,
+			BootstrapFile:     c.flagBootstrapPath,
+			Binary:            "envoy",
+			Output:            c.output,
+		},
+		isTest: c.isTest,
 	})
-
-	// wait until we've written once before booting envoy
-	waitCtx, waitCancel := context.WithTimeout(ctx, defaultCertWaitTime)
-	defer waitCancel()
-	c.logger.Trace("waiting for initial certs to be written")
-	if err := certManager.WaitForWrite(waitCtx); err != nil {
-		c.logger.Error("timeout waiting for certs to be written", "error", err)
-		return 1
-	}
-	c.logger.Trace("initial certificates written")
-
-	group.Go(func() error {
-		return envoyManager.Run(ctx)
-	})
-
-	c.logger.Info("started consul-api-gateway api gateway")
-	if err := group.Wait(); err != nil {
-		c.logger.Error("unexpected error", "error", err)
-		return 1
-	}
-
-	c.logger.Info("shutting down")
-	return 0
 }
 
 func (c *Command) validateFlags() error {
@@ -289,38 +204,6 @@ func (c *Command) validateFlags() error {
 		c.flagGatewayID = uuid.New().String()
 	}
 	return nil
-}
-
-func (c *Command) login(ctx context.Context, client *api.Client, cfg *api.Config) (*api.Client, string, error) {
-	data, err := os.ReadFile(c.flagBearerTokenFile)
-	if err != nil {
-		return nil, "", fmt.Errorf("error reading bearer token: %w", err)
-	}
-	bearerToken := strings.TrimSpace(string(data))
-
-	authenticator := consul.NewAuthenticator(
-		c.logger.Named("authenticator"),
-		client,
-		c.flagACLAuthMethod,
-		c.flagAuthMethodNamespace,
-	)
-	if isTest {
-		authenticator = authenticator.WithTries(1)
-	}
-
-	token, err := authenticator.Authenticate(ctx, c.flagGatewayName, bearerToken)
-
-	if err != nil {
-		return nil, "", fmt.Errorf("error logging in to consul: %w", err)
-	}
-
-	// Now update the client so that it will read the ACL token we just fetched.
-	cfg.Token = token
-	newClient, err := api.NewClient(cfg)
-	if err != nil {
-		return nil, "", fmt.Errorf("error updating client connection with token: %w", err)
-	}
-	return newClient, token, nil
 }
 
 func (c *Command) Synopsis() string {

@@ -224,5 +224,7 @@ func (c *Command) Synopsis() string {
 }
 
 func (c *Command) Help() string {
-	return ""
+	return `
+Usage: consul-api-gateway server [options]
+`
 }

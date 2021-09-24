@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/mitchellh/cli"
@@ -9,24 +10,39 @@ import (
 
 func TestMain(t *testing.T) {
 	ui := cli.NewMockUi()
+	var buffer bytes.Buffer
 
 	require.Equal(t, 0, run([]string{
 		"server", "-h",
-	}, ui))
-	ui.OutputWriter.Reset()
+	}, ui, &buffer))
+	require.NotEmpty(t, buffer.String())
+	buffer.Reset()
 
 	require.Equal(t, 0, run([]string{
 		"exec", "-h",
-	}, ui))
-	ui.OutputWriter.Reset()
+	}, ui, &buffer))
+	require.NotEmpty(t, buffer.String())
+	buffer.Reset()
 
 	require.Equal(t, 0, run([]string{
-		"version",
-	}, ui))
-	require.NotEmpty(t, ui.OutputWriter.String())
-	ui.OutputWriter.Reset()
+		"version", "-h",
+	}, ui, &buffer))
+	require.NotEmpty(t, buffer.String())
+	buffer.Reset()
 
 	require.Equal(t, 0, run([]string{
 		"-h",
-	}, ui))
+	}, ui, &buffer))
+	require.NotEmpty(t, buffer.String())
+	buffer.Reset()
+}
+
+func TestHelpFilter(t *testing.T) {
+	ui := cli.NewMockUi()
+	var buffer bytes.Buffer
+
+	commands := initializeCommands(ui, &buffer)
+	output := helpFunc(commands)(commands)
+
+	require.NotContains(t, output, "exec")
 }

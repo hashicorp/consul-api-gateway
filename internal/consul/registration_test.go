@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	gwTesting "github.com/hashicorp/consul-api-gateway/internal/testing"
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
 )
@@ -43,8 +44,8 @@ func TestRegister(t *testing.T) {
 	}} {
 		t.Run(test.name, func(t *testing.T) {
 			id := uuid.New().String()
-			service := randomString()
-			namespace := randomString()
+			service := gwTesting.RandomString()
+			namespace := gwTesting.RandomString()
 
 			maxAttempts := defaultMaxAttempts
 			if test.maxAttempts > 0 {
@@ -94,7 +95,7 @@ func TestDeregister(t *testing.T) {
 	}} {
 		t.Run(test.name, func(t *testing.T) {
 			id := uuid.New().String()
-			service := randomString()
+			service := gwTesting.RandomString()
 
 			maxAttempts := defaultMaxAttempts
 			if test.maxAttempts > 0 {

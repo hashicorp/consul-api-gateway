@@ -98,6 +98,7 @@ func TestCommandArgs(t *testing.T) {
 	manager := NewManager(hclog.NewNullLogger(), ManagerConfig{
 		BootstrapFilePath: path,
 		LogLevel:          "debug",
+		EnvoyBinary:       "envoy",
 	})
 	process, args := manager.CommandArgs()
 	require.Equal(t, "envoy", process)

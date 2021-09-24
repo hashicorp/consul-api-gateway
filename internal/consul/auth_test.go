@@ -14,6 +14,8 @@ import (
 
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
+
+	gwTesting "github.com/hashicorp/consul-api-gateway/internal/testing"
 )
 
 func TestAuthenticate(t *testing.T) {
@@ -51,8 +53,8 @@ func TestAuthenticate(t *testing.T) {
 	}} {
 		t.Run(test.name, func(t *testing.T) {
 			server := runACLServer(t, test.failures)
-			method := randomString()
-			token := randomString()
+			method := gwTesting.RandomString()
+			token := gwTesting.RandomString()
 
 			maxAttempts := defaultMaxAttempts
 			if test.maxAttempts > 0 {
@@ -88,7 +90,7 @@ func runACLServer(t *testing.T, failures uint64) *aclServer {
 	t.Helper()
 
 	server := &aclServer{
-		consulToken: randomString(),
+		consulToken: gwTesting.RandomString(),
 	}
 
 	// Start the fake Consul server.
