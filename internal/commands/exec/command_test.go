@@ -2,6 +2,7 @@ package exec
 
 import (
 	"bytes"
+	"context"
 	"os"
 	"path"
 	"testing"
@@ -18,33 +19,35 @@ func TestExec(t *testing.T) {
 	require.Equal(t, "consul-api-gateway exec command", testCmd().Synopsis())
 	require.NotEmpty(t, testCmd().Help())
 
+	ctx := context.Background()
+
 	// flag checking
 	var buffer bytes.Buffer
 
-	require.Equal(t, 1, testCmd().run(&buffer, []string{
+	require.Equal(t, 1, testCmd().run(ctx, &buffer, []string{
 		"-not-a-flag",
 	}))
 	require.Contains(t, buffer.String(), "flag provided but not defined: -not-a-flag")
 	buffer.Reset()
 
-	require.Equal(t, 1, testCmd().run(&buffer, nil))
+	require.Equal(t, 1, testCmd().run(ctx, &buffer, nil))
 	require.Contains(t, buffer.String(), "-consul-http-address must be set")
 	buffer.Reset()
 
-	require.Equal(t, 1, testCmd().run(&buffer, []string{
+	require.Equal(t, 1, testCmd().run(ctx, &buffer, []string{
 		"-consul-http-address", "localhost",
 	}))
 	require.Contains(t, buffer.String(), "-gateway-host must be set")
 	buffer.Reset()
 
-	require.Equal(t, 1, testCmd().run(&buffer, []string{
+	require.Equal(t, 1, testCmd().run(ctx, &buffer, []string{
 		"-consul-http-address", "localhost",
 		"-gateway-host", "localhost",
 	}))
 	require.Contains(t, buffer.String(), "-gateway-name must be set")
 	buffer.Reset()
 
-	require.Equal(t, 1, testCmd().run(&buffer, []string{
+	require.Equal(t, 1, testCmd().run(ctx, &buffer, []string{
 		"-consul-http-address", "localhost",
 		"-gateway-host", "localhost",
 		"-gateway-name", "gateway",
@@ -52,7 +55,7 @@ func TestExec(t *testing.T) {
 	require.Contains(t, buffer.String(), "-envoy-bootstrap-path must be set")
 	buffer.Reset()
 
-	require.Equal(t, 1, testCmd().run(&buffer, []string{
+	require.Equal(t, 1, testCmd().run(ctx, &buffer, []string{
 		"-consul-http-address", "localhost",
 		"-gateway-host", "localhost",
 		"-gateway-name", "gateway",
@@ -63,7 +66,7 @@ func TestExec(t *testing.T) {
 
 	// error handling
 
-	require.Equal(t, 1, testCmd().run(&buffer, []string{
+	require.Equal(t, 1, testCmd().run(ctx, &buffer, []string{
 		"-consul-http-address", "localhost",
 		"-gateway-host", "localhost",
 		"-gateway-name", "gateway",
@@ -75,7 +78,7 @@ func TestExec(t *testing.T) {
 	require.Contains(t, buffer.String(), "/not-a-file: no such file or directory")
 	buffer.Reset()
 
-	require.Equal(t, 1, testCmd().run(&buffer, []string{
+	require.Equal(t, 1, testCmd().run(ctx, &buffer, []string{
 		"-consul-http-address", "notadomain",
 		"-gateway-host", "localhost",
 		"-gateway-name", "gateway",
@@ -94,7 +97,7 @@ func TestExec(t *testing.T) {
 	err = os.WriteFile(file, []byte("token"), 0600)
 	require.NoError(t, err)
 
-	require.Equal(t, 1, testCmd().run(&buffer, []string{
+	require.Equal(t, 1, testCmd().run(ctx, &buffer, []string{
 		"-consul-http-address", "notadomain",
 		"-gateway-host", "localhost",
 		"-gateway-name", "gateway",
@@ -106,7 +109,7 @@ func TestExec(t *testing.T) {
 	require.Contains(t, buffer.String(), "error logging into consul")
 	buffer.Reset()
 
-	require.Equal(t, 1, testCmd().run(&buffer, []string{
+	require.Equal(t, 1, testCmd().run(ctx, &buffer, []string{
 		"-consul-http-address", "notadomain",
 		"-gateway-host", "localhost",
 		"-gateway-name", "gateway",

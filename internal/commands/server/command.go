@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"os/signal"
@@ -74,10 +75,15 @@ func (c *Command) init() {
 }
 
 func (c *Command) Run(args []string) int {
+	ctx := context.Background()
+	return c.run(ctx, os.Stdout, args)
+}
+
+func (c *Command) run(ctx context.Context, output io.Writer, args []string) int {
 	c.once.Do(c.init)
+	c.flagSet.SetOutput(output)
 
 	// Set up signal handlers and global context
-	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt, syscall.SIGTERM)
@@ -97,12 +103,12 @@ func (c *Command) Run(args []string) int {
 	if err := c.flagSet.Parse(args); err != nil {
 		return 1
 	}
-	GatewaySecretRegistry := common.NewGatewaySecretRegistry()
+	gatewaySecretRegistry := common.NewGatewaySecretRegistry()
 
 	if c.logger == nil {
 		c.logger = hclog.New(&hclog.LoggerOptions{
 			Level:      hclog.LevelFromString(c.flagLogLevel),
-			Output:     os.Stdout,
+			Output:     output,
 			JSONFormat: c.flagLogJSON,
 		}).Named("consul-api-gateway-server")
 	}
@@ -143,7 +149,7 @@ func (c *Command) Run(args []string) int {
 		return 1
 	}
 
-	controller, err := k8s.New(c.logger, GatewaySecretRegistry, cfg)
+	controller, err := k8s.New(c.logger, gatewaySecretRegistry, cfg)
 	if err != nil {
 		c.logger.Error("error creating the kubernetes controller", "error", err)
 		return 1
@@ -184,7 +190,7 @@ func (c *Command) Run(args []string) int {
 	}
 	c.logger.Trace("initial certificates written")
 
-	server := envoy.NewSDSServer(c.logger.Named("sds-server"), certManager, secretFetcher, GatewaySecretRegistry)
+	server := envoy.NewSDSServer(c.logger.Named("sds-server"), certManager, secretFetcher, gatewaySecretRegistry)
 	group.Go(func() error {
 		return server.Run(groupCtx)
 	})

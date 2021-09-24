@@ -1,8 +1,6 @@
 package main
 
 import (
-	"os"
-
 	"github.com/mitchellh/cli"
 
 	cmdExec "github.com/hashicorp/consul-api-gateway/internal/commands/exec"
@@ -11,13 +9,8 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/version"
 )
 
-// Commands is the mapping of all available consul-api-gateway commands.
-var Commands map[string]cli.CommandFactory
-
-func init() {
-	ui := &cli.BasicUi{Writer: os.Stdout, ErrorWriter: os.Stderr}
-
-	Commands = map[string]cli.CommandFactory{
+func initializeCommands(ui cli.Ui) map[string]cli.CommandFactory {
+	return map[string]cli.CommandFactory{
 		"server": func() (cli.Command, error) {
 			return &cmdServer.Command{UI: ui}, nil
 		},
@@ -30,7 +23,7 @@ func init() {
 	}
 }
 
-func helpFunc() cli.HelpFunc {
+func helpFunc(commands map[string]cli.CommandFactory) cli.HelpFunc {
 	// This should be updated for any commands we want to hide for any reason.
 	// Hidden commands can still be executed if you know the command, but
 	// aren't shown in any help output. We use this for prerelease functionality
@@ -40,7 +33,7 @@ func helpFunc() cli.HelpFunc {
 	}
 
 	var include []string
-	for k := range Commands {
+	for k := range commands {
 		if _, ok := hidden[k]; !ok {
 			include = append(include, k)
 		}

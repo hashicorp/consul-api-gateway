@@ -112,16 +112,16 @@ func (c *Command) init() {
 	}
 }
 
-func (c *Command) Run(args []string) (ret int) {
-	return c.run(os.Stdout, args)
+func (c *Command) Run(args []string) int {
+	ctx := context.Background()
+	return c.run(ctx, os.Stdout, args)
 }
 
-func (c *Command) run(output io.Writer, args []string) (ret int) {
+func (c *Command) run(ctx context.Context, output io.Writer, args []string) (ret int) {
 	c.once.Do(c.init)
 	c.flagSet.SetOutput(output)
 
 	// Set up signal handlers and global context
-	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt, syscall.SIGTERM)

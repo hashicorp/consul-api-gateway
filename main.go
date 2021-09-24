@@ -10,14 +10,19 @@ import (
 )
 
 func main() {
+	ui := &cli.BasicUi{Writer: os.Stdout, ErrorWriter: os.Stderr}
+	os.Exit(run(os.Args[1:], ui))
+}
+
+func run(args []string, ui cli.Ui) int {
 	c := cli.NewCLI("consul-api-gateway", version.GetHumanVersion())
-	c.Args = os.Args[1:]
-	c.Commands = Commands
-	c.HelpFunc = helpFunc()
+	c.Args = args
+	c.Commands = initializeCommands(ui)
+	c.HelpFunc = helpFunc(c.Commands)
 
 	exitStatus, err := c.Run()
 	if err != nil {
 		log.Println(err)
 	}
-	os.Exit(exitStatus)
+	return exitStatus
 }
