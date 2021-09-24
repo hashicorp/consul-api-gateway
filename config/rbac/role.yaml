@@ -19,6 +19,12 @@ rules:
   verbs:
   - update
 - apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - list
+- apiGroups:
   - gateway.networking.k8s.io
   resources:
   - gatewayclasses

@@ -22,6 +22,7 @@ import (
 	"github.com/hashicorp/consul-api-gateway/k8s/controllers"
 	"github.com/hashicorp/consul-api-gateway/k8s/log"
 	"github.com/hashicorp/consul-api-gateway/k8s/reconciler"
+	"github.com/hashicorp/consul-api-gateway/k8s/utils"
 )
 
 var (
@@ -172,6 +173,7 @@ func (k *Kubernetes) Start(ctx context.Context) error {
 		SDSServerHost:  k.sDSServerHost,
 		SDSServerPort:  k.sDSServerPort,
 		ControllerName: ControllerName,
+		Tracker:        utils.NewStatusTracker(),
 		Client:         k.k8sManager.GetClient(),
 		Log:            klogger.WithName("controllers").WithName("Gateway"),
 		Scheme:         k.k8sManager.GetScheme(),
@@ -182,10 +184,11 @@ func (k *Kubernetes) Start(ctx context.Context) error {
 	}
 
 	err = (&controllers.HTTPRouteReconciler{
-		Client:  k.k8sManager.GetClient(),
-		Log:     klogger.WithName("controllers").WithName("HTTPRoute"),
-		Scheme:  k.k8sManager.GetScheme(),
-		Manager: reconcileManager,
+		Client:         k.k8sManager.GetClient(),
+		Log:            klogger.WithName("controllers").WithName("HTTPRoute"),
+		Scheme:         k.k8sManager.GetScheme(),
+		Manager:        reconcileManager,
+		ControllerName: ControllerName,
 	}).SetupWithManager(k.k8sManager)
 	if err != nil {
 		return fmt.Errorf("failed to create http route controller: %w", err)

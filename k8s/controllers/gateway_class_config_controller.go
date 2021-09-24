@@ -14,6 +14,7 @@ import (
 	gateway "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/k8s/apis/v1alpha1"
+	"github.com/hashicorp/consul-api-gateway/k8s/utils"
 )
 
 const (
@@ -38,20 +39,17 @@ func (r *GatewayClassConfigReconciler) Reconcile(ctx context.Context, req ctrl.R
 	_ = r.Log.WithValues("gatewayClassConfig", req.NamespacedName)
 
 	gcc := &apigwv1alpha1.GatewayClassConfig{}
-	err := r.Get(ctx, req.NamespacedName, gcc)
-	if k8serrors.IsNotFound(err) {
-		return ctrl.Result{}, nil
-	} else if err != nil {
+	if err := r.Get(ctx, req.NamespacedName, gcc); err != nil {
+		if k8serrors.IsNotFound(err) {
+			// no-op on deleted, nothing to do
+			return ctrl.Result{}, nil
+		}
 		r.Log.Error(err, "failed to get GatewayClassConfig", "name", req.Name, "ns", req.Namespace)
 		return ctrl.Result{}, err
 	}
 
-	if gcc.ObjectMeta.DeletionTimestamp.IsZero() {
-		// we're creating or updating
-		if err := ensureGatewayClassConfigFinalizer(ctx, r.Client, gcc); err != nil {
-			return ctrl.Result{}, err
-		}
-	} else {
+	if !gcc.ObjectMeta.DeletionTimestamp.IsZero() {
+		// we have a deletion, ensure we're not in use
 		used, err := gatewayClassConfigInUse(ctx, r.Client, gcc)
 		if err != nil {
 			r.Log.Error(err, "failed to check if the gateway class config is still in use, requeuing", "error", err, "name", gcc.Name)
@@ -60,46 +58,17 @@ func (r *GatewayClassConfigReconciler) Reconcile(ctx context.Context, req ctrl.R
 		if used {
 			return ctrl.Result{}, fmt.Errorf("gateway class config '%s' is still in use", gcc.Name)
 		}
-		if err := removeGatewayClassConfigFinalizer(ctx, r.Client, gcc); err != nil {
+		if _, err := utils.RemoveFinalizer(ctx, r.Client, gcc, gatewayClassConfigFinalizer); err != nil {
 			return ctrl.Result{}, err
 		}
+		return ctrl.Result{}, nil
 	}
 
+	// we're creating or updating
+	if _, err := utils.EnsureFinalizer(ctx, r.Client, gcc, gatewayClassConfigFinalizer); err != nil {
+		return ctrl.Result{}, err
+	}
 	return ctrl.Result{}, nil
-}
-
-func ensureGatewayClassConfigFinalizer(ctx context.Context, client client.Client, gcc *apigwv1alpha1.GatewayClassConfig) error {
-	for _, finalizer := range gcc.Finalizers {
-		if finalizer == gatewayClassConfigFinalizer {
-			return nil
-		}
-	}
-	updated := gcc.DeepCopy()
-	updated.Finalizers = append(updated.Finalizers, gatewayClassConfigFinalizer)
-	if err := client.Update(ctx, updated); err != nil {
-		return fmt.Errorf("failed to add in-use finalizer: %w", err)
-	}
-	return nil
-}
-
-func removeGatewayClassConfigFinalizer(ctx context.Context, client client.Client, gcc *apigwv1alpha1.GatewayClassConfig) error {
-	finalizers := []string{}
-	found := false
-	for _, finalizer := range gcc.Finalizers {
-		if finalizer == gatewayClassConfigFinalizer {
-			found = true
-			continue
-		}
-		finalizers = append(finalizers, finalizer)
-	}
-	if found {
-		updated := gcc.DeepCopy()
-		updated.Finalizers = finalizers
-		if err := client.Update(ctx, updated); err != nil {
-			return fmt.Errorf("failed to remove in-use finalizer: %w", err)
-		}
-	}
-	return nil
 }
 
 func gatewayClassConfigInUse(ctx context.Context, client client.Client, gcc *apigwv1alpha1.GatewayClassConfig) (bool, error) {
@@ -127,13 +96,11 @@ func gatewayClassConfigInUse(ctx context.Context, client client.Client, gcc *api
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *GatewayClassConfigReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	groupVersion := schema.GroupVersion{Group: "api-gateway.consul.hashicorp.com", Version: "v1alpha1"}
+	groupVersion := schema.GroupVersion{Group: apigwv1alpha1.Group, Version: "v1alpha1"}
 	r.Scheme.AddKnownTypes(groupVersion, &apigwv1alpha1.GatewayClassConfig{}, &apigwv1alpha1.GatewayClassConfigList{})
 	metav1.AddToGroupVersion(r.Scheme, groupVersion)
 
 	return ctrl.NewControllerManagedBy(mgr).
-		// Uncomment the following line adding a pointer to an instance of the controlled resource as an argument
-		// For()
 		For(&apigwv1alpha1.GatewayClassConfig{}).
 		Complete(r)
 }

@@ -14,6 +14,7 @@ import (
 
 	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/k8s/apis/v1alpha1"
 	"github.com/hashicorp/consul-api-gateway/k8s/reconciler"
+	"github.com/hashicorp/consul-api-gateway/k8s/utils"
 )
 
 const (
@@ -41,13 +42,12 @@ func (r *GatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	_ = r.Log.WithValues("gatewayClass", req.NamespacedName)
 
 	gc := &gateway.GatewayClass{}
-	err := r.Get(ctx, req.NamespacedName, gc)
-	// If the gateway object has been deleted (and we get an IsNotFound
-	// error), we need to stop the associated deployment.
-	if k8serrors.IsNotFound(err) {
-		r.Manager.DeleteGatewayClass(req.NamespacedName.Name)
-		return ctrl.Result{}, nil
-	} else if err != nil {
+	if err := r.Get(ctx, req.NamespacedName, gc); err != nil {
+		if k8serrors.IsNotFound(err) {
+			// clean up cached resources
+			r.Manager.DeleteGatewayClass(req.NamespacedName.Name)
+			return ctrl.Result{}, nil
+		}
 		r.Log.Error(err, "failed to get GatewayClass", "name", req.Name, "ns", req.Namespace)
 		return ctrl.Result{}, err
 	}
@@ -57,23 +57,8 @@ func (r *GatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, nil
 	}
 
-	if gc.ObjectMeta.DeletionTimestamp.IsZero() {
-		// we're creating or updating
-		updated, err := ensureGatewayClassFinalizer(ctx, r.Client, gc)
-		if err != nil {
-			return ctrl.Result{}, err
-		}
-		if updated {
-			// requeue for versioning
-			return ctrl.Result{Requeue: true}, nil
-		}
-		// this validation is used for setting the gateway class accepted status
-		valid, err := isValidGatewayClass(ctx, r.Client, gc)
-		if err != nil {
-			return ctrl.Result{}, err
-		}
-		r.Manager.UpsertGatewayClass(gc, valid)
-	} else {
+	if !gc.ObjectMeta.DeletionTimestamp.IsZero() {
+		// we have a deletion, ensure we're not in use
 		used, err := gatewayClassInUse(ctx, r.Client, gc)
 		if err != nil {
 			r.Log.Error(err, "failed to check if the gateway class is still in use, requeuing", "error", err, "name", gc.Name)
@@ -83,46 +68,28 @@ func (r *GatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			return ctrl.Result{}, fmt.Errorf("gateway class '%s' is still in use", gc.Name)
 		}
 		// remove finalizer
-		if err := removeGatewayClassFinalizer(ctx, r.Client, gc); err != nil {
+		if _, err := utils.RemoveFinalizer(ctx, r.Client, gc, gatewayClassFinalizer); err != nil {
 			return ctrl.Result{}, err
 		}
+		return ctrl.Result{}, nil
 	}
 
+	// we're creating or updating
+	updated, err := utils.EnsureFinalizer(ctx, r.Client, gc, gatewayClassFinalizer)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	if updated {
+		// requeue for versioning
+		return ctrl.Result{Requeue: true}, nil
+	}
+	// this validation is used for setting the gateway class accepted status
+	valid, err := isValidGatewayClass(ctx, r.Client, gc)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	r.Manager.UpsertGatewayClass(gc, valid)
 	return ctrl.Result{}, nil
-}
-
-func ensureGatewayClassFinalizer(ctx context.Context, client client.Client, gc *gateway.GatewayClass) (bool, error) {
-	for _, finalizer := range gc.Finalizers {
-		if finalizer == gatewayClassFinalizer {
-			return false, nil
-		}
-	}
-	updated := gc.DeepCopy()
-	updated.Finalizers = append(updated.Finalizers, gatewayClassFinalizer)
-	if err := client.Update(ctx, updated); err != nil {
-		return false, fmt.Errorf("failed to add in-use finalizer: %w", err)
-	}
-	return true, nil
-}
-
-func removeGatewayClassFinalizer(ctx context.Context, client client.Client, gc *gateway.GatewayClass) error {
-	finalizers := []string{}
-	found := false
-	for _, finalizer := range gc.Finalizers {
-		if finalizer == gatewayClassFinalizer {
-			found = true
-			continue
-		}
-		finalizers = append(finalizers, finalizer)
-	}
-	if found {
-		updated := gc.DeepCopy()
-		updated.Finalizers = finalizers
-		if err := client.Update(ctx, updated); err != nil {
-			return fmt.Errorf("failed to remove in-use finalizer: %w", err)
-		}
-	}
-	return nil
 }
 
 func isValidGatewayClass(ctx context.Context, client client.Client, gc *gateway.GatewayClass) (bool, error) {
@@ -140,10 +107,11 @@ func isValidGatewayClass(ctx context.Context, client client.Client, gc *gateway.
 			name.Namespace = parametersRef.Name
 		}
 		err := client.Get(ctx, name, found)
-		if k8serrors.IsNotFound(err) {
-			// no config
-			return false, nil
-		} else if err != nil {
+		if err != nil {
+			if k8serrors.IsNotFound(err) {
+				// no config
+				return false, nil
+			}
 			return false, err
 		}
 	}
@@ -184,8 +152,6 @@ func gatewayClassInUse(ctx context.Context, client client.Client, gc *gateway.Ga
 // SetupWithManager sets up the controller with the Manager.
 func (r *GatewayClassReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		// Uncomment the following line adding a pointer to an instance of the controlled resource as an argument
-		// For()
 		For(&gateway.GatewayClass{}).
 		Complete(r)
 }
