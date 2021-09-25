@@ -1,7 +1,6 @@
 package exec
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -25,7 +24,7 @@ import (
 func TestRunExecLoginError(t *testing.T) {
 	t.Parallel()
 
-	var buffer bytes.Buffer
+	var buffer gwTesting.Buffer
 	logger := hclog.New(&hclog.LoggerOptions{
 		Output: &buffer,
 	})
@@ -49,7 +48,7 @@ func TestRunExecLoginError(t *testing.T) {
 func TestRunExecLoginSuccessRegistrationFail(t *testing.T) {
 	t.Parallel()
 
-	var buffer bytes.Buffer
+	var buffer gwTesting.Buffer
 	logger := hclog.New(&hclog.LoggerOptions{
 		Output: &buffer,
 	})
@@ -80,7 +79,7 @@ func TestRunExecDeregisterFail(t *testing.T) {
 	require.NoError(t, err)
 	defer os.RemoveAll(directory)
 
-	var buffer bytes.Buffer
+	var buffer gwTesting.Buffer
 	logger := hclog.New(&hclog.LoggerOptions{
 		Output: &buffer,
 	})
@@ -117,7 +116,7 @@ func TestRunExecCertFail(t *testing.T) {
 	require.NoError(t, err)
 	defer os.RemoveAll(directory)
 
-	var buffer bytes.Buffer
+	var buffer gwTesting.Buffer
 	logger := hclog.New(&hclog.LoggerOptions{
 		Output: &buffer,
 	})
@@ -153,7 +152,7 @@ func TestRunExecRootCertFail(t *testing.T) {
 	require.NoError(t, err)
 	defer os.RemoveAll(directory)
 
-	var buffer bytes.Buffer
+	var buffer gwTesting.Buffer
 	logger := hclog.New(&hclog.LoggerOptions{
 		Output: &buffer,
 	})
@@ -189,7 +188,7 @@ func TestRunExecSDSRenderFail(t *testing.T) {
 	require.NoError(t, err)
 	os.RemoveAll(directory)
 
-	var buffer bytes.Buffer
+	var buffer gwTesting.Buffer
 	logger := hclog.New(&hclog.LoggerOptions{
 		Output: &buffer,
 	})
@@ -222,7 +221,7 @@ func TestRunExecBootstrapRenderFail(t *testing.T) {
 	require.NoError(t, err)
 	defer os.RemoveAll(directory)
 
-	var buffer bytes.Buffer
+	var buffer gwTesting.Buffer
 	logger := hclog.New(&hclog.LoggerOptions{
 		Output: &buffer,
 	})
@@ -256,7 +255,7 @@ func TestRunExecEnvoyExecError(t *testing.T) {
 	require.NoError(t, err)
 	defer os.RemoveAll(directory)
 
-	var buffer bytes.Buffer
+	var buffer gwTesting.Buffer
 	logger := hclog.New(&hclog.LoggerOptions{
 		Output: &buffer,
 	})
@@ -291,7 +290,7 @@ func TestRunExecShutdown(t *testing.T) {
 	require.NoError(t, err)
 	defer os.RemoveAll(directory)
 
-	var buffer bytes.Buffer
+	var buffer gwTesting.Buffer
 	logger := hclog.New(&hclog.LoggerOptions{
 		Output: &buffer,
 	})

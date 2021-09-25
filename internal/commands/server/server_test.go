@@ -1,7 +1,6 @@
 package server
 
 import (
-	"bytes"
 	"context"
 	"testing"
 
@@ -9,12 +8,14 @@ import (
 
 	"github.com/hashicorp/consul-api-gateway/internal/k8s"
 	"github.com/hashicorp/go-hclog"
+
+	gwTesting "github.com/hashicorp/consul-api-gateway/internal/testing"
 )
 
 func TestServerK8sInitializationError(t *testing.T) {
 	t.Parallel()
 
-	var buffer bytes.Buffer
+	var buffer gwTesting.Buffer
 	logger := hclog.New(&hclog.LoggerOptions{
 		Output: &buffer,
 	})

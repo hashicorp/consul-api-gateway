@@ -1,7 +1,6 @@
 package exec
 
 import (
-	"bytes"
 	"context"
 	"os"
 	"path"
@@ -9,6 +8,8 @@ import (
 
 	"github.com/mitchellh/cli"
 	"github.com/stretchr/testify/require"
+
+	gwTesting "github.com/hashicorp/consul-api-gateway/internal/testing"
 )
 
 func TestExecHelpSynopsis(t *testing.T) {
@@ -16,7 +17,7 @@ func TestExecHelpSynopsis(t *testing.T) {
 
 	ctx := context.Background()
 	ui := cli.NewMockUi()
-	var buffer bytes.Buffer
+	var buffer gwTesting.Buffer
 	cmd := New(ctx, ui, &buffer)
 	cmd.isTest = true
 
@@ -127,7 +128,7 @@ func TestExec(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			ctx := context.Background()
 			ui := cli.NewMockUi()
-			var buffer bytes.Buffer
+			var buffer gwTesting.Buffer
 			cmd := New(ctx, ui, &buffer)
 			cmd.isTest = true
 
@@ -149,7 +150,7 @@ func TestExecLoginError(t *testing.T) {
 
 	ctx := context.Background()
 	ui := cli.NewMockUi()
-	var buffer bytes.Buffer
+	var buffer gwTesting.Buffer
 	cmd := New(ctx, ui, &buffer)
 	cmd.isTest = true
 

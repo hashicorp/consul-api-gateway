@@ -1,12 +1,13 @@
 package server
 
 import (
-	"bytes"
 	"context"
 	"testing"
 
 	"github.com/mitchellh/cli"
 	"github.com/stretchr/testify/require"
+
+	gwTesting "github.com/hashicorp/consul-api-gateway/internal/testing"
 )
 
 func TestServerHelpSynopsis(t *testing.T) {
@@ -14,7 +15,7 @@ func TestServerHelpSynopsis(t *testing.T) {
 
 	ctx := context.Background()
 	ui := cli.NewMockUi()
-	var buffer bytes.Buffer
+	var buffer gwTesting.Buffer
 	cmd := New(ctx, ui, &buffer)
 	cmd.isTest = true
 
@@ -52,7 +53,7 @@ func TestExec(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			ctx := context.Background()
 			ui := cli.NewMockUi()
-			var buffer bytes.Buffer
+			var buffer gwTesting.Buffer
 			cmd := New(ctx, ui, &buffer)
 			cmd.isTest = true
 

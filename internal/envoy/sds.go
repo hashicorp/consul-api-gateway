@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"sync"
 	"time"
 
 	secretservice "github.com/envoyproxy/go-control-plane/envoy/service/secret/v3"
@@ -34,6 +35,8 @@ const (
 
 	cachedMetricsTimeout = 10 * time.Second
 )
+
+var logOnce sync.Once
 
 // CertificateFetcher is used to fetch the CA and server certificate
 // that the server should use for TLS
@@ -70,7 +73,9 @@ func (s *SDSServer) Run(ctx context.Context) error {
 	childCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	grpclog.SetLoggerV2(grpcint.NewHCLogLogger(s.logger))
+	logOnce.Do(func() {
+		grpclog.SetLoggerV2(grpcint.NewHCLogLogger(s.logger))
+	})
 
 	ca := s.fetcher.RootCA()
 	block, _ := pem.Decode(ca)
