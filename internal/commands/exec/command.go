@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/mitchellh/cli"
 
+	"github.com/hashicorp/consul-api-gateway/internal/common"
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
 )
@@ -70,7 +71,11 @@ type Command struct {
 
 // New returns a new exec command
 func New(ctx context.Context, ui cli.Ui, logOutput io.Writer) *Command {
-	return &Command{UI: ui, output: logOutput, ctx: ctx}
+	// we synchronize writes here because we have thread-safe
+	// logger instance and a spawned command sharing the same
+	// writer across go-routines
+	output := common.SynchronizeWriter(logOutput)
+	return &Command{UI: ui, output: output, ctx: ctx}
 }
 
 func (c *Command) init() {

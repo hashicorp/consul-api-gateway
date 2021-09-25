@@ -127,10 +127,7 @@ func RunExec(config ExecConfig) (ret int) {
 			Token:             token,
 			EnvoyBinary:       config.EnvoyConfig.Binary,
 			ExtraArgs:         config.EnvoyConfig.ExtraArgs,
-			// though we share a potentially unsynchronized output
-			// the only process that should be logging much is envoy
-			// itself -- so we don't worry about synchronization here
-			Output: config.EnvoyConfig.Output,
+			Output:            config.EnvoyConfig.Output,
 		},
 	)
 	options := consul.DefaultCertManagerOptions()
