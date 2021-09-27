@@ -98,8 +98,14 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, err
 	}
 	conditions := utils.MapGatewayConditionsFromPod(pod)
-	if r.Tracker.UpdateStatus(req.NamespacedName, pod, conditions) {
-		logger.Info("gateway deployment pod status updated", "conditions", conditions)
+	err = r.Tracker.UpdateStatus(req.NamespacedName, pod, conditions, func() error {
+		logger.Trace("gateway deployment pod status updated", "conditions", conditions)
+		gw.Status.Conditions = conditions
+		return r.Client.UpdateStatus(ctx, gw)
+	})
+	if err != nil {
+		logger.Error("failed to update gateway status", "error", err)
+		return ctrl.Result{}, err
 	}
 
 	return ctrl.Result{}, nil

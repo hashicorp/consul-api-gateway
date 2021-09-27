@@ -74,45 +74,100 @@ func TestStatusTracker(t *testing.T) {
 	tracker := NewStatusTracker()
 	// not found
 	condition := testCondition()
-	updated := tracker.UpdateStatus(currentDeployment.name, currentDeployment.pod, []meta.Condition{condition})
+	updated := false
+	err := tracker.UpdateStatus(currentDeployment.name, currentDeployment.pod, []meta.Condition{condition}, func() error {
+		updated = true
+		return nil
+	})
+	require.NoError(t, err)
 	require.True(t, updated)
 
 	// same conditions - cached
-	updated = tracker.UpdateStatus(currentDeployment.name, currentDeployment.pod, []meta.Condition{condition})
+	updated = false
+	err = tracker.UpdateStatus(currentDeployment.name, currentDeployment.pod, []meta.Condition{condition}, func() error {
+		updated = true
+		return nil
+	})
+	require.NoError(t, err)
 	require.False(t, updated)
 
 	// check condition Types
 	condition.Type = "new type"
-	updated = tracker.UpdateStatus(currentDeployment.name, currentDeployment.pod, []meta.Condition{condition})
+	updated = false
+	err = tracker.UpdateStatus(currentDeployment.name, currentDeployment.pod, []meta.Condition{condition}, func() error {
+		updated = true
+		return nil
+	})
+	require.NoError(t, err)
 	require.True(t, updated)
 
 	// check condition Reason
 	condition.Reason = "new reason"
-	updated = tracker.UpdateStatus(currentDeployment.name, currentDeployment.pod, []meta.Condition{condition})
+	updated = false
+	err = tracker.UpdateStatus(currentDeployment.name, currentDeployment.pod, []meta.Condition{condition}, func() error {
+		updated = true
+		return nil
+	})
+	require.NoError(t, err)
 	require.True(t, updated)
 
 	// check condition Status
 	condition.Status = meta.ConditionUnknown
-	updated = tracker.UpdateStatus(currentDeployment.name, currentDeployment.pod, []meta.Condition{condition})
+	updated = false
+	err = tracker.UpdateStatus(currentDeployment.name, currentDeployment.pod, []meta.Condition{condition}, func() error {
+		updated = true
+		return nil
+	})
+	require.NoError(t, err)
 	require.True(t, updated)
 
 	// check condition lengths
-	updated = tracker.UpdateStatus(currentDeployment.name, currentDeployment.pod, []meta.Condition{condition, testCondition()})
+	updated = false
+	err = tracker.UpdateStatus(currentDeployment.name, currentDeployment.pod, []meta.Condition{condition, testCondition()}, func() error {
+		updated = true
+		return nil
+	})
+	require.NoError(t, err)
 	require.True(t, updated)
 
 	// check pod generation
 	condition = testCondition()
-	updated = tracker.UpdateStatus(currentDeployment.name, currentDeployment.pod, []meta.Condition{condition})
+	updated = false
+	err = tracker.UpdateStatus(currentDeployment.name, currentDeployment.pod, []meta.Condition{condition}, func() error {
+		updated = true
+		return nil
+	})
+	require.NoError(t, err)
 	require.True(t, updated)
-	updated = tracker.UpdateStatus(initialDeployment.name, initialDeployment.pod, []meta.Condition{condition, condition})
+	updated = false
+	err = tracker.UpdateStatus(initialDeployment.name, initialDeployment.pod, []meta.Condition{condition, condition}, func() error {
+		updated = true
+		return nil
+	})
+	require.NoError(t, err)
 	require.False(t, updated)
 
 	// check pod timestamp
-	updated = tracker.UpdateStatus(currentDeployment.name, currentDeployment.pod, []meta.Condition{condition})
+	updated = false
+	err = tracker.UpdateStatus(currentDeployment.name, currentDeployment.pod, []meta.Condition{condition}, func() error {
+		updated = true
+		return nil
+	})
+	require.NoError(t, err)
 	require.False(t, updated)
-	updated = tracker.UpdateStatus(laterDeployment.name, laterDeployment.pod, []meta.Condition{condition})
+	updated = false
+	err = tracker.UpdateStatus(laterDeployment.name, laterDeployment.pod, []meta.Condition{condition}, func() error {
+		updated = true
+		return nil
+	})
+	require.NoError(t, err)
 	require.True(t, updated)
-	updated = tracker.UpdateStatus(currentDeployment.name, currentDeployment.pod, []meta.Condition{condition})
+	updated = false
+	err = tracker.UpdateStatus(currentDeployment.name, currentDeployment.pod, []meta.Condition{condition}, func() error {
+		updated = true
+		return nil
+	})
+	require.NoError(t, err)
 	require.False(t, updated)
 
 	// check old delete
