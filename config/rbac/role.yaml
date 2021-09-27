@@ -12,12 +12,20 @@ rules:
   - gatewayclassconfigs
   verbs:
   - get
+  - update
 - apiGroups:
   - api-gateway.consul.hashicorp.com
   resources:
   - gatewayclassconfigs/finalizers
   verbs:
   - update
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  verbs:
+  - create
+  - get
 - apiGroups:
   - ""
   resources:

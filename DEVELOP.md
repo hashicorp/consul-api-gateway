@@ -156,3 +156,11 @@ kubectl delete gateway test-gateway
 kubectl delete gatewayclass test-gateway-class
 kubectl delete gatewayclassconfig test-gateway-class-config
 ```
+
+## Set up on local kubernetes cluster
+
+```bash
+./scripts/develop -r
+kubectl get secret consul-ca-cert --namespace=default -oyaml | grep -v '^\s*namespace:\s' | kubectl apply --namespace=consul -f -
+kubectl kustomize config | kubectl apply -f -
+```

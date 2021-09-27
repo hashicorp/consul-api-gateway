@@ -1,0 +1,16 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: consul-api-gateway-controller
+  name: api-gateway-controller
+  namespace: consul
+spec:
+  ports:
+  - port: 9090
+    name: sds
+    protocol: TCP
+    targetPort: 9090
+  selector:
+    app: api-gateway-controller

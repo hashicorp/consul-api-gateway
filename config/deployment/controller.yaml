@@ -1,0 +1,35 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: api-gateway-controller
+  name: api-gateway-controller
+  namespace: consul
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: api-gateway-controller
+  template:
+    metadata:
+      labels:
+        app: api-gateway-controller
+      annotations:
+        'consul.hashicorp.com/connect-inject': 'false'
+    spec:
+      serviceAccountName: api-gateway-controller
+      containers:
+      - image: consul-api-gateway:1
+        command: ["consul-api-gateway", "server", "-consul-address", "consul-server.default.svc.cluster.local:8501", "-ca-file", "/ca/tls.crt", "-sds-server-host", "api-gateway-controller.consul.svc.cluster.local", "-k8s-namespace", "consul"]
+        name: consul-api-gateway-controller
+        ports:
+        - containerPort: 9090
+        volumeMounts:
+        - mountPath: /ca
+          name: ca
+          readOnly: true
+      volumes:
+      - name: ca
+        secret:
+          secretName: consul-ca-cert

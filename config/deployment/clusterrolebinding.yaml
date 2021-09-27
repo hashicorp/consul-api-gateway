@@ -1,0 +1,28 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: consul-api-gateway-controller-binding
+roleRef:
+  kind: ClusterRole
+  name: consul-api-gateway-controller
+  apiGroup: rbac.authorization.k8s.io
+subjects:
+# Authorize all service accounts in a namespace
+- kind: Group
+  apiGroup: rbac.authorization.k8s.io
+  name: system:serviceaccounts:consul
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: consul-api-gateway-controller-leaderelection-binding
+roleRef:
+  kind: ClusterRole
+  name: api-gateway-controller-leader-election
+  apiGroup: rbac.authorization.k8s.io
+subjects:
+# Authorize all service accounts in a namespace
+- kind: Group
+  apiGroup: rbac.authorization.k8s.io
+  name: system:serviceaccounts:consul

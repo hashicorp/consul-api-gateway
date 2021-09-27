@@ -42,6 +42,7 @@ type Command struct {
 	flagMetricsPort       int    // Port for prometheus metrics
 	flagPprofPort         int    // Port for pprof profiling
 	flagK8sContext        string // context to use
+	flagK8sNamespace      string // namespace we're run in
 
 	// Logging
 	flagLogLevel string
@@ -64,6 +65,7 @@ func (c *Command) init() {
 	c.flagSet.StringVar(&c.flagConsulAddress, "consul-address", "", "Consul Address.")
 	c.flagSet.StringVar(&c.flagSDSServerHost, "sds-server-host", defaultSDSServerHost, "SDS Server Host.")
 	c.flagSet.StringVar(&c.flagK8sContext, "k8s-context", "", "Kubernetes context to use.")
+	c.flagSet.StringVar(&c.flagK8sNamespace, "k8s-namespace", "", "Kubernetes namespace to use.")
 	c.flagSet.IntVar(&c.flagSDSServerPort, "sds-server-port", defaultSDSServerPort, "SDS Server Port.")
 	c.flagSet.IntVar(&c.flagMetricsPort, "metrics-port", 0, "Metrics port, if not set, metrics are not enabled.")
 	c.flagSet.IntVar(&c.flagPprofPort, "pprof-port", 0, "Go pprof port, if not set, profiling is not enabled.")
@@ -99,6 +101,7 @@ func (c *Command) Run(args []string) int {
 	if c.flagCAFile != "" {
 		consulCfg.TLSConfig.CAFile = c.flagCAFile
 		cfg.CACertFile = c.flagCAFile
+		consulCfg.Scheme = "https"
 	}
 
 	if c.flagCASecret != "" {
@@ -117,6 +120,7 @@ func (c *Command) Run(args []string) int {
 		defer os.Remove(file.Name())
 		cfg.CACertFile = file.Name()
 		consulCfg.TLSConfig.CAFile = file.Name()
+		consulCfg.Scheme = "https"
 	}
 
 	if c.flagConsulAddress != "" {
@@ -131,6 +135,7 @@ func (c *Command) Run(args []string) int {
 	cfg.RestConfig = restConfig
 	cfg.SDSServerHost = c.flagSDSServerHost
 	cfg.SDSServerPort = c.flagSDSServerPort
+	cfg.Namespace = c.flagK8sNamespace
 
 	return RunServer(ServerConfig{
 		Context:       context.Background(),
