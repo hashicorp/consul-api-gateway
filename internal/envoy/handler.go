@@ -93,7 +93,7 @@ func (r *RequestHandler) OnStreamRequest(streamID int64, req *discovery.Discover
 	// this is the only time we get the node id
 	r.nodeMap.Store(streamID, req.Node.Id)
 
-	// unsubscribe from all
+	// set resources that the node is tracking
 	if err := r.secretManager.SetResourcesForNode(ctx, resources, req.Node.Id); err != nil {
 		return err
 	}
