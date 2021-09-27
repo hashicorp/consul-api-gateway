@@ -58,6 +58,7 @@ type Config struct {
 	WebhookPort           int
 	Registry              *common.GatewaySecretRegistry
 	RestConfig            *rest.Config
+	Namespace             string
 }
 
 func Defaults() *Config {
@@ -80,7 +81,7 @@ func New(logger hclog.Logger, config *Config) (*Kubernetes, error) {
 
 	// this sets the internal logger that the kubernetes client uses
 	klogv2.SetLogger(fromHCLogger(logger.Named("kubernetes-client")))
-	mgr, err := ctrl.NewManager(config.RestConfig, ctrl.Options{
+	opts := ctrl.Options{
 		Scheme:                  scheme,
 		MetricsBindAddress:      config.MetricsBindAddr,
 		HealthProbeBindAddress:  config.HealthProbeBindAddr,
@@ -89,7 +90,11 @@ func New(logger hclog.Logger, config *Config) (*Kubernetes, error) {
 		LeaderElectionID:        controllerLeaderElectionID,
 		LeaderElectionNamespace: "default",
 		Logger:                  fromHCLogger(logger.Named("controller-runtime")),
-	})
+	}
+	if config.Namespace != "" {
+		opts.LeaderElectionNamespace = config.Namespace
+	}
+	mgr, err := ctrl.NewManager(config.RestConfig, opts)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to start k8s controller manager: %w", err)

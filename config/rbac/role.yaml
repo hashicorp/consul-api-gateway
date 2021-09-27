@@ -12,6 +12,9 @@ rules:
   - gatewayclassconfigs
   verbs:
   - get
+  - list
+  - update
+  - watch
 - apiGroups:
   - api-gateway.consul.hashicorp.com
   resources:
@@ -19,11 +22,36 @@ rules:
   verbs:
   - update
 - apiGroups:
+  - apps
+  resources:
+  - deployments
+  verbs:
+  - create
+  - get
+  - list
+  - watch
+- apiGroups:
   - ""
   resources:
   - pods
   verbs:
   - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - get
+- apiGroups:
+  - ""
+  resources:
+  - services
+  verbs:
+  - create
+  - get
+  - list
+  - watch
 - apiGroups:
   - gateway.networking.k8s.io
   resources:
