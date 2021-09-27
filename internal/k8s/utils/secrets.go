@@ -13,8 +13,7 @@ var (
 )
 
 const (
-	defaultK8sNamespace = "default"
-	k8sSecretScheme     = "k8s"
+	k8sSecretScheme = "k8s"
 )
 
 // KK8sSecret is a wrapper to a Kubernetes certificate secret
