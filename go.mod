@@ -9,7 +9,7 @@ require (
 	github.com/go-logr/logr v0.4.0
 	github.com/golang/mock v1.5.0
 	github.com/google/uuid v1.1.2
-	github.com/hashicorp/consul/api v1.9.1
+	github.com/hashicorp/consul/api v1.10.1-0.20210924170522-581357c32a29
 	github.com/hashicorp/go-hclog v0.16.2
 	github.com/mitchellh/cli v1.1.2
 	github.com/onsi/gomega v1.15.0 // indirect

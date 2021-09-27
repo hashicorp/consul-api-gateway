@@ -50,8 +50,17 @@ func (g *ResolvedGateway) newListener(lis *gw.Listener) *resolvedListener {
 		name:     name,
 		protocol: proto,
 		port:     int(lis.Port),
-		tls:      tls,
 		hostname: hostname,
+	}
+	if tls && lis.TLS != nil {
+		namespace := g.name.Namespace
+		if lis.TLS.CertificateRef.Namespace != nil {
+			namespace = string(*lis.TLS.CertificateRef.Namespace)
+		}
+		l.tls = &listenerTLSConfig{
+			name:      lis.TLS.CertificateRef.Name,
+			namespace: namespace,
+		}
 	}
 	g.listeners[l.name] = l
 	return l
@@ -79,7 +88,14 @@ func (g *ResolvedGateway) computeConfigEntries() (ingress api.ConfigEntry, route
 		listener := &api.IngressListener{
 			Port:     kubeListener.port,
 			Protocol: kubeListener.protocol,
-			// TODO: TLS
+		}
+		if kubeListener.tls != nil {
+			listener.TLS = &api.GatewayTLSConfig{
+				SDS: &api.GatewayTLSSDSConfig{
+					ClusterName:  "sds-cluster",
+					CertResource: fmt.Sprintf("k8s://%s/%s", kubeListener.tls.namespace, kubeListener.tls.name),
+				},
+			}
 		}
 
 		// TODO support other route types
@@ -96,11 +112,16 @@ func (g *ResolvedGateway) computeConfigEntries() (ingress api.ConfigEntry, route
 	return igw, computedRouters, computedSplitters, computedDefaults, nil
 }
 
+type listenerTLSConfig struct {
+	name      string
+	namespace string
+}
+
 type resolvedListener struct {
 	name              string
 	protocol          string
 	port              int
-	tls               bool
+	tls               *listenerTLSConfig
 	hostname          string
 	httpRouteBindings []*gw.HTTPRoute
 }

@@ -97,6 +97,7 @@ func verifySPIFFE(ctx context.Context, logger hclog.Logger, spiffeCA *url.URL, r
 						if registry.GatewayExists(info) {
 							return info, true
 						}
+						logger.Warn("gateway not found", "namespace", info.Namespace, "service", info.Service)
 					}
 				}
 			}

@@ -24,7 +24,6 @@ func Test_computeConfigEntriesForHTTPRoutes_simple(t *testing.T) {
 				name:     "default",
 				protocol: "HTTP",
 				port:     80,
-				tls:      false,
 				hostname: "",
 				httpRouteBindings: []*gw.HTTPRoute{
 					{

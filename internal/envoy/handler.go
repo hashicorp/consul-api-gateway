@@ -36,21 +36,21 @@ func NewRequestHandler(logger hclog.Logger, registry GatewaySecretRegistry, secr
 		secretManager: secretManager,
 	}
 	return &server.CallbackFuncs{
-		DeltaStreamOpenFunc: func(ctx context.Context, streamID int64, typeURL string) error {
-			logger.Trace("delta stream open")
+		StreamOpenFunc: func(ctx context.Context, streamID int64, typeURL string) error {
+			logger.Trace("stream open")
 			// make sure we're only responding to requests for secrets (we're an SDS server)
 			if typeURL != resource.SecretType {
 				return fmt.Errorf("unsupported type: %s", typeURL)
 			}
-			return handler.OnDeltaStreamOpen(ctx, streamID)
+			return handler.OnStreamOpen(ctx, streamID)
 		},
-		DeltaStreamClosedFunc:  handler.OnDeltaStreamClosed,
-		StreamDeltaRequestFunc: handler.OnStreamDeltaRequest,
+		StreamClosedFunc:  handler.OnStreamClosed,
+		StreamRequestFunc: handler.OnStreamRequest,
 	}
 }
 
-// OnDeltaStreamOpen is invoked when an envoy instance first connects to the server
-func (r *RequestHandler) OnDeltaStreamOpen(ctx context.Context, streamID int64) error {
+// OnStreamOpen is invoked when an envoy instance first connects to the server
+func (r *RequestHandler) OnStreamOpen(ctx context.Context, streamID int64) error {
 	r.logger.Trace("beginning stream", "stream_id", streamID)
 	// store the context, because we're never given it again
 	r.streamContexts.Store(streamID, ctx)
@@ -60,8 +60,8 @@ func (r *RequestHandler) OnDeltaStreamOpen(ctx context.Context, streamID int64) 
 	return nil
 }
 
-// OnDeltaStreamClosed is invoked when an envoy instance disconnects from the server
-func (r *RequestHandler) OnDeltaStreamClosed(streamID int64) {
+// OnStreamClosed is invoked when an envoy instance disconnects from the server
+func (r *RequestHandler) OnStreamClosed(streamID int64) {
 	r.logger.Trace("closing stream", "stream_id", streamID)
 
 	if node, deleted := r.nodeMap.LoadAndDelete(streamID); deleted {
@@ -78,22 +78,23 @@ func (r *RequestHandler) OnDeltaStreamClosed(streamID int64) {
 	}
 }
 
-// OnStreamDeltaRequest is invoked when a request for resources comes in from the envoy instance
-func (r *RequestHandler) OnStreamDeltaRequest(streamID int64, req *discovery.DeltaDiscoveryRequest) error {
+// OnStreamRequest is invoked when a request for resources comes in from the envoy instance
+func (r *RequestHandler) OnStreamRequest(streamID int64, req *discovery.DiscoveryRequest) error {
 	ctx := r.streamContext(streamID)
 
+	resources := req.GetResourceNames()
+
 	// check to make sure we're actually authorized to do this
-	if !r.registry.CanFetchSecrets(GatewayFromContext(ctx), req.ResourceNamesSubscribe) {
+	if !r.registry.CanFetchSecrets(GatewayFromContext(ctx), resources) {
 		return status.Errorf(codes.PermissionDenied, "the current gateway does not have permission to fetch the requested secrets")
 	}
 
 	// store the node information that we use to communicate with the manager
 	// this is the only time we get the node id
 	r.nodeMap.Store(streamID, req.Node.Id)
-	if err := r.secretManager.Watch(ctx, req.ResourceNamesSubscribe, req.Node.Id); err != nil {
-		return err
-	}
-	if err := r.secretManager.Unwatch(ctx, req.ResourceNamesUnsubscribe, req.Node.Id); err != nil {
+
+	// unsubscribe from all
+	if err := r.secretManager.SetResourcesForNode(ctx, resources, req.Node.Id); err != nil {
 		return err
 	}
 	return nil

@@ -32,6 +32,8 @@ type SecretClient interface {
 
 // SecretManager handles the lifecycle of watched TLS secrets.
 type SecretManager interface {
+	// SetResourcesForNode sets a list of TLS certificates being tracked by the node
+	SetResourcesForNode(ctx context.Context, names []string, node string) error
 	// Watch is used for tracking an envoy node's TLS secrets of interest
 	Watch(ctx context.Context, names []string, node string) error
 	// Unwatch is used for removing a subset of an envoy node's TLS secrets
@@ -103,11 +105,49 @@ func (s *secretManager) Resources() []string {
 	return resources
 }
 
+// SetResourcesForNode sets a list of TLS certificates being tracked by the node
+func (s *secretManager) SetResourcesForNode(ctx context.Context, names []string, node string) error {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	watcher, found := s.watchers[node]
+	if !found {
+		return s.watch(ctx, names, node)
+	}
+
+	unwatch := []string{}
+	watch := []string{}
+	// fast lookups for calculating what needs to be unwatched
+	keepMap := make(map[string]struct{})
+	for _, resource := range names {
+		if _, watched := watcher[resource]; !watched {
+			watch = append(watch, resource)
+		} else {
+			keepMap[resource] = struct{}{}
+		}
+	}
+	for resource := range watcher {
+		if _, keep := keepMap[resource]; !keep {
+			unwatch = append(unwatch, resource)
+		}
+	}
+
+	if err := s.watch(ctx, watch, node); err != nil {
+		return err
+	}
+	return s.unwatch(ctx, unwatch, node)
+}
+
 // Watch is used for tracking an envoy node's TLS secrets of interest
 func (s *secretManager) Watch(ctx context.Context, names []string, node string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
+	return s.watch(ctx, names, node)
+}
+
+// this must be called with the mutex lock held
+func (s *secretManager) watch(ctx context.Context, names []string, node string) error {
 	watcher, ok := s.watchers[node]
 	if !ok {
 		// no watcher found, initialize one
@@ -181,6 +221,12 @@ func (s *secretManager) UnwatchAll(ctx context.Context, node string) error {
 func (s *secretManager) Unwatch(ctx context.Context, names []string, node string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
+
+	return s.unwatch(ctx, names, node)
+}
+
+// this must be called with the mutex lock held
+func (s *secretManager) unwatch(ctx context.Context, names []string, node string) error {
 	if watcher, ok := s.watchers[node]; ok {
 		certificates := []string{}
 		// remove the node from of requested reference lists
