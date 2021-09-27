@@ -6,7 +6,6 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
@@ -19,6 +18,7 @@ import (
 
 	"github.com/hashicorp/go-hclog"
 
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	gwMetrics "github.com/hashicorp/consul-api-gateway/internal/metrics"
 )
 
@@ -44,6 +44,11 @@ func NewK8sSecretClient(logger hclog.Logger, config *rest.Config) (*K8sSecretCli
 
 // FetchSecret fetches a kubernetes secret described with the url name of k8s://namespace/secret-name
 func (c *K8sSecretClient) FetchSecret(ctx context.Context, fullName string) (*tls.Secret, time.Time, error) {
+	k8sSecret, err := utils.ParseK8sSecret(fullName)
+	if err != nil {
+		return nil, time.Time{}, err
+	}
+
 	c.logger.Trace("fetching SDS secret", "name", fullName)
 	gwMetrics.Registry.IncrCounterWithLabels(gwMetrics.SDSCertificateFetches, 1, []metrics.Label{{
 		Name:  "fetcher",
@@ -52,11 +57,10 @@ func (c *K8sSecretClient) FetchSecret(ctx context.Context, fullName string) (*tl
 		Name:  "name",
 		Value: fullName,
 	}})
-	namespace, name := parseSecretName(fullName)
 	secret := &corev1.Secret{}
-	err := c.client.Get(ctx, client.ObjectKey{
-		Namespace: namespace,
-		Name:      name,
+	err = c.client.Get(ctx, client.ObjectKey{
+		Namespace: k8sSecret.Namespace,
+		Name:      k8sSecret.Name,
 	}, secret)
 	if err != nil {
 		return nil, time.Time{}, err
@@ -91,14 +95,4 @@ func (c *K8sSecretClient) FetchSecret(ctx context.Context, fullName string) (*tl
 		},
 		Name: fullName,
 	}, cert.NotAfter, nil
-}
-
-// parses the string into a namespace and name
-func parseSecretName(name string) (string, string) {
-	namespacedName := strings.TrimPrefix(name, "k8s://")
-	tokens := strings.SplitN(namespacedName, "/", 2)
-	if len(tokens) != 2 {
-		return "default", namespacedName
-	}
-	return tokens[0], tokens[1]
 }

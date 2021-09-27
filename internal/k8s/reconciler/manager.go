@@ -215,7 +215,7 @@ func referencedSecretsForGateway(g *gw.Gateway) []string {
 				if n != nil {
 					namespace = string(*n)
 				}
-				secrets = append(secrets, fmt.Sprintf("k8s://%s/%s", namespace, ref.Name))
+				secrets = append(secrets, utils.NewK8sSecret(namespace, ref.Name).String())
 			}
 		}
 	}

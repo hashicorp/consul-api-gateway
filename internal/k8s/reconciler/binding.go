@@ -90,10 +90,11 @@ func (g *ResolvedGateway) computeConfigEntries() (ingress api.ConfigEntry, route
 			Protocol: kubeListener.protocol,
 		}
 		if kubeListener.tls != nil {
+			certResource := utils.NewK8sSecret(kubeListener.tls.namespace, kubeListener.tls.name).String()
 			listener.TLS = &api.GatewayTLSConfig{
 				SDS: &api.GatewayTLSSDSConfig{
 					ClusterName:  "sds-cluster",
-					CertResource: fmt.Sprintf("k8s://%s/%s", kubeListener.tls.namespace, kubeListener.tls.name),
+					CertResource: certResource,
 				},
 			}
 		}
