@@ -33,8 +33,12 @@ func (p *podStatus) isUpdate(conditions []meta.Condition) bool {
 	return false
 }
 
+// GatewayStatusTracker is leveraged to track gateway status updates
+// based on the status of an underlying deployed pod.
 type GatewayStatusTracker interface {
+	// UpdateStatus should call the given callback if a pod status has been updated.
 	UpdateStatus(name types.NamespacedName, pod *core.Pod, conditions []meta.Condition, cb func() error) error
+	// DeleteStatus cleans up the status tracking for the given gateway
 	DeleteStatus(name types.NamespacedName)
 }
 
@@ -51,7 +55,8 @@ func NewStatusTracker() *StatusTracker {
 
 // UpdateStatus calls the given callback if a pod status has been updated
 // it does this so that it internally holds a synchronized mutex in order for
-// updates to be consistent with the state of its internal cache.
+// updates to be consistent with the state of its internal cache. Any errors
+// returned come from the callback.
 func (p *StatusTracker) UpdateStatus(name types.NamespacedName, pod *core.Pod, conditions []meta.Condition, cb func() error) error {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
@@ -88,6 +93,7 @@ func (p *StatusTracker) UpdateStatus(name types.NamespacedName, pod *core.Pod, c
 	return nil
 }
 
+// DeleteStatus cleans up the status tracking for the given gateway
 func (p *StatusTracker) DeleteStatus(name types.NamespacedName) {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
