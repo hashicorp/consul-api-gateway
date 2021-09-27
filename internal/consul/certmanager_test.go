@@ -63,10 +63,10 @@ func TestManage(t *testing.T) {
 		fail:         true,
 	}} {
 		t.Run(test.name, func(t *testing.T) {
-			directory, err := os.MkdirTemp("", randomString())
+			directory, err := os.MkdirTemp("", gwTesting.RandomString())
 			require.NoError(t, err)
 			defer os.RemoveAll(directory)
-			service := randomString()
+			service := gwTesting.RandomString()
 
 			server := runCertServer(t, test.leafFailures, test.rootFailures, service, 0)
 
@@ -132,7 +132,7 @@ func TestManage(t *testing.T) {
 func TestManage_Refresh(t *testing.T) {
 	t.Parallel()
 
-	service := randomString()
+	service := gwTesting.RandomString()
 
 	server := runCertServer(t, 0, 0, service, 2)
 
@@ -322,7 +322,8 @@ func TestRenderSDS(t *testing.T) {
 	defer os.RemoveAll(directory)
 
 	options := DefaultCertManagerOptions()
-	manager := NewCertManager(hclog.NewNullLogger(), nil, randomString(), options)
+	options.Directory = "/certs"
+	manager := NewCertManager(hclog.NewNullLogger(), nil, gwTesting.RandomString(), options)
 	manager.configDirectory = directory
 
 	config, err := manager.RenderSDSConfig()

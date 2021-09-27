@@ -1,0 +1,183 @@
+package k8s
+
+import (
+	"context"
+	"fmt"
+
+	"k8s.io/apimachinery/pkg/runtime"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/rest"
+	klogv2 "k8s.io/klog/v2"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/healthz"
+	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
+
+	"github.com/hashicorp/consul/api"
+	"github.com/hashicorp/go-hclog"
+
+	"github.com/hashicorp/consul-api-gateway/internal/common"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/controllers"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
+	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
+)
+
+var (
+	scheme = runtime.NewScheme()
+)
+
+const (
+	ControllerName             = "hashicorp.com/consul-api-gateway-controller"
+	controllerLeaderElectionID = "consul-api-gateway.consul.hashicorp.com"
+)
+
+func init() {
+	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
+	utilruntime.Must(gw.AddToScheme(scheme))
+}
+
+type Kubernetes struct {
+	sDSServerHost string
+	sDSServerPort int
+	k8sManager    ctrl.Manager
+	consul        *api.Client
+	registry      *common.GatewaySecretRegistry
+	logger        hclog.Logger
+}
+
+type Config struct {
+	CACertSecretNamespace string
+	CACertSecret          string
+	CACertFile            string
+	SDSServerHost         string
+	SDSServerPort         int
+	MetricsBindAddr       string
+	HealthProbeBindAddr   string
+	WebhookPort           int
+	Registry              *common.GatewaySecretRegistry
+	RestConfig            *rest.Config
+}
+
+func Defaults() *Config {
+	return &Config{
+		CACertSecretNamespace: "default",
+		CACertSecret:          "",
+		CACertFile:            "",
+		SDSServerHost:         "consul-api-gateway-controller.default.svc.cluster.local",
+		SDSServerPort:         9090,
+		MetricsBindAddr:       ":8080",
+		HealthProbeBindAddr:   ":8081",
+		WebhookPort:           8443,
+	}
+}
+
+func New(logger hclog.Logger, config *Config) (*Kubernetes, error) {
+	if config == nil {
+		config = Defaults()
+	}
+
+	// this sets the internal logger that the kubernetes client uses
+	klogv2.SetLogger(fromHCLogger(logger.Named("kubernetes-client")))
+	mgr, err := ctrl.NewManager(config.RestConfig, ctrl.Options{
+		Scheme:                  scheme,
+		MetricsBindAddress:      config.MetricsBindAddr,
+		HealthProbeBindAddress:  config.HealthProbeBindAddr,
+		Port:                    config.WebhookPort,
+		LeaderElection:          true,
+		LeaderElectionID:        controllerLeaderElectionID,
+		LeaderElectionNamespace: "default",
+		Logger:                  fromHCLogger(logger.Named("controller-runtime")),
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to start k8s controller manager: %w", err)
+	}
+	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
+		return nil, fmt.Errorf("unable to set up health check: %w", err)
+	}
+	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
+		return nil, fmt.Errorf("unable to set up ready check: %w", err)
+	}
+
+	if config.CACertSecret != "" && config.CACertFile != "" {
+		if err := utils.WriteSecretCertFile(config.RestConfig, config.CACertSecret, config.CACertFile, config.CACertSecretNamespace); err != nil {
+			return nil, fmt.Errorf("unable to write CA cert file: %w", err)
+		}
+	}
+
+	return &Kubernetes{
+		k8sManager:    mgr,
+		registry:      config.Registry,
+		sDSServerHost: config.SDSServerHost,
+		sDSServerPort: config.SDSServerPort,
+		logger:        logger.Named("k8s"),
+	}, nil
+}
+
+func (k *Kubernetes) SetConsul(consul *api.Client) {
+	k.consul = consul
+}
+
+// Start will run the kubernetes controllers and return a startup error if occurred
+func (k *Kubernetes) Start(ctx context.Context) error {
+	k.logger.Trace("running controller")
+
+	scheme := k.k8sManager.GetScheme()
+	apigwv1alpha1.RegisterTypes(scheme)
+
+	gwClient := gatewayclient.New(k.k8sManager.GetClient(), scheme)
+
+	reconcileManager := reconciler.NewReconcileManager(ctx, &reconciler.ManagerConfig{
+		ControllerName: ControllerName,
+		Registry:       k.registry,
+		Client:         gwClient,
+		Consul:         k.consul,
+		Status:         k.k8sManager.GetClient().Status(),
+		Logger:         k.logger.Named("Reconciler"),
+	})
+
+	err := (&controllers.GatewayClassConfigReconciler{
+		Client: gwClient,
+		Log:    k.logger.Named("GatewayClassConfig"),
+	}).SetupWithManager(k.k8sManager)
+	if err != nil {
+		return fmt.Errorf("failed to create gateway class config controller: %w", err)
+	}
+
+	err = (&controllers.GatewayClassReconciler{
+		Client:         gwClient,
+		Log:            k.logger.Named("GatewayClass"),
+		Manager:        reconcileManager,
+		ControllerName: ControllerName,
+	}).SetupWithManager(k.k8sManager)
+	if err != nil {
+		return fmt.Errorf("failed to create gateway class controller: %w", err)
+	}
+
+	err = (&controllers.GatewayReconciler{
+		Client:         gwClient,
+		Log:            k.logger.Named("Gateway"),
+		Manager:        reconcileManager,
+		ControllerName: ControllerName,
+		Tracker:        reconciler.NewStatusTracker(),
+		SDSServerHost:  k.sDSServerHost,
+		SDSServerPort:  k.sDSServerPort,
+	}).SetupWithManager(k.k8sManager)
+	if err != nil {
+		return fmt.Errorf("failed to create gateway controller: %w", err)
+	}
+
+	err = (&controllers.HTTPRouteReconciler{
+		Client:         gwClient,
+		Log:            k.logger.Named("HTTPRoute"),
+		Manager:        reconcileManager,
+		ControllerName: ControllerName,
+	}).SetupWithManager(k.k8sManager)
+	if err != nil {
+		return fmt.Errorf("failed to create http route controller: %w", err)
+	}
+
+	return k.k8sManager.Start(ctx)
+}
