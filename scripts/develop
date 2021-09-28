@@ -146,8 +146,6 @@ global:
     - host.docker.internal
     - localhost
     - consul-server.default.svc.cluster.local
-client:
-  enabled: false
 connectInject:
   enabled: true
 controller:
