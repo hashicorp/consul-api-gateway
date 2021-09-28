@@ -139,6 +139,20 @@ func (mr *MockSecretManagerMockRecorder) Manage(ctx interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Manage", reflect.TypeOf((*MockSecretManager)(nil).Manage), ctx)
 }
 
+// SetResourcesForNode mocks base method.
+func (m *MockSecretManager) SetResourcesForNode(ctx context.Context, names []string, node string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetResourcesForNode", ctx, names, node)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetResourcesForNode indicates an expected call of SetResourcesForNode.
+func (mr *MockSecretManagerMockRecorder) SetResourcesForNode(ctx, names, node interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetResourcesForNode", reflect.TypeOf((*MockSecretManager)(nil).SetResourcesForNode), ctx, names, node)
+}
+
 // Unwatch mocks base method.
 func (m *MockSecretManager) Unwatch(ctx context.Context, names []string, node string) error {
 	m.ctrl.T.Helper()

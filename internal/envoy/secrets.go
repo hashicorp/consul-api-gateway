@@ -2,6 +2,8 @@ package envoy
 
 import (
 	"context"
+	"errors"
+	"net/url"
 	"sync"
 	"time"
 
@@ -12,6 +14,8 @@ import (
 )
 
 //go:generate mockgen -source ./secrets.go -destination ./mocks/secrets.go -package mocks SecretManager,SecretClient,SecretCache
+
+var ErrInvalidSecretProtocol = errors.New("secret protocol is not registered")
 
 // SecretCache is used as an intermediate cache for pushing tls certificates into. In practice
 // we're using github.com/envoyproxy/go-control-plane/pkg/cache.(*LinearCache) as the concrete
@@ -30,8 +34,45 @@ type SecretClient interface {
 	FetchSecret(ctx context.Context, name string) (*tls.Secret, time.Time, error)
 }
 
+// MultiSecretClient implements a registry of secret clients that handle fetching secrets
+// based off of the protocol they're given in the secret name.
+type MultiSecretClient struct {
+	fetchers map[string]SecretClient
+	mutex    sync.RWMutex
+}
+
+func NewMultiSecretClient() *MultiSecretClient {
+	return &MultiSecretClient{
+		fetchers: make(map[string]SecretClient),
+	}
+}
+
+func (m *MultiSecretClient) Register(protocol string, client SecretClient) {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+
+	m.fetchers[protocol] = client
+}
+
+func (m *MultiSecretClient) FetchSecret(ctx context.Context, name string) (*tls.Secret, time.Time, error) {
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+
+	parsed, err := url.Parse(name)
+	if err != nil {
+		return nil, time.Time{}, err
+	}
+	fetcher, found := m.fetchers[parsed.Scheme]
+	if !found {
+		return nil, time.Time{}, ErrInvalidSecretProtocol
+	}
+	return fetcher.FetchSecret(ctx, name)
+}
+
 // SecretManager handles the lifecycle of watched TLS secrets.
 type SecretManager interface {
+	// SetResourcesForNode sets a list of TLS certificates being tracked by the node
+	SetResourcesForNode(ctx context.Context, names []string, node string) error
 	// Watch is used for tracking an envoy node's TLS secrets of interest
 	Watch(ctx context.Context, names []string, node string) error
 	// Unwatch is used for removing a subset of an envoy node's TLS secrets
@@ -103,11 +144,49 @@ func (s *secretManager) Resources() []string {
 	return resources
 }
 
+// SetResourcesForNode sets a list of TLS certificates being tracked by the node
+func (s *secretManager) SetResourcesForNode(ctx context.Context, names []string, node string) error {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	watcher, found := s.watchers[node]
+	if !found {
+		return s.watch(ctx, names, node)
+	}
+
+	unwatch := []string{}
+	watch := []string{}
+	// fast lookups for calculating what needs to be unwatched
+	keepMap := make(map[string]struct{})
+	for _, resource := range names {
+		if _, watched := watcher[resource]; !watched {
+			watch = append(watch, resource)
+		} else {
+			keepMap[resource] = struct{}{}
+		}
+	}
+	for resource := range watcher {
+		if _, keep := keepMap[resource]; !keep {
+			unwatch = append(unwatch, resource)
+		}
+	}
+
+	if err := s.watch(ctx, watch, node); err != nil {
+		return err
+	}
+	return s.unwatch(ctx, unwatch, node)
+}
+
 // Watch is used for tracking an envoy node's TLS secrets of interest
 func (s *secretManager) Watch(ctx context.Context, names []string, node string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
+	return s.watch(ctx, names, node)
+}
+
+// this must be called with the mutex lock held
+func (s *secretManager) watch(ctx context.Context, names []string, node string) error {
 	watcher, ok := s.watchers[node]
 	if !ok {
 		// no watcher found, initialize one
@@ -181,6 +260,12 @@ func (s *secretManager) UnwatchAll(ctx context.Context, node string) error {
 func (s *secretManager) Unwatch(ctx context.Context, names []string, node string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
+
+	return s.unwatch(ctx, names, node)
+}
+
+// this must be called with the mutex lock held
+func (s *secretManager) unwatch(ctx context.Context, names []string, node string) error {
 	if watcher, ok := s.watchers[node]; ok {
 		certificates := []string{}
 		// remove the node from of requested reference lists

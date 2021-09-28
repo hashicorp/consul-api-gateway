@@ -202,21 +202,21 @@ func testClientSDS(t *testing.T, address string, cert *gwTesting.CertificateInfo
 		return err
 	}
 	return retryRequest(func(ctx context.Context) error {
-		deltaClient, err := secretservice.NewSecretDiscoveryServiceClient(connection).DeltaSecrets(context.Background())
+		client, err := secretservice.NewSecretDiscoveryServiceClient(connection).StreamSecrets(context.Background())
 		if err != nil {
 			return err
 		}
-		err = deltaClient.Send(&discoveryservice.DeltaDiscoveryRequest{
+		err = client.Send(&discoveryservice.DiscoveryRequest{
 			Node: &core.Node{
 				Id: uuid.New().String(),
 			},
-			ResourceNamesSubscribe: []string{"test"},
-			TypeUrl:                resource.SecretType,
+			ResourceNames: []string{"test"},
+			TypeUrl:       resource.SecretType,
 		})
 		if err != nil {
 			return err
 		}
-		_, err = deltaClient.Recv()
+		_, err = client.Recv()
 		return err
 	})
 }

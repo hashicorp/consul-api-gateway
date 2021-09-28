@@ -15,7 +15,7 @@ import (
 	"github.com/hashicorp/go-hclog"
 )
 
-func TestOnStreamDeltaRequest(t *testing.T) {
+func TestOnStreamRequest(t *testing.T) {
 	t.Parallel()
 
 	requestedSecrets := []string{
@@ -31,26 +31,21 @@ func TestOnStreamDeltaRequest(t *testing.T) {
 	registry.EXPECT().CanFetchSecrets(gomock.Any(), requestedSecrets).Return(true)
 	handler := NewRequestHandler(hclog.NewNullLogger(), registry, secrets)
 
-	request := &discovery.DeltaDiscoveryRequest{
-		ResourceNamesSubscribe: requestedSecrets,
-		ResourceNamesUnsubscribe: []string{
-			"c",
-			"d",
-		},
+	request := &discovery.DiscoveryRequest{
+		ResourceNames: requestedSecrets,
 		Node: &core.Node{
 			Id: "1",
 		},
 	}
-	secrets.EXPECT().Watch(gomock.Any(), request.ResourceNamesSubscribe, request.Node.Id).Return(nil)
-	secrets.EXPECT().Unwatch(gomock.Any(), request.ResourceNamesUnsubscribe, request.Node.Id).Return(nil)
+	secrets.EXPECT().SetResourcesForNode(gomock.Any(), request.ResourceNames, request.Node.Id).Return(nil)
 
-	err := handler.OnDeltaStreamOpen(context.Background(), 1, resource.SecretType)
+	err := handler.OnStreamOpen(context.Background(), 1, resource.SecretType)
 	require.NoError(t, err)
-	err = handler.OnStreamDeltaRequest(1, request)
+	err = handler.OnStreamRequest(1, request)
 	require.NoError(t, err)
 }
 
-func TestOnStreamDeltaRequest_PermissionError(t *testing.T) {
+func TestOnStreamRequest_PermissionError(t *testing.T) {
 	t.Parallel()
 
 	requestedSecrets := []string{
@@ -66,24 +61,20 @@ func TestOnStreamDeltaRequest_PermissionError(t *testing.T) {
 	registry.EXPECT().CanFetchSecrets(gomock.Any(), requestedSecrets).Return(false)
 	handler := NewRequestHandler(hclog.NewNullLogger(), registry, secrets)
 
-	request := &discovery.DeltaDiscoveryRequest{
-		ResourceNamesSubscribe: requestedSecrets,
-		ResourceNamesUnsubscribe: []string{
-			"c",
-			"d",
-		},
+	request := &discovery.DiscoveryRequest{
+		ResourceNames: requestedSecrets,
 		Node: &core.Node{
 			Id: "1",
 		},
 	}
 
-	err := handler.OnDeltaStreamOpen(context.Background(), 1, resource.SecretType)
+	err := handler.OnStreamOpen(context.Background(), 1, resource.SecretType)
 	require.NoError(t, err)
-	err = handler.OnStreamDeltaRequest(1, request)
+	err = handler.OnStreamRequest(1, request)
 	require.Contains(t, err.Error(), "the current gateway does not have permission to fetch the requested secrets")
 }
 
-func TestOnStreamDeltaRequest_WatchError(t *testing.T) {
+func TestOnStreamRequest_SetResourcesForNodeError(t *testing.T) {
 	t.Parallel()
 
 	requestedSecrets := []string{
@@ -100,61 +91,21 @@ func TestOnStreamDeltaRequest_WatchError(t *testing.T) {
 	registry.EXPECT().CanFetchSecrets(gomock.Any(), requestedSecrets).Return(true)
 	handler := NewRequestHandler(hclog.NewNullLogger(), registry, secrets)
 
-	request := &discovery.DeltaDiscoveryRequest{
-		ResourceNamesSubscribe: requestedSecrets,
-		ResourceNamesUnsubscribe: []string{
-			"c",
-			"d",
-		},
+	request := &discovery.DiscoveryRequest{
+		ResourceNames: requestedSecrets,
 		Node: &core.Node{
 			Id: "1",
 		},
 	}
-	secrets.EXPECT().Watch(gomock.Any(), request.ResourceNamesSubscribe, request.Node.Id).Return(expectedErr)
+	secrets.EXPECT().SetResourcesForNode(gomock.Any(), request.ResourceNames, request.Node.Id).Return(expectedErr)
 
-	err := handler.OnDeltaStreamOpen(context.Background(), 1, resource.SecretType)
+	err := handler.OnStreamOpen(context.Background(), 1, resource.SecretType)
 	require.NoError(t, err)
-	err = handler.OnStreamDeltaRequest(1, request)
+	err = handler.OnStreamRequest(1, request)
 	require.Equal(t, expectedErr, err)
 }
 
-func TestOnStreamDeltaRequest_UnwatchError(t *testing.T) {
-	t.Parallel()
-
-	requestedSecrets := []string{
-		"a",
-		"b",
-	}
-
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	expectedErr := errors.New("error")
-	secrets := mocks.NewMockSecretManager(ctrl)
-	registry := mocks.NewMockGatewaySecretRegistry(ctrl)
-	registry.EXPECT().CanFetchSecrets(gomock.Any(), requestedSecrets).Return(true)
-	handler := NewRequestHandler(hclog.NewNullLogger(), registry, secrets)
-
-	request := &discovery.DeltaDiscoveryRequest{
-		ResourceNamesSubscribe: requestedSecrets,
-		ResourceNamesUnsubscribe: []string{
-			"c",
-			"d",
-		},
-		Node: &core.Node{
-			Id: "1",
-		},
-	}
-	secrets.EXPECT().Watch(gomock.Any(), request.ResourceNamesSubscribe, request.Node.Id).Return(nil)
-	secrets.EXPECT().Unwatch(gomock.Any(), request.ResourceNamesUnsubscribe, request.Node.Id).Return(expectedErr)
-
-	err := handler.OnDeltaStreamOpen(context.Background(), 1, resource.SecretType)
-	require.NoError(t, err)
-	err = handler.OnStreamDeltaRequest(1, request)
-	require.Equal(t, expectedErr, err)
-}
-
-func TestOnStreamDeltaRequest_Graceful(t *testing.T) {
+func TestOnStreamRequest_Graceful(t *testing.T) {
 	t.Parallel()
 
 	requestedSecrets := []string{
@@ -170,25 +121,20 @@ func TestOnStreamDeltaRequest_Graceful(t *testing.T) {
 	registry.EXPECT().CanFetchSecrets(gomock.Any(), requestedSecrets).Return(true)
 	handler := NewRequestHandler(hclog.NewNullLogger(), registry, secrets)
 
-	request := &discovery.DeltaDiscoveryRequest{
-		ResourceNamesSubscribe: requestedSecrets,
-		ResourceNamesUnsubscribe: []string{
-			"c",
-			"d",
-		},
+	request := &discovery.DiscoveryRequest{
+		ResourceNames: requestedSecrets,
 		Node: &core.Node{
 			Id: "1",
 		},
 	}
-	secrets.EXPECT().Watch(gomock.Any(), request.ResourceNamesSubscribe, request.Node.Id).Return(nil)
-	secrets.EXPECT().Unwatch(gomock.Any(), request.ResourceNamesUnsubscribe, request.Node.Id).Return(nil)
+	secrets.EXPECT().SetResourcesForNode(gomock.Any(), request.ResourceNames, request.Node.Id).Return(nil)
 
 	// without setting up the stream context in the open call
-	err := handler.OnStreamDeltaRequest(1, request)
+	err := handler.OnStreamRequest(1, request)
 	require.NoError(t, err)
 }
 
-func TestOnDeltaStreamClosed(t *testing.T) {
+func TestOnStreamClosed(t *testing.T) {
 	t.Parallel()
 
 	requestedSecrets := []string{
@@ -204,28 +150,23 @@ func TestOnDeltaStreamClosed(t *testing.T) {
 	registry.EXPECT().CanFetchSecrets(gomock.Any(), requestedSecrets).Return(true)
 	handler := NewRequestHandler(hclog.NewNullLogger(), registry, secrets)
 
-	request := &discovery.DeltaDiscoveryRequest{
-		ResourceNamesSubscribe: requestedSecrets,
-		ResourceNamesUnsubscribe: []string{
-			"c",
-			"d",
-		},
+	request := &discovery.DiscoveryRequest{
+		ResourceNames: requestedSecrets,
 		Node: &core.Node{
 			Id: "1",
 		},
 	}
-	secrets.EXPECT().Watch(gomock.Any(), request.ResourceNamesSubscribe, request.Node.Id).Return(nil)
-	secrets.EXPECT().Unwatch(gomock.Any(), request.ResourceNamesUnsubscribe, request.Node.Id).Return(nil)
+	secrets.EXPECT().SetResourcesForNode(gomock.Any(), request.ResourceNames, request.Node.Id).Return(nil)
 	secrets.EXPECT().UnwatchAll(gomock.Any(), request.Node.Id)
 
-	err := handler.OnDeltaStreamOpen(context.Background(), 1, resource.SecretType)
+	err := handler.OnStreamOpen(context.Background(), 1, resource.SecretType)
 	require.NoError(t, err)
-	err = handler.OnStreamDeltaRequest(1, request)
+	err = handler.OnStreamRequest(1, request)
 	require.NoError(t, err)
-	handler.OnDeltaStreamClosed(1)
+	handler.OnStreamClosed(1)
 }
 
-func TestOnDeltaStreamClosed_Graceful(t *testing.T) {
+func TestOnStreamClosed_Graceful(t *testing.T) {
 	t.Parallel()
 
 	ctrl := gomock.NewController(t)
@@ -236,10 +177,10 @@ func TestOnDeltaStreamClosed_Graceful(t *testing.T) {
 	handler := NewRequestHandler(hclog.NewNullLogger(), registry, secrets)
 
 	// no-ops instead of panics without setting up the stream context in the open call
-	handler.OnDeltaStreamClosed(1)
+	handler.OnStreamClosed(1)
 }
 
-func TestOnDeltaStreamOpen(t *testing.T) {
+func TestOnStreamOpen(t *testing.T) {
 	t.Parallel()
 
 	ctrl := gomock.NewController(t)
@@ -250,6 +191,6 @@ func TestOnDeltaStreamOpen(t *testing.T) {
 	handler := NewRequestHandler(hclog.NewNullLogger(), registry, secrets)
 
 	// errors on non secret requests
-	err := handler.OnDeltaStreamOpen(context.Background(), 1, resource.ClusterType)
+	err := handler.OnStreamOpen(context.Background(), 1, resource.ClusterType)
 	require.Error(t, err)
 }

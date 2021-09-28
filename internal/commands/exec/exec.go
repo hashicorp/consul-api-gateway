@@ -165,7 +165,7 @@ func RunExec(config ExecConfig) (ret int) {
 	// wait until we've written once before booting envoy
 	waitTime := defaultCertWaitTime
 	if config.isTest {
-		waitTime = 10 * time.Millisecond
+		waitTime = 100 * time.Millisecond
 	}
 	waitCtx, waitCancel := context.WithTimeout(ctx, waitTime)
 	defer waitCancel()

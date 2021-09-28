@@ -139,12 +139,15 @@ installConsul() {
   cat <<EOF | helm install consul hashicorp/consul --version 0.33.0 -f - 2>&1 > /dev/null
 global:
   name: consul
+  image: "hashicorpdev/consul:581357c32"
   tls:
     enabled: true
     serverAdditionalDNSSANs:
     - host.docker.internal
     - localhost
     - consul-server.default.svc.cluster.local
+client:
+  enabled: false
 connectInject:
   enabled: true
 controller:

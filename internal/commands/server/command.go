@@ -129,6 +129,8 @@ func (c *Command) Run(args []string) int {
 		return 1
 	}
 	cfg.RestConfig = restConfig
+	cfg.SDSServerHost = c.flagSDSServerHost
+	cfg.SDSServerPort = c.flagSDSServerPort
 
 	return RunServer(ServerConfig{
 		Context:       context.Background(),
