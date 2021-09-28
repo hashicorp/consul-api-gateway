@@ -48,11 +48,13 @@ func RunServer(config ServerConfig) int {
 		}
 	}()
 
-	secretFetcher, err := k8s.NewK8sSecretClient(config.Logger.Named("cert-fetcher"), config.K8sConfig.RestConfig)
+	secretClient := envoy.NewMultiSecretClient()
+	k8sSecretClient, err := k8s.NewK8sSecretClient(config.Logger.Named("cert-fetcher"), config.K8sConfig.RestConfig)
 	if err != nil {
 		config.Logger.Error("error initializing the kubernetes secret fetcher", "error", err)
 		return 1
 	}
+	k8sSecretClient.AddToMultiClient(secretClient)
 
 	controller, err := k8s.New(config.Logger, config.K8sConfig)
 	if err != nil {
@@ -89,7 +91,7 @@ func RunServer(config ServerConfig) int {
 	}
 	config.Logger.Trace("initial certificates written")
 
-	server := envoy.NewSDSServer(config.Logger.Named("sds-server"), certManager, secretFetcher, config.K8sConfig.Registry)
+	server := envoy.NewSDSServer(config.Logger.Named("sds-server"), certManager, secretClient, config.K8sConfig.Registry)
 	group.Go(func() error {
 		return server.Run(groupCtx)
 	})

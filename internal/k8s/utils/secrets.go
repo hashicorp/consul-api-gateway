@@ -13,7 +13,7 @@ var (
 )
 
 const (
-	k8sSecretScheme = "k8s"
+	K8sSecretScheme = "k8s"
 )
 
 // KK8sSecret is a wrapper to a Kubernetes certificate secret
@@ -38,7 +38,7 @@ func ParseK8sSecret(encoded string) (K8sSecret, error) {
 	if err != nil {
 		return K8sSecret{}, err
 	}
-	if parsed.Scheme != k8sSecretScheme {
+	if parsed.Scheme != K8sSecretScheme {
 		return K8sSecret{}, ErrNotK8sSecret
 	}
 	if !strings.HasPrefix(parsed.Path, "/") {
@@ -56,7 +56,7 @@ func ParseK8sSecret(encoded string) (K8sSecret, error) {
 func (k K8sSecret) String() string {
 	path := fmt.Sprintf("/%s/%s", k.Namespace, k.Name)
 	return (&url.URL{
-		Scheme: k8sSecretScheme,
+		Scheme: K8sSecretScheme,
 		Path:   path,
 	}).String()
 }

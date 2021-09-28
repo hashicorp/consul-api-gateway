@@ -228,3 +228,25 @@ func TestManageLoop(t *testing.T) {
 	// make sure we don't block
 	manager.Manage(ctx)
 }
+
+type testSecretClient struct {
+	called bool
+}
+
+func (t *testSecretClient) FetchSecret(ctx context.Context, name string) (*tls.Secret, time.Time, error) {
+	t.called = true
+	return nil, time.Time{}, nil
+}
+
+func TestMultiSecretClient(t *testing.T) {
+	secretClient := &testSecretClient{}
+	multi := NewMultiSecretClient()
+	multi.Register("test-protocol", secretClient)
+
+	_, _, err := multi.FetchSecret(context.Background(), "unregistered-protocol://name")
+	require.Error(t, err)
+	require.Equal(t, ErrInvalidSecretProtocol, err)
+	_, _, err = multi.FetchSecret(context.Background(), "test-protocol://name")
+	require.NoError(t, err)
+	require.True(t, secretClient.called)
+}

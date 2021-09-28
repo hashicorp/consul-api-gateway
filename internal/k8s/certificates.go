@@ -18,6 +18,7 @@ import (
 
 	"github.com/hashicorp/go-hclog"
 
+	"github.com/hashicorp/consul-api-gateway/internal/envoy"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	gwMetrics "github.com/hashicorp/consul-api-gateway/internal/metrics"
 )
@@ -95,4 +96,8 @@ func (c *K8sSecretClient) FetchSecret(ctx context.Context, fullName string) (*tl
 		},
 		Name: fullName,
 	}, cert.NotAfter, nil
+}
+
+func (c *K8sSecretClient) AddToMultiClient(m *envoy.MultiSecretClient) {
+	m.Register(utils.K8sSecretScheme, c)
 }
