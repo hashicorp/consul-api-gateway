@@ -24,6 +24,12 @@ import (
 	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 )
 
+// The following RBAC rules are for leader election
+//+kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;update;list;watch;create;patch;delete
+//+kubebuilder:rbac:groups=core,resources=configmaps/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=core,resources=events,verbs=create;patch
+//+kubebuilder:rbac:groups=coordination.k8s.io,resources=leases,verbs=create;get;list;update
+
 var (
 	scheme = runtime.NewScheme()
 )
