@@ -1,7 +1,6 @@
 resources:
 - rbac/role.yaml
 - crd/bases/api-gateway.consul.hashicorp.com_gatewayclassconfigs.yaml
-- deployment/namespace.yaml
 - deployment/serviceaccount.yaml
 - deployment/leaderelection.yaml
 - deployment/clusterrolebinding.yaml

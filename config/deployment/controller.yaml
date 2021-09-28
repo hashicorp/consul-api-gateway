@@ -19,9 +19,11 @@ spec:
         'consul.hashicorp.com/connect-inject': 'false'
     spec:
       serviceAccountName: api-gateway-controller
+      imagePullSecrets:
+        - name: registry-gateway
       containers:
-      - image: consul-api-gateway:1
-        command: ["consul-api-gateway", "server", "-consul-address", "consul-server.default.svc.cluster.local:8501", "-ca-file", "/ca/tls.crt", "-sds-server-host", "api-gateway-controller.consul.svc.cluster.local", "-k8s-namespace", "consul", "-log-level", "trace"]
+      - image: registry.digitalocean.com/gateway/controller:1
+        command: ["consul-api-gateway", "server", "-consul-address", "consul-server.consul.svc.cluster.local:8501", "-ca-file", "/ca/tls.crt", "-sds-server-host", "api-gateway-controller.consul.svc.cluster.local", "-k8s-namespace", "consul", "-log-level", "trace"]
         name: consul-api-gateway-controller
         ports:
         - containerPort: 9090
