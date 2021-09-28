@@ -187,7 +187,6 @@ EOF
 kubectl patch statefulset -n consul consul-server --type='json' -p='[{"op": "add", "path": "/spec/template/spec/containers/0/ports/-", "value": {"containerPort": 8502, "protocol": "TCP", "name": "grpc"}}]'
 kubectl patch svc -n consul consul-server --type='json' -p='[{"op": "add", "path": "/spec/ports/-", "value": {"port": 8502, "targetPort": 8502, "protocol": "TCP", "name": "grpc"}}]'
 kubectl get secret consul-ca-cert --namespace=consul -oyaml | grep -v '^\s*namespace:\s' | kubectl apply --namespace=default -f -
-kubectl get secret consul-server-cert --namespace=consul -oyaml | grep -v '^\s*namespace:\s' | kubectl apply --namespace=default -f -
 ```
 
 ## Set up gateway controller
