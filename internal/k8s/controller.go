@@ -140,7 +140,7 @@ func (k *Kubernetes) Start(ctx context.Context) error {
 
 	gwClient := gatewayclient.New(k.k8sManager.GetClient(), scheme)
 
-	reconcileManager := reconciler.NewReconcileManager(ctx, &reconciler.ManagerConfig{
+	reconcileManager := reconciler.NewReconcileManager(reconciler.ManagerConfig{
 		ControllerName: ControllerName,
 		Registry:       k.registry,
 		Client:         gwClient,

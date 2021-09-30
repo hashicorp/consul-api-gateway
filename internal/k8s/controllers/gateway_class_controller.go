@@ -47,8 +47,8 @@ func (r *GatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 	if gc == nil {
 		// we've been deleted clean up cached resources
-		r.Manager.DeleteGatewayClass(req.NamespacedName.Name)
-		return ctrl.Result{}, nil
+		err = r.Manager.DeleteGatewayClass(ctx, req.NamespacedName.Name)
+		return ctrl.Result{}, err
 	}
 
 	if string(gc.Spec.Controller) != r.ControllerName {
@@ -91,7 +91,7 @@ func (r *GatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		logger.Error("error validating gateway class", "error", err)
 		return ctrl.Result{}, err
 	}
-	if err := r.Manager.UpsertGatewayClass(gc, valid); err != nil {
+	if err := r.Manager.UpsertGatewayClass(ctx, gc, valid); err != nil {
 		logger.Error("error upserting gateway class", "error", err)
 		return ctrl.Result{}, err
 	}

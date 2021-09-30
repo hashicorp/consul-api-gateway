@@ -18,6 +18,6 @@ var (
 )
 
 func RegisterTypes(scheme *runtime.Scheme) {
-	scheme.AddKnownTypes(GroupVersion, &GatewayClassConfig{}, &GatewayClassConfigList{})
+	scheme.AddKnownTypes(GroupVersion, &GatewayClassConfig{}, &GatewayClassConfigList{}, &MeshService{}, &MeshServiceList{})
 	meta.AddToGroupVersion(scheme, GroupVersion)
 }

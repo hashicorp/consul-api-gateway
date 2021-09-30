@@ -64,7 +64,9 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		// If the gateway object has been deleted (and we get an IsNotFound
 		// error), we need to clean up the cached resources. Owned objects
 		// get deleted automatically
-		r.Manager.DeleteGateway(req.NamespacedName)
+		if err := r.Manager.DeleteGateway(ctx, req.NamespacedName); err != nil {
+			return ctrl.Result{}, err
+		}
 		r.Tracker.DeleteStatus(req.NamespacedName)
 		return ctrl.Result{}, nil
 	}
@@ -80,7 +82,9 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, nil
 	}
 
-	r.Manager.UpsertGateway(gw)
+	if err := r.Manager.UpsertGateway(ctx, gw); err != nil {
+		return ctrl.Result{}, err
+	}
 
 	// Check if the deployment already exists, if not create a new one
 	if err := r.ensureDeployment(ctx, gc, gw); err != nil {

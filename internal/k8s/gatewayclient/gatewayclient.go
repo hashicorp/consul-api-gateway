@@ -34,6 +34,9 @@ type Client interface {
 	GetGatewayClassConfig(ctx context.Context, key types.NamespacedName) (*apigwv1alpha1.GatewayClassConfig, error)
 	GetGatewayClass(ctx context.Context, key types.NamespacedName) (*gateway.GatewayClass, error)
 	GetGateway(ctx context.Context, key types.NamespacedName) (*gateway.Gateway, error)
+	GetSecret(ctx context.Context, key types.NamespacedName) (*core.Secret, error)
+	GetService(ctx context.Context, key types.NamespacedName) (*core.Service, error)
+	GetMeshService(ctx context.Context, key types.NamespacedName) (*apigwv1alpha1.MeshService, error)
 	GetHTTPRoute(ctx context.Context, key types.NamespacedName) (*gateway.HTTPRoute, error)
 
 	// finalizer helpers
@@ -230,6 +233,39 @@ func (g *gatewayClient) GetGateway(ctx context.Context, key types.NamespacedName
 		return nil, err
 	}
 	return gw, nil
+}
+
+func (g *gatewayClient) GetService(ctx context.Context, key types.NamespacedName) (*core.Service, error) {
+	svc := &core.Service{}
+	if err := g.Get(ctx, key, svc); err != nil {
+		if k8serrors.IsNotFound(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return svc, nil
+}
+
+func (g *gatewayClient) GetMeshService(ctx context.Context, key types.NamespacedName) (*apigwv1alpha1.MeshService, error) {
+	svc := &apigwv1alpha1.MeshService{}
+	if err := g.Get(ctx, key, svc); err != nil {
+		if k8serrors.IsNotFound(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return svc, nil
+}
+
+func (g *gatewayClient) GetSecret(ctx context.Context, key types.NamespacedName) (*core.Secret, error) {
+	secret := &core.Secret{}
+	if err := g.Get(ctx, key, secret); err != nil {
+		if k8serrors.IsNotFound(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return secret, nil
 }
 
 func (g *gatewayClient) GetHTTPRoute(ctx context.Context, key types.NamespacedName) (*gateway.HTTPRoute, error) {

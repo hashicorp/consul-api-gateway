@@ -38,8 +38,8 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 
 	if route == nil {
 		// clean up cached resources
-		r.Manager.DeleteRoute(req.NamespacedName)
-		return ctrl.Result{}, nil
+		err := r.Manager.DeleteRoute(ctx, req.NamespacedName)
+		return ctrl.Result{}, err
 	}
 
 	managed, err := r.Client.IsManagedRoute(ctx, route.Spec.CommonRouteSpec, route.Namespace, r.ControllerName)
@@ -50,15 +50,15 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	if !managed {
 		// we're not managing this route (potentially reference got removed on an update)
 		// ensure it's cleaned up
-		r.Manager.DeleteRoute(req.NamespacedName)
-		return ctrl.Result{}, nil
+		err = r.Manager.DeleteRoute(ctx, req.NamespacedName)
+		return ctrl.Result{}, err
 	}
 
 	// let the route get upserted so long as there's a single gateway we control
 	// that it's managed by -- the underlying reconciliation code will handle the
 	// validation of gateway attachment
-	r.Manager.UpsertHTTPRoute(route)
-	return ctrl.Result{}, nil
+	err = r.Manager.UpsertRoute(ctx, route)
+	return ctrl.Result{}, err
 }
 
 // SetupWithManager sets up the controller with the Manager.

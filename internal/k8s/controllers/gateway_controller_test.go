@@ -70,7 +70,7 @@ func TestGateway(t *testing.T) {
 		name: "deleted",
 		expectationCB: func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager, tracker *reconcilerMocks.MockGatewayStatusTracker) {
 			client.EXPECT().GetGateway(gomock.Any(), gatewayName).Return(nil, nil)
-			reconciler.EXPECT().DeleteGateway(gatewayName)
+			reconciler.EXPECT().DeleteGateway(gomock.Any(), gatewayName)
 			tracker.EXPECT().DeleteStatus(gatewayName)
 		},
 	}, {
@@ -100,7 +100,7 @@ func TestGateway(t *testing.T) {
 					Controller: gateway.GatewayController(mockControllerName),
 				},
 			}, nil)
-			reconciler.EXPECT().UpsertGateway(gomock.Any())
+			reconciler.EXPECT().UpsertGateway(gomock.Any(), gomock.Any())
 			client.EXPECT().DeploymentForGateway(gomock.Any(), gomock.Any()).Return(nil, errExpected)
 		},
 	}, {
@@ -112,7 +112,7 @@ func TestGateway(t *testing.T) {
 					Controller: gateway.GatewayController(mockControllerName),
 				},
 			}, nil)
-			reconciler.EXPECT().UpsertGateway(gomock.Any())
+			reconciler.EXPECT().UpsertGateway(gomock.Any(), gomock.Any())
 			client.EXPECT().DeploymentForGateway(gomock.Any(), gomock.Any()).Return(&apps.Deployment{}, nil)
 			client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(nil, gatewayclient.ErrPodNotCreated)
 		},
@@ -126,7 +126,7 @@ func TestGateway(t *testing.T) {
 					Controller: gateway.GatewayController(mockControllerName),
 				},
 			}, nil)
-			reconciler.EXPECT().UpsertGateway(gomock.Any())
+			reconciler.EXPECT().UpsertGateway(gomock.Any(), gomock.Any())
 			client.EXPECT().DeploymentForGateway(gomock.Any(), gomock.Any()).Return(nil, nil)
 			client.EXPECT().GatewayClassConfigForGatewayClass(gomock.Any(), gomock.Any()).Return(nil, errExpected)
 		},
@@ -140,7 +140,7 @@ func TestGateway(t *testing.T) {
 					Controller: gateway.GatewayController(mockControllerName),
 				},
 			}, nil)
-			reconciler.EXPECT().UpsertGateway(gomock.Any())
+			reconciler.EXPECT().UpsertGateway(gomock.Any(), gomock.Any())
 			client.EXPECT().DeploymentForGateway(gomock.Any(), gomock.Any()).Return(nil, nil)
 			client.EXPECT().GatewayClassConfigForGatewayClass(gomock.Any(), gomock.Any()).Return(&apigwv1alpha1.GatewayClassConfig{}, nil)
 			client.EXPECT().SetControllerOwnership(gomock.Any(), gomock.Any()).Return(errExpected)
@@ -155,7 +155,7 @@ func TestGateway(t *testing.T) {
 					Controller: gateway.GatewayController(mockControllerName),
 				},
 			}, nil)
-			reconciler.EXPECT().UpsertGateway(gomock.Any())
+			reconciler.EXPECT().UpsertGateway(gomock.Any(), gomock.Any())
 			client.EXPECT().DeploymentForGateway(gomock.Any(), gomock.Any()).Return(nil, nil)
 			client.EXPECT().GatewayClassConfigForGatewayClass(gomock.Any(), gomock.Any()).Return(&apigwv1alpha1.GatewayClassConfig{}, nil)
 			client.EXPECT().SetControllerOwnership(gomock.Any(), gomock.Any()).Return(nil)
@@ -172,7 +172,7 @@ func TestGateway(t *testing.T) {
 					Controller: gateway.GatewayController(mockControllerName),
 				},
 			}, nil)
-			reconciler.EXPECT().UpsertGateway(gomock.Any())
+			reconciler.EXPECT().UpsertGateway(gomock.Any(), gomock.Any())
 			client.EXPECT().DeploymentForGateway(gomock.Any(), gomock.Any()).Return(nil, nil)
 			client.EXPECT().GatewayClassConfigForGatewayClass(gomock.Any(), gomock.Any()).Return(&apigwv1alpha1.GatewayClassConfig{
 				Spec: apigwv1alpha1.GatewayClassConfigSpec{
@@ -194,7 +194,7 @@ func TestGateway(t *testing.T) {
 					Controller: gateway.GatewayController(mockControllerName),
 				},
 			}, nil)
-			reconciler.EXPECT().UpsertGateway(gomock.Any())
+			reconciler.EXPECT().UpsertGateway(gomock.Any(), gomock.Any())
 			client.EXPECT().DeploymentForGateway(gomock.Any(), gomock.Any()).Return(nil, nil)
 			client.EXPECT().GatewayClassConfigForGatewayClass(gomock.Any(), gomock.Any()).Return(&apigwv1alpha1.GatewayClassConfig{
 				Spec: apigwv1alpha1.GatewayClassConfigSpec{
@@ -216,7 +216,7 @@ func TestGateway(t *testing.T) {
 					Controller: gateway.GatewayController(mockControllerName),
 				},
 			}, nil)
-			reconciler.EXPECT().UpsertGateway(gomock.Any())
+			reconciler.EXPECT().UpsertGateway(gomock.Any(), gomock.Any())
 			client.EXPECT().DeploymentForGateway(gomock.Any(), gomock.Any()).Return(nil, nil)
 			client.EXPECT().GatewayClassConfigForGatewayClass(gomock.Any(), gomock.Any()).Return(&apigwv1alpha1.GatewayClassConfig{}, nil)
 			client.EXPECT().SetControllerOwnership(gomock.Any(), gomock.Any()).Return(nil)
@@ -232,7 +232,7 @@ func TestGateway(t *testing.T) {
 					Controller: gateway.GatewayController(mockControllerName),
 				},
 			}, nil)
-			reconciler.EXPECT().UpsertGateway(gomock.Any())
+			reconciler.EXPECT().UpsertGateway(gomock.Any(), gomock.Any())
 			client.EXPECT().DeploymentForGateway(gomock.Any(), gomock.Any()).Return(nil, nil)
 			client.EXPECT().GatewayClassConfigForGatewayClass(gomock.Any(), gomock.Any()).Return(&apigwv1alpha1.GatewayClassConfig{}, nil)
 			client.EXPECT().SetControllerOwnership(gomock.Any(), gomock.Any()).Return(nil)
@@ -250,7 +250,7 @@ func TestGateway(t *testing.T) {
 					Controller: gateway.GatewayController(mockControllerName),
 				},
 			}, nil)
-			reconciler.EXPECT().UpsertGateway(gomock.Any())
+			reconciler.EXPECT().UpsertGateway(gomock.Any(), gomock.Any())
 			client.EXPECT().DeploymentForGateway(gomock.Any(), gomock.Any()).Return(nil, nil)
 			client.EXPECT().GatewayClassConfigForGatewayClass(gomock.Any(), gomock.Any()).Return(&apigwv1alpha1.GatewayClassConfig{}, nil)
 			client.EXPECT().SetControllerOwnership(gomock.Any(), gomock.Any()).Return(nil)

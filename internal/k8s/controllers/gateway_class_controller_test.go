@@ -46,7 +46,7 @@ func TestGatewayClass(t *testing.T) {
 		name: "deleted",
 		expectationCB: func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager) {
 			client.EXPECT().GetGatewayClass(gomock.Any(), className).Return(nil, nil)
-			reconciler.EXPECT().DeleteGatewayClass(className.Name)
+			reconciler.EXPECT().DeleteGatewayClass(gomock.Any(), className.Name)
 		},
 	}, {
 		name: "not-managed",
@@ -162,7 +162,7 @@ func TestGatewayClass(t *testing.T) {
 			}, nil)
 			client.EXPECT().EnsureFinalizer(gomock.Any(), gomock.Any(), gatewayClassFinalizer).Return(false, nil)
 			client.EXPECT().IsValidGatewayClass(gomock.Any(), gomock.Any()).Return(true, nil)
-			reconciler.EXPECT().UpsertGatewayClass(gomock.Any(), true)
+			reconciler.EXPECT().UpsertGatewayClass(gomock.Any(), gomock.Any(), true)
 		},
 	}, {
 		name: "create-validation-false",
@@ -174,7 +174,7 @@ func TestGatewayClass(t *testing.T) {
 			}, nil)
 			client.EXPECT().EnsureFinalizer(gomock.Any(), gomock.Any(), gatewayClassFinalizer).Return(false, nil)
 			client.EXPECT().IsValidGatewayClass(gomock.Any(), gomock.Any()).Return(false, nil)
-			reconciler.EXPECT().UpsertGatewayClass(gomock.Any(), false)
+			reconciler.EXPECT().UpsertGatewayClass(gomock.Any(), gomock.Any(), false)
 		},
 	}, {
 		name: "create-upsert-error",
@@ -187,7 +187,7 @@ func TestGatewayClass(t *testing.T) {
 			}, nil)
 			client.EXPECT().EnsureFinalizer(gomock.Any(), gomock.Any(), gatewayClassFinalizer).Return(false, nil)
 			client.EXPECT().IsValidGatewayClass(gomock.Any(), gomock.Any()).Return(true, nil)
-			reconciler.EXPECT().UpsertGatewayClass(gomock.Any(), true).Return(errExpected)
+			reconciler.EXPECT().UpsertGatewayClass(gomock.Any(), gomock.Any(), true).Return(errExpected)
 		},
 	}} {
 		t.Run(test.name, func(t *testing.T) {

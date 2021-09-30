@@ -3,16 +3,15 @@ package reconciler
 import (
 	"fmt"
 
-	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
-
 	"github.com/hashicorp/consul/api"
+	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
 )
 
-// HTTPRouteToServiceDiscoChain will convert a k8s HTTPRoute to a Consul service-router config entry and 0 or
+// httpRouteToServiceDiscoChain will convert a k8s HTTPRoute to a Consul service-router config entry and 0 or
 // more service-splitter config entries. A prefix can be given to prefix all config entry names with.
-func HTTPRouteToServiceDiscoChain(route *gw.HTTPRoute, prefix string, meta map[string]string) (*api.ServiceRouterConfigEntry, []*api.ServiceSplitterConfigEntry) {
+func httpRouteToServiceDiscoChain(route *K8sRoute, prefix string, meta map[string]string) (*api.ServiceRouterConfigEntry, []*api.ServiceSplitterConfigEntry) {
 	var router *api.ServiceRouterConfigEntry
-	routeName := fmt.Sprintf("%s%s", prefix, route.Name)
+	routeName := fmt.Sprintf("%s%s", prefix, route.GetName())
 	router = &api.ServiceRouterConfigEntry{
 		Kind: api.ServiceRouter,
 		Name: routeName,
@@ -20,13 +19,20 @@ func HTTPRouteToServiceDiscoChain(route *gw.HTTPRoute, prefix string, meta map[s
 	}
 	var splitters []*api.ServiceSplitterConfigEntry
 
-	// All route rules are enumerated and a ServiceRoute created for each.
-	for idx, rule := range route.Spec.Rules {
+	idx := 0
+	for routeRule, references := range route.references {
+		rule := routeRule.httpRule
+
 		var destService string
-		// If the rule only has 1 ForwardTo target defined a splitter does not need to be created and the
-		// ServiceRoute.Destination can be set to the ForwardTo service name
-		if len(rule.BackendRefs) == 1 {
-			destService = rule.BackendRefs[0].Name
+		if len(references) == 1 {
+			reference := references[0]
+			switch reference.referenceType {
+			case consulServiceReference:
+				destService = reference.consulService.name
+			case routeReference:
+				// we don't actually support this yet
+				continue
+			}
 		} else {
 			destService = fmt.Sprintf("%s-%d", routeName, idx)
 			splitter := &api.ServiceSplitterConfigEntry{
@@ -36,7 +42,9 @@ func HTTPRouteToServiceDiscoChain(route *gw.HTTPRoute, prefix string, meta map[s
 				Meta:   meta,
 			}
 
-			for _, forward := range rule.BackendRefs {
+			for _, reference := range references {
+				forward := reference.ref.httpRef
+
 				// if a forward rule does not define a weight it is defaulted to 1
 				split := api.ServiceSplit{
 					Weight: float32(1),
@@ -57,6 +65,8 @@ func HTTPRouteToServiceDiscoChain(route *gw.HTTPRoute, prefix string, meta map[s
 			}
 		}
 
+		idx++
+
 		// for each match rule a ServiceRoute is created for the service-router
 		// if there are no rules a single route with the destination is set
 		if len(rule.Matches) == 0 {
@@ -68,7 +78,7 @@ func HTTPRouteToServiceDiscoChain(route *gw.HTTPRoute, prefix string, meta map[s
 		}
 		for _, match := range rule.Matches {
 			router.Routes = append(router.Routes, api.ServiceRoute{
-				Match: &api.ServiceRouteMatch{HTTP: HTTPRouteMatchToServiceRouteHTTPMatch(match)},
+				Match: &api.ServiceRouteMatch{HTTP: httpRouteMatchToServiceRouteHTTPMatch(match)},
 				Destination: &api.ServiceRouteDestination{
 					Service: destService,
 				},
@@ -79,7 +89,7 @@ func HTTPRouteToServiceDiscoChain(route *gw.HTTPRoute, prefix string, meta map[s
 	return router, splitters
 }
 
-func HTTPRouteMatchToServiceRouteHTTPMatch(route gw.HTTPRouteMatch) *api.ServiceRouteHTTPMatch {
+func httpRouteMatchToServiceRouteHTTPMatch(route gw.HTTPRouteMatch) *api.ServiceRouteHTTPMatch {
 	var match api.ServiceRouteHTTPMatch
 	if route.Path != nil && route.Path.Type != nil && route.Path.Value != nil {
 		switch *route.Path.Type {

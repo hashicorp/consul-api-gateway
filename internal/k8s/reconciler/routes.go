@@ -1,21 +1,51 @@
 package reconciler
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"sync"
 
+	"github.com/hashicorp/consul-api-gateway/internal/consul"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
+	"github.com/hashicorp/consul/api"
+	"github.com/hashicorp/go-multierror"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	klabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
-
-	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 )
 
-// NamespaceNameLabel represents that label added automatically to namespaces is newer Kubernetes clusters
-const NamespaceNameLabel = "kubernetes.io/metadata.name"
+type resolvedReferenceType int
+
+var (
+	ErrEmptyPort            = errors.New("port cannot be empty with kubernetes service")
+	ErrNotResolved          = errors.New("backend reference not found")
+	ErrConsulNotResolved    = errors.New("consul service not found")
+	ErrUnsupportedReference = errors.New("unsupported reference type")
+)
+
+const (
+	// NamespaceNameLabel represents that label added automatically to namespaces is newer Kubernetes clusters
+	NamespaceNameLabel     = "kubernetes.io/metadata.name"
+	MetaKeyKubeServiceName = "k8s-service-name"
+	MetaKeyKubeNS          = "k8s-namespace"
+
+	routeReference resolvedReferenceType = iota
+	consulServiceReference
+)
+
+type consulService struct {
+	namespace string
+	name      string
+}
+
+type resolvedReference struct {
+	referenceType resolvedReferenceType
+	ref           BackendRef
+	consulService *consulService
+}
 
 // all kubernetes routes implement the following two interfaces
 type Route interface {
@@ -23,24 +53,46 @@ type Route interface {
 	schema.ObjectKind
 }
 
-type KubernetesRoute struct {
+type RouteRule struct {
+	httpRule *gw.HTTPRouteRule
+}
+
+type BackendRef struct {
+	httpRef *gw.HTTPBackendRef
+}
+
+type K8sRoute struct {
 	Route
+
+	controllerName  string
+	needsStatusSync bool
+	isResolved      bool
+	references      map[RouteRule][]resolvedReference
+
+	// this mutex protects any of the above private fields
+	mutex sync.RWMutex
 }
 
-func (r *KubernetesRoute) IsHTTPRoute() bool {
-	_, ok := r.Route.(*gw.HTTPRoute)
-	return ok
-}
-
-func (r *KubernetesRoute) AsHTTPRoute() (*gw.HTTPRoute, bool) {
-	val, ok := r.Route.(*gw.HTTPRoute)
-	if !ok {
-		return nil, false
+func NewK8sRoute(controllerName string, route Route) *K8sRoute {
+	return &K8sRoute{
+		Route:           route,
+		controllerName:  controllerName,
+		needsStatusSync: true,
 	}
-	return val.DeepCopy(), true
 }
 
-func (r *KubernetesRoute) CommonRouteSpec() gw.CommonRouteSpec {
+func (r *K8sRoute) AsHTTPRoute() (*gw.HTTPRoute, bool) {
+	val, ok := r.Route.(*gw.HTTPRoute)
+	if ok {
+		return val, true
+	}
+	return nil, false
+}
+
+func (r *K8sRoute) CommonRouteSpec() gw.CommonRouteSpec {
+	r.mutex.RLock()
+	defer r.mutex.RUnlock()
+
 	switch route := r.Route.(type) {
 	case *gw.HTTPRoute:
 		return route.Spec.CommonRouteSpec
@@ -54,7 +106,10 @@ func (r *KubernetesRoute) CommonRouteSpec() gw.CommonRouteSpec {
 	return gw.CommonRouteSpec{}
 }
 
-func (r *KubernetesRoute) RouteStatus() gw.RouteStatus {
+func (r *K8sRoute) RouteStatus() gw.RouteStatus {
+	r.mutex.RLock()
+	defer r.mutex.RUnlock()
+
 	switch route := r.Route.(type) {
 	case *gw.HTTPRoute:
 		return route.Status.RouteStatus
@@ -68,175 +123,134 @@ func (r *KubernetesRoute) RouteStatus() gw.RouteStatus {
 	return gw.RouteStatus{}
 }
 
-func (r *KubernetesRoute) SetStatus(status gw.RouteStatus) {
+func (r *K8sRoute) SetStatus(status gw.RouteStatus) {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
 	switch route := r.Route.(type) {
 	case *gw.HTTPRoute:
-		route.Status.RouteStatus = status
+		route.Status.RouteStatus = r.setStatus(route.Status.RouteStatus, status)
 	case *gw.TCPRoute:
-		route.Status.RouteStatus = status
+		route.Status.RouteStatus = r.setStatus(route.Status.RouteStatus, status)
 	case *gw.UDPRoute:
-		route.Status.RouteStatus = status
+		route.Status.RouteStatus = r.setStatus(route.Status.RouteStatus, status)
 	case *gw.TLSRoute:
-		route.Status.RouteStatus = status
+		route.Status.RouteStatus = r.setStatus(route.Status.RouteStatus, status)
 	}
 }
 
-func (r *KubernetesRoute) IsAdmittedByGatewayListener(gatewayName types.NamespacedName, routes *gw.AllowedRoutes) (admitted bool, reason, message string) {
-	gvk := r.GroupVersionKind()
-	// check selector kind and group
-
-	if len(routes.Kinds) > 0 {
-		gkMatch := false
-		for _, rgk := range routes.Kinds {
-			group := gw.GroupName
-			if rgk.Group != nil && *rgk.Group != "" {
-				group = string(*rgk.Group)
-			}
-			if string(rgk.Kind) == gvk.Kind && group == gvk.Group {
-				gkMatch = true
-				break
-			}
-		}
-		if !gkMatch {
-			return false, "InvalidRoutesRef", "route does not match listener's allowed groups and kinds"
-		}
+func (r *K8sRoute) setStatus(current, updated gw.RouteStatus) gw.RouteStatus {
+	if utils.IsFieldUpdated(current, updated) {
+		r.needsStatusSync = true
+		return updated
 	}
-
-	// check gateway namespace
-	namespaceSelector := routes.Namespaces
-	// set default is namespace selector is nil
-	from := gw.NamespacesFromSame
-	if namespaceSelector != nil && namespaceSelector.From != nil && *namespaceSelector.From != "" {
-		from = *namespaceSelector.From
-	}
-	switch from {
-	case gw.NamespacesFromAll:
-	// matches continue
-	case gw.NamespacesFromSame:
-		if gatewayName.Namespace != r.GetNamespace() {
-			return false, "InvalidRoutesRef", "gateway namespace does not match route"
-		}
-	case gw.NamespacesFromSelector:
-		ns, err := metav1.LabelSelectorAsSelector(namespaceSelector.Selector)
-		if err != nil {
-			return false, "InvalidRoutesRef", "namespace selector could not be parsed"
-		}
-
-		if !ns.Matches(toNamespaceSet(r.GetNamespace(), r.GetLabels())) {
-			return false, "InvalidRoutesRef", "gateway namespace does not match route namespace selector"
-		}
-
-	}
-	return true, "", ""
+	return current
 }
 
-func (r *KubernetesRoute) ParentRefAllowed(ref gw.ParentRef, gatewayName types.NamespacedName, listener gw.Listener) error {
-	// First check if any hostnames match the listener for HTTPRoutes. The spec states that even if a parent can be referenced, the route
-	// cannot be admitted unless one of the hostnames match the listener's hostname.
-	if r.IsHTTPRoute() {
-		route, _ := r.AsHTTPRoute()
-		if len(route.Spec.Hostnames) > 0 && listener.Hostname != nil {
-			var match bool
-			for _, name := range route.Spec.Hostnames {
-				if utils.HostnamesMatch(name, *listener.Hostname) {
-					match = true
-					break
+func (r *K8sRoute) ResolveReferences(ctx context.Context, client gatewayclient.Client, consul *api.Client) error {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
+	if r.isResolved {
+		return nil
+	}
+
+	var result error
+
+	resolved := make(map[RouteRule][]resolvedReference)
+	var status gw.RouteStatus
+	var parents []gw.ParentRef
+	switch route := r.Route.(type) {
+	case *gw.HTTPRoute:
+		status = route.Status.RouteStatus
+		parents = route.Spec.ParentRefs
+		for _, rule := range route.Spec.Rules {
+			routeRule := RouteRule{httpRule: &rule}
+			for _, ref := range rule.BackendRefs {
+				resolvedRef, err := resolveBackendReference(ctx, client, ref.BackendObjectReference, r, consul)
+				if err != nil {
+					result = multierror.Append(result, err)
+					continue
+				}
+				if resolvedRef != nil {
+					resolvedRef.ref = BackendRef{
+						httpRef: &ref,
+					}
+					resolved[routeRule] = append(resolved[routeRule], *resolvedRef)
 				}
 			}
-
-			if !match {
-				return fmt.Errorf("no listeners had matching Hostnames")
-			}
 		}
+	default:
+		return nil
+	}
+	reason := string(gw.ConditionRouteResolvedRefs)
+	message := string(gw.ConditionRouteResolvedRefs)
+	resolvedStatus := metav1.ConditionTrue
+	if result != nil {
+		reason = "InvalidRefs"
+		message = result.Error()
+		resolvedStatus = metav1.ConditionFalse
+	}
+	conditions := []metav1.Condition{{
+		Type:               string(gw.ConditionRouteResolvedRefs),
+		Status:             resolvedStatus,
+		Reason:             reason,
+		Message:            message,
+		LastTransitionTime: metav1.Now(),
+	}}
+
+	// this seems odd to set this on the parent ref
+	for _, ref := range parents {
+		r.setStatus(status, setResolvedRefsStatus(status, gw.RouteParentStatus{
+			ParentRef:  ref,
+			Controller: gw.GatewayController(r.controllerName),
+			Conditions: conditions,
+		}))
 	}
 
-	return routeParentRefMatches(ref, gatewayName, string(listener.Name), r.GetNamespace())
-}
-
-type KubernetesRoutes struct {
-	routes map[types.NamespacedName]*KubernetesRoute
-	lock   sync.Mutex
-}
-
-func NewKubernetesRoutes() *KubernetesRoutes {
-	return &KubernetesRoutes{
-		routes: map[types.NamespacedName]*KubernetesRoute{},
+	if result == nil {
+		r.isResolved = true
 	}
+	r.references = resolved
+	return result
 }
 
-func (r *KubernetesRoutes) Set(route Route) bool {
-	name := utils.NamespacedName(route)
-	r.lock.Lock()
-	defer r.lock.Unlock()
-	cur, ok := r.routes[name]
-	if ok && cur.Route.GetGeneration() == route.GetGeneration() {
-		return false
-	}
-	r.routes[name] = &KubernetesRoute{route}
-	return true
-}
+func (r *K8sRoute) UpdateStatus(ctx context.Context, client gatewayclient.Client) error {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
 
-func (r *KubernetesRoutes) Delete(name types.NamespacedName) {
-	r.lock.Lock()
-	delete(r.routes, name)
-	r.lock.Unlock()
-}
-
-// HTTPRoutes returns a slice of KubernetesRoute pointers which are of kind HTTPRoute
-func (r *KubernetesRoutes) HTTPRoutes() []*KubernetesRoute {
-	r.lock.Lock()
-	defer r.lock.Unlock()
-	var routes []*KubernetesRoute
-	for _, v := range r.routes {
-		if v.IsHTTPRoute() {
-			routes = append(routes, v)
+	if r.needsStatusSync {
+		if err := client.UpdateStatus(ctx, r.Route); err != nil {
+			return fmt.Errorf("error updating route status: %w", err)
 		}
-	}
-	return routes
-}
-
-func routeParentRefMatches(ref gw.ParentRef, gatewayName types.NamespacedName, listenerName, localNamespace string) error {
-	// only match gateway.networking.k8s.io group for now
-	if ref.Group != nil && *ref.Group != gw.GroupName {
-		return fmt.Errorf("no matching parents with group: %s", *ref.Group)
-	}
-
-	// only match gateway references
-	if ref.Kind != nil && *ref.Kind != "Gateway" {
-		return fmt.Errorf("no matching parents with kind: %s", *ref.Kind)
-	}
-
-	// match gateway namesapce
-	namespace := localNamespace
-	if ref.Namespace != nil && *ref.Namespace != "" {
-		namespace = string(*ref.Namespace)
-	}
-	if gatewayName.Namespace != namespace {
-		return fmt.Errorf("no matching parents with namespace: %s", namespace)
-	}
-
-	if ref.Name != gatewayName.Name {
-		return fmt.Errorf("no matching parents with name: %s", ref.Name)
-	}
-
-	if listenerName != "" && ref.SectionName != nil && string(*ref.SectionName) != listenerName {
-		return fmt.Errorf("no matching parent sections with name: %s", *ref.SectionName)
+		r.needsStatusSync = false
 	}
 
 	return nil
 }
 
-func toNamespaceSet(name string, labels map[string]string) klabels.Labels {
-	// If namespace label is not set, implicitly insert it to support older Kubernetes versions
-	if labels[NamespaceNameLabel] == name {
-		// Already set, avoid copies
-		return klabels.Set(labels)
+func (r *K8sRoute) DiscoveryChain(prefix, hostname string, meta map[string]string) (*api.IngressService, *api.ServiceRouterConfigEntry, *consul.ConfigEntryIndex, *consul.ConfigEntryIndex) {
+	r.mutex.RLock()
+	defer r.mutex.RUnlock()
+
+	splitters := consul.NewConfigEntryIndex(api.ServiceSplitter)
+	defaults := consul.NewConfigEntryIndex(api.ServiceDefaults)
+	switch route := r.Route.(type) {
+	case *gw.HTTPRoute:
+		router, splits := httpRouteToServiceDiscoChain(r, prefix, meta)
+		serviceDefault := httpServiceDefault(router, meta)
+		for _, split := range splits {
+			splitters.Add(split)
+			if split.Name != serviceDefault.Name {
+				defaults.Add(httpServiceDefault(split, meta))
+			}
+		}
+
+		return &api.IngressService{
+			Name:      router.Name,
+			Hosts:     utils.HostnamesForHTTPRoute(hostname, route),
+			Namespace: "", // TODO
+		}, router, splitters, defaults
 	}
-	// First we need a copy to not modify the underlying object
-	ret := make(map[string]string, len(labels)+1)
-	for k, v := range labels {
-		ret[k] = v
-	}
-	ret[NamespaceNameLabel] = name
-	return klabels.Set(ret)
+	return nil, nil, nil, nil
 }
