@@ -56,7 +56,7 @@ func (g *State) syncGateways(ctx context.Context) error {
 	for _, gw := range g.gateways {
 		gateway := gw
 		syncGroup.Go(func() error {
-			return gateway.Sync(ctx, g.consul)
+			return gateway.Sync(ctx)
 		})
 	}
 	if err := syncGroup.Wait(); err != nil {
@@ -123,26 +123,35 @@ func (g *State) AddRoute(ctx context.Context, route *K8sRoute) error {
 		}
 	}
 
-	if current.Equals(route) {
-		route = current
-	}
+	var result error
+	if !current.Equals(route) {
+		g.logger.Trace("adding route", "name", namespacedName.Name, "namespace", namespacedName.Namespace)
 
-	g.routes[namespacedName] = route
+		g.routes[namespacedName] = route
 
-	// resolve any service references for the route
-	if err := route.ResolveReferences(ctx, g.client, g.consul); err != nil {
-		return err
-	}
-
-	// bind to gateways
-	for _, gateway := range g.gateways {
-		if err := gateway.Bind(route); err != nil {
+		// resolve any service references for the route
+		if err := route.ResolveReferences(ctx, g.client, g.consul); err != nil {
+			// the route is considered invalid, so don't try to bind it at all
 			return err
+		}
+		// bind to gateways
+		for _, gateway := range g.gateways {
+			// consider each gateway distinct for the purposes of binding
+			if err := gateway.Bind(route); err != nil {
+				result = multierror.Append(result, err)
+			}
 		}
 	}
 
 	// sync the gateways to consul and route statuses to k8s
-	return g.sync(ctx)
+	if err := g.sync(ctx); err != nil {
+		result = multierror.Append(result, err)
+	}
+
+	if result != nil {
+		return result
+	}
+	return nil
 }
 
 func (g *State) AddGateway(ctx context.Context, gw *gw.Gateway) error {
@@ -159,19 +168,29 @@ func (g *State) AddGateway(ctx context.Context, gw *gw.Gateway) error {
 		}
 	}
 
-	var err error
+	var result error
 	if !current.Equals(gw) {
-		current, err = NewBoundGateway(ctx, g.logger, g.controllerName, g.client, gw, current)
-		if err != nil {
-			// we had an issue resolving listener references
+		g.logger.Trace("adding gateway", "name", namespacedName.Name, "namespace", namespacedName.Namespace)
+
+		updated := NewBoundGateway(gw, BoundGatewayConfig{
+			Logger:         g.logger,
+			Consul:         g.consul,
+			Client:         g.client,
+			ControllerName: g.controllerName,
+		})
+		updated.Merge(current)
+		if err := updated.ResolveListenerReferences(ctx); err != nil {
+			// we have invalid listener references, consider the gateway bad
 			return err
 		}
-		g.gateways[namespacedName] = current
+
+		g.gateways[namespacedName] = updated
 
 		// bind routes to this gateway
 		for _, route := range g.routes {
-			if err := current.Bind(route); err != nil {
-				return err
+			if err := updated.Bind(route); err != nil {
+				// consider each route distinct for the purposes of binding
+				result = multierror.Append(result, err)
 			}
 		}
 	}
@@ -188,7 +207,14 @@ func (g *State) AddGateway(ctx context.Context, gw *gw.Gateway) error {
 	}
 
 	// sync the gateways to consul and route statuses to k8s
-	return g.sync(ctx)
+	if err := g.sync(ctx); err != nil {
+		result = multierror.Append(result, err)
+	}
+
+	if result != nil {
+		return result
+	}
+	return nil
 }
 
 func (g *State) DeleteGateway(ctx context.Context, namespacedName types.NamespacedName) error {
@@ -199,6 +225,8 @@ func (g *State) DeleteGateway(ctx context.Context, namespacedName types.Namespac
 	if !found {
 		return nil
 	}
+
+	g.logger.Trace("deleting gateway", "name", namespacedName.Name, "namespace", namespacedName.Namespace)
 
 	// deregistration of the service in the gateway
 	// handles resource cleanup, we can just remove

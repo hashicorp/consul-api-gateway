@@ -1,48 +1,100 @@
 package reconciler
 
 import (
+	"sort"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
 )
 
-func setParentStatus(status gw.RouteStatus, conditionType gw.RouteConditionType, statuses ...gw.RouteParentStatus) gw.RouteStatus {
-	parents := status.Parents
-	for _, toSet := range statuses {
-		parentFound := false
-		for idx, parent := range parents {
-			if parent.ParentRef == toSet.ParentRef && parent.Controller == toSet.Controller {
-				parentFound = true
-				conditions := []metav1.Condition{}
-				for _, condition := range parent.Conditions {
-					updated := false
+type conditionSetKey struct {
+	parentRef     gw.ParentRef
+	controller    gw.GatewayController
+	conditionType string
+}
 
-					if condition.Type == string(conditionType) {
-						for _, updatedCondition := range toSet.Conditions {
-							if updatedCondition.Type == string(conditionType) {
-								conditions = append(conditions, updateCondition(condition, updatedCondition))
-								updated = true
-								// just update with the first condition of this type
-								break
-							}
-						}
-					}
+type conditionSet map[conditionSetKey]metav1.Condition
 
-					if !updated {
-						conditions = append(conditions, condition)
-					}
-				}
-				parent.Conditions = conditions
-				parents[idx] = parent
+func parentStatusesToCondtionSet(statuses []gw.RouteParentStatus) conditionSet {
+	set := make(map[conditionSetKey]metav1.Condition)
+	for _, status := range statuses {
+		for _, condition := range status.Conditions {
+			// note that the gateway spec mentions we should only have a single entry
+			// for each Condition Type per controller/parent, so any controllers
+			// violating that will get clobbered by this set operation
+			set[conditionSetKey{
+				parentRef:     status.ParentRef,
+				controller:    status.Controller,
+				conditionType: condition.Type,
+			}] = condition
+		}
+	}
+	return conditionSet(set)
+}
+
+func (s conditionSet) toParentStatuses() []gw.RouteParentStatus {
+	statuses := make(map[conditionSetKey]gw.RouteParentStatus)
+	for key, condition := range s {
+		// construct a key without the conditionType so that we can
+		// merge all statuses back together by their parent/controller
+		// references
+		parentKey := conditionSetKey{
+			parentRef:  key.parentRef,
+			controller: key.controller,
+		}
+		status, found := statuses[parentKey]
+		if !found {
+			status = gw.RouteParentStatus{
+				ParentRef:  key.parentRef,
+				Controller: key.controller,
 			}
 		}
-		if !parentFound {
-			parents = append(parents, toSet)
+		status.Conditions = append(status.Conditions, condition)
+		statuses[parentKey] = status
+	}
+
+	// sort all conditions for stability
+	parents := []gw.RouteParentStatus{}
+	for _, status := range statuses {
+		parents = append(parents, status)
+	}
+
+	// now sort all the parent references
+	return sortParents(parents)
+}
+
+func sortParents(parents []gw.RouteParentStatus) []gw.RouteParentStatus {
+	for _, parent := range parents {
+		sort.SliceStable(parent.Conditions, sortConditions(parent.Conditions))
+	}
+	sort.SliceStable(parents, func(i, j int) bool {
+		return compareJSON(parents[i]) < compareJSON(parents[j])
+	})
+	return parents
+}
+
+func sortConditions(conditions []metav1.Condition) func(int, int) bool {
+	return func(i, j int) bool {
+		return compareJSON(conditions[i]) < compareJSON(conditions[j])
+	}
+}
+
+func setParentStatus(status gw.RouteStatus, conditionType gw.RouteConditionType, statuses ...gw.RouteParentStatus) gw.RouteStatus {
+	parentSet := parentStatusesToCondtionSet(status.Parents)
+	for _, status := range statuses {
+		for _, condition := range status.Conditions {
+			// add or override whatever is in the set
+			parentSet[conditionSetKey{
+				parentRef:     status.ParentRef,
+				controller:    status.Controller,
+				conditionType: condition.Type,
+			}] = condition
 		}
 	}
 
 	return gw.RouteStatus{
-		Parents: parents,
+		Parents: parentSet.toParentStatuses(),
 	}
 }
 

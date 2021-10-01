@@ -1,6 +1,7 @@
 package reconciler
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -19,11 +20,6 @@ func TestSetAdmittedStatus(t *testing.T) {
 		parentStatuses []gw.RouteParentStatus
 		expected       gw.RouteStatus
 	}{{
-		name:           "empty",
-		status:         gw.RouteStatus{},
-		parentStatuses: []gw.RouteParentStatus{},
-		expected:       gw.RouteStatus{},
-	}, {
 		name: "basic",
 		status: gw.RouteStatus{
 			Parents: []gw.RouteParentStatus{{
@@ -52,9 +48,9 @@ func TestSetAdmittedStatus(t *testing.T) {
 				}},
 			}, {
 				ParentRef: gw.ParentRef{
-					Name: "expected",
+					Name: "other",
 				},
-				Controller: "other",
+				Controller: "expected",
 				Conditions: []meta.Condition{{
 					Type:    string(gw.ConditionRouteAdmitted),
 					Status:  meta.ConditionFalse,
@@ -100,9 +96,9 @@ func TestSetAdmittedStatus(t *testing.T) {
 				}},
 			}, {
 				ParentRef: gw.ParentRef{
-					Name: "expected",
+					Name: "other",
 				},
-				Controller: "other",
+				Controller: "expected",
 				Conditions: []meta.Condition{{
 					Type:    string(gw.ConditionRouteAdmitted),
 					Status:  meta.ConditionFalse,
@@ -111,8 +107,20 @@ func TestSetAdmittedStatus(t *testing.T) {
 			}},
 		},
 	}, {
-		name:   "add",
-		status: gw.RouteStatus{},
+		name: "add",
+		status: gw.RouteStatus{
+			Parents: []gw.RouteParentStatus{{
+				ParentRef: gw.ParentRef{
+					Name: "expected",
+				},
+				Controller: "expected",
+				Conditions: []meta.Condition{{
+					Type:    string(gw.ConditionRouteResolvedRefs),
+					Status:  meta.ConditionTrue,
+					Message: "true",
+				}},
+			}},
+		},
 		parentStatuses: []gw.RouteParentStatus{{
 			ParentRef: gw.ParentRef{
 				Name: "expected",
@@ -134,13 +142,17 @@ func TestSetAdmittedStatus(t *testing.T) {
 					Type:    string(gw.ConditionRouteAdmitted),
 					Status:  meta.ConditionTrue,
 					Message: "true",
+				}, {
+					Type:    string(gw.ConditionRouteResolvedRefs),
+					Status:  meta.ConditionTrue,
+					Message: "true",
 				}},
 			}},
 		},
 	}} {
 		t.Run(test.name, func(t *testing.T) {
 			actual := setAdmittedStatus(test.status, test.parentStatuses...)
-			require.ElementsMatch(t, test.expected.Parents, actual.Parents)
+			requireParentsEqual(t, test.expected, actual)
 		})
 	}
 }
@@ -154,11 +166,6 @@ func TestSetResolvedRefStatus(t *testing.T) {
 		parentStatuses []gw.RouteParentStatus
 		expected       gw.RouteStatus
 	}{{
-		name:           "empty",
-		status:         gw.RouteStatus{},
-		parentStatuses: []gw.RouteParentStatus{},
-		expected:       gw.RouteStatus{},
-	}, {
 		name: "basic",
 		status: gw.RouteStatus{
 			Parents: []gw.RouteParentStatus{{
@@ -187,9 +194,9 @@ func TestSetResolvedRefStatus(t *testing.T) {
 				}},
 			}, {
 				ParentRef: gw.ParentRef{
-					Name: "expected",
+					Name: "other",
 				},
-				Controller: "other",
+				Controller: "expected",
 				Conditions: []meta.Condition{{
 					Type:    string(gw.ConditionRouteAdmitted),
 					Status:  meta.ConditionFalse,
@@ -235,9 +242,9 @@ func TestSetResolvedRefStatus(t *testing.T) {
 				}},
 			}, {
 				ParentRef: gw.ParentRef{
-					Name: "expected",
+					Name: "other",
 				},
-				Controller: "other",
+				Controller: "expected",
 				Conditions: []meta.Condition{{
 					Type:    string(gw.ConditionRouteAdmitted),
 					Status:  meta.ConditionFalse,
@@ -248,7 +255,7 @@ func TestSetResolvedRefStatus(t *testing.T) {
 	}} {
 		t.Run(test.name, func(t *testing.T) {
 			actual := setResolvedRefsStatus(test.status, test.parentStatuses...)
-			require.ElementsMatch(t, test.expected.Parents, actual.Parents)
+			requireParentsEqual(t, test.expected, actual)
 		})
 	}
 }
@@ -266,8 +273,6 @@ func TestClearParentStatus(t *testing.T) {
 		gatewayName    types.NamespacedName
 		expected       gw.RouteStatus
 	}{{
-		name: "empty",
-	}, {
 		name:           "basic",
 		namespace:      "test",
 		controllerName: "expected",
@@ -407,7 +412,7 @@ func TestClearParentStatus(t *testing.T) {
 	}} {
 		t.Run(test.name, func(t *testing.T) {
 			actual := clearParentStatus(test.controllerName, test.namespace, test.status, test.gatewayName)
-			require.ElementsMatch(t, test.expected.Parents, actual.Parents)
+			requireParentsEqual(t, test.expected, actual)
 		})
 	}
 }
@@ -537,4 +542,15 @@ func TestUpdateCondition(t *testing.T) {
 			}
 		})
 	}
+}
+
+// this helps give an actual visual diff
+func requireParentsEqual(t *testing.T, expected, actual gw.RouteStatus) {
+	t.Helper()
+
+	expectedJSON, err := json.MarshalIndent(sortParents(expected.Parents), "", "  ")
+	require.NoError(t, err)
+	actualJSON, err := json.MarshalIndent(sortParents(actual.Parents), "", "  ")
+	require.NoError(t, err)
+	require.JSONEq(t, string(expectedJSON), string(actualJSON))
 }

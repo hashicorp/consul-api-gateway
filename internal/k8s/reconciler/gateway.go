@@ -35,11 +35,16 @@ const (
 	ConditionReasonRouteAdmitted = "RouteAdmitted"
 )
 
-// BoundGateway wraps a gateway and its listeners
+// BoundGateway abstracts the logic for tracking
+// what has been synced to Consul as well as
+// acting as an entrypoint for binding a Route
+// to a particular gateway listener.
 type BoundGateway struct {
-	logger hclog.Logger
-
+	logger         hclog.Logger
+	client         gatewayclient.Client
+	consul         *api.Client
 	controllerName string
+
 	namespacedName types.NamespacedName
 	gateway        *gw.Gateway
 	listeners      map[gw.SectionName]*BoundListener
@@ -51,28 +56,61 @@ type BoundGateway struct {
 	mutex sync.RWMutex
 }
 
-func NewBoundGateway(ctx context.Context, logger hclog.Logger, controllerName string, client gatewayclient.Client, gateway *gw.Gateway, from *BoundGateway) (*BoundGateway, error) {
-	namespacedName := utils.NamespacedName(gateway)
+type BoundGatewayConfig struct {
+	Logger         hclog.Logger
+	Consul         *api.Client
+	Client         gatewayclient.Client
+	ControllerName string
+}
 
-	g := &BoundGateway{
-		logger:         logger.Named("gateway").With("name", gateway.Name, "namespace", gateway.Namespace),
-		controllerName: controllerName,
+// NewBoundGateway creates a bound gateway
+func NewBoundGateway(gateway *gw.Gateway, config BoundGatewayConfig) *BoundGateway {
+	gatewayLogger := config.Logger.Named("gateway").With("name", gateway.Name, "namespace", gateway.Namespace)
+	namespacedName := utils.NamespacedName(gateway)
+	listeners := make(map[gw.SectionName]*BoundListener)
+	for _, listener := range gateway.Spec.Listeners {
+		listeners[listener.Name] = NewBoundListener(gateway, listener, BoundListenerConfig{
+			Logger: gatewayLogger,
+			Client: config.Client,
+		})
+	}
+
+	return &BoundGateway{
+		logger:         gatewayLogger,
+		client:         config.Client,
+		consul:         config.Consul,
+		controllerName: config.ControllerName,
 		namespacedName: namespacedName,
 		gateway:        gateway,
-		listeners:      make(map[gw.SectionName]*BoundListener),
+		listeners:      listeners,
 		routers:        consul.NewConfigEntryIndex(api.ServiceRouter),
 		splitters:      consul.NewConfigEntryIndex(api.ServiceSplitter),
 		defaults:       consul.NewConfigEntryIndex(api.ServiceDefaults),
 	}
-	for _, listener := range gateway.Spec.Listeners {
-		boundListener, err := NewBoundListener(ctx, client, g.logger, g.gateway, listener)
-		if err != nil {
-			return nil, err
-		}
-		g.listeners[listener.Name] = boundListener
-	}
+}
 
+func (g *BoundGateway) ResolveListenerReferences(ctx context.Context) error {
+	g.mutex.Lock()
+	defer g.mutex.Unlock()
+
+	var result error
+	for _, listener := range g.listeners {
+		if err := listener.ResolveCertificates(ctx); err != nil {
+			result = multierror.Append(result, err)
+		}
+	}
+	if result != nil {
+		return result
+	}
+	return nil
+}
+
+// Merge merges consul tracking information from the supplied gateway.
+func (g *BoundGateway) Merge(from *BoundGateway) {
 	if from != nil {
+		g.mutex.Lock()
+		defer g.mutex.Unlock()
+
 		from.mutex.RLock()
 		defer from.mutex.RUnlock()
 
@@ -80,7 +118,6 @@ func NewBoundGateway(ctx context.Context, logger hclog.Logger, controllerName st
 		g.routers = from.routers
 		g.splitters = from.splitters
 	}
-	return g, nil
 }
 
 // Bind binds a route to a gateway's listeners if it
@@ -93,18 +130,8 @@ func (g *BoundGateway) Bind(route *K8sRoute) error {
 	for _, ref := range route.CommonRouteSpec().ParentRefs {
 		if namespacedName, isGateway := referencesGateway(route.GetNamespace(), ref); isGateway {
 			if g.namespacedName == namespacedName {
-				listeners, bindStatus := bindRoute(g.controllerName, ref, g.gateway, route)
-				if len(listeners) == 0 {
-					g.logger.Trace("route did not bind", "route", route.GetName(), "status", bindStatus)
-				}
+				bindStatus := g.bindRoute(ref, route)
 				statusUpdates = append(statusUpdates, bindStatus)
-				for _, listener := range listeners {
-					boundListener, found := g.listeners[listener.Name]
-					if !found {
-						return ErrInvalidGatewayListener
-					}
-					boundListener.SetRoute(route)
-				}
 			} else {
 				g.logger.Trace("route does not match gateway", "route", route.GetName(), "wanted-name", namespacedName.Name, "wanted-namespace", namespacedName.Namespace)
 			}
@@ -128,13 +155,13 @@ func (g *BoundGateway) Remove(namespacedName types.NamespacedName) {
 	}
 }
 
-func (g *BoundGateway) Sync(ctx context.Context, consul *api.Client) error {
+func (g *BoundGateway) Sync(ctx context.Context) error {
 	g.mutex.Lock()
 	defer g.mutex.Unlock()
 
 	for _, listener := range g.listeners {
 		if listener.ShouldSync() {
-			if err := g.sync(ctx, consul); err != nil {
+			if err := g.sync(ctx); err != nil {
 				return err
 			}
 			break
@@ -148,29 +175,29 @@ func (g *BoundGateway) Sync(ctx context.Context, consul *api.Client) error {
 	return nil
 }
 
-func setConfigEntries(ctx context.Context, client *api.Client, entries ...api.ConfigEntry) error {
+func (g *BoundGateway) setConfigEntries(ctx context.Context, entries ...api.ConfigEntry) error {
 	options := &api.WriteOptions{}
 	var result error
 	for _, entry := range entries {
-		if _, _, err := client.ConfigEntries().Set(entry, options.WithContext(ctx)); err != nil {
+		if _, _, err := g.consul.ConfigEntries().Set(entry, options.WithContext(ctx)); err != nil {
 			result = multierror.Append(result, err)
 		}
 	}
 	return result
 }
 
-func deleteConfigEntries(ctx context.Context, client *api.Client, entries ...api.ConfigEntry) error {
+func (g *BoundGateway) deleteConfigEntries(ctx context.Context, entries ...api.ConfigEntry) error {
 	options := &api.WriteOptions{}
 	var result error
 	for _, entry := range entries {
-		if _, err := client.ConfigEntries().Delete(entry.GetKind(), entry.GetName(), options.WithContext(ctx)); err != nil {
+		if _, err := g.consul.ConfigEntries().Delete(entry.GetKind(), entry.GetName(), options.WithContext(ctx)); err != nil {
 			result = multierror.Append(result, err)
 		}
 	}
 	return result
 }
 
-func (g *BoundGateway) sync(ctx context.Context, client *api.Client) error {
+func (g *BoundGateway) sync(ctx context.Context) error {
 	if g.logger.IsTrace() {
 		started := time.Now()
 		g.logger.Trace("started reconciliation", "time", started)
@@ -230,27 +257,27 @@ func (g *BoundGateway) sync(ctx context.Context, client *api.Client) error {
 	}
 
 	// defaults need to go first, otherwise the routers are always configured to use tcp
-	if err := setConfigEntries(ctx, client, addedDefaults...); err != nil {
+	if err := g.setConfigEntries(ctx, addedDefaults...); err != nil {
 		return fmt.Errorf("error adding service defaults config entries: %w", err)
 	}
-	if err := setConfigEntries(ctx, client, addedRouters...); err != nil {
+	if err := g.setConfigEntries(ctx, addedRouters...); err != nil {
 		return fmt.Errorf("error adding service router config entries: %w", err)
 	}
-	if err := setConfigEntries(ctx, client, addedSplitters...); err != nil {
+	if err := g.setConfigEntries(ctx, addedSplitters...); err != nil {
 		return fmt.Errorf("error adding service splitter config entries: %w", err)
 	}
 
-	if err := setConfigEntries(ctx, client, ingress); err != nil {
+	if err := g.setConfigEntries(ctx, ingress); err != nil {
 		return fmt.Errorf("error adding ingress config entry: %w", err)
 	}
 
-	if err := deleteConfigEntries(ctx, client, removedRouters...); err != nil {
+	if err := g.deleteConfigEntries(ctx, removedRouters...); err != nil {
 		return fmt.Errorf("error removing service router config entries: %w", err)
 	}
-	if err := deleteConfigEntries(ctx, client, removedSplitters...); err != nil {
+	if err := g.deleteConfigEntries(ctx, removedSplitters...); err != nil {
 		return fmt.Errorf("error removing service splitter config entries: %w", err)
 	}
-	if err := deleteConfigEntries(ctx, client, removedDefaults...); err != nil {
+	if err := g.deleteConfigEntries(ctx, removedDefaults...); err != nil {
 		return fmt.Errorf("error removing service defaults config entries: %w", err)
 	}
 
@@ -271,13 +298,13 @@ func (g *BoundGateway) Equals(other *gw.Gateway) bool {
 // bindRoute constructs a gateway binding result
 // for the given gateway and route, and returns a route
 // status based on the result
-func bindRoute(controllerName string, ref gw.ParentRef, gateway *gw.Gateway, route *K8sRoute) ([]gw.Listener, gw.RouteParentStatus) {
+func (g *BoundGateway) bindRoute(ref gw.ParentRef, route *K8sRoute) gw.RouteParentStatus {
 	condition := metav1.Condition{
 		Type:               string(gw.ConditionRouteAdmitted),
 		ObservedGeneration: route.GetGeneration(),
 		LastTransitionTime: metav1.Now(),
 	}
-	listeners, err := routeCanBind(ref, gateway, route)
+	err := g.tryBind(ref, route)
 	if err != nil {
 		condition.Status = metav1.ConditionFalse
 		condition.Reason = ConditionReasonUnableToBind
@@ -288,56 +315,40 @@ func bindRoute(controllerName string, ref gw.ParentRef, gateway *gw.Gateway, rou
 		condition.Message = "Route allowed"
 	}
 
-	return listeners, gw.RouteParentStatus{
+	return gw.RouteParentStatus{
 		ParentRef:  ref,
-		Controller: gw.GatewayController(controllerName),
+		Controller: gw.GatewayController(g.controllerName),
 		Conditions: []metav1.Condition{condition},
 	}
 }
 
-// routeCanBind returns whether a route can bind
+// tryBind returns whether a route can bind
 // to a gateway, if the route can bind to a listener
 // on the gateway the return value is nil, if not,
 // an error specifying why the route cannot bind
 // is returned.
-func routeCanBind(ref gw.ParentRef, gateway *gw.Gateway, route *K8sRoute) ([]gw.Listener, error) {
-	var boundListeners []gw.Listener
-	for _, listener := range gateway.Spec.Listeners {
-		// must is only true if there's a ref with a specific listener name
-		// meaning if we must attach, but cannot, it's an error
-		allowed, must := routeMatchesListener(listener.Name, ref.SectionName)
-		if allowed {
-			if !routeKindIsAllowedForListener(listener.AllowedRoutes, route) {
-				if must {
-					return nil, fmt.Errorf("route kind not allowed for listener: %w", ErrCannotBindListener)
-				}
-				continue
-			}
-			allowed, err := routeAllowedForListenerNamespaces(gateway.Namespace, listener.AllowedRoutes, route)
-			if err != nil {
-				return nil, fmt.Errorf("error checking listener namespaces: %w", err)
-			}
-			if !allowed {
-				if must {
-					return nil, fmt.Errorf("route not allowed because of listener namespace policy: %w", ErrCannotBindListener)
-				}
-				continue
-			}
+func (g *BoundGateway) tryBind(ref gw.ParentRef, route *K8sRoute) error {
+	bound := false
 
-			if !route.MatchesHostname(listener.Hostname) {
-				if must {
-					return nil, fmt.Errorf("route does not match listener hostname: %w", ErrCannotBindListener)
-				}
-				continue
-			}
+	var result error
+	for _, l := range g.listeners {
+		didBind, err := l.TryBind(ref, route)
+		if err != nil {
+			result = multierror.Append(result, err)
+		}
 
-			boundListeners = append(boundListeners, listener)
+		if didBind {
+			bound = true
 		}
 	}
 	// no listeners are bound, so we return an error
-	if len(boundListeners) == 0 {
-		return nil, fmt.Errorf("no listeners bound: %w", ErrCannotBindListener)
+	if !bound {
+		result = multierror.Append(result, fmt.Errorf("no listeners bound: %w", ErrCannotBindListener))
 	}
 
-	return boundListeners, nil
+	if result != nil {
+		return result
+	}
+
+	return nil
 }

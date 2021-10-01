@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -106,7 +107,12 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 	conditions := utils.MapGatewayConditionsFromPod(pod)
 	err = r.Tracker.UpdateStatus(req.NamespacedName, pod, conditions, func() error {
-		logger.Trace("gateway deployment pod status updated", "conditions", conditions)
+		if logger.IsTrace() {
+			update, err := json.MarshalIndent(conditions, "", "  ")
+			if err == nil {
+				logger.Trace("gateway deployment pod status updated", "conditions", string(update))
+			}
+		}
 		gw.Status.Conditions = conditions
 		return r.Client.UpdateStatus(ctx, gw)
 	})

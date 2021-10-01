@@ -176,6 +176,7 @@ func (r *K8sRoute) ClearParentStatus(namespacedName types.NamespacedName) {
 
 func (r *K8sRoute) setStatus(current, updated gw.RouteStatus) gw.RouteStatus {
 	if len(current.Parents) != len(updated.Parents) {
+		r.logger.Trace("marking route status as dirty")
 		r.needsStatusSync = true
 		return updated
 	}
@@ -188,10 +189,26 @@ func (r *K8sRoute) setStatus(current, updated gw.RouteStatus) gw.RouteStatus {
 	})
 
 	if utils.IsFieldUpdated(current, updated) {
+		r.logger.Trace("marking route status as dirty")
 		r.needsStatusSync = true
 		return updated
 	}
 	return current
+}
+
+func (r *K8sRoute) setResolvedRefsStatus(statuses ...gw.RouteParentStatus) {
+	updated := setResolvedRefsStatus(r.routeStatus(), statuses...)
+
+	switch route := r.Route.(type) {
+	case *gw.HTTPRoute:
+		route.Status.RouteStatus = r.setStatus(route.Status.RouteStatus, updated)
+	case *gw.TCPRoute:
+		route.Status.RouteStatus = r.setStatus(route.Status.RouteStatus, updated)
+	case *gw.UDPRoute:
+		route.Status.RouteStatus = r.setStatus(route.Status.RouteStatus, updated)
+	case *gw.TLSRoute:
+		route.Status.RouteStatus = r.setStatus(route.Status.RouteStatus, updated)
+	}
 }
 
 func (r *K8sRoute) ResolveReferences(ctx context.Context, client gatewayclient.Client, consul *api.Client) error {
@@ -205,11 +222,9 @@ func (r *K8sRoute) ResolveReferences(ctx context.Context, client gatewayclient.C
 	var result error
 
 	resolved := make(map[RouteRule][]resolvedReference)
-	var status gw.RouteStatus
 	var parents []gw.ParentRef
 	switch route := r.Route.(type) {
 	case *gw.HTTPRoute:
-		status = route.Status.RouteStatus
 		parents = route.Spec.ParentRefs
 		for _, rule := range route.Spec.Rules {
 			routeRule := RouteRule{httpRule: &rule}
@@ -247,13 +262,15 @@ func (r *K8sRoute) ResolveReferences(ctx context.Context, client gatewayclient.C
 	}}
 
 	// this seems odd to set this on the parent ref
+	statuses := []gw.RouteParentStatus{}
 	for _, ref := range parents {
-		r.setStatus(status, setResolvedRefsStatus(status, gw.RouteParentStatus{
+		statuses = append(statuses, gw.RouteParentStatus{
 			ParentRef:  ref,
 			Controller: gw.GatewayController(r.controllerName),
 			Conditions: conditions,
-		}))
+		})
 	}
+	r.setResolvedRefsStatus(statuses...)
 
 	if result == nil {
 		r.isResolved = true
@@ -267,7 +284,12 @@ func (r *K8sRoute) UpdateStatus(ctx context.Context, client gatewayclient.Client
 	defer r.mutex.Unlock()
 
 	if r.needsStatusSync {
-		r.logger.Trace("syncing route")
+		if r.logger.IsTrace() {
+			status, err := json.MarshalIndent(r.routeStatus(), "", "  ")
+			if err == nil {
+				r.logger.Trace("syncing route status", "status", string(status))
+			}
+		}
 		if err := client.UpdateStatus(ctx, r.Route); err != nil {
 			return fmt.Errorf("error updating route status: %w", err)
 		}
