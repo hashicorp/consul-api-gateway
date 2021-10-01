@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"sort"
 	"sync"
 
 	"github.com/hashicorp/consul-api-gateway/internal/consul"
@@ -174,6 +173,7 @@ func (r *K8sRoute) ClearParentStatus(namespacedName types.NamespacedName) {
 	}
 }
 
+// setStatus requires that the statuses always be sorted for equality comparison
 func (r *K8sRoute) setStatus(current, updated gw.RouteStatus) gw.RouteStatus {
 	if len(current.Parents) != len(updated.Parents) {
 		r.logger.Trace("marking route status as dirty")
@@ -181,14 +181,7 @@ func (r *K8sRoute) setStatus(current, updated gw.RouteStatus) gw.RouteStatus {
 		return updated
 	}
 
-	sort.SliceStable(current.Parents, func(i, j int) bool {
-		return compareJSON(current.Parents[i]) > compareJSON(current.Parents[j])
-	})
-	sort.SliceStable(updated.Parents, func(i, j int) bool {
-		return compareJSON(updated.Parents[i]) > compareJSON(updated.Parents[j])
-	})
-
-	if utils.IsFieldUpdated(current, updated) {
+	if !reflect.DeepEqual(current, updated) {
 		r.logger.Trace("marking route status as dirty")
 		r.needsStatusSync = true
 		return updated
@@ -270,6 +263,7 @@ func (r *K8sRoute) ResolveReferences(ctx context.Context, client gatewayclient.C
 			Conditions: conditions,
 		})
 	}
+
 	r.setResolvedRefsStatus(statuses...)
 
 	if result == nil {
@@ -354,9 +348,4 @@ func (r *K8sRoute) Equals(other *K8sRoute) bool {
 		return false
 	}
 	return false
-}
-
-func compareJSON(item interface{}) string {
-	data, _ := json.Marshal(item)
-	return string(data)
 }

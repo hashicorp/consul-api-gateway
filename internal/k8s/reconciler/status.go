@@ -1,6 +1,7 @@
 package reconciler
 
 import (
+	"encoding/json"
 	"sort"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -9,7 +10,7 @@ import (
 )
 
 type conditionSetKey struct {
-	parentRef     gw.ParentRef
+	parentRef     string
 	controller    gw.GatewayController
 	conditionType string
 }
@@ -24,7 +25,7 @@ func parentStatusesToCondtionSet(statuses []gw.RouteParentStatus) conditionSet {
 			// for each Condition Type per controller/parent, so any controllers
 			// violating that will get clobbered by this set operation
 			set[conditionSetKey{
-				parentRef:     status.ParentRef,
+				parentRef:     stringifyParentRef(status.ParentRef),
 				controller:    status.Controller,
 				conditionType: condition.Type,
 			}] = condition
@@ -46,7 +47,7 @@ func (s conditionSet) toParentStatuses() []gw.RouteParentStatus {
 		status, found := statuses[parentKey]
 		if !found {
 			status = gw.RouteParentStatus{
-				ParentRef:  key.parentRef,
+				ParentRef:  parseParentRef(key.parentRef),
 				Controller: key.controller,
 			}
 		}
@@ -84,12 +85,13 @@ func setParentStatus(status gw.RouteStatus, conditionType gw.RouteConditionType,
 	parentSet := parentStatusesToCondtionSet(status.Parents)
 	for _, status := range statuses {
 		for _, condition := range status.Conditions {
-			// add or override whatever is in the set
-			parentSet[conditionSetKey{
-				parentRef:     status.ParentRef,
+			conditionKey := conditionSetKey{
+				parentRef:     stringifyParentRef(status.ParentRef),
 				controller:    status.Controller,
 				conditionType: condition.Type,
-			}] = condition
+			}
+			// add or potentially override whatever is in the set
+			parentSet[conditionKey] = updateCondition(parentSet[conditionKey], condition)
 		}
 	}
 
@@ -117,7 +119,7 @@ func clearParentStatus(controllerName, namespace string, status gw.RouteStatus, 
 	}
 
 	return gw.RouteStatus{
-		Parents: parents,
+		Parents: sortParents(parents),
 	}
 }
 
@@ -141,4 +143,20 @@ func updateCondition(current, updated metav1.Condition) metav1.Condition {
 		return updated
 	}
 	return current
+}
+
+func compareJSON(item interface{}) string {
+	data, _ := json.Marshal(item)
+	return string(data)
+}
+
+func stringifyParentRef(ref gw.ParentRef) string {
+	data, _ := json.Marshal(ref)
+	return string(data)
+}
+
+func parseParentRef(stringified string) gw.ParentRef {
+	var ref gw.ParentRef
+	_ = json.Unmarshal([]byte(stringified), &ref)
+	return ref
 }
