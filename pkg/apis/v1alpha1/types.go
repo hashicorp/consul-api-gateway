@@ -123,6 +123,16 @@ type SDSConfig struct {
 	Port int
 }
 
+// EmptyServiceFor returns an empty service definition for ensuring deletion
+func (c *GatewayClassConfig) EmptyServiceFor(gw *gateway.Gateway) *corev1.Service {
+	return &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      gw.Name,
+			Namespace: gw.Namespace,
+		},
+	}
+}
+
 // ServicesFor returns the service configuration for the given gateway.
 // The gateway should be marked with the api-gateway.consul.hashicorp.com/service-type
 // annotation and marked with 'ClusterIP', `NodePort` or `LoadBalancer` to

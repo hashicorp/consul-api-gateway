@@ -13,6 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	gateway "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	"github.com/cenkalti/backoff"
@@ -68,8 +69,9 @@ type Client interface {
 
 	// deployments
 
-	CreateDeployment(ctx context.Context, deployment *apps.Deployment) error
-	CreateService(ctx context.Context, service *core.Service) error
+	CreateOrUpdateDeployment(ctx context.Context, deployment *apps.Deployment, mutators ...func() error) error
+	CreateOrUpdateService(ctx context.Context, service *core.Service, mutators ...func() error) error
+	DeleteService(ctx context.Context, service *core.Service) error
 }
 
 type gatewayClient struct {
@@ -345,12 +347,38 @@ func (g *gatewayClient) UpdateStatus(ctx context.Context, obj client.Object) err
 	}, backoff.WithContext(backoff.WithMaxRetries(backoff.NewConstantBackOff(statusUpdateTimeout), maxStatusUpdateAttempts), ctx))
 }
 
-func (g *gatewayClient) CreateDeployment(ctx context.Context, deployment *apps.Deployment) error {
-	return g.Create(ctx, deployment)
+func (g *gatewayClient) CreateOrUpdateDeployment(ctx context.Context, deployment *apps.Deployment, mutators ...func() error) error {
+	_, err := controllerutil.CreateOrUpdate(ctx, g.Client, deployment, func() error {
+		for _, mutate := range mutators {
+			if err := mutate(); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	return err
 }
 
-func (g *gatewayClient) CreateService(ctx context.Context, service *core.Service) error {
-	return g.Create(ctx, service)
+func (g *gatewayClient) CreateOrUpdateService(ctx context.Context, service *core.Service, mutators ...func() error) error {
+	_, err := controllerutil.CreateOrUpdate(ctx, g.Client, service, func() error {
+		for _, mutate := range mutators {
+			if err := mutate(); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	return err
+}
+
+func (g *gatewayClient) DeleteService(ctx context.Context, service *core.Service) error {
+	if err := g.Delete(ctx, service); err != nil {
+		if k8serrors.IsNotFound(err) {
+			return nil
+		}
+		return err
+	}
+	return nil
 }
 
 func (g *gatewayClient) SetControllerOwnership(owner, object client.Object) error {

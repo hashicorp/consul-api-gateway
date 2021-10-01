@@ -40,32 +40,56 @@ func (m *MockClient) EXPECT() *MockClientMockRecorder {
 	return m.recorder
 }
 
-// CreateDeployment mocks base method.
-func (m *MockClient) CreateDeployment(ctx context.Context, deployment *v1.Deployment) error {
+// CreateOrUpdateDeployment mocks base method.
+func (m *MockClient) CreateOrUpdateDeployment(ctx context.Context, deployment *v1.Deployment, mutators ...func() error) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateDeployment", ctx, deployment)
+	varargs := []interface{}{ctx, deployment}
+	for _, a := range mutators {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "CreateOrUpdateDeployment", varargs...)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// CreateDeployment indicates an expected call of CreateDeployment.
-func (mr *MockClientMockRecorder) CreateDeployment(ctx, deployment interface{}) *gomock.Call {
+// CreateOrUpdateDeployment indicates an expected call of CreateOrUpdateDeployment.
+func (mr *MockClientMockRecorder) CreateOrUpdateDeployment(ctx, deployment interface{}, mutators ...interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateDeployment", reflect.TypeOf((*MockClient)(nil).CreateDeployment), ctx, deployment)
+	varargs := append([]interface{}{ctx, deployment}, mutators...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateOrUpdateDeployment", reflect.TypeOf((*MockClient)(nil).CreateOrUpdateDeployment), varargs...)
 }
 
-// CreateService mocks base method.
-func (m *MockClient) CreateService(ctx context.Context, service *v10.Service) error {
+// CreateOrUpdateService mocks base method.
+func (m *MockClient) CreateOrUpdateService(ctx context.Context, service *v10.Service, mutators ...func() error) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateService", ctx, service)
+	varargs := []interface{}{ctx, service}
+	for _, a := range mutators {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "CreateOrUpdateService", varargs...)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// CreateService indicates an expected call of CreateService.
-func (mr *MockClientMockRecorder) CreateService(ctx, service interface{}) *gomock.Call {
+// CreateOrUpdateService indicates an expected call of CreateOrUpdateService.
+func (mr *MockClientMockRecorder) CreateOrUpdateService(ctx, service interface{}, mutators ...interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateService", reflect.TypeOf((*MockClient)(nil).CreateService), ctx, service)
+	varargs := append([]interface{}{ctx, service}, mutators...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateOrUpdateService", reflect.TypeOf((*MockClient)(nil).CreateOrUpdateService), varargs...)
+}
+
+// DeleteService mocks base method.
+func (m *MockClient) DeleteService(ctx context.Context, service *v10.Service) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteService", ctx, service)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteService indicates an expected call of DeleteService.
+func (mr *MockClientMockRecorder) DeleteService(ctx, service interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteService", reflect.TypeOf((*MockClient)(nil).DeleteService), ctx, service)
 }
 
 // DeploymentForGateway mocks base method.
