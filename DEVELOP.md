@@ -21,8 +21,10 @@ spec:
   image:
     consulAPIGateway: "consul-api-gateway:1"
   consul:
+    scheme: https
+    caSecret: consul-ca-cert
     ports:
-      http: 8500
+      http: 8501
       grpc: 8502
 ---
 apiVersion: gateway.networking.k8s.io/v1alpha2
