@@ -5,11 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/hashicorp/consul-api-gateway/internal/consul"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	"github.com/hashicorp/consul/api"
+	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-multierror"
 	core "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -34,6 +36,8 @@ const (
 
 // boundGatewayListener wraps a lstener and its set of routes
 type BoundListener struct {
+	logger hclog.Logger
+
 	gateway  *gw.Gateway
 	listener gw.Listener
 
@@ -50,7 +54,7 @@ type BoundListener struct {
 	mutex sync.RWMutex
 }
 
-func NewBoundListener(ctx context.Context, client gatewayclient.Client, gateway *gw.Gateway, listener gw.Listener) (*BoundListener, error) {
+func NewBoundListener(ctx context.Context, client gatewayclient.Client, logger hclog.Logger, gateway *gw.Gateway, listener gw.Listener) (*BoundListener, error) {
 	name := defaultListenerName
 	if listener.Name != "" {
 		name = string(listener.Name)
@@ -59,6 +63,7 @@ func NewBoundListener(ctx context.Context, client gatewayclient.Client, gateway 
 	protocol, tls := utils.ProtocolToConsul(listener.Protocol)
 
 	l := &BoundListener{
+		logger:    logger.Named("listener").With("listener", name),
 		gateway:   gateway,
 		listener:  listener,
 		name:      name,
@@ -173,6 +178,9 @@ func (l *BoundListener) DiscoveryChain() (api.IngressListener, *consul.ConfigEnt
 	routers := consul.NewConfigEntryIndex(api.ServiceRouter)
 	splitters := consul.NewConfigEntryIndex(api.ServiceSplitter)
 	defaults := consul.NewConfigEntryIndex(api.ServiceDefaults)
+	if len(l.routes) == 0 {
+		l.logger.Debug("listener has no routes")
+	}
 	for _, route := range l.routes {
 		meta := map[string]string{
 			"managed_by":                                 "consul-api-gateway",
@@ -189,6 +197,8 @@ func (l *BoundListener) DiscoveryChain() (api.IngressListener, *consul.ConfigEnt
 			routers.Add(router)
 			splitters.Merge(splits)
 			defaults.Merge(serviceDefaults)
+		} else {
+			l.logger.Debug("route has no resolved service", "route", route.GetName())
 		}
 	}
 	return api.IngressListener{
@@ -201,6 +211,8 @@ func (l *BoundListener) DiscoveryChain() (api.IngressListener, *consul.ConfigEnt
 
 // BoundGateway wraps a gateway and its listeners
 type BoundGateway struct {
+	logger hclog.Logger
+
 	controllerName string
 	namespacedName types.NamespacedName
 	gateway        *gw.Gateway
@@ -213,10 +225,11 @@ type BoundGateway struct {
 	mutex sync.RWMutex
 }
 
-func NewBoundGateway(ctx context.Context, controllerName string, client gatewayclient.Client, gateway *gw.Gateway, from *BoundGateway) (*BoundGateway, error) {
+func NewBoundGateway(ctx context.Context, logger hclog.Logger, controllerName string, client gatewayclient.Client, gateway *gw.Gateway, from *BoundGateway) (*BoundGateway, error) {
 	namespacedName := utils.NamespacedName(gateway)
 
 	g := &BoundGateway{
+		logger:         logger.Named("gateway").With("name", gateway.Name, "namespace", gateway.Namespace),
 		controllerName: controllerName,
 		namespacedName: namespacedName,
 		gateway:        gateway,
@@ -226,7 +239,7 @@ func NewBoundGateway(ctx context.Context, controllerName string, client gatewayc
 		defaults:       consul.NewConfigEntryIndex(api.ServiceDefaults),
 	}
 	for _, listener := range gateway.Spec.Listeners {
-		boundListener, err := NewBoundListener(ctx, client, g.gateway, listener)
+		boundListener, err := NewBoundListener(ctx, client, g.logger, g.gateway, listener)
 		if err != nil {
 			return nil, err
 		}
@@ -258,6 +271,9 @@ func (g *BoundGateway) Bind(route *K8sRoute) error {
 		if namespacedName, isGateway := referencesGateway(route.GetNamespace(), ref); isGateway {
 			if g.namespacedName == namespacedName {
 				listeners, bindStatus := bindRoute(g.controllerName, ref, g.gateway, route)
+				if len(listeners) == 0 {
+					g.logger.Trace("route did not bind", "route", route.GetName(), "status", bindStatus)
+				}
 				statusUpdates = append(statusUpdates, bindStatus)
 				for _, listener := range listeners {
 					boundListener, found := g.listeners[listener.Name]
@@ -266,10 +282,15 @@ func (g *BoundGateway) Bind(route *K8sRoute) error {
 					}
 					boundListener.SetRoute(route)
 				}
+			} else {
+				g.logger.Trace("route does not match gateway", "route", route.GetName(), "wanted-name", namespacedName.Name, "wanted-namespace", namespacedName.Namespace)
 			}
+		} else {
+			g.logger.Trace("route is not a gateway route", "route", route.GetName())
 		}
 	}
 
+	g.logger.Trace("gateway setting route status", "updates", statusUpdates)
 	route.SetStatus(setAdmittedStatus(status, statusUpdates...))
 	return nil
 }
@@ -328,11 +349,16 @@ func deleteConfigEntries(ctx context.Context, client *api.Client, entries ...api
 }
 
 func (g *BoundGateway) sync(ctx context.Context, client *api.Client) error {
-	// (ingress api.ConfigEntry, routers, splitters, defaults *consul.ConfigEntryIndex, err error)
+	if g.logger.IsTrace() {
+		started := time.Now()
+		g.logger.Trace("started reconciliation", "time", started)
+		defer g.logger.Trace("reconciliation finished", "time", time.Now(), "spent", time.Since(started))
+	}
+
 	ingress := &api.IngressGatewayConfigEntry{
-		Kind:      api.IngressGateway,
-		Name:      g.gateway.Name,
-		Namespace: g.gateway.Namespace,
+		Kind: api.IngressGateway,
+		Name: g.gateway.Name,
+		// TODO: namespaces
 		Meta: map[string]string{
 			"managed_by":                               "consul-api-gateway",
 			"consul-api-gateway/k8s/Gateway.Name":      g.gateway.Name,
@@ -352,6 +378,8 @@ func (g *BoundGateway) sync(ctx context.Context, client *api.Client) error {
 			computedSplitters.Merge(splitters)
 			computedDefaults.Merge(defaults)
 			ingress.Listeners = append(ingress.Listeners, listener)
+		} else {
+			g.logger.Debug("listener has no services", "name", l.name)
 		}
 	}
 
@@ -367,6 +395,11 @@ func (g *BoundGateway) sync(ctx context.Context, client *api.Client) error {
 	removedRouters := computedRouters.Difference(g.routers).ToArray()
 	removedSplitters := computedSplitters.Difference(g.splitters).ToArray()
 	removedDefaults := computedDefaults.Difference(g.defaults).ToArray()
+
+	if g.logger.IsTrace() {
+		g.logger.Trace("removing", "routers", removedRouters, "splitters", removedSplitters, "defaults", removedDefaults)
+		g.logger.Trace("adding", "routers", addedRouters, "splitters", addedSplitters, "defaults", addedDefaults)
+	}
 
 	// defaults need to go first, otherwise the routers are always configured to use tcp
 	if err := setConfigEntries(ctx, client, addedDefaults...); err != nil {

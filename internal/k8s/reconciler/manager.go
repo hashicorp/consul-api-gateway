@@ -29,6 +29,7 @@ type ReconcileManager interface {
 // should be invoked in a kubernetes controller.
 type GatewayReconcileManager struct {
 	controllerName string
+	logger         hclog.Logger
 	state          *State
 	gatewayClasses *K8sGatewayClasses
 }
@@ -47,6 +48,7 @@ type ManagerConfig struct {
 func NewReconcileManager(config ManagerConfig) *GatewayReconcileManager {
 	return &GatewayReconcileManager{
 		controllerName: config.ControllerName,
+		logger:         config.Logger,
 		gatewayClasses: NewK8sGatewayClasses(config.Logger.Named("gatewayclasses"), config.Client),
 		state: NewState(StateConfig{
 			ControllerName: config.ControllerName,
@@ -67,7 +69,7 @@ func (m *GatewayReconcileManager) UpsertGateway(ctx context.Context, g *gw.Gatew
 }
 
 func (m *GatewayReconcileManager) UpsertRoute(ctx context.Context, r Route) error {
-	return m.state.AddRoute(ctx, NewK8sRoute(m.controllerName, r))
+	return m.state.AddRoute(ctx, NewK8sRoute(m.controllerName, m.logger, r))
 }
 
 func (m *GatewayReconcileManager) DeleteGatewayClass(ctx context.Context, name string) error {

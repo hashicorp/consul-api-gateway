@@ -59,7 +59,11 @@ func (g *State) syncGateways(ctx context.Context) error {
 			return gateway.Sync(ctx, g.consul)
 		})
 	}
-	return syncGroup.Wait()
+	if err := syncGroup.Wait(); err != nil {
+		g.logger.Error("error syncing gateways", "error", err)
+		return err
+	}
+	return nil
 }
 
 func (g *State) syncRouteStatuses(ctx context.Context) error {
@@ -68,10 +72,14 @@ func (g *State) syncRouteStatuses(ctx context.Context) error {
 	for _, r := range g.routes {
 		route := r
 		syncGroup.Go(func() error {
-			return g.client.UpdateStatus(ctx, route.Route)
+			return route.UpdateStatus(ctx, g.client)
 		})
 	}
-	return syncGroup.Wait()
+	if err := syncGroup.Wait(); err != nil {
+		g.logger.Error("error syncing route statuses", "error", err)
+		return err
+	}
+	return nil
 }
 
 func (g *State) sync(ctx context.Context) error {
@@ -83,7 +91,10 @@ func (g *State) sync(ctx context.Context) error {
 	syncGroup.Go(func() error {
 		return g.syncRouteStatuses(ctx)
 	})
-	return syncGroup.Wait()
+	if err := syncGroup.Wait(); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (g *State) DeleteRoute(ctx context.Context, namespacedName types.NamespacedName) error {
@@ -143,7 +154,7 @@ func (g *State) AddGateway(ctx context.Context, gw *gw.Gateway) error {
 		}
 	}
 
-	updated, err := NewBoundGateway(ctx, g.controllerName, g.client, gw, current)
+	updated, err := NewBoundGateway(ctx, g.logger, g.controllerName, g.client, gw, current)
 	if err != nil {
 		// we had an issue resolving listener references
 		return err
@@ -187,7 +198,7 @@ func (g *State) DeleteGateway(ctx context.Context, namespacedName types.Namespac
 	// it from being tracked and sync back route statuses
 	for _, route := range g.routes {
 		// remove all status references
-		route.SetStatus(clearParentStatus(route.GetName(), route.RouteStatus(), namespacedName))
+		route.SetStatus(clearParentStatus(g.controllerName, route.GetName(), route.RouteStatus(), namespacedName))
 	}
 	delete(g.gateways, namespacedName)
 

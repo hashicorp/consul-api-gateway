@@ -126,9 +126,10 @@ func (c *Command) Run(args []string) (ret int) {
 	}
 
 	logger := hclog.New(&hclog.LoggerOptions{
-		Level:      hclog.LevelFromString(c.flagLogLevel),
-		Output:     c.output,
-		JSONFormat: c.flagLogJSON,
+		Level:           hclog.LevelFromString(c.flagLogLevel),
+		Output:          c.output,
+		JSONFormat:      c.flagLogJSON,
+		IncludeLocation: true,
 	}).Named("consul-api-gateway-exec")
 
 	if err := c.validateFlags(); err != nil {

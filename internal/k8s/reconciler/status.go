@@ -7,16 +7,18 @@ import (
 )
 
 func setParentStatus(status gw.RouteStatus, conditionType gw.RouteConditionType, statuses ...gw.RouteParentStatus) gw.RouteStatus {
-	parents := []gw.RouteParentStatus{}
-	for _, parent := range status.Parents {
-		for _, status := range statuses {
-			if parent.ParentRef == status.ParentRef && parent.Controller == status.Controller {
+	parents := status.Parents
+	for _, toSet := range statuses {
+		parentFound := false
+		for idx, parent := range parents {
+			if parent.ParentRef == toSet.ParentRef && parent.Controller == toSet.Controller {
+				parentFound = true
 				conditions := []metav1.Condition{}
 				for _, condition := range parent.Conditions {
 					updated := false
 
 					if condition.Type == string(conditionType) {
-						for _, updatedCondition := range status.Conditions {
+						for _, updatedCondition := range toSet.Conditions {
 							if updatedCondition.Type == string(conditionType) {
 								conditions = append(conditions, updateCondition(condition, updatedCondition))
 								updated = true
@@ -31,9 +33,12 @@ func setParentStatus(status gw.RouteStatus, conditionType gw.RouteConditionType,
 					}
 				}
 				parent.Conditions = conditions
+				parents[idx] = parent
 			}
 		}
-		parents = append(parents, parent)
+		if !parentFound {
+			parents = append(parents, toSet)
+		}
 	}
 
 	return gw.RouteStatus{
@@ -49,11 +54,11 @@ func setResolvedRefsStatus(status gw.RouteStatus, statuses ...gw.RouteParentStat
 	return setParentStatus(status, gw.ConditionRouteResolvedRefs, statuses...)
 }
 
-func clearParentStatus(namespace string, status gw.RouteStatus, namespacedName types.NamespacedName) gw.RouteStatus {
+func clearParentStatus(controllerName, namespace string, status gw.RouteStatus, namespacedName types.NamespacedName) gw.RouteStatus {
 	parents := []gw.RouteParentStatus{}
 	for _, parent := range status.Parents {
 		gatewayName, isGateway := referencesGateway(namespace, parent.ParentRef)
-		if isGateway && gatewayName == namespacedName {
+		if isGateway && gatewayName == namespacedName && parent.Controller == gw.GatewayController(controllerName) {
 			continue
 		}
 		parents = append(parents, parent)
@@ -67,7 +72,11 @@ func clearParentStatus(namespace string, status gw.RouteStatus, namespacedName t
 // updateCondition returns the latest condition minus the transition timestamps
 // it should only be used if you know the condition Type values are the same
 func updateCondition(current, updated metav1.Condition) metav1.Condition {
-	if current.ObservedGeneration < updated.ObservedGeneration {
+	if current.ObservedGeneration > updated.ObservedGeneration {
+		return current
+	}
+
+	if current.ObservedGeneration != updated.ObservedGeneration {
 		return updated
 	}
 	if current.Message != updated.Message {

@@ -55,7 +55,7 @@ func routeMatchesListenerHostname(listenerHostname *gw.Hostname, hostnames []gw.
 }
 
 func routeKindIsAllowedForListener(allowedRoutes *gw.AllowedRoutes, route *K8sRoute) bool {
-	if allowedRoutes == nil {
+	if allowedRoutes == nil || len(allowedRoutes.Kinds) == 0 {
 		return true
 	}
 
@@ -85,7 +85,7 @@ func routeAllowedForListenerNamespaces(gatewayNS string, allowedRoutes *gw.Allow
 	case gw.NamespacesFromAll:
 		return true, nil
 	case gw.NamespacesFromSame:
-		return gatewayNS != route.GetNamespace(), nil
+		return gatewayNS == route.GetNamespace(), nil
 	case gw.NamespacesFromSelector:
 		ns, err := metav1.LabelSelectorAsSelector(namespaceSelector.Selector)
 		if err != nil {

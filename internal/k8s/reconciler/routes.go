@@ -10,6 +10,7 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	"github.com/hashicorp/consul/api"
+	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-multierror"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -64,6 +65,7 @@ type BackendRef struct {
 type K8sRoute struct {
 	Route
 
+	logger          hclog.Logger
 	controllerName  string
 	needsStatusSync bool
 	isResolved      bool
@@ -73,9 +75,10 @@ type K8sRoute struct {
 	mutex sync.RWMutex
 }
 
-func NewK8sRoute(controllerName string, route Route) *K8sRoute {
+func NewK8sRoute(controllerName string, logger hclog.Logger, route Route) *K8sRoute {
 	return &K8sRoute{
 		Route:           route,
+		logger:          logger.Named("route").With("name", route.GetName()),
 		controllerName:  controllerName,
 		needsStatusSync: true,
 	}
@@ -127,6 +130,8 @@ func (r *K8sRoute) SetStatus(status gw.RouteStatus) {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
+	r.logger.Trace("setting status", "status", status)
+
 	switch route := r.Route.(type) {
 	case *gw.HTTPRoute:
 		route.Status.RouteStatus = r.setStatus(route.Status.RouteStatus, status)
@@ -141,9 +146,11 @@ func (r *K8sRoute) SetStatus(status gw.RouteStatus) {
 
 func (r *K8sRoute) setStatus(current, updated gw.RouteStatus) gw.RouteStatus {
 	if utils.IsFieldUpdated(current, updated) {
+		r.logger.Trace("needs update", "status", current, "updated", updated)
 		r.needsStatusSync = true
 		return updated
 	}
+	r.logger.Trace("no update", "status", current)
 	return current
 }
 
@@ -216,15 +223,21 @@ func (r *K8sRoute) ResolveReferences(ctx context.Context, client gatewayclient.C
 }
 
 func (r *K8sRoute) UpdateStatus(ctx context.Context, client gatewayclient.Client) error {
+	status := r.RouteStatus()
+
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
+	r.logger.Trace("checking route in sync")
 	if r.needsStatusSync {
+		r.logger.Trace("syncing route", "status", status)
 		if err := client.UpdateStatus(ctx, r.Route); err != nil {
+			r.logger.Error("error syncing route", "error", err)
 			return fmt.Errorf("error updating route status: %w", err)
 		}
 		r.needsStatusSync = false
 	}
+	r.logger.Trace("finished syncing route")
 
 	return nil
 }
@@ -239,6 +252,7 @@ func (r *K8sRoute) DiscoveryChain(prefix, hostname string, meta map[string]strin
 	case *gw.HTTPRoute:
 		router, splits := httpRouteToServiceDiscoChain(r, prefix, meta)
 		serviceDefault := httpServiceDefault(router, meta)
+		defaults.Add(serviceDefault)
 		for _, split := range splits {
 			splitters.Add(split)
 			if split.Name != serviceDefault.Name {
