@@ -3,7 +3,6 @@ package reconciler
 import (
 	"context"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/cenkalti/backoff"
@@ -106,7 +105,6 @@ func validateConsulReference(services map[string]*api.AgentService) (*resolvedRe
 }
 
 func serviceInstancesForK8SServiceNameAndNamespace(k8sServiceName, k8sServiceNamespace string, client *api.Client) (map[string]*api.AgentService, error) {
-	log.Println(fmt.Sprintf(`Meta[%q] == %q and Meta[%q] == %q and Kind != "connect-proxy"`, MetaKeyKubeServiceName, k8sServiceName, MetaKeyKubeNS, k8sServiceNamespace))
 	return client.Agent().ServicesWithFilter(
 		fmt.Sprintf(`Meta[%q] == %q and Meta[%q] == %q and Kind != "connect-proxy"`, MetaKeyKubeServiceName, k8sServiceName, MetaKeyKubeNS, k8sServiceNamespace))
 }

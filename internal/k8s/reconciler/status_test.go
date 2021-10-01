@@ -2,6 +2,7 @@ package reconciler
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -106,6 +107,33 @@ func TestSetAdmittedStatus(t *testing.T) {
 					Type:    string(gw.ConditionRouteAdmitted),
 					Status:  meta.ConditionFalse,
 					Message: "false",
+				}},
+			}},
+		},
+	}, {
+		name:   "add",
+		status: gw.RouteStatus{},
+		parentStatuses: []gw.RouteParentStatus{{
+			ParentRef: gw.ParentRef{
+				Name: "expected",
+			},
+			Controller: "expected",
+			Conditions: []meta.Condition{{
+				Type:    string(gw.ConditionRouteAdmitted),
+				Status:  meta.ConditionTrue,
+				Message: "true",
+			}},
+		}},
+		expected: gw.RouteStatus{
+			Parents: []gw.RouteParentStatus{{
+				ParentRef: gw.ParentRef{
+					Name: "expected",
+				},
+				Controller: "expected",
+				Conditions: []meta.Condition{{
+					Type:    string(gw.ConditionRouteAdmitted),
+					Status:  meta.ConditionTrue,
+					Message: "true",
 				}},
 			}},
 		},
@@ -438,6 +466,21 @@ func TestUpdateCondition(t *testing.T) {
 			Status:             meta.ConditionTrue,
 		},
 	}, {
+		name:         "status",
+		expectUpdate: true,
+		current: meta.Condition{
+			ObservedGeneration: 0,
+			Message:            "a",
+			Reason:             "a",
+			Status:             meta.ConditionTrue,
+		},
+		updated: meta.Condition{
+			ObservedGeneration: 0,
+			Message:            "a",
+			Reason:             "a",
+			Status:             meta.ConditionFalse,
+		},
+	}, {
 		name:         "generation-keep",
 		expectUpdate: false,
 		current: meta.Condition{
@@ -466,6 +509,23 @@ func TestUpdateCondition(t *testing.T) {
 			Message:            "a",
 			Reason:             "b",
 			Status:             meta.ConditionFalse,
+		},
+	}, {
+		name:         "keep",
+		expectUpdate: false,
+		current: meta.Condition{
+			ObservedGeneration: 0,
+			Message:            "a",
+			Reason:             "a",
+			Status:             meta.ConditionTrue,
+			LastTransitionTime: meta.Now(),
+		},
+		updated: meta.Condition{
+			ObservedGeneration: 0,
+			Message:            "a",
+			Reason:             "a",
+			Status:             meta.ConditionTrue,
+			LastTransitionTime: meta.NewTime(meta.Now().Add(100 * time.Minute)),
 		},
 	}} {
 		t.Run(test.name, func(t *testing.T) {

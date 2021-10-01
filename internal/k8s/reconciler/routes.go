@@ -2,8 +2,11 @@ package reconciler
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
+	"sort"
 	"sync"
 
 	"github.com/hashicorp/consul-api-gateway/internal/consul"
@@ -14,6 +17,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
 )
@@ -84,12 +88,16 @@ func NewK8sRoute(controllerName string, logger hclog.Logger, route Route) *K8sRo
 	}
 }
 
-func (r *K8sRoute) AsHTTPRoute() (*gw.HTTPRoute, bool) {
-	val, ok := r.Route.(*gw.HTTPRoute)
-	if ok {
-		return val, true
+func (r *K8sRoute) MatchesHostname(hostname *gw.Hostname) bool {
+	r.mutex.RLock()
+	defer r.mutex.RUnlock()
+
+	switch route := r.Route.(type) {
+	case *gw.HTTPRoute:
+		return routeMatchesListenerHostname(hostname, route.Spec.Hostnames)
+	default:
+		return true
 	}
-	return nil, false
 }
 
 func (r *K8sRoute) CommonRouteSpec() gw.CommonRouteSpec {
@@ -113,6 +121,10 @@ func (r *K8sRoute) RouteStatus() gw.RouteStatus {
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
 
+	return r.routeStatus()
+}
+
+func (r *K8sRoute) routeStatus() gw.RouteStatus {
 	switch route := r.Route.(type) {
 	case *gw.HTTPRoute:
 		return route.Status.RouteStatus
@@ -126,31 +138,59 @@ func (r *K8sRoute) RouteStatus() gw.RouteStatus {
 	return gw.RouteStatus{}
 }
 
-func (r *K8sRoute) SetStatus(status gw.RouteStatus) {
+func (r *K8sRoute) SetAdmittedStatus(statuses ...gw.RouteParentStatus) {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
-	r.logger.Trace("setting status", "status", status)
+	updated := setAdmittedStatus(r.routeStatus(), statuses...)
 
 	switch route := r.Route.(type) {
 	case *gw.HTTPRoute:
-		route.Status.RouteStatus = r.setStatus(route.Status.RouteStatus, status)
+		route.Status.RouteStatus = r.setStatus(route.Status.RouteStatus, updated)
 	case *gw.TCPRoute:
-		route.Status.RouteStatus = r.setStatus(route.Status.RouteStatus, status)
+		route.Status.RouteStatus = r.setStatus(route.Status.RouteStatus, updated)
 	case *gw.UDPRoute:
-		route.Status.RouteStatus = r.setStatus(route.Status.RouteStatus, status)
+		route.Status.RouteStatus = r.setStatus(route.Status.RouteStatus, updated)
 	case *gw.TLSRoute:
-		route.Status.RouteStatus = r.setStatus(route.Status.RouteStatus, status)
+		route.Status.RouteStatus = r.setStatus(route.Status.RouteStatus, updated)
+	}
+}
+
+func (r *K8sRoute) ClearParentStatus(namespacedName types.NamespacedName) {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
+	updated := clearParentStatus(r.controllerName, r.GetName(), r.routeStatus(), namespacedName)
+
+	switch route := r.Route.(type) {
+	case *gw.HTTPRoute:
+		route.Status.RouteStatus = r.setStatus(route.Status.RouteStatus, updated)
+	case *gw.TCPRoute:
+		route.Status.RouteStatus = r.setStatus(route.Status.RouteStatus, updated)
+	case *gw.UDPRoute:
+		route.Status.RouteStatus = r.setStatus(route.Status.RouteStatus, updated)
+	case *gw.TLSRoute:
+		route.Status.RouteStatus = r.setStatus(route.Status.RouteStatus, updated)
 	}
 }
 
 func (r *K8sRoute) setStatus(current, updated gw.RouteStatus) gw.RouteStatus {
-	if utils.IsFieldUpdated(current, updated) {
-		r.logger.Trace("needs update", "status", current, "updated", updated)
+	if len(current.Parents) != len(updated.Parents) {
 		r.needsStatusSync = true
 		return updated
 	}
-	r.logger.Trace("no update", "status", current)
+
+	sort.SliceStable(current.Parents, func(i, j int) bool {
+		return compareJSON(current.Parents[i]) > compareJSON(current.Parents[j])
+	})
+	sort.SliceStable(updated.Parents, func(i, j int) bool {
+		return compareJSON(updated.Parents[i]) > compareJSON(updated.Parents[j])
+	})
+
+	if utils.IsFieldUpdated(current, updated) {
+		r.needsStatusSync = true
+		return updated
+	}
 	return current
 }
 
@@ -223,21 +263,16 @@ func (r *K8sRoute) ResolveReferences(ctx context.Context, client gatewayclient.C
 }
 
 func (r *K8sRoute) UpdateStatus(ctx context.Context, client gatewayclient.Client) error {
-	status := r.RouteStatus()
-
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
-	r.logger.Trace("checking route in sync")
 	if r.needsStatusSync {
-		r.logger.Trace("syncing route", "status", status)
+		r.logger.Trace("syncing route")
 		if err := client.UpdateStatus(ctx, r.Route); err != nil {
-			r.logger.Error("error syncing route", "error", err)
 			return fmt.Errorf("error updating route status: %w", err)
 		}
 		r.needsStatusSync = false
 	}
-	r.logger.Trace("finished syncing route")
 
 	return nil
 }
@@ -267,4 +302,39 @@ func (r *K8sRoute) DiscoveryChain(prefix, hostname string, meta map[string]strin
 		}, router, splitters, defaults
 	}
 	return nil, nil, nil, nil
+}
+
+func (r *K8sRoute) Equals(other *K8sRoute) bool {
+	if r == nil || other == nil {
+		return false
+	}
+
+	switch route := r.Route.(type) {
+	case *gw.HTTPRoute:
+		if otherRoute, ok := other.Route.(*gw.HTTPRoute); ok {
+			return reflect.DeepEqual(route.Spec, otherRoute.Spec)
+		}
+		return false
+	case *gw.TCPRoute:
+		if otherRoute, ok := other.Route.(*gw.TCPRoute); ok {
+			return reflect.DeepEqual(route.Spec, otherRoute.Spec)
+		}
+		return false
+	case *gw.UDPRoute:
+		if otherRoute, ok := other.Route.(*gw.UDPRoute); ok {
+			return reflect.DeepEqual(route.Spec, otherRoute.Spec)
+		}
+		return false
+	case *gw.TLSRoute:
+		if otherRoute, ok := other.Route.(*gw.TLSRoute); ok {
+			return reflect.DeepEqual(route.Spec, otherRoute.Spec)
+		}
+		return false
+	}
+	return false
+}
+
+func compareJSON(item interface{}) string {
+	data, _ := json.Marshal(item)
+	return string(data)
 }

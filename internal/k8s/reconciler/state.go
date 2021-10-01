@@ -101,6 +101,7 @@ func (g *State) DeleteRoute(ctx context.Context, namespacedName types.Namespaced
 	g.mutex.Lock()
 	defer g.mutex.Unlock()
 
+	g.logger.Trace("deleting route", "name", namespacedName.Name, "namespace", namespacedName.Namespace)
 	for _, gateway := range g.gateways {
 		gateway.Remove(namespacedName)
 	}
@@ -120,6 +121,10 @@ func (g *State) AddRoute(ctx context.Context, route *K8sRoute) error {
 			// we have an old route, ignore it
 			return nil
 		}
+	}
+
+	if current.Equals(route) {
+		route = current
 	}
 
 	g.routes[namespacedName] = route
@@ -154,10 +159,21 @@ func (g *State) AddGateway(ctx context.Context, gw *gw.Gateway) error {
 		}
 	}
 
-	updated, err := NewBoundGateway(ctx, g.logger, g.controllerName, g.client, gw, current)
-	if err != nil {
-		// we had an issue resolving listener references
-		return err
+	var err error
+	if !current.Equals(gw) {
+		current, err = NewBoundGateway(ctx, g.logger, g.controllerName, g.client, gw, current)
+		if err != nil {
+			// we had an issue resolving listener references
+			return err
+		}
+		g.gateways[namespacedName] = current
+
+		// bind routes to this gateway
+		for _, route := range g.routes {
+			if err := current.Bind(route); err != nil {
+				return err
+			}
+		}
 	}
 
 	if !found {
@@ -169,15 +185,6 @@ func (g *State) AddGateway(ctx context.Context, gw *gw.Gateway) error {
 			Namespace: gw.Namespace,
 		}, referencedSecretsForGateway(gw)...)
 		g.logger.Trace("gateway inserted", "gateway", gw.Name)
-	}
-
-	g.gateways[namespacedName] = updated
-
-	// bind routes to this gateway
-	for _, route := range g.routes {
-		if err := updated.Bind(route); err != nil {
-			return err
-		}
 	}
 
 	// sync the gateways to consul and route statuses to k8s
@@ -198,7 +205,7 @@ func (g *State) DeleteGateway(ctx context.Context, namespacedName types.Namespac
 	// it from being tracked and sync back route statuses
 	for _, route := range g.routes {
 		// remove all status references
-		route.SetStatus(clearParentStatus(g.controllerName, route.GetName(), route.RouteStatus(), namespacedName))
+		route.ClearParentStatus(namespacedName)
 	}
 	delete(g.gateways, namespacedName)
 
