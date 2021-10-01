@@ -126,12 +126,13 @@ func (l *BoundListener) resolveCertificateReference(ctx context.Context, ref gw.
 
 	switch {
 	case kind == "Secret" && group == core.GroupName:
+		l.logger.Trace("fetching certificate secret", "secret.name", ref.Name, "secret.namespace", namespace)
 		cert, err := l.client.GetSecret(ctx, types.NamespacedName{Name: ref.Name, Namespace: namespace})
 		if err != nil {
 			return "", fmt.Errorf("error fetching secret: %w", err)
 		}
 		if cert == nil {
-			return "", ErrInvalidTLSCertReference
+			return "", fmt.Errorf("certificate not found: %w", ErrInvalidTLSCertReference)
 		}
 		return utils.NewK8sSecret(namespace, ref.Name).String(), nil
 	// add more supported types here

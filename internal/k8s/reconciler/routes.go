@@ -7,13 +7,17 @@ import (
 	"fmt"
 	"reflect"
 	"sync"
+	"time"
 
+	"github.com/cenkalti/backoff"
 	"github.com/hashicorp/consul-api-gateway/internal/consul"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
+	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-multierror"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
@@ -35,21 +39,7 @@ const (
 	NamespaceNameLabel     = "kubernetes.io/metadata.name"
 	MetaKeyKubeServiceName = "k8s-service-name"
 	MetaKeyKubeNS          = "k8s-namespace"
-
-	routeReference resolvedReferenceType = iota
-	consulServiceReference
 )
-
-type consulService struct {
-	namespace string
-	name      string
-}
-
-type resolvedReference struct {
-	referenceType resolvedReferenceType
-	ref           BackendRef
-	consulService *consulService
-}
 
 // all kubernetes routes implement the following two interfaces
 type Route interface {
@@ -61,15 +51,14 @@ type RouteRule struct {
 	httpRule *gw.HTTPRouteRule
 }
 
-type BackendRef struct {
-	httpRef *gw.HTTPBackendRef
-}
-
 type K8sRoute struct {
 	Route
 
-	logger          hclog.Logger
-	controllerName  string
+	controllerName string
+	logger         hclog.Logger
+	client         gatewayclient.Client
+	consul         *api.Client
+
 	needsStatusSync bool
 	isResolved      bool
 	references      map[RouteRule][]resolvedReference
@@ -78,11 +67,20 @@ type K8sRoute struct {
 	mutex sync.RWMutex
 }
 
-func NewK8sRoute(controllerName string, logger hclog.Logger, route Route) *K8sRoute {
+type K8sRouteConfig struct {
+	ControllerName string
+	Logger         hclog.Logger
+	Client         gatewayclient.Client
+	Consul         *api.Client
+}
+
+func NewK8sRoute(route Route, config K8sRouteConfig) *K8sRoute {
 	return &K8sRoute{
 		Route:           route,
-		logger:          logger.Named("route").With("name", route.GetName()),
-		controllerName:  controllerName,
+		controllerName:  config.ControllerName,
+		logger:          config.Logger.Named("route").With("name", route.GetName()),
+		client:          config.Client,
+		consul:          config.Consul,
 		needsStatusSync: true,
 	}
 }
@@ -204,7 +202,7 @@ func (r *K8sRoute) setResolvedRefsStatus(statuses ...gw.RouteParentStatus) {
 	}
 }
 
-func (r *K8sRoute) ResolveReferences(ctx context.Context, client gatewayclient.Client, consul *api.Client) error {
+func (r *K8sRoute) ResolveReferences(ctx context.Context) error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
@@ -222,15 +220,13 @@ func (r *K8sRoute) ResolveReferences(ctx context.Context, client gatewayclient.C
 		for _, rule := range route.Spec.Rules {
 			routeRule := RouteRule{httpRule: &rule}
 			for _, ref := range rule.BackendRefs {
-				resolvedRef, err := resolveBackendReference(ctx, client, ref.BackendObjectReference, r, consul)
+				resolvedRef, err := r.resolveBackendReference(ctx, ref.BackendObjectReference)
 				if err != nil {
 					result = multierror.Append(result, err)
 					continue
 				}
 				if resolvedRef != nil {
-					resolvedRef.ref = BackendRef{
-						httpRef: &ref,
-					}
+					resolvedRef.ref.Set(&ref)
 					resolved[routeRule] = append(resolved[routeRule], *resolvedRef)
 				}
 			}
@@ -272,6 +268,120 @@ func (r *K8sRoute) ResolveReferences(ctx context.Context, client gatewayclient.C
 	}
 	r.references = resolved
 	return result
+}
+
+func (r *K8sRoute) resolveBackendReference(ctx context.Context, ref gw.BackendObjectReference) (*resolvedReference, error) {
+	group := corev1.GroupName
+	kind := "Service"
+	namespace := r.GetNamespace()
+	if ref.Group != nil {
+		group = string(*ref.Group)
+	}
+	if ref.Kind != nil {
+		kind = string(*ref.Kind)
+	}
+	if ref.Namespace != nil {
+		namespace = string(*ref.Namespace)
+	}
+	namespacedName := types.NamespacedName{Name: ref.Name, Namespace: namespace}
+
+	switch {
+	case group == corev1.GroupName && kind == "Service":
+		if ref.Port == nil {
+			return nil, ErrEmptyPort
+		}
+		return r.consulServiceForK8SService(ctx, namespacedName)
+	case group == apigwv1alpha1.Group && kind == apigwv1alpha1.MeshServiceKind:
+		return r.consulServiceForMeshService(ctx, namespacedName)
+	default:
+		return nil, ErrUnsupportedReference
+	}
+}
+
+func (r *K8sRoute) consulServiceForK8SService(ctx context.Context, namespacedName types.NamespacedName) (*resolvedReference, error) {
+	var err error
+	var resolved *resolvedReference
+
+	service, err := r.client.GetService(ctx, namespacedName)
+	if err != nil {
+		return nil, fmt.Errorf("error resolving reference: %w", err)
+	}
+	if service == nil {
+		return nil, ErrNotResolved
+	}
+
+	// we do an inner retry since consul may take some time to sync
+	err = backoff.Retry(func() error {
+		services, err := r.consul.Agent().ServicesWithFilter(fmt.Sprintf(`Meta[%q] == %q and Meta[%q] == %q and Kind != "connect-proxy"`, MetaKeyKubeServiceName, service.Name, MetaKeyKubeNS, service.Namespace))
+		if err != nil {
+			return err
+		}
+		resolved, err = validateConsulReference(services, service)
+		return err
+	}, backoff.WithContext(backoff.WithMaxRetries(backoff.NewConstantBackOff(1*time.Second), 30), ctx))
+	if err != nil {
+		return nil, err
+	}
+	return resolved, nil
+}
+
+func (r *K8sRoute) consulServiceForMeshService(ctx context.Context, namespacedName types.NamespacedName) (*resolvedReference, error) {
+	var err error
+	var resolved *resolvedReference
+
+	service, err := r.client.GetMeshService(ctx, namespacedName)
+	if err != nil {
+		return nil, fmt.Errorf("error resolving reference: %w", err)
+	}
+	if service == nil {
+		return nil, ErrNotResolved
+	}
+
+	filter := fmt.Sprintf("Service == %q", service.Spec.Name)
+	options := &api.QueryOptions{}
+	if service.Spec.Namespace != "" {
+		options.Namespace = service.Spec.Namespace
+	}
+
+	// we do an inner retry since consul may take some time to sync
+	err = backoff.Retry(func() error {
+		services, err := r.consul.Agent().ServicesWithFilterOpts(filter, options)
+		if err != nil {
+			return err
+		}
+		resolved, err = validateConsulReference(services, service)
+		return err
+	}, backoff.WithContext(backoff.WithMaxRetries(backoff.NewConstantBackOff(1*time.Second), 30), ctx))
+	if err != nil {
+		return nil, err
+	}
+	return resolved, nil
+}
+
+func validateConsulReference(services map[string]*api.AgentService, object client.Object) (*resolvedReference, error) {
+	if len(services) == 0 {
+		return nil, ErrConsulNotResolved
+	}
+	serviceName := ""
+	serviceNamespace := ""
+	for _, service := range services {
+		if serviceName == "" {
+			serviceName = service.Service
+		}
+		if serviceNamespace == "" {
+			serviceNamespace = service.Namespace
+		}
+		if service.Service != serviceName || service.Namespace != serviceNamespace {
+			return nil, fmt.Errorf(
+				"must have a single service map to a kubernetes service, found: (%q, %q) and (%q, %q): %w",
+				serviceNamespace, serviceName, service.Namespace, service.Service, ErrConsulNotResolved,
+			)
+		}
+	}
+	return newConsulServiceReference(object).SetConsul(&consulService{
+		name:      serviceName,
+		namespace: serviceNamespace,
+	}), nil
 }
 
 func (r *K8sRoute) UpdateStatus(ctx context.Context, client gatewayclient.Client) error {

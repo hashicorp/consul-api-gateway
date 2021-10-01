@@ -130,7 +130,7 @@ func (g *State) AddRoute(ctx context.Context, route *K8sRoute) error {
 		g.routes[namespacedName] = route
 
 		// resolve any service references for the route
-		if err := route.ResolveReferences(ctx, g.client, g.consul); err != nil {
+		if err := route.ResolveReferences(ctx); err != nil {
 			// the route is considered invalid, so don't try to bind it at all
 			return err
 		}

@@ -30,6 +30,9 @@ type ReconcileManager interface {
 type GatewayReconcileManager struct {
 	controllerName string
 	logger         hclog.Logger
+	client         gatewayclient.Client
+	consul         *api.Client
+
 	state          *State
 	gatewayClasses *K8sGatewayClasses
 }
@@ -49,6 +52,8 @@ func NewReconcileManager(config ManagerConfig) *GatewayReconcileManager {
 	return &GatewayReconcileManager{
 		controllerName: config.ControllerName,
 		logger:         config.Logger,
+		client:         config.Client,
+		consul:         config.Consul,
 		gatewayClasses: NewK8sGatewayClasses(config.Logger.Named("gatewayclasses"), config.Client),
 		state: NewState(StateConfig{
 			ControllerName: config.ControllerName,
@@ -69,7 +74,12 @@ func (m *GatewayReconcileManager) UpsertGateway(ctx context.Context, g *gw.Gatew
 }
 
 func (m *GatewayReconcileManager) UpsertRoute(ctx context.Context, r Route) error {
-	return m.state.AddRoute(ctx, NewK8sRoute(m.controllerName, m.logger, r))
+	return m.state.AddRoute(ctx, NewK8sRoute(r, K8sRouteConfig{
+		ControllerName: m.controllerName,
+		Logger:         m.logger,
+		Client:         m.client,
+		Consul:         m.consul,
+	}))
 }
 
 func (m *GatewayReconcileManager) DeleteGatewayClass(ctx context.Context, name string) error {
