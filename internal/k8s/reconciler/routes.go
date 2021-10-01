@@ -251,6 +251,7 @@ func (r *K8sRoute) ResolveReferences(ctx context.Context, client gatewayclient.C
 		Status:             resolvedStatus,
 		Reason:             reason,
 		Message:            message,
+		ObservedGeneration: r.GetGeneration(),
 		LastTransitionTime: metav1.Now(),
 	}}
 
