@@ -3,10 +3,10 @@ package reconciler
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"sync"
 
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
-	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	"github.com/hashicorp/go-hclog"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
@@ -40,20 +40,21 @@ func (g *K8sGatewayClasses) Upsert(ctx context.Context, gc *gw.GatewayClass, val
 	g.mutex.Lock()
 	defer g.mutex.Unlock()
 
-	var currentGen int64
 	if current, ok := g.gatewayClasses[gc.Name]; ok {
-		currentGen = current.GetGeneration()
+		if current.Generation > gc.Generation {
+			// we have an old gatewayclass update ignore
+			return nil
+		}
 	}
-	if gc.Generation > currentGen {
-		g.gatewayClasses[gc.Name] = gc
 
-		conditions := gatewayClassConditions(gc, validParameters)
-		if utils.IsFieldUpdated(gc.Status.Conditions, conditions) {
-			gc.Status.Conditions = conditions
-			if err := g.client.UpdateStatus(ctx, gc); err != nil {
-				g.logger.Error("error updating gatewayclass status", "error", err)
-				return err
-			}
+	g.gatewayClasses[gc.Name] = gc
+
+	conditions := gatewayClassConditions(gc, validParameters)
+	if !reflect.DeepEqual(gc.Status.Conditions, conditions) {
+		gc.Status.Conditions = conditions
+		if err := g.client.UpdateStatus(ctx, gc); err != nil {
+			g.logger.Error("error updating gatewayclass status", "error", err)
+			return err
 		}
 	}
 
