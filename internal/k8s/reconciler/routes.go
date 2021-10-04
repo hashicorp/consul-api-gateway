@@ -6,13 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"sync"
 	"time"
 
 	"github.com/cenkalti/backoff"
 	"github.com/hashicorp/consul-api-gateway/internal/consul"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
+	"github.com/hashicorp/consul-api-gateway/internal/state"
 	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
@@ -54,18 +54,16 @@ type RouteRule struct {
 type K8sRoute struct {
 	Route
 
-	controllerName string
-	logger         hclog.Logger
-	client         gatewayclient.Client
-	consul         *api.Client
-
+	controllerName  string
+	logger          hclog.Logger
+	client          gatewayclient.Client
+	consul          *api.Client
+	references      routeRuleReferenceMap
 	needsStatusSync bool
 	isResolved      bool
-	references      map[RouteRule][]resolvedReference
-
-	// this mutex protects any of the above private fields
-	mutex sync.RWMutex
 }
+
+var _ state.Route = &K8sRoute{}
 
 type K8sRouteConfig struct {
 	ControllerName string
@@ -85,10 +83,27 @@ func NewK8sRoute(route Route, config K8sRouteConfig) *K8sRoute {
 	}
 }
 
-func (r *K8sRoute) MatchesHostname(hostname *gw.Hostname) bool {
-	r.mutex.RLock()
-	defer r.mutex.RUnlock()
+func (r *K8sRoute) ID() string {
+	namespacedName := utils.NamespacedName(r.Route).String()
 
+	switch r.Route.(type) {
+	case *gw.HTTPRoute:
+		return "http-" + namespacedName
+	case *gw.TCPRoute:
+		return "tcp-" + namespacedName
+	case *gw.UDPRoute:
+		return "udp-" + namespacedName
+	case *gw.TLSRoute:
+		return "tls-" + namespacedName
+	}
+	return ""
+}
+
+func (r *K8sRoute) Logger() hclog.Logger {
+	return r.logger
+}
+
+func (r *K8sRoute) MatchesHostname(hostname *gw.Hostname) bool {
 	switch route := r.Route.(type) {
 	case *gw.HTTPRoute:
 		return routeMatchesListenerHostname(hostname, route.Spec.Hostnames)
@@ -98,9 +113,6 @@ func (r *K8sRoute) MatchesHostname(hostname *gw.Hostname) bool {
 }
 
 func (r *K8sRoute) CommonRouteSpec() gw.CommonRouteSpec {
-	r.mutex.RLock()
-	defer r.mutex.RUnlock()
-
 	switch route := r.Route.(type) {
 	case *gw.HTTPRoute:
 		return route.Spec.CommonRouteSpec
@@ -112,13 +124,6 @@ func (r *K8sRoute) CommonRouteSpec() gw.CommonRouteSpec {
 		return route.Spec.CommonRouteSpec
 	}
 	return gw.CommonRouteSpec{}
-}
-
-func (r *K8sRoute) RouteStatus() gw.RouteStatus {
-	r.mutex.RLock()
-	defer r.mutex.RUnlock()
-
-	return r.routeStatus()
 }
 
 func (r *K8sRoute) routeStatus() gw.RouteStatus {
@@ -135,30 +140,7 @@ func (r *K8sRoute) routeStatus() gw.RouteStatus {
 	return gw.RouteStatus{}
 }
 
-func (r *K8sRoute) SetAdmittedStatus(statuses ...gw.RouteParentStatus) {
-	r.mutex.Lock()
-	defer r.mutex.Unlock()
-
-	updated := setAdmittedStatus(r.routeStatus(), statuses...)
-
-	switch route := r.Route.(type) {
-	case *gw.HTTPRoute:
-		route.Status.RouteStatus = r.setStatus(route.Status.RouteStatus, updated)
-	case *gw.TCPRoute:
-		route.Status.RouteStatus = r.setStatus(route.Status.RouteStatus, updated)
-	case *gw.UDPRoute:
-		route.Status.RouteStatus = r.setStatus(route.Status.RouteStatus, updated)
-	case *gw.TLSRoute:
-		route.Status.RouteStatus = r.setStatus(route.Status.RouteStatus, updated)
-	}
-}
-
-func (r *K8sRoute) ClearParentStatus(namespacedName types.NamespacedName) {
-	r.mutex.Lock()
-	defer r.mutex.Unlock()
-
-	updated := clearParentStatus(r.controllerName, r.GetName(), r.routeStatus(), namespacedName)
-
+func (r *K8sRoute) SetStatus(updated gw.RouteStatus) {
 	switch route := r.Route.(type) {
 	case *gw.HTTPRoute:
 		route.Status.RouteStatus = r.setStatus(route.Status.RouteStatus, updated)
@@ -174,50 +156,185 @@ func (r *K8sRoute) ClearParentStatus(namespacedName types.NamespacedName) {
 // setStatus requires that the statuses always be sorted for equality comparison
 func (r *K8sRoute) setStatus(current, updated gw.RouteStatus) gw.RouteStatus {
 	if len(current.Parents) != len(updated.Parents) {
-		r.logger.Trace("marking route status as dirty")
 		r.needsStatusSync = true
 		return updated
 	}
 
 	if !reflect.DeepEqual(current, updated) {
-		r.logger.Trace("marking route status as dirty")
 		r.needsStatusSync = true
 		return updated
 	}
 	return current
 }
 
-func (r *K8sRoute) setResolvedRefsStatus(statuses ...gw.RouteParentStatus) {
-	updated := setResolvedRefsStatus(r.routeStatus(), statuses...)
-
-	switch route := r.Route.(type) {
-	case *gw.HTTPRoute:
-		route.Status.RouteStatus = r.setStatus(route.Status.RouteStatus, updated)
-	case *gw.TCPRoute:
-		route.Status.RouteStatus = r.setStatus(route.Status.RouteStatus, updated)
-	case *gw.UDPRoute:
-		route.Status.RouteStatus = r.setStatus(route.Status.RouteStatus, updated)
-	case *gw.TLSRoute:
-		route.Status.RouteStatus = r.setStatus(route.Status.RouteStatus, updated)
+func (r *K8sRoute) OnBindFailed(err error, gateway state.Gateway) {
+	k8sGateway, ok := gateway.(*K8sGateway)
+	if ok {
+		r.SetStatus(setAdmittedStatus(r.routeStatus(), gw.RouteParentStatus{
+			ParentRef:  r.getRef(k8sGateway.gateway),
+			Controller: gw.GatewayController(r.controllerName),
+			Conditions: []metav1.Condition{{
+				Status:             metav1.ConditionFalse,
+				Reason:             ConditionReasonUnableToBind,
+				Message:            err.Error(),
+				Type:               string(gw.ConditionRouteAdmitted),
+				ObservedGeneration: r.GetGeneration(),
+				LastTransitionTime: metav1.Now(),
+			}},
+		}))
 	}
 }
 
-func (r *K8sRoute) ResolveReferences(ctx context.Context) error {
-	r.mutex.Lock()
-	defer r.mutex.Unlock()
+func (r *K8sRoute) OnBound(gateway state.Gateway) {
+	k8sGateway, ok := gateway.(*K8sGateway)
+	if ok {
+		r.SetStatus(setAdmittedStatus(r.routeStatus(), gw.RouteParentStatus{
+			ParentRef:  r.getRef(k8sGateway.gateway),
+			Controller: gw.GatewayController(r.controllerName),
+			Conditions: []metav1.Condition{{
+				Status:             metav1.ConditionTrue,
+				Reason:             ConditionReasonRouteAdmitted,
+				Message:            "Route allowed",
+				Type:               string(gw.ConditionRouteAdmitted),
+				ObservedGeneration: r.GetGeneration(),
+				LastTransitionTime: metav1.Now(),
+			}},
+		}))
+	}
+}
+
+func (r *K8sRoute) OnGatewayRemoved(gateway state.Gateway) {
+	k8sGateway, ok := gateway.(*K8sGateway)
+	if ok {
+		r.SetStatus(clearParentStatus(
+			r.controllerName,
+			r.GetName(),
+			r.routeStatus(),
+			utils.NamespacedName(k8sGateway.gateway)))
+	}
+}
+
+func (r *K8sRoute) getRef(gateway *gw.Gateway) gw.ParentRef {
+	namespacedName := utils.NamespacedName(gateway)
+	for _, ref := range r.CommonRouteSpec().ParentRefs {
+		namedGateway, isGatewayRef := referencesGateway(r.GetNamespace(), ref)
+		if isGatewayRef && namedGateway == namespacedName {
+			return ref
+		}
+	}
+	return gw.ParentRef{}
+}
+
+func (r *K8sRoute) SyncStatus(ctx context.Context) error {
+	if r.needsStatusSync {
+		if r.logger.IsTrace() {
+			status, err := json.MarshalIndent(r.routeStatus(), "", "  ")
+			if err == nil {
+				r.logger.Trace("syncing route status", "status", string(status))
+			}
+		}
+		if err := r.client.UpdateStatus(ctx, r.Route); err != nil {
+			return fmt.Errorf("error updating route status: %w", err)
+		}
+
+		r.needsStatusSync = false
+	}
+
+	return nil
+}
+
+func (r *K8sRoute) IsMoreRecent(other state.Route) bool {
+	k8sRoute, ok := other.(*K8sRoute)
+	if !ok {
+		return true
+	}
+
+	return r.GetGeneration() > k8sRoute.GetGeneration()
+}
+
+func (r *K8sRoute) Equals(other state.Route) bool {
+	k8sRoute, ok := other.(*K8sRoute)
+	if !ok {
+		return false
+	}
+
+	switch route := r.Route.(type) {
+	case *gw.HTTPRoute:
+		if otherRoute, ok := k8sRoute.Route.(*gw.HTTPRoute); ok {
+			return reflect.DeepEqual(route.Spec, otherRoute.Spec)
+		}
+		return false
+	case *gw.TCPRoute:
+		if otherRoute, ok := k8sRoute.Route.(*gw.TCPRoute); ok {
+			return reflect.DeepEqual(route.Spec, otherRoute.Spec)
+		}
+		return false
+	case *gw.UDPRoute:
+		if otherRoute, ok := k8sRoute.Route.(*gw.UDPRoute); ok {
+			return reflect.DeepEqual(route.Spec, otherRoute.Spec)
+		}
+		return false
+	case *gw.TLSRoute:
+		if otherRoute, ok := k8sRoute.Route.(*gw.TLSRoute); ok {
+			return reflect.DeepEqual(route.Spec, otherRoute.Spec)
+		}
+		return false
+	}
+	return false
+}
+
+func (r *K8sRoute) DiscoveryChain(listener state.Listener) (*api.IngressService, *api.ServiceRouterConfigEntry, *consul.ConfigEntryIndex, *consul.ConfigEntryIndex) {
+	k8sListener, ok := listener.(*K8sListener)
+	if !ok {
+		return nil, nil, nil, nil
+	}
+
+	prefix := fmt.Sprintf("consul-api-gateway_%s_", k8sListener.gateway.Name)
+	hostname := k8sListener.Config().Hostname
+	meta := map[string]string{
+		"managed_by":                                 "consul-api-gateway",
+		"consul-api-gateway/k8s/Gateway.Name":        k8sListener.gateway.Name,
+		"consul-api-gateway/k8s/Gateway.Namespace":   k8sListener.gateway.Namespace,
+		"consul-api-gateway/k8s/HTTPRoute.Name":      r.GetName(),
+		"consul-api-gateway/k8s/HTTPRoute.Namespace": r.GetNamespace(),
+	}
+
+	splitters := consul.NewConfigEntryIndex(api.ServiceSplitter)
+	defaults := consul.NewConfigEntryIndex(api.ServiceDefaults)
+	switch route := r.Route.(type) {
+	case *gw.HTTPRoute:
+		router, splits := httpRouteToServiceDiscoChain(r, prefix, meta)
+		serviceDefault := httpServiceDefault(router, meta)
+		defaults.Add(serviceDefault)
+		for _, split := range splits {
+			splitters.Add(split)
+			if split.Name != serviceDefault.Name {
+				defaults.Add(httpServiceDefault(split, meta))
+			}
+		}
+
+		return &api.IngressService{
+			Name:      router.Name,
+			Hosts:     utils.HostnamesForHTTPRoute(hostname, route),
+			Namespace: "", // TODO
+		}, router, splitters, defaults
+	}
+	return nil, nil, nil, nil
+}
+
+func (r *K8sRoute) ResolveServices(ctx context.Context) error {
+	var result error
 
 	if r.isResolved {
 		return nil
 	}
 
-	var result error
-
-	resolved := make(map[RouteRule][]resolvedReference)
+	resolved := routeRuleReferenceMap{}
 	var parents []gw.ParentRef
 	switch route := r.Route.(type) {
 	case *gw.HTTPRoute:
-		parents = route.Spec.ParentRefs
 		for _, rule := range route.Spec.Rules {
+			parents = route.Spec.ParentRefs
 			routeRule := RouteRule{httpRule: &rule}
 			for _, ref := range rule.BackendRefs {
 				resolvedRef, err := r.resolveBackendReference(ctx, ref.BackendObjectReference)
@@ -261,12 +378,12 @@ func (r *K8sRoute) ResolveReferences(ctx context.Context) error {
 		})
 	}
 
-	r.setResolvedRefsStatus(statuses...)
+	r.SetStatus(setResolvedRefsStatus(r.routeStatus(), statuses...))
 
 	if result == nil {
+		r.references = resolved
 		r.isResolved = true
 	}
-	r.references = resolved
 	return result
 }
 
@@ -382,81 +499,4 @@ func validateConsulReference(services map[string]*api.AgentService, object clien
 		name:      serviceName,
 		namespace: serviceNamespace,
 	}), nil
-}
-
-func (r *K8sRoute) UpdateStatus(ctx context.Context, client gatewayclient.Client) error {
-	r.mutex.Lock()
-	defer r.mutex.Unlock()
-
-	if r.needsStatusSync {
-		if r.logger.IsTrace() {
-			status, err := json.MarshalIndent(r.routeStatus(), "", "  ")
-			if err == nil {
-				r.logger.Trace("syncing route status", "status", string(status))
-			}
-		}
-		if err := client.UpdateStatus(ctx, r.Route); err != nil {
-			return fmt.Errorf("error updating route status: %w", err)
-		}
-		r.needsStatusSync = false
-	}
-
-	return nil
-}
-
-func (r *K8sRoute) DiscoveryChain(prefix, hostname string, meta map[string]string) (*api.IngressService, *api.ServiceRouterConfigEntry, *consul.ConfigEntryIndex, *consul.ConfigEntryIndex) {
-	r.mutex.RLock()
-	defer r.mutex.RUnlock()
-
-	splitters := consul.NewConfigEntryIndex(api.ServiceSplitter)
-	defaults := consul.NewConfigEntryIndex(api.ServiceDefaults)
-	switch route := r.Route.(type) {
-	case *gw.HTTPRoute:
-		router, splits := httpRouteToServiceDiscoChain(r, prefix, meta)
-		serviceDefault := httpServiceDefault(router, meta)
-		defaults.Add(serviceDefault)
-		for _, split := range splits {
-			splitters.Add(split)
-			if split.Name != serviceDefault.Name {
-				defaults.Add(httpServiceDefault(split, meta))
-			}
-		}
-
-		return &api.IngressService{
-			Name:      router.Name,
-			Hosts:     utils.HostnamesForHTTPRoute(hostname, route),
-			Namespace: "", // TODO
-		}, router, splitters, defaults
-	}
-	return nil, nil, nil, nil
-}
-
-func (r *K8sRoute) Equals(other *K8sRoute) bool {
-	if r == nil || other == nil {
-		return false
-	}
-
-	switch route := r.Route.(type) {
-	case *gw.HTTPRoute:
-		if otherRoute, ok := other.Route.(*gw.HTTPRoute); ok {
-			return reflect.DeepEqual(route.Spec, otherRoute.Spec)
-		}
-		return false
-	case *gw.TCPRoute:
-		if otherRoute, ok := other.Route.(*gw.TCPRoute); ok {
-			return reflect.DeepEqual(route.Spec, otherRoute.Spec)
-		}
-		return false
-	case *gw.UDPRoute:
-		if otherRoute, ok := other.Route.(*gw.UDPRoute); ok {
-			return reflect.DeepEqual(route.Spec, otherRoute.Spec)
-		}
-		return false
-	case *gw.TLSRoute:
-		if otherRoute, ok := other.Route.(*gw.TLSRoute); ok {
-			return reflect.DeepEqual(route.Spec, otherRoute.Spec)
-		}
-		return false
-	}
-	return false
 }

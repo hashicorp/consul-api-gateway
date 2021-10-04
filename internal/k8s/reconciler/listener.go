@@ -2,12 +2,12 @@ package reconciler
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"sync"
 
-	"github.com/hashicorp/consul-api-gateway/internal/consul"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
+	"github.com/hashicorp/consul-api-gateway/internal/state"
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
 	core "k8s.io/api/core/v1"
@@ -15,101 +15,81 @@ import (
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
 )
 
-// boundGatewayListener wraps a lstener and its set of routes
-type BoundListener struct {
-	logger hclog.Logger
-	client gatewayclient.Client
+var (
+	ErrInvalidGatewayListener    = errors.New("invalid gateway listener")
+	ErrTLSPassthroughUnsupported = errors.New("tls passthrough unsupported")
+	ErrInvalidTLSConfiguration   = errors.New("invalid tls configuration")
+	ErrInvalidTLSCertReference   = errors.New("invalid tls certificate reference")
+	ErrCannotBindListener        = errors.New("cannot bind listener")
+)
 
+const (
+	defaultListenerName = "default"
+
+	ConditionReasonUnableToBind  = "UnableToBindGateway"
+	ConditionReasonRouteAdmitted = "RouteAdmitted"
+)
+
+type K8sListener struct {
+	logger   hclog.Logger
 	gateway  *gw.Gateway
 	listener gw.Listener
-
-	name     string
-	hostname string
-	port     int
-	protocol string
-
-	tlsResolved bool
-	tls         *api.GatewayTLSConfig
-
-	routes map[types.NamespacedName]*K8sRoute
-
-	needsSync bool
-
-	mutex sync.RWMutex
+	client   gatewayclient.Client
 }
 
-type BoundListenerConfig struct {
+var _ state.Listener = &K8sListener{}
+
+type K8sListenerConfig struct {
 	Logger hclog.Logger
 	Client gatewayclient.Client
 }
 
-func NewBoundListener(gateway *gw.Gateway, listener gw.Listener, config BoundListenerConfig) *BoundListener {
-	name := defaultListenerName
-	if listener.Name != "" {
-		name = string(listener.Name)
-	}
-	hostname := ""
-	if listener.Hostname != nil {
-		hostname = string(*listener.Hostname)
-	}
-	protocol, tls := utils.ProtocolToConsul(listener.Protocol)
-	tlsResolved := false
-	if !tls {
-		// we don't need to resolve any cert references, just
-		// consider them resolved already
-		tlsResolved = true
-	}
-	listenerLogger := config.Logger.Named("listener").With("listener", name)
+func NewK8sListener(gateway *gw.Gateway, listener gw.Listener, config K8sListenerConfig) *K8sListener {
+	listenerLogger := config.Logger.Named("listener").With("listener", string(listener.Name))
 
-	return &BoundListener{
-		logger:      listenerLogger,
-		client:      config.Client,
-		gateway:     gateway,
-		listener:    listener,
-		name:        name,
-		port:        int(listener.Port),
-		protocol:    protocol,
-		hostname:    hostname,
-		tlsResolved: tlsResolved,
-		routes:      make(map[types.NamespacedName]*K8sRoute),
-		needsSync:   true,
+	return &K8sListener{
+		logger:   listenerLogger,
+		client:   config.Client,
+		gateway:  gateway,
+		listener: listener,
 	}
 }
 
-func (l *BoundListener) ResolveCertificates(ctx context.Context) error {
-	l.mutex.Lock()
-	defer l.mutex.Unlock()
-
-	if !l.tlsResolved {
-		if l.listener.TLS == nil {
-			return ErrInvalidTLSConfiguration
-		}
-
-		if l.listener.TLS.Mode != nil && *l.listener.TLS.Mode == gw.TLSModePassthrough {
-			return ErrTLSPassthroughUnsupported
-		}
-
-		if l.listener.TLS.CertificateRef == nil {
-			return ErrInvalidTLSCertReference
-		}
-
-		ref := *l.listener.TLS.CertificateRef
-		resource, err := l.resolveCertificateReference(ctx, ref)
-		if err != nil {
-			return err
-		}
-		l.tls = &api.GatewayTLSConfig{
-			SDS: &api.GatewayTLSSDSConfig{
-				ClusterName:  "sds-cluster",
-				CertResource: resource,
-			},
-		}
-		l.tlsResolved = true
-	}
-	return nil
+func (l *K8sListener) ID() string {
+	return string(l.listener.Name)
 }
 
-func (l *BoundListener) resolveCertificateReference(ctx context.Context, ref gw.SecretObjectReference) (string, error) {
+func (l *K8sListener) Logger() hclog.Logger {
+	return l.logger
+}
+
+func (l *K8sListener) ResolveTLS(ctx context.Context) (*api.GatewayTLSConfig, error) {
+	if l.listener.TLS == nil {
+		return nil, ErrInvalidTLSConfiguration
+	}
+
+	if l.listener.TLS.Mode != nil && *l.listener.TLS.Mode == gw.TLSModePassthrough {
+		return nil, ErrTLSPassthroughUnsupported
+	}
+
+	if l.listener.TLS.CertificateRef == nil {
+		return nil, ErrInvalidTLSCertReference
+	}
+
+	ref := *l.listener.TLS.CertificateRef
+	resource, err := l.resolveCertificateReference(ctx, ref)
+	if err != nil {
+		return nil, err
+	}
+	return &api.GatewayTLSConfig{
+		SDS: &api.GatewayTLSSDSConfig{
+			ClusterName:  "sds-cluster",
+			CertResource: resource,
+		},
+	}, nil
+}
+
+func (l *K8sListener) resolveCertificateReference(ctx context.Context, ref gw.SecretObjectReference) (string, error) {
 	group := core.GroupName
 	kind := "Secret"
 	namespace := l.gateway.Namespace
@@ -126,7 +106,6 @@ func (l *BoundListener) resolveCertificateReference(ctx context.Context, ref gw.
 
 	switch {
 	case kind == "Secret" && group == core.GroupName:
-		l.logger.Trace("fetching certificate secret", "secret.name", ref.Name, "secret.namespace", namespace)
 		cert, err := l.client.GetSecret(ctx, types.NamespacedName{Name: ref.Name, Namespace: namespace})
 		if err != nil {
 			return "", fmt.Errorf("error fetching secret: %w", err)
@@ -141,44 +120,49 @@ func (l *BoundListener) resolveCertificateReference(ctx context.Context, ref gw.
 	}
 }
 
-func (l *BoundListener) RemoveRoute(namespacedName types.NamespacedName) {
-	l.mutex.Lock()
-	defer l.mutex.Unlock()
+func (l *K8sListener) Config() state.ListenerConfig {
+	name := defaultListenerName
+	if l.listener.Name != "" {
+		name = string(l.listener.Name)
+	}
+	hostname := ""
+	if l.listener.Hostname != nil {
+		hostname = string(*l.listener.Hostname)
+	}
+	protocol, tls := utils.ProtocolToConsul(l.listener.Protocol)
+	return state.ListenerConfig{
+		Name:     name,
+		Hostname: hostname,
+		Port:     int(l.listener.Port),
+		Protocol: protocol,
+		TLS:      tls,
+	}
+}
 
-	if _, found := l.routes[namespacedName]; !found {
-		return
+// Bind returns whether a route can bind
+// to a gateway, if the route can bind to a listener
+// on the gateway the return value is nil, if not,
+// an error specifying why the route cannot bind
+// is returned.
+func (l *K8sListener) Bind(route state.Route) (bool, error) {
+	k8sRoute, ok := route.(*K8sRoute)
+	if !ok {
+		return false, nil
 	}
 
-	l.needsSync = true
-	delete(l.routes, namespacedName)
+	for _, ref := range k8sRoute.CommonRouteSpec().ParentRefs {
+		didBind, err := l.tryBind(ref, k8sRoute)
+		if err != nil {
+			return false, err
+		}
+		if didBind {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
-func (l *BoundListener) SetRoute(route *K8sRoute) {
-	l.mutex.Lock()
-	defer l.mutex.Unlock()
-
-	l.routes[utils.NamespacedName(route)] = route
-	l.needsSync = true
-}
-
-func (l *BoundListener) ShouldSync() bool {
-	l.mutex.Lock()
-	defer l.mutex.Unlock()
-
-	return l.needsSync
-}
-
-func (l *BoundListener) SetSynced() {
-	l.mutex.Lock()
-	defer l.mutex.Unlock()
-
-	l.needsSync = false
-}
-
-func (l *BoundListener) TryBind(ref gw.ParentRef, route *K8sRoute) (bool, error) {
-	l.mutex.Lock()
-	defer l.mutex.Unlock()
-
+func (l *K8sListener) tryBind(ref gw.ParentRef, route *K8sRoute) (bool, error) {
 	// must is only true if there's a ref with a specific listener name
 	// meaning if we must attach, but cannot, it's an error
 	allowed, must := routeMatchesListener(l.listener.Name, ref.SectionName)
@@ -207,54 +191,8 @@ func (l *BoundListener) TryBind(ref gw.ParentRef, route *K8sRoute) (bool, error)
 			return false, nil
 		}
 
-		l.routes[utils.NamespacedName(route)] = route
-		l.needsSync = true
 		return true, nil
 	}
 
 	return false, nil
-}
-
-func (l *BoundListener) DiscoveryChain() (api.IngressListener, *consul.ConfigEntryIndex, *consul.ConfigEntryIndex, *consul.ConfigEntryIndex) {
-	l.mutex.RLock()
-	defer l.mutex.RUnlock()
-
-	services := []api.IngressService{}
-	routers := consul.NewConfigEntryIndex(api.ServiceRouter)
-	splitters := consul.NewConfigEntryIndex(api.ServiceSplitter)
-	defaults := consul.NewConfigEntryIndex(api.ServiceDefaults)
-
-	l.logger.Trace("rendering listener discovery chain")
-	if len(l.routes) == 0 {
-		l.logger.Trace("listener has no routes")
-	}
-	for _, route := range l.routes {
-		meta := routeConsulMeta(l.gateway, route)
-		prefix := fmt.Sprintf("consul-api-gateway_%s_", l.gateway.Name)
-		service, router, splits, serviceDefaults := route.DiscoveryChain(prefix, l.hostname, meta)
-		if service != nil {
-			services = append(services, *service)
-			routers.Add(router)
-			splitters.Merge(splits)
-			defaults.Merge(serviceDefaults)
-		} else {
-			l.logger.Trace("route has no resolved service", "route", route.GetName())
-		}
-	}
-	return api.IngressListener{
-		Port:     l.port,
-		Protocol: l.protocol,
-		Services: services,
-		TLS:      l.tls,
-	}, routers, splitters, defaults
-}
-
-func routeConsulMeta(gateway *gw.Gateway, route *K8sRoute) map[string]string {
-	return map[string]string{
-		"managed_by":                                 "consul-api-gateway",
-		"consul-api-gateway/k8s/Gateway.Name":        gateway.Name,
-		"consul-api-gateway/k8s/Gateway.Namespace":   gateway.Namespace,
-		"consul-api-gateway/k8s/HTTPRoute.Name":      route.GetName(),
-		"consul-api-gateway/k8s/HTTPRoute.Namespace": route.GetNamespace(),
-	}
 }

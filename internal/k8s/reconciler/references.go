@@ -22,6 +22,8 @@ type resolvedReference struct {
 	consulService *consulService
 }
 
+type routeRuleReferenceMap map[RouteRule][]resolvedReference
+
 func newConsulServiceReference(object client.Object) *resolvedReference {
 	return &resolvedReference{
 		referenceType: consulServiceReference,

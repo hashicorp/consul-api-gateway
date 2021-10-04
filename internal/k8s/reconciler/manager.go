@@ -12,6 +12,7 @@ import (
 
 	"github.com/hashicorp/consul-api-gateway/internal/common"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
+	"github.com/hashicorp/consul-api-gateway/internal/state"
 )
 
 //go:generate mockgen -source ./manager.go -destination ./mocks/manager.go -package mocks ReconcileManager
@@ -33,7 +34,7 @@ type GatewayReconcileManager struct {
 	client         gatewayclient.Client
 	consul         *api.Client
 
-	state          *State
+	state          *state.State
 	gatewayClasses *K8sGatewayClasses
 }
 
@@ -55,12 +56,10 @@ func NewReconcileManager(config ManagerConfig) *GatewayReconcileManager {
 		client:         config.Client,
 		consul:         config.Consul,
 		gatewayClasses: NewK8sGatewayClasses(config.Logger.Named("gatewayclasses"), config.Client),
-		state: NewState(StateConfig{
-			ControllerName: config.ControllerName,
-			Registry:       config.Registry,
-			Consul:         config.Consul,
-			Client:         config.Client,
-			Logger:         config.Logger.Named("state"),
+		state: state.NewState(state.StateConfig{
+			Registry: config.Registry,
+			Consul:   config.Consul,
+			Logger:   config.Logger.Named("state"),
 		}),
 	}
 }
@@ -70,7 +69,11 @@ func (m *GatewayReconcileManager) UpsertGatewayClass(ctx context.Context, gc *gw
 }
 
 func (m *GatewayReconcileManager) UpsertGateway(ctx context.Context, g *gw.Gateway) error {
-	return m.state.AddGateway(ctx, g)
+	return m.state.AddGateway(ctx, NewK8sGateway(g, K8sGatewayConfig{
+		ControllerName: m.controllerName,
+		Logger:         m.logger,
+		Client:         m.client,
+	}))
 }
 
 func (m *GatewayReconcileManager) UpsertRoute(ctx context.Context, r Route) error {
@@ -88,9 +91,9 @@ func (m *GatewayReconcileManager) DeleteGatewayClass(ctx context.Context, name s
 }
 
 func (m *GatewayReconcileManager) DeleteGateway(ctx context.Context, name types.NamespacedName) error {
-	return m.state.DeleteGateway(ctx, name)
+	return m.state.DeleteGateway(ctx, name.String())
 }
 
 func (m *GatewayReconcileManager) DeleteRoute(ctx context.Context, name types.NamespacedName) error {
-	return m.state.DeleteRoute(ctx, name)
+	return m.state.DeleteRoute(ctx, name.String())
 }
