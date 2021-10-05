@@ -1,7 +1,8 @@
-package reconciler
+package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -15,72 +16,77 @@ import (
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
 )
 
-const (
-	routeReference resolvedReferenceType = iota
-	consulServiceReference
+type ResolvedReferenceType int
+
+var (
+	ErrEmptyPort            = errors.New("port cannot be empty with kubernetes service")
+	ErrNotResolved          = errors.New("backend reference not found")
+	ErrConsulNotResolved    = errors.New("consul service not found")
+	ErrUnsupportedReference = errors.New("unsupported reference type")
 )
 
-type routeRule struct {
-	httpRule *gw.HTTPRouteRule
+const (
+	HTTPRouteReference ResolvedReferenceType = iota
+	ConsulServiceReference
+
+	MetaKeyKubeServiceName = "k8s-service-name"
+	MetaKeyKubeNS          = "k8s-namespace"
+)
+
+type ConsulService struct {
+	Namespace string
+	Name      string
 }
 
-type consulService struct {
-	namespace string
-	name      string
+type BackendReference struct {
+	HTTPRef    *gw.HTTPBackendRef
+	BackendRef *gw.BackendRef
 }
 
-type resolvedReference struct {
-	referenceType resolvedReferenceType
-	ref           *backendRef
-	object        client.Object
-	consulService *consulService
-}
-
-type routeRuleReferenceMap map[routeRule][]resolvedReference
-
-func newConsulServiceReference(object client.Object) *resolvedReference {
-	return &resolvedReference{
-		referenceType: consulServiceReference,
-		object:        object,
-		ref:           &backendRef{},
+func (b *BackendReference) Set(reference interface{}) {
+	switch ref := reference.(type) {
+	case *gw.HTTPBackendRef:
+		b.HTTPRef = ref
+	case *gw.BackendRef:
+		b.BackendRef = ref
 	}
 }
 
-func (r *resolvedReference) SetConsul(service *consulService) *resolvedReference {
-	r.consulService = service
-	return r
+type ResolvedReference struct {
+	Type      ResolvedReferenceType
+	Reference *BackendReference
+	Consul    *ConsulService
+	object    client.Object
 }
 
-func (r *resolvedReference) Item() client.Object {
+func NewConsulServiceReference(object client.Object, consul *ConsulService) *ResolvedReference {
+	return &ResolvedReference{
+		Type:      ConsulServiceReference,
+		Reference: &BackendReference{},
+		Consul:    consul,
+		object:    object,
+	}
+}
+
+func (r *ResolvedReference) Item() client.Object {
 	return r.object
 }
 
-type backendRef struct {
-	httpRef *gw.HTTPBackendRef
-}
-
-func (b *backendRef) Set(ref interface{}) {
-	switch backendRef := ref.(type) {
-	case *gw.HTTPBackendRef:
-		b.httpRef = backendRef
-	}
-}
-
-type backendResolver struct {
+type BackendResolver struct {
 	namespace string
 	client    gatewayclient.Client
 	consul    *api.Client
 }
 
-func newBackendResolver(namespace string, client gatewayclient.Client, consul *api.Client) *backendResolver {
-	return &backendResolver{
+func NewBackendResolver(namespace string, client gatewayclient.Client, consul *api.Client) *BackendResolver {
+	return &BackendResolver{
 		namespace: namespace,
 		client:    client,
 		consul:    consul,
 	}
 }
 
-func (r *backendResolver) resolveBackendReference(ctx context.Context, ref gw.BackendObjectReference) (*resolvedReference, error) {
+func (r *BackendResolver) Resolve(ctx context.Context, ref gw.BackendObjectReference) (*ResolvedReference, error) {
 	group := corev1.GroupName
 	kind := "Service"
 	namespace := r.namespace
@@ -108,9 +114,9 @@ func (r *backendResolver) resolveBackendReference(ctx context.Context, ref gw.Ba
 	}
 }
 
-func (r *backendResolver) consulServiceForK8SService(ctx context.Context, namespacedName types.NamespacedName) (*resolvedReference, error) {
+func (r *BackendResolver) consulServiceForK8SService(ctx context.Context, namespacedName types.NamespacedName) (*ResolvedReference, error) {
 	var err error
-	var resolved *resolvedReference
+	var resolved *ResolvedReference
 
 	service, err := r.client.GetService(ctx, namespacedName)
 	if err != nil {
@@ -135,9 +141,9 @@ func (r *backendResolver) consulServiceForK8SService(ctx context.Context, namesp
 	return resolved, nil
 }
 
-func (r *backendResolver) consulServiceForMeshService(ctx context.Context, namespacedName types.NamespacedName) (*resolvedReference, error) {
+func (r *BackendResolver) consulServiceForMeshService(ctx context.Context, namespacedName types.NamespacedName) (*ResolvedReference, error) {
 	var err error
-	var resolved *resolvedReference
+	var resolved *ResolvedReference
 
 	service, err := r.client.GetMeshService(ctx, namespacedName)
 	if err != nil {
@@ -168,7 +174,7 @@ func (r *backendResolver) consulServiceForMeshService(ctx context.Context, names
 	return resolved, nil
 }
 
-func validateConsulReference(services map[string]*api.AgentService, object client.Object) (*resolvedReference, error) {
+func validateConsulReference(services map[string]*api.AgentService, object client.Object) (*ResolvedReference, error) {
 	if len(services) == 0 {
 		return nil, ErrConsulNotResolved
 	}
@@ -188,8 +194,8 @@ func validateConsulReference(services map[string]*api.AgentService, object clien
 			)
 		}
 	}
-	return newConsulServiceReference(object).SetConsul(&consulService{
-		name:      serviceName,
-		namespace: serviceNamespace,
+	return NewConsulServiceReference(object, &ConsulService{
+		Name:      serviceName,
+		Namespace: serviceNamespace,
 	}), nil
 }

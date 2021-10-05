@@ -1,6 +1,7 @@
 package reconciler
 
 import (
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/service"
 	"github.com/hashicorp/consul-api-gateway/internal/state"
 	"k8s.io/apimachinery/pkg/types"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
@@ -56,13 +57,13 @@ var headerMappings = map[gw.HeaderMatchType]state.HTTPHeaderMatchType{
 	gw.HeaderMatchRegularExpression: state.HTTPHeaderMatchRegularExpressionType,
 }
 
-func httpReferencesToRules(referenceMap routeRuleReferenceMap) []state.HTTPRouteRule {
+func httpReferencesToRules(referenceMap service.RouteRuleReferenceMap) []state.HTTPRouteRule {
 	resolved := []state.HTTPRouteRule{}
 
 	for rule, references := range referenceMap {
-		filters := convertHTTPRouteFilters(rule.httpRule.Filters)
+		filters := convertHTTPRouteFilters(rule.HTTPRule.Filters)
 		matches := []state.HTTPMatch{}
-		for _, match := range rule.httpRule.Matches {
+		for _, match := range rule.HTTPRule.Matches {
 			stateMatch := state.HTTPMatch{}
 			if match.Method != nil {
 				if method, found := methodMappings[*match.Method]; found {
@@ -112,20 +113,20 @@ func httpReferencesToRules(referenceMap routeRuleReferenceMap) []state.HTTPRoute
 
 		services := []state.HTTPService{}
 		for _, reference := range references {
-			switch reference.referenceType {
-			case consulServiceReference:
+			switch reference.Type {
+			case service.ConsulServiceReference:
 				weight := int32(1)
-				if reference.ref.httpRef.Weight != nil {
-					weight = *reference.ref.httpRef.Weight
+				if reference.Reference.HTTPRef.Weight != nil {
+					weight = *reference.Reference.HTTPRef.Weight
 				}
 				// note that we ignore the Port value
 				services = append(services, state.HTTPService{
 					Service: state.ResolvedService{
-						ConsulNamespace: reference.consulService.namespace,
-						Service:         reference.consulService.name,
+						ConsulNamespace: reference.Consul.Namespace,
+						Service:         reference.Consul.Name,
 					},
 					Weight:  weight,
-					Filters: convertHTTPRouteFilters(reference.ref.httpRef.Filters),
+					Filters: convertHTTPRouteFilters(reference.Reference.HTTPRef.Filters),
 				})
 			default:
 				// TODO: support other reference types

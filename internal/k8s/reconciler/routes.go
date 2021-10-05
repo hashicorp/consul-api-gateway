@@ -3,11 +3,11 @@ package reconciler
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"reflect"
 
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/service"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	"github.com/hashicorp/consul-api-gateway/internal/state"
 	"github.com/hashicorp/consul/api"
@@ -19,20 +19,9 @@ import (
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
 )
 
-type resolvedReferenceType int
-
-var (
-	ErrEmptyPort            = errors.New("port cannot be empty with kubernetes service")
-	ErrNotResolved          = errors.New("backend reference not found")
-	ErrConsulNotResolved    = errors.New("consul service not found")
-	ErrUnsupportedReference = errors.New("unsupported reference type")
-)
-
 const (
 	// NamespaceNameLabel represents that label added automatically to namespaces is newer Kubernetes clusters
-	NamespaceNameLabel     = "kubernetes.io/metadata.name"
-	MetaKeyKubeServiceName = "k8s-service-name"
-	MetaKeyKubeNS          = "k8s-namespace"
+	NamespaceNameLabel = "kubernetes.io/metadata.name"
 )
 
 // all kubernetes routes implement the following two interfaces
@@ -48,7 +37,7 @@ type K8sRoute struct {
 	logger          hclog.Logger
 	client          gatewayclient.Client
 	consul          *api.Client
-	references      routeRuleReferenceMap
+	references      service.RouteRuleReferenceMap
 	needsStatusSync bool
 	isResolved      bool
 }
@@ -301,6 +290,20 @@ func (r *K8sRoute) Resolve(listener state.Listener) *state.ResolvedRoute {
 	}
 }
 
+func (r *K8sRoute) Parents() []gw.ParentRef {
+	switch route := r.Route.(type) {
+	case *gw.HTTPRoute:
+		return route.Spec.ParentRefs
+	case *gw.TCPRoute:
+		return route.Spec.ParentRefs
+	case *gw.UDPRoute:
+		return route.Spec.ParentRefs
+	case *gw.TLSRoute:
+		return route.Spec.ParentRefs
+	}
+	return nil
+}
+
 func (r *K8sRoute) Init(ctx context.Context) error {
 	var result error
 
@@ -308,35 +311,44 @@ func (r *K8sRoute) Init(ctx context.Context) error {
 		return nil
 	}
 
-	resolver := newBackendResolver(r.GetNamespace(), r.client, r.consul)
-	resolved := routeRuleReferenceMap{}
-	var parents []gw.ParentRef
+	resolver := service.NewBackendResolver(r.GetNamespace(), r.client, r.consul)
+	resolved := service.RouteRuleReferenceMap{}
 	switch route := r.Route.(type) {
 	case *gw.HTTPRoute:
 		for _, rule := range route.Spec.Rules {
-			parents = route.Spec.ParentRefs
-			routeRule := routeRule{httpRule: &rule}
+			routeRule := service.NewRouteRule(&rule)
 			for _, ref := range rule.BackendRefs {
-				resolvedRef, err := resolver.resolveBackendReference(ctx, ref.BackendObjectReference)
+				reference, err := resolver.Resolve(ctx, ref.BackendObjectReference)
 				if err != nil {
 					result = multierror.Append(result, err)
 					continue
 				}
-				if resolvedRef != nil {
-					resolvedRef.ref.Set(&ref)
-					resolved[routeRule] = append(resolved[routeRule], *resolvedRef)
-				}
+				reference.Reference.Set(&ref)
+				resolved.Add(routeRule, *reference)
 			}
 		}
 	default:
 		return nil
 	}
+
+	r.markReferencesResolved(result)
+
+	if result == nil {
+		r.references = resolved
+		r.isResolved = true
+		return nil
+	}
+	return result
+}
+
+func (r *K8sRoute) markReferencesResolved(err error) {
+	parents := r.Parents()
 	reason := string(gw.ConditionRouteResolvedRefs)
 	message := string(gw.ConditionRouteResolvedRefs)
 	resolvedStatus := metav1.ConditionTrue
-	if result != nil {
+	if err != nil {
 		reason = "InvalidRefs"
-		message = result.Error()
+		message = err.Error()
 		resolvedStatus = metav1.ConditionFalse
 	}
 	conditions := []metav1.Condition{{
@@ -359,11 +371,4 @@ func (r *K8sRoute) Init(ctx context.Context) error {
 	}
 
 	r.SetStatus(setResolvedRefsStatus(r.routeStatus(), statuses...))
-
-	if result == nil {
-		r.references = resolved
-		r.isResolved = true
-		return nil
-	}
-	return result
 }
