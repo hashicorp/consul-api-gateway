@@ -8,6 +8,13 @@ import (
 	"github.com/hashicorp/go-hclog"
 )
 
+// GatewayID encapsulates enough information
+// to describe a particular deployed gateway
+type GatewayID struct {
+	ConsulNamespace string
+	Service         string
+}
+
 type Gateway interface {
 	Logger() hclog.Logger
 

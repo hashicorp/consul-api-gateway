@@ -16,13 +16,6 @@ var (
 	ErrCannotBindListener = errors.New("cannot bind listener")
 )
 
-// GatewayID encapsulates enough information
-// to describe a particular deployed gateway
-type GatewayID struct {
-	ConsulNamespace string
-	Service         string
-}
-
 type State struct {
 	logger hclog.Logger
 	consul *api.Client
