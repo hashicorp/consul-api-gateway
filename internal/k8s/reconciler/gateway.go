@@ -74,6 +74,13 @@ func (g *K8sGateway) Listeners() []state.Listener {
 }
 
 func (g *K8sGateway) Compare(other state.Gateway) state.CompareResult {
+	if other == nil {
+		return state.CompareResultInvalid
+	}
+	if g == nil {
+		return state.CompareResultNotEqual
+	}
+
 	if otherGateway, ok := other.(*K8sGateway); ok {
 		if g.gateway.Generation > otherGateway.gateway.Generation {
 			return state.CompareResultNewer
@@ -93,7 +100,7 @@ func (g *K8sGateway) Secrets() []string {
 			ref := listener.TLS.CertificateRef
 			if ref != nil {
 				n := ref.Namespace
-				namespace := "default"
+				namespace := g.gateway.Namespace
 				if n != nil {
 					namespace = string(*n)
 				}

@@ -244,6 +244,13 @@ func (r *K8sRoute) SyncStatus(ctx context.Context) error {
 }
 
 func (r *K8sRoute) Compare(other state.Route) state.CompareResult {
+	if other == nil {
+		return state.CompareResultInvalid
+	}
+	if r == nil {
+		return state.CompareResultNotEqual
+	}
+
 	if otherRoute, ok := other.(*K8sRoute); ok {
 		if r.GetGeneration() > otherRoute.GetGeneration() {
 			return state.CompareResultNewer

@@ -3,6 +3,7 @@ package state
 import (
 	"context"
 	"errors"
+	"log"
 	"sync"
 	"sync/atomic"
 
@@ -57,6 +58,7 @@ func (s *State) CanFetchSecrets(id GatewayID, secrets []string) bool {
 
 	gateway, found := s.gateways[id]
 	if !found {
+		log.Println("foo not found")
 		return false
 	}
 	for _, secret := range secrets {
@@ -135,9 +137,9 @@ func (s *State) AddRoute(ctx context.Context, route Route) error {
 
 	id := route.ID()
 
-	switch s.routes[id].Compare(route) {
-	case CompareResultNewer:
-		// we have an old route, ignore it
+	switch compareRoutes(s.routes[id], route) {
+	case CompareResultInvalid, CompareResultNewer:
+		// we have an old or invalid route, ignore it
 		return nil
 	case CompareResultNotEqual:
 		s.logger.Trace("adding route", "id", id)
@@ -159,6 +161,16 @@ func (s *State) AddRoute(ctx context.Context, route Route) error {
 	return s.Sync(ctx)
 }
 
+func compareRoutes(a, b Route) CompareResult {
+	if b == nil {
+		return CompareResultInvalid
+	}
+	if a == nil {
+		return CompareResultNotEqual
+	}
+	return a.Compare(b)
+}
+
 func (s *State) AddGateway(ctx context.Context, gateway Gateway) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -167,8 +179,8 @@ func (s *State) AddGateway(ctx context.Context, gateway Gateway) error {
 
 	current, found := s.gateways[id]
 	switch current.Compare(gateway) {
-	case CompareResultNewer:
-		// we have an old route, ignore it
+	case CompareResultInvalid, CompareResultNewer:
+		// we have an invalid or old route, ignore it
 		return nil
 	case CompareResultNotEqual:
 		s.logger.Trace("adding gateway", "service", id.Service, "namespace", id.ConsulNamespace)

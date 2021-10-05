@@ -115,8 +115,12 @@ func parseURI(path string) (state.GatewayID, error) {
 	if tokens[0] != "ns" || tokens[2] != "dc" || tokens[4] != "svc" {
 		return state.GatewayID{}, errors.New("invalid spiffe path")
 	}
+	namespace := tokens[1]
+	if namespace == "default" {
+		namespace = ""
+	}
 	return state.GatewayID{
-		ConsulNamespace: tokens[1],
+		ConsulNamespace: namespace,
 		Service:         tokens[5],
 	}, nil
 }

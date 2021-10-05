@@ -116,13 +116,24 @@ func (g *BoundGateway) TryBind(route Route) {
 	}
 }
 
+func (g *BoundGateway) Compare(other Gateway) CompareResult {
+	if other == nil {
+		return CompareResultInvalid
+	}
+	if g == nil {
+		return CompareResultNotEqual
+	}
+
+	return g.Gateway.Compare(other)
+}
+
 func (g *BoundGateway) Sync(ctx context.Context) error {
 	g.mutex.Lock()
 	defer g.mutex.Unlock()
 
-	g.Logger().Trace("syncing gateway")
 	for _, listener := range g.listeners {
 		if listener.ShouldSync() {
+			g.Logger().Trace("syncing gateway")
 			if err := g.sync(ctx); err != nil {
 				return err
 			}
