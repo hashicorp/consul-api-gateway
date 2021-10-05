@@ -63,7 +63,7 @@ type K8sRoute struct {
 	isResolved      bool
 }
 
-var _ state.Route = &K8sRoute{}
+var _ state.StatusTrackingRoute = &K8sRoute{}
 
 type K8sRouteConfig struct {
 	ControllerName string
@@ -243,21 +243,20 @@ func (r *K8sRoute) SyncStatus(ctx context.Context) error {
 	return nil
 }
 
-func (r *K8sRoute) IsMoreRecent(other state.Route) bool {
-	k8sRoute, ok := other.(*K8sRoute)
-	if !ok {
-		return true
+func (r *K8sRoute) Compare(other state.Route) state.CompareResult {
+	if otherRoute, ok := other.(*K8sRoute); ok {
+		if r.GetGeneration() > otherRoute.GetGeneration() {
+			return state.CompareResultNewer
+		}
+		if r.equals(otherRoute) {
+			return state.CompareResultEqual
+		}
+		return state.CompareResultNotEqual
 	}
-
-	return r.GetGeneration() > k8sRoute.GetGeneration()
+	return state.CompareResultInvalid
 }
 
-func (r *K8sRoute) Equals(other state.Route) bool {
-	k8sRoute, ok := other.(*K8sRoute)
-	if !ok {
-		return false
-	}
-
+func (r *K8sRoute) equals(k8sRoute *K8sRoute) bool {
 	switch route := r.Route.(type) {
 	case *gw.HTTPRoute:
 		if otherRoute, ok := k8sRoute.Route.(*gw.HTTPRoute); ok {

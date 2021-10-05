@@ -106,10 +106,12 @@ func (g *BoundGateway) TryBind(route Route) {
 				bound = true
 			}
 		}
-		if !bound {
-			route.OnBindFailed(bindError, g.Gateway)
-		} else {
-			route.OnBound(g.Gateway)
+		if tracker, ok := route.(StatusTrackingRoute); ok {
+			if !bound {
+				tracker.OnBindFailed(bindError, g.Gateway)
+			} else {
+				tracker.OnBound(g.Gateway)
+			}
 		}
 	}
 }
@@ -165,10 +167,10 @@ func (g *BoundGateway) sync(ctx context.Context) error {
 	}
 
 	ingress := &api.IngressGatewayConfigEntry{
-		Kind: api.IngressGateway,
-		Name: g.Name(),
-		// TODO: namespaces
-		Meta: g.Meta(),
+		Kind:      api.IngressGateway,
+		Name:      g.ID().Service,
+		Namespace: g.ID().ConsulNamespace,
+		Meta:      g.Meta(),
 	}
 
 	computedRouters := consul.NewConfigEntryIndex(api.ServiceRouter)

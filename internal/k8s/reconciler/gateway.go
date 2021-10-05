@@ -55,27 +55,12 @@ func (g *K8sGateway) Logger() hclog.Logger {
 	return g.logger
 }
 
-func (g *K8sGateway) Name() string {
-	return g.gateway.Name
-}
-
-func (g *K8sGateway) Namespace() string {
-	return g.gateway.Namespace
-}
-
 func (g *K8sGateway) Meta() map[string]string {
 	return map[string]string{
 		"managed_by":                               "consul-api-gateway",
 		"consul-api-gateway/k8s/Gateway.Name":      g.gateway.Name,
 		"consul-api-gateway/k8s/Gateway.Namespace": g.gateway.Namespace,
 	}
-}
-
-func (g *K8sGateway) IsMoreRecent(other state.Gateway) bool {
-	if otherGateway, ok := other.(*K8sGateway); ok {
-		return g.gateway.Generation > otherGateway.gateway.Generation
-	}
-	return false
 }
 
 func (g *K8sGateway) Listeners() []state.Listener {
@@ -88,11 +73,17 @@ func (g *K8sGateway) Listeners() []state.Listener {
 	return listeners
 }
 
-func (g *K8sGateway) Equals(other state.Gateway) bool {
+func (g *K8sGateway) Compare(other state.Gateway) state.CompareResult {
 	if otherGateway, ok := other.(*K8sGateway); ok {
-		return reflect.DeepEqual(g.gateway.Spec, otherGateway.gateway.Spec)
+		if g.gateway.Generation > otherGateway.gateway.Generation {
+			return state.CompareResultNewer
+		}
+		if reflect.DeepEqual(g.gateway.Spec, otherGateway.gateway.Spec) {
+			return state.CompareResultEqual
+		}
+		return state.CompareResultNotEqual
 	}
-	return false
+	return state.CompareResultInvalid
 }
 
 func (g *K8sGateway) Secrets() []string {

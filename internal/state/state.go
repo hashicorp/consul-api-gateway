@@ -88,9 +88,11 @@ func (s *State) syncRouteStatuses(ctx context.Context) error {
 
 	for _, r := range s.routes {
 		route := r
-		syncGroup.Go(func() error {
-			return route.SyncStatus(ctx)
-		})
+		if tracker, ok := route.(StatusTrackingRoute); ok {
+			syncGroup.Go(func() error {
+				return tracker.SyncStatus(ctx)
+			})
+		}
 	}
 	if err := syncGroup.Wait(); err != nil {
 		s.logger.Error("error syncing route statuses", "error", err)
@@ -133,15 +135,11 @@ func (s *State) AddRoute(ctx context.Context, route Route) error {
 
 	id := route.ID()
 
-	current, found := s.routes[id]
-	if found {
-		if current.IsMoreRecent(route) {
-			// we have an old route, ignore it
-			return nil
-		}
-	}
-
-	if !found || !current.Equals(route) {
+	switch s.routes[id].Compare(route) {
+	case CompareResultNewer:
+		// we have an old route, ignore it
+		return nil
+	case CompareResultNotEqual:
 		s.logger.Trace("adding route", "id", id)
 
 		s.routes[id] = route
@@ -168,15 +166,12 @@ func (s *State) AddGateway(ctx context.Context, gateway Gateway) error {
 	id := gateway.ID()
 
 	current, found := s.gateways[id]
-	if found {
-		if current.IsMoreRecent(gateway) {
-			// we have an old gateway, ignore it
-			return nil
-		}
-	}
-
-	if !found || !current.Equals(gateway) {
-		s.logger.Trace("adding gateway", "id", id)
+	switch current.Compare(gateway) {
+	case CompareResultNewer:
+		// we have an old route, ignore it
+		return nil
+	case CompareResultNotEqual:
+		s.logger.Trace("adding gateway", "service", id.Service, "namespace", id.ConsulNamespace)
 
 		updated := NewBoundGateway(gateway, s.consul)
 		updated.Merge(current)
@@ -197,7 +192,6 @@ func (s *State) AddGateway(ctx context.Context, gateway Gateway) error {
 		// this was an insert
 		activeGateways := atomic.AddInt64(&s.activeGateways, 1)
 		metrics.Registry.SetGauge(metrics.K8sGateways, float32(activeGateways))
-		s.logger.Trace("gateway inserted", "gateway", gateway.Name())
 	}
 
 	// sync the gateways to consul and route statuses to k8s
@@ -219,8 +213,9 @@ func (s *State) DeleteGateway(ctx context.Context, id GatewayID) error {
 	// handles resource cleanup, we can just remove
 	// it from being tracked and sync back route statuses
 	for _, route := range s.routes {
-		// remove all status references
-		route.OnGatewayRemoved(gateway)
+		if tracker, ok := route.(StatusTrackingRoute); ok {
+			tracker.OnGatewayRemoved(gateway)
+		}
 	}
 	delete(s.gateways, id)
 
