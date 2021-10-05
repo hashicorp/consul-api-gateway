@@ -389,6 +389,7 @@ func (r *K8sRoute) ResolveServices(ctx context.Context) error {
 	if result == nil {
 		r.references = resolved
 		r.isResolved = true
+		return nil
 	}
 	return result
 }

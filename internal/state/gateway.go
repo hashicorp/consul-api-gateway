@@ -33,11 +33,6 @@ func NewBoundGateway(gateway Gateway, client *api.Client) *BoundGateway {
 		listeners[listener.ID()] = NewBoundListener(gateway, listener)
 	}
 
-	secrets := make(map[string]struct{})
-	for _, secret := range gateway.Secrets() {
-		secrets[secret] = struct{}{}
-	}
-
 	return &BoundGateway{
 		Gateway:   gateway,
 		consul:    client,
@@ -45,7 +40,7 @@ func NewBoundGateway(gateway Gateway, client *api.Client) *BoundGateway {
 		routers:   consul.NewConfigEntryIndex(api.ServiceRouter),
 		splitters: consul.NewConfigEntryIndex(api.ServiceSplitter),
 		defaults:  consul.NewConfigEntryIndex(api.ServiceDefaults),
-		secrets:   secrets,
+		secrets:   make(map[string]struct{}),
 	}
 }
 
@@ -55,8 +50,13 @@ func (g *BoundGateway) ResolveListenerTLS(ctx context.Context) error {
 
 	var result error
 	for _, listener := range g.listeners {
-		if err := listener.ResolveAndCacheTLS(ctx); err != nil {
+		config, err := listener.ResolveAndCacheTLS(ctx)
+		if err != nil {
 			result = multierror.Append(result, err)
+			continue
+		}
+		if config != nil && config.SDS != nil {
+			g.secrets[config.SDS.CertResource] = struct{}{}
 		}
 	}
 	if result != nil {
@@ -96,12 +96,12 @@ func (g *BoundGateway) TryBind(route Route) {
 		bound := false
 		var bindError error
 		for _, l := range g.listeners {
-			didBind, err := l.Bind(route)
+			canBind, err := l.CanBind(route)
 			if err != nil {
 				// consider each route distinct for the purposes of binding
 				bindError = multierror.Append(bindError, err)
 			}
-			if didBind {
+			if canBind {
 				l.SetRoute(route)
 				bound = true
 			}

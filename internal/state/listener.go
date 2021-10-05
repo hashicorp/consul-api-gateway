@@ -86,23 +86,23 @@ func (l *BoundListener) SetRoute(route Route) {
 	l.needsSync = true
 }
 
-func (l *BoundListener) ResolveAndCacheTLS(ctx context.Context) error {
+func (l *BoundListener) ResolveAndCacheTLS(ctx context.Context) (*api.GatewayTLSConfig, error) {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
 
 	if l.tlsResolved {
-		return nil
+		return l.tls, nil
 	}
 
 	config, err := l.Listener.ResolveTLS(ctx)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	l.tls = config
 	l.tlsResolved = true
 
-	return nil
+	return config, nil
 }
 
 func (l *BoundListener) ShouldSync() bool {

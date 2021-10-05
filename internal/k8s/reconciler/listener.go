@@ -142,30 +142,30 @@ func (l *K8sListener) Config() state.ListenerConfig {
 	}
 }
 
-// Bind returns whether a route can bind
+// CanBind returns whether a route can bind
 // to a gateway, if the route can bind to a listener
 // on the gateway the return value is nil, if not,
 // an error specifying why the route cannot bind
 // is returned.
-func (l *K8sListener) Bind(route state.Route) (bool, error) {
+func (l *K8sListener) CanBind(route state.Route) (bool, error) {
 	k8sRoute, ok := route.(*K8sRoute)
 	if !ok {
 		return false, nil
 	}
 
 	for _, ref := range k8sRoute.CommonRouteSpec().ParentRefs {
-		didBind, err := l.tryBind(ref, k8sRoute)
+		canBind, err := l.canBind(ref, k8sRoute)
 		if err != nil {
 			return false, err
 		}
-		if didBind {
+		if canBind {
 			return true, nil
 		}
 	}
 	return false, nil
 }
 
-func (l *K8sListener) tryBind(ref gw.ParentRef, route *K8sRoute) (bool, error) {
+func (l *K8sListener) canBind(ref gw.ParentRef, route *K8sRoute) (bool, error) {
 	// must is only true if there's a ref with a specific listener name
 	// meaning if we must attach, but cannot, it's an error
 	allowed, must := routeMatchesListener(l.listener.Name, ref.SectionName)

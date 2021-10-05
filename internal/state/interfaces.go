@@ -30,7 +30,6 @@ type Gateway interface {
 	Compare(other Gateway) CompareResult
 	Listeners() []Listener
 	ShouldBind(route Route) bool
-	Secrets() []string
 }
 
 type ListenerConfig struct {
@@ -45,7 +44,7 @@ type Listener interface {
 	Logger() hclog.Logger
 
 	ID() string
-	Bind(route Route) (bool, error)
+	CanBind(route Route) (bool, error)
 	ResolveTLS(ctx context.Context) (*api.GatewayTLSConfig, error)
 	Config() ListenerConfig
 }

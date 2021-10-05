@@ -93,24 +93,6 @@ func (g *K8sGateway) Compare(other state.Gateway) state.CompareResult {
 	return state.CompareResultInvalid
 }
 
-func (g *K8sGateway) Secrets() []string {
-	secrets := []string{}
-	for _, listener := range g.gateway.Spec.Listeners {
-		if listener.TLS != nil {
-			ref := listener.TLS.CertificateRef
-			if ref != nil {
-				n := ref.Namespace
-				namespace := g.gateway.Namespace
-				if n != nil {
-					namespace = string(*n)
-				}
-				secrets = append(secrets, utils.NewK8sSecret(namespace, ref.Name).String())
-			}
-		}
-	}
-	return secrets
-}
-
 func (g *K8sGateway) ShouldBind(route state.Route) bool {
 	k8sRoute, ok := route.(*K8sRoute)
 	if !ok {
