@@ -154,12 +154,16 @@ func (l *K8sListener) CanBind(route state.Route) (bool, error) {
 	}
 
 	for _, ref := range k8sRoute.CommonRouteSpec().ParentRefs {
-		canBind, err := l.canBind(ref, k8sRoute)
-		if err != nil {
-			return false, err
-		}
-		if canBind {
-			return true, nil
+		if namespacedName, isGateway := referencesGateway(k8sRoute.GetNamespace(), ref); isGateway {
+			if utils.NamespacedName(l.gateway) == namespacedName {
+				canBind, err := l.canBind(ref, k8sRoute)
+				if err != nil {
+					return false, err
+				}
+				if canBind {
+					return true, nil
+				}
+			}
 		}
 	}
 	return false, nil
