@@ -3,9 +3,6 @@ package state
 import (
 	"context"
 	"sync"
-
-	"github.com/hashicorp/consul-api-gateway/internal/consul"
-	"github.com/hashicorp/consul/api"
 )
 
 const (
@@ -13,7 +10,7 @@ const (
 )
 
 // boundListener wraps a lstener and its set of routes
-type BoundListener struct {
+type listenerState struct {
 	Listener
 
 	gateway Gateway
@@ -23,17 +20,17 @@ type BoundListener struct {
 	port     int
 	protocol string
 
-	tlsResolved bool
-	tls         *api.GatewayTLSConfig
+	tlsResolved  bool
+	certificates []string
 
-	routes map[string]Route
+	routes map[string]ResolvedRoute
 
 	needsSync bool
 
 	mutex sync.RWMutex
 }
 
-func NewBoundListener(gateway Gateway, listener Listener) *BoundListener {
+func newListenerState(gateway Gateway, listener Listener) *listenerState {
 	listenerConfig := listener.Config()
 
 	name := defaultListenerName
@@ -51,7 +48,7 @@ func NewBoundListener(gateway Gateway, listener Listener) *BoundListener {
 		tlsResolved = true
 	}
 
-	return &BoundListener{
+	return &listenerState{
 		Listener:    listener,
 		gateway:     gateway,
 		name:        name,
@@ -59,92 +56,79 @@ func NewBoundListener(gateway Gateway, listener Listener) *BoundListener {
 		protocol:    listenerConfig.Protocol,
 		hostname:    hostname,
 		tlsResolved: tlsResolved,
-		routes:      make(map[string]Route),
+		routes:      make(map[string]ResolvedRoute),
 		needsSync:   true,
 	}
 }
 
-func (l *BoundListener) RemoveRoute(id string) {
+func (l *listenerState) RemoveRoute(id string) {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
 
 	if _, found := l.routes[id]; !found {
 		return
 	}
+	l.Logger().Trace("removing route from listener", "route", id)
 
 	l.needsSync = true
 	delete(l.routes, id)
 }
 
-func (l *BoundListener) SetRoute(route Route) {
+func (l *listenerState) SetRoute(route Route) {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
 
-	l.Logger().Trace("setting route", "route", route.ID())
-
-	l.routes[route.ID()] = route
-	l.needsSync = true
+	l.Logger().Trace("setting route on listener", "route", route.ID())
+	if resolved := route.Resolve(l.Listener); resolved != nil {
+		l.routes[route.ID()] = *resolved
+		l.needsSync = true
+	}
 }
 
-func (l *BoundListener) ResolveAndCacheTLS(ctx context.Context) (*api.GatewayTLSConfig, error) {
+func (l *listenerState) ResolveAndCacheTLS(ctx context.Context) ([]string, error) {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
 
 	if l.tlsResolved {
-		return l.tls, nil
+		return l.certificates, nil
 	}
 
-	config, err := l.Listener.ResolveTLS(ctx)
+	certificates, err := l.Listener.Certificates(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	l.tls = config
+	l.certificates = certificates
 	l.tlsResolved = true
 
-	return config, nil
+	return certificates, nil
 }
 
-func (l *BoundListener) ShouldSync() bool {
+func (l *listenerState) ShouldSync() bool {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
 
 	return l.needsSync
 }
 
-func (l *BoundListener) MarkSynced() {
+func (l *listenerState) MarkSynced() {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
 
 	l.needsSync = false
 }
 
-func (l *BoundListener) DiscoveryChain() (api.IngressListener, *consul.ConfigEntryIndex, *consul.ConfigEntryIndex, *consul.ConfigEntryIndex) {
-	l.mutex.RLock()
-	defer l.mutex.RUnlock()
-
-	services := []api.IngressService{}
-	routers := consul.NewConfigEntryIndex(api.ServiceRouter)
-	splitters := consul.NewConfigEntryIndex(api.ServiceSplitter)
-	defaults := consul.NewConfigEntryIndex(api.ServiceDefaults)
-
-	l.Logger().Trace("rendering listener discovery chain")
-	if len(l.routes) == 0 {
-		l.Logger().Trace("listener has no routes")
-	}
+func (l *listenerState) Resolve() ResolvedListener {
+	routes := []ResolvedRoute{}
 	for _, route := range l.routes {
-		service, router, splits, serviceDefaults := route.DiscoveryChain(l.Listener)
-		if service != nil {
-			services = append(services, *service)
-			routers.Add(router)
-			splitters.Merge(splits)
-			defaults.Merge(serviceDefaults)
-		}
+		routes = append(routes, route)
 	}
-	return api.IngressListener{
-		Port:     l.port,
-		Protocol: l.protocol,
-		Services: services,
-		TLS:      l.tls,
-	}, routers, splitters, defaults
+	return ResolvedListener{
+		Name:         l.name,
+		Hostname:     l.hostname,
+		Port:         l.port,
+		Protocol:     l.protocol,
+		Certificates: l.certificates,
+		Routes:       routes,
+	}
 }

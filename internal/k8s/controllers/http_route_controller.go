@@ -38,7 +38,7 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 
 	if route == nil {
 		// clean up cached resources
-		err := r.Manager.DeleteRoute(ctx, req.NamespacedName)
+		err := r.Manager.DeleteHTTPRoute(ctx, req.NamespacedName)
 		return ctrl.Result{}, err
 	}
 
@@ -50,14 +50,14 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	if !managed {
 		// we're not managing this route (potentially reference got removed on an update)
 		// ensure it's cleaned up
-		err = r.Manager.DeleteRoute(ctx, req.NamespacedName)
+		err = r.Manager.DeleteHTTPRoute(ctx, req.NamespacedName)
 		return ctrl.Result{}, err
 	}
 
 	// let the route get upserted so long as there's a single gateway we control
 	// that it's managed by -- the underlying reconciliation code will handle the
 	// validation of gateway attachment
-	err = r.Manager.UpsertRoute(ctx, route)
+	err = r.Manager.UpsertHTTPRoute(ctx, route)
 	return ctrl.Result{}, err
 }
 

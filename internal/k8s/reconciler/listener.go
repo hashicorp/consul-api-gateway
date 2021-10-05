@@ -8,7 +8,6 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	"github.com/hashicorp/consul-api-gateway/internal/state"
-	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
 	core "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -66,7 +65,7 @@ func (l *K8sListener) Logger() hclog.Logger {
 	return l.logger
 }
 
-func (l *K8sListener) ResolveTLS(ctx context.Context) (*api.GatewayTLSConfig, error) {
+func (l *K8sListener) Certificates(ctx context.Context) ([]string, error) {
 	if l.listener.TLS == nil {
 		return nil, ErrInvalidTLSConfiguration
 	}
@@ -84,12 +83,7 @@ func (l *K8sListener) ResolveTLS(ctx context.Context) (*api.GatewayTLSConfig, er
 	if err != nil {
 		return nil, err
 	}
-	return &api.GatewayTLSConfig{
-		SDS: &api.GatewayTLSSDSConfig{
-			ClusterName:  "sds-cluster",
-			CertResource: resource,
-		},
-	}, nil
+	return []string{resource}, nil
 }
 
 func (l *K8sListener) resolveCertificateReference(ctx context.Context, ref gw.SecretObjectReference) (string, error) {

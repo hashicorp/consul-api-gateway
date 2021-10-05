@@ -21,10 +21,14 @@ import (
 type ReconcileManager interface {
 	UpsertGatewayClass(ctx context.Context, gc *gw.GatewayClass, validParameters bool) error
 	UpsertGateway(ctx context.Context, g *gw.Gateway) error
-	UpsertRoute(ctx context.Context, r Route) error
+	UpsertHTTPRoute(ctx context.Context, r Route) error
+	UpsertTCPRoute(ctx context.Context, r Route) error
+	UpsertTLSRoute(ctx context.Context, r Route) error
 	DeleteGatewayClass(ctx context.Context, name string) error
 	DeleteGateway(ctx context.Context, name types.NamespacedName) error
-	DeleteRoute(ctx context.Context, name types.NamespacedName) error
+	DeleteHTTPRoute(ctx context.Context, name types.NamespacedName) error
+	DeleteTCPRoute(ctx context.Context, name types.NamespacedName) error
+	DeleteTLSRoute(ctx context.Context, name types.NamespacedName) error
 }
 
 // GatewayReconcileManager manages a GatewayReconciler for each Gateway and is the interface by which Consul operations
@@ -86,7 +90,19 @@ func (m *GatewayReconcileManager) UpsertGateway(ctx context.Context, g *gw.Gatew
 	}))
 }
 
-func (m *GatewayReconcileManager) UpsertRoute(ctx context.Context, r Route) error {
+func (m *GatewayReconcileManager) UpsertHTTPRoute(ctx context.Context, r Route) error {
+	return m.upsertRoute(ctx, r)
+}
+
+func (m *GatewayReconcileManager) UpsertTCPRoute(ctx context.Context, r Route) error {
+	return m.upsertRoute(ctx, r)
+}
+
+func (m *GatewayReconcileManager) UpsertTLSRoute(ctx context.Context, r Route) error {
+	return m.upsertRoute(ctx, r)
+}
+
+func (m *GatewayReconcileManager) upsertRoute(ctx context.Context, r Route) error {
 	return m.state.AddRoute(ctx, NewK8sRoute(r, K8sRouteConfig{
 		ControllerName: m.controllerName,
 		Logger:         m.logger,
@@ -118,6 +134,14 @@ func (m *GatewayReconcileManager) DeleteGateway(ctx context.Context, name types.
 	return nil
 }
 
-func (m *GatewayReconcileManager) DeleteRoute(ctx context.Context, name types.NamespacedName) error {
-	return m.state.DeleteRoute(ctx, name.String())
+func (m *GatewayReconcileManager) DeleteHTTPRoute(ctx context.Context, name types.NamespacedName) error {
+	return m.state.DeleteRoute(ctx, HTTPRouteID(name))
+}
+
+func (m *GatewayReconcileManager) DeleteTLSRoute(ctx context.Context, name types.NamespacedName) error {
+	return m.state.DeleteRoute(ctx, TLSRouteID(name))
+}
+
+func (m *GatewayReconcileManager) DeleteTCPRoute(ctx context.Context, name types.NamespacedName) error {
+	return m.state.DeleteRoute(ctx, TCPRouteID(name))
 }

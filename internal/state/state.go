@@ -8,7 +8,6 @@ import (
 	"sync/atomic"
 
 	"github.com/hashicorp/consul-api-gateway/internal/metrics"
-	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-multierror"
 )
@@ -18,10 +17,10 @@ var (
 )
 
 type State struct {
-	logger hclog.Logger
-	consul *api.Client
+	logger  hclog.Logger
+	adapter SyncAdapter
 
-	gateways map[GatewayID]*BoundGateway
+	gateways map[GatewayID]*gatewayState
 	routes   map[string]Route
 	mutex    sync.RWMutex
 
@@ -29,16 +28,16 @@ type State struct {
 }
 
 type StateConfig struct {
-	Consul *api.Client
-	Logger hclog.Logger
+	Adapter SyncAdapter
+	Logger  hclog.Logger
 }
 
 func NewState(config StateConfig) *State {
 	return &State{
 		logger:   config.Logger,
-		consul:   config.Consul,
+		adapter:  config.Adapter,
 		routes:   make(map[string]Route),
-		gateways: make(map[GatewayID]*BoundGateway),
+		gateways: make(map[GatewayID]*gatewayState),
 	}
 }
 
@@ -146,11 +145,13 @@ func (s *State) AddRoute(ctx context.Context, route Route) error {
 
 		s.routes[id] = route
 
-		// resolve any service references for the route
-		if err := route.ResolveServices(ctx); err != nil {
-			// the route is considered invalid, so don't try to bind it at all
-			return err
+		if initializable, ok := route.(InitializableRoute); ok {
+			if err := initializable.Init(ctx); err != nil {
+				// the route is considered invalid, so don't try to bind it at all
+				return err
+			}
 		}
+
 		// bind to gateways
 		for _, gateway := range s.gateways {
 			gateway.TryBind(route)
@@ -185,8 +186,7 @@ func (s *State) AddGateway(ctx context.Context, gateway Gateway) error {
 	case CompareResultNotEqual:
 		s.logger.Trace("adding gateway", "service", id.Service, "namespace", id.ConsulNamespace)
 
-		updated := NewBoundGateway(gateway, s.consul)
-		updated.Merge(current)
+		updated := newGatewayState(gateway, s.adapter)
 		if err := updated.ResolveListenerTLS(ctx); err != nil {
 			// we have invalid listener references, consider the gateway bad
 			return err

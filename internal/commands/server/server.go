@@ -9,6 +9,7 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
+	"github.com/hashicorp/consul-api-gateway/internal/adapters"
 	"github.com/hashicorp/consul-api-gateway/internal/consul"
 	"github.com/hashicorp/consul-api-gateway/internal/envoy"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s"
@@ -70,8 +71,8 @@ func RunServer(config ServerConfig) int {
 	}
 
 	state := state.NewState(state.StateConfig{
-		Consul: consulClient,
-		Logger: config.Logger.Named("state"),
+		Adapter: adapters.NewConsulSyncAdapter(config.Logger.Named("consul-adapter"), consulClient),
+		Logger:  config.Logger.Named("state"),
 	})
 
 	controller.SetConsul(consulClient)

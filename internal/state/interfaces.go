@@ -3,8 +3,6 @@ package state
 import (
 	"context"
 
-	"github.com/hashicorp/consul-api-gateway/internal/consul"
-	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
 )
 
@@ -16,11 +14,6 @@ const (
 	CompareResultNotEqual
 	CompareResultEqual
 )
-
-type GatewayID struct {
-	ConsulNamespace string
-	Service         string
-}
 
 type Gateway interface {
 	Logger() hclog.Logger
@@ -45,7 +38,7 @@ type Listener interface {
 
 	ID() string
 	CanBind(route Route) (bool, error)
-	ResolveTLS(ctx context.Context) (*api.GatewayTLSConfig, error)
+	Certificates(ctx context.Context) ([]string, error)
 	Config() ListenerConfig
 }
 
@@ -58,11 +51,20 @@ type StatusTrackingRoute interface {
 	OnGatewayRemoved(gateway Gateway)
 }
 
+type InitializableRoute interface {
+	Route
+
+	Init(ctx context.Context) error
+}
+
 type Route interface {
 	Logger() hclog.Logger
 
 	ID() string
 	Compare(other Route) CompareResult
-	ResolveServices(ctx context.Context) error
-	DiscoveryChain(listener Listener) (*api.IngressService, *api.ServiceRouterConfigEntry, *consul.ConfigEntryIndex, *consul.ConfigEntryIndex)
+	Resolve(listener Listener) *ResolvedRoute
+}
+
+type SyncAdapter interface {
+	Sync(ctx context.Context, gateway ResolvedGateway) error
 }
