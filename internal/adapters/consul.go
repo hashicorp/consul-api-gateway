@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/consul-api-gateway/internal/consul"
-	"github.com/hashicorp/consul-api-gateway/internal/state"
+	"github.com/hashicorp/consul-api-gateway/pkg/core"
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-multierror"
@@ -24,7 +24,7 @@ type ConsulSyncAdapter struct {
 	logger hclog.Logger
 	consul *api.Client
 
-	sync  map[state.GatewayID]syncState
+	sync  map[core.GatewayID]syncState
 	mutex sync.Mutex
 }
 
@@ -32,7 +32,7 @@ func NewConsulSyncAdapter(logger hclog.Logger, consul *api.Client) *ConsulSyncAd
 	return &ConsulSyncAdapter{
 		logger: logger,
 		consul: consul,
-		sync:   make(map[state.GatewayID]syncState),
+		sync:   make(map[core.GatewayID]syncState),
 	}
 }
 
@@ -60,7 +60,7 @@ func (a *ConsulSyncAdapter) deleteConfigEntries(ctx context.Context, entries ...
 
 // httpRouteToServiceDiscoChain will convert a k8s HTTPRoute to a Consul service-router config entry and 0 or
 // more service-splitter config entries. A prefix can be given to prefix all config entry names with.
-func httpRouteDiscoveryChain(route state.HTTPRoute) (*api.ServiceRouterConfigEntry, []*api.ServiceSplitterConfigEntry) {
+func httpRouteDiscoveryChain(route core.HTTPRoute) (*api.ServiceRouterConfigEntry, []*api.ServiceSplitterConfigEntry) {
 	router := &api.ServiceRouterConfigEntry{
 		Kind: api.ServiceRouter,
 		Name: route.Name(),
@@ -69,12 +69,12 @@ func httpRouteDiscoveryChain(route state.HTTPRoute) (*api.ServiceRouterConfigEnt
 	var splitters []*api.ServiceSplitterConfigEntry
 
 	for idx, rule := range route.Rules {
-		var destination state.ResolvedService
+		var destination core.ResolvedService
 		if len(rule.Services) == 1 {
 			destination = rule.Services[0].Service
 		} else {
 			// create a virtual service to split
-			destination = state.ResolvedService{
+			destination = core.ResolvedService{
 				Service: fmt.Sprintf("%s-%d", route.Name(), idx),
 			}
 			splitter := &api.ServiceSplitterConfigEntry{
@@ -129,40 +129,40 @@ func httpRouteDiscoveryChain(route state.HTTPRoute) (*api.ServiceRouterConfigEnt
 	return router, splitters
 }
 
-func httpRouteMatchToServiceRouteHTTPMatch(match state.HTTPMatch) *api.ServiceRouteHTTPMatch {
+func httpRouteMatchToServiceRouteHTTPMatch(match core.HTTPMatch) *api.ServiceRouteHTTPMatch {
 	var consulMatch api.ServiceRouteHTTPMatch
 	switch match.Path.Type {
-	case state.HTTPPathMatchExactType:
+	case core.HTTPPathMatchExactType:
 		consulMatch.PathExact = match.Path.Value
-	case state.HTTPPathMatchPrefixType:
+	case core.HTTPPathMatchPrefixType:
 		consulMatch.PathPrefix = match.Path.Value
-	case state.HTTPPathMatchRegularExpressionType:
+	case core.HTTPPathMatchRegularExpressionType:
 		consulMatch.PathRegex = match.Path.Value
 	}
 
 	for _, header := range match.Headers {
 		switch header.Type {
-		case state.HTTPHeaderMatchExactType:
+		case core.HTTPHeaderMatchExactType:
 			consulMatch.Header = append(consulMatch.Header, api.ServiceRouteHTTPMatchHeader{
 				Name:  header.Name,
 				Exact: header.Value,
 			})
-		case state.HTTPHeaderMatchPrefixType:
+		case core.HTTPHeaderMatchPrefixType:
 			consulMatch.Header = append(consulMatch.Header, api.ServiceRouteHTTPMatchHeader{
 				Name:   header.Name,
 				Prefix: header.Value,
 			})
-		case state.HTTPHeaderMatchSuffixType:
+		case core.HTTPHeaderMatchSuffixType:
 			consulMatch.Header = append(consulMatch.Header, api.ServiceRouteHTTPMatchHeader{
 				Name:   header.Name,
 				Suffix: header.Value,
 			})
-		case state.HTTPHeaderMatchPresentType:
+		case core.HTTPHeaderMatchPresentType:
 			consulMatch.Header = append(consulMatch.Header, api.ServiceRouteHTTPMatchHeader{
 				Name:    header.Name,
 				Present: true,
 			})
-		case state.HTTPHeaderMatchRegularExpressionType:
+		case core.HTTPHeaderMatchRegularExpressionType:
 			consulMatch.Header = append(consulMatch.Header, api.ServiceRouteHTTPMatchHeader{
 				Name:  header.Name,
 				Regex: header.Value,
@@ -172,17 +172,17 @@ func httpRouteMatchToServiceRouteHTTPMatch(match state.HTTPMatch) *api.ServiceRo
 
 	for _, query := range match.Query {
 		switch query.Type {
-		case state.HTTPQueryMatchExactType:
+		case core.HTTPQueryMatchExactType:
 			consulMatch.QueryParam = append(consulMatch.QueryParam, api.ServiceRouteHTTPMatchQueryParam{
 				Name:  query.Name,
 				Exact: query.Value,
 			})
-		case state.HTTPQueryMatchPresentType:
+		case core.HTTPQueryMatchPresentType:
 			consulMatch.QueryParam = append(consulMatch.QueryParam, api.ServiceRouteHTTPMatchQueryParam{
 				Name:    query.Name,
 				Present: true,
 			})
-		case state.HTTPQueryMatchRegularExpressionType:
+		case core.HTTPQueryMatchRegularExpressionType:
 			consulMatch.QueryParam = append(consulMatch.QueryParam, api.ServiceRouteHTTPMatchQueryParam{
 				Name:  query.Name,
 				Regex: query.Value,
@@ -191,23 +191,23 @@ func httpRouteMatchToServiceRouteHTTPMatch(match state.HTTPMatch) *api.ServiceRo
 	}
 
 	switch match.Method {
-	case state.HTTPMethodConnect:
+	case core.HTTPMethodConnect:
 		consulMatch.Methods = append(consulMatch.Methods, "CONNECT")
-	case state.HTTPMethodDelete:
+	case core.HTTPMethodDelete:
 		consulMatch.Methods = append(consulMatch.Methods, "DELETE")
-	case state.HTTPMethodGet:
+	case core.HTTPMethodGet:
 		consulMatch.Methods = append(consulMatch.Methods, "GET")
-	case state.HTTPMethodHead:
+	case core.HTTPMethodHead:
 		consulMatch.Methods = append(consulMatch.Methods, "HEAD")
-	case state.HTTPMethodOptions:
+	case core.HTTPMethodOptions:
 		consulMatch.Methods = append(consulMatch.Methods, "OPTIONS")
-	case state.HTTPMethodPatch:
+	case core.HTTPMethodPatch:
 		consulMatch.Methods = append(consulMatch.Methods, "PATCH")
-	case state.HTTPMethodPost:
+	case core.HTTPMethodPost:
 		consulMatch.Methods = append(consulMatch.Methods, "POST")
-	case state.HTTPMethodPut:
+	case core.HTTPMethodPut:
 		consulMatch.Methods = append(consulMatch.Methods, "PUT")
-	case state.HTTPMethodTrace:
+	case core.HTTPMethodTrace:
 		consulMatch.Methods = append(consulMatch.Methods, "TRACE")
 	}
 
@@ -224,14 +224,14 @@ func httpServiceDefault(entry api.ConfigEntry, meta map[string]string) *api.Serv
 	}
 }
 
-func routeDiscoveryChain(route state.ResolvedRoute) (*api.IngressService, *api.ServiceRouterConfigEntry, *consul.ConfigEntryIndex, *consul.ConfigEntryIndex) {
+func routeDiscoveryChain(route core.ResolvedRoute) (*api.IngressService, *api.ServiceRouterConfigEntry, *consul.ConfigEntryIndex, *consul.ConfigEntryIndex) {
 	meta := route.Meta()
 	splitters := consul.NewConfigEntryIndex(api.ServiceSplitter)
 	defaults := consul.NewConfigEntryIndex(api.ServiceDefaults)
 
 	switch route.Type() {
-	case state.ResolvedHTTPRouteType:
-		httpRoute := route.(state.HTTPRoute)
+	case core.ResolvedHTTPRouteType:
+		httpRoute := route.(core.HTTPRoute)
 		router, splits := httpRouteDiscoveryChain(httpRoute)
 		serviceDefault := httpServiceDefault(router, meta)
 		defaults.Add(serviceDefault)
@@ -252,7 +252,7 @@ func routeDiscoveryChain(route state.ResolvedRoute) (*api.IngressService, *api.S
 	}
 }
 
-func discoveryChain(gateway state.ResolvedGateway) (*api.IngressGatewayConfigEntry, *consul.ConfigEntryIndex, *consul.ConfigEntryIndex, *consul.ConfigEntryIndex) {
+func discoveryChain(gateway core.ResolvedGateway) (*api.IngressGatewayConfigEntry, *consul.ConfigEntryIndex, *consul.ConfigEntryIndex, *consul.ConfigEntryIndex) {
 	ingress := &api.IngressGatewayConfigEntry{
 		Kind:      api.IngressGateway,
 		Name:      gateway.ID.Service,
@@ -296,7 +296,7 @@ func discoveryChain(gateway state.ResolvedGateway) (*api.IngressGatewayConfigEnt
 	return ingress, routers, splitters, defaults
 }
 
-func (a *ConsulSyncAdapter) entriesForGateway(gateway state.ResolvedGateway) (*consul.ConfigEntryIndex, *consul.ConfigEntryIndex, *consul.ConfigEntryIndex) {
+func (a *ConsulSyncAdapter) entriesForGateway(gateway core.ResolvedGateway) (*consul.ConfigEntryIndex, *consul.ConfigEntryIndex, *consul.ConfigEntryIndex) {
 	existing, found := a.sync[gateway.ID]
 	if !found {
 		routers := consul.NewConfigEntryIndex(api.ServiceRouter)
@@ -307,7 +307,7 @@ func (a *ConsulSyncAdapter) entriesForGateway(gateway state.ResolvedGateway) (*c
 	return existing.routers, existing.splitters, existing.defaults
 }
 
-func (a *ConsulSyncAdapter) setEntriesForGateway(gateway state.ResolvedGateway, routers *consul.ConfigEntryIndex, splitters *consul.ConfigEntryIndex, defaults *consul.ConfigEntryIndex) {
+func (a *ConsulSyncAdapter) setEntriesForGateway(gateway core.ResolvedGateway, routers *consul.ConfigEntryIndex, splitters *consul.ConfigEntryIndex, defaults *consul.ConfigEntryIndex) {
 	a.sync[gateway.ID] = syncState{
 		routers:   routers,
 		splitters: splitters,
@@ -315,7 +315,7 @@ func (a *ConsulSyncAdapter) setEntriesForGateway(gateway state.ResolvedGateway, 
 	}
 }
 
-func (a *ConsulSyncAdapter) Sync(ctx context.Context, gateway state.ResolvedGateway) error {
+func (a *ConsulSyncAdapter) Sync(ctx context.Context, gateway core.ResolvedGateway) error {
 	a.mutex.Lock()
 	defer a.mutex.Unlock()
 

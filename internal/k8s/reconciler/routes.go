@@ -9,7 +9,7 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/service"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
-	"github.com/hashicorp/consul-api-gateway/internal/state"
+	"github.com/hashicorp/consul-api-gateway/pkg/core"
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-multierror"
@@ -42,8 +42,8 @@ type K8sRoute struct {
 	isResolved      bool
 }
 
-var _ state.StatusTrackingRoute = &K8sRoute{}
-var _ state.InitializableRoute = &K8sRoute{}
+var _ core.StatusTrackingRoute = &K8sRoute{}
+var _ core.InitializableRoute = &K8sRoute{}
 
 type K8sRouteConfig struct {
 	ControllerName string
@@ -145,7 +145,7 @@ func (r *K8sRoute) setStatus(current, updated gw.RouteStatus) gw.RouteStatus {
 	return current
 }
 
-func (r *K8sRoute) OnBindFailed(err error, gateway state.Gateway) {
+func (r *K8sRoute) OnBindFailed(err error, gateway core.Gateway) {
 	k8sGateway, ok := gateway.(*K8sGateway)
 	if ok {
 		r.SetStatus(setAdmittedStatus(r.routeStatus(), gw.RouteParentStatus{
@@ -163,7 +163,7 @@ func (r *K8sRoute) OnBindFailed(err error, gateway state.Gateway) {
 	}
 }
 
-func (r *K8sRoute) OnBound(gateway state.Gateway) {
+func (r *K8sRoute) OnBound(gateway core.Gateway) {
 	k8sGateway, ok := gateway.(*K8sGateway)
 	if ok {
 		r.SetStatus(setAdmittedStatus(r.routeStatus(), gw.RouteParentStatus{
@@ -181,7 +181,7 @@ func (r *K8sRoute) OnBound(gateway state.Gateway) {
 	}
 }
 
-func (r *K8sRoute) OnGatewayRemoved(gateway state.Gateway) {
+func (r *K8sRoute) OnGatewayRemoved(gateway core.Gateway) {
 	k8sGateway, ok := gateway.(*K8sGateway)
 	if ok {
 		r.SetStatus(clearParentStatus(
@@ -221,24 +221,24 @@ func (r *K8sRoute) SyncStatus(ctx context.Context) error {
 	return nil
 }
 
-func (r *K8sRoute) Compare(other state.Route) state.CompareResult {
+func (r *K8sRoute) Compare(other core.Route) core.CompareResult {
 	if other == nil {
-		return state.CompareResultInvalid
+		return core.CompareResultInvalid
 	}
 	if r == nil {
-		return state.CompareResultNotEqual
+		return core.CompareResultNotEqual
 	}
 
 	if otherRoute, ok := other.(*K8sRoute); ok {
 		if r.GetGeneration() > otherRoute.GetGeneration() {
-			return state.CompareResultNewer
+			return core.CompareResultNewer
 		}
 		if r.equals(otherRoute) {
-			return state.CompareResultEqual
+			return core.CompareResultEqual
 		}
-		return state.CompareResultNotEqual
+		return core.CompareResultNotEqual
 	}
-	return state.CompareResultInvalid
+	return core.CompareResultInvalid
 }
 
 func (r *K8sRoute) equals(k8sRoute *K8sRoute) bool {
@@ -267,7 +267,7 @@ func (r *K8sRoute) equals(k8sRoute *K8sRoute) bool {
 	return false
 }
 
-func (r *K8sRoute) Resolve(listener state.Listener) *state.ResolvedRoute {
+func (r *K8sRoute) Resolve(listener core.Listener) *core.ResolvedRoute {
 	k8sListener, ok := listener.(*K8sListener)
 	if !ok {
 		return nil

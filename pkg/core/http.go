@@ -1,4 +1,4 @@
-package state
+package core
 
 type HTTPService struct {
 	Service ResolvedService

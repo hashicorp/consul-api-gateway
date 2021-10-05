@@ -12,7 +12,7 @@ import (
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 
-	"github.com/hashicorp/consul-api-gateway/internal/state"
+	"github.com/hashicorp/consul-api-gateway/pkg/core"
 	"github.com/hashicorp/go-hclog"
 )
 
@@ -33,7 +33,7 @@ func (s *wrappedStream) Context() context.Context {
 	return s.wrappedContext
 }
 
-func wrapStream(stream grpc.ServerStream, info state.GatewayID) *wrappedStream {
+func wrapStream(stream grpc.ServerStream, info core.GatewayID) *wrappedStream {
 	return &wrappedStream{
 		ServerStream:   stream,
 		wrappedContext: context.WithValue(stream.Context(), gatewayInfoContextKey, info),
@@ -41,22 +41,22 @@ func wrapStream(stream grpc.ServerStream, info state.GatewayID) *wrappedStream {
 }
 
 // GatewayFromContext retrieves info about a gateway from the context or nil if there is none
-func GatewayFromContext(ctx context.Context) state.GatewayID {
+func GatewayFromContext(ctx context.Context) core.GatewayID {
 	value := ctx.Value(gatewayInfoContextKey)
 	if value == nil {
-		return state.GatewayID{}
+		return core.GatewayID{}
 	}
-	return value.(state.GatewayID)
+	return value.(core.GatewayID)
 }
 
 // GatewaySecretRegistry is used as the authority for determining what gateways the SDS server
 // should actually respond to because they're managed by consul-api-gateway
 type GatewaySecretRegistry interface {
 	// GatewayExists is used to determine whether or not we know a particular gateway instance
-	GatewayExists(info state.GatewayID) bool
+	GatewayExists(info core.GatewayID) bool
 	// CanFetchSecrets is used to determine whether a gateway should be able to fetch a set
 	// of secrets it has requested
-	CanFetchSecrets(info state.GatewayID, secrets []string) bool
+	CanFetchSecrets(info core.GatewayID, secrets []string) bool
 }
 
 // SPIFFEStreamMiddleware verifies the spiffe entries for the certificate
@@ -72,7 +72,7 @@ func SPIFFEStreamMiddleware(logger hclog.Logger, spiffeCA *url.URL, registry Gat
 	}
 }
 
-func verifySPIFFE(ctx context.Context, logger hclog.Logger, spiffeCA *url.URL, registry GatewaySecretRegistry) (state.GatewayID, bool) {
+func verifySPIFFE(ctx context.Context, logger hclog.Logger, spiffeCA *url.URL, registry GatewaySecretRegistry) (core.GatewayID, bool) {
 	if p, ok := peer.FromContext(ctx); ok {
 		if mtls, ok := p.AuthInfo.(credentials.TLSInfo); ok {
 			// grab the peer certificate info
@@ -103,23 +103,23 @@ func verifySPIFFE(ctx context.Context, logger hclog.Logger, spiffeCA *url.URL, r
 			}
 		}
 	}
-	return state.GatewayID{}, false
+	return core.GatewayID{}, false
 }
 
-func parseURI(path string) (state.GatewayID, error) {
+func parseURI(path string) (core.GatewayID, error) {
 	path = strings.TrimPrefix(path, "/")
 	tokens := strings.SplitN(path, "/", 6)
 	if len(tokens) != 6 {
-		return state.GatewayID{}, errors.New("invalid spiffe path")
+		return core.GatewayID{}, errors.New("invalid spiffe path")
 	}
 	if tokens[0] != "ns" || tokens[2] != "dc" || tokens[4] != "svc" {
-		return state.GatewayID{}, errors.New("invalid spiffe path")
+		return core.GatewayID{}, errors.New("invalid spiffe path")
 	}
 	namespace := tokens[1]
 	if namespace == "default" {
 		namespace = ""
 	}
-	return state.GatewayID{
+	return core.GatewayID{
 		ConsulNamespace: namespace,
 		Service:         tokens[5],
 	}, nil

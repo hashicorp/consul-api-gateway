@@ -4,13 +4,16 @@ import (
 	"context"
 	"sync"
 
+	"github.com/hashicorp/consul-api-gateway/pkg/core"
+	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-multierror"
 )
 
 type gatewayState struct {
-	Gateway
+	core.Gateway
 
-	adapter   SyncAdapter
+	logger    hclog.Logger
+	adapter   core.SyncAdapter
 	listeners map[string]*listenerState
 	secrets   map[string]struct{}
 
@@ -18,14 +21,18 @@ type gatewayState struct {
 }
 
 // newGatewayState creates a bound gateway
-func newGatewayState(gateway Gateway, adapter SyncAdapter) *gatewayState {
+func newGatewayState(logger hclog.Logger, gateway core.Gateway, adapter core.SyncAdapter) *gatewayState {
+	id := gateway.ID()
+
+	gatewayLogger := logger.With("gateway.consul.namespace", id.ConsulNamespace, "gateway.consul.service", id.Service)
 	listeners := make(map[string]*listenerState)
 	for _, listener := range gateway.Listeners() {
-		listeners[listener.ID()] = newListenerState(gateway, listener)
+		listeners[listener.ID()] = newListenerState(gatewayLogger, gateway, listener)
 	}
 
 	return &gatewayState{
 		Gateway:   gateway,
+		logger:    gatewayLogger,
 		adapter:   adapter,
 		listeners: listeners,
 		secrets:   make(map[string]struct{}),
@@ -64,7 +71,7 @@ func (g *gatewayState) Remove(id string) {
 	}
 }
 
-func (g *gatewayState) TryBind(route Route) {
+func (g *gatewayState) TryBind(route core.Route) {
 	if g.ShouldBind(route) {
 		bound := false
 		var bindError error
@@ -79,7 +86,7 @@ func (g *gatewayState) TryBind(route Route) {
 				bound = true
 			}
 		}
-		if tracker, ok := route.(StatusTrackingRoute); ok {
+		if tracker, ok := route.(core.StatusTrackingRoute); ok {
 			if !bound {
 				tracker.OnBindFailed(bindError, g.Gateway)
 			} else {
@@ -89,12 +96,12 @@ func (g *gatewayState) TryBind(route Route) {
 	}
 }
 
-func (g *gatewayState) Compare(other Gateway) CompareResult {
+func (g *gatewayState) Compare(other core.Gateway) core.CompareResult {
 	if other == nil {
-		return CompareResultInvalid
+		return core.CompareResultInvalid
 	}
 	if g == nil {
-		return CompareResultNotEqual
+		return core.CompareResultNotEqual
 	}
 
 	return g.Gateway.Compare(other)
@@ -106,7 +113,7 @@ func (g *gatewayState) Sync(ctx context.Context) error {
 
 	for _, listener := range g.listeners {
 		if listener.ShouldSync() {
-			g.Logger().Trace("syncing gateway")
+			g.logger.Trace("syncing gateway")
 			if err := g.sync(ctx); err != nil {
 				return err
 			}
@@ -125,12 +132,12 @@ func (g *gatewayState) sync(ctx context.Context) error {
 	return g.adapter.Sync(ctx, g.Resolve())
 }
 
-func (g *gatewayState) Resolve() ResolvedGateway {
-	listeners := []ResolvedListener{}
+func (g *gatewayState) Resolve() core.ResolvedGateway {
+	listeners := []core.ResolvedListener{}
 	for _, listener := range g.listeners {
 		listeners = append(listeners, listener.Resolve())
 	}
-	return ResolvedGateway{
+	return core.ResolvedGateway{
 		ID:        g.ID(),
 		Meta:      g.ConsulMeta(),
 		Listeners: listeners,

@@ -3,6 +3,9 @@ package state
 import (
 	"context"
 	"sync"
+
+	"github.com/hashicorp/consul-api-gateway/pkg/core"
+	"github.com/hashicorp/go-hclog"
 )
 
 const (
@@ -11,10 +14,11 @@ const (
 
 // boundListener wraps a lstener and its set of routes
 type listenerState struct {
-	Listener
+	core.Listener
 
-	gateway Gateway
+	gateway core.Gateway
 
+	logger   hclog.Logger
 	name     string
 	hostname string
 	port     int
@@ -23,14 +27,14 @@ type listenerState struct {
 	tlsResolved  bool
 	certificates []string
 
-	routes map[string]ResolvedRoute
+	routes map[string]core.ResolvedRoute
 
 	needsSync bool
 
 	mutex sync.RWMutex
 }
 
-func newListenerState(gateway Gateway, listener Listener) *listenerState {
+func newListenerState(logger hclog.Logger, gateway core.Gateway, listener core.Listener) *listenerState {
 	listenerConfig := listener.Config()
 
 	name := defaultListenerName
@@ -51,12 +55,13 @@ func newListenerState(gateway Gateway, listener Listener) *listenerState {
 	return &listenerState{
 		Listener:    listener,
 		gateway:     gateway,
+		logger:      logger.With("listener", name),
 		name:        name,
 		port:        listenerConfig.Port,
 		protocol:    listenerConfig.Protocol,
 		hostname:    hostname,
 		tlsResolved: tlsResolved,
-		routes:      make(map[string]ResolvedRoute),
+		routes:      make(map[string]core.ResolvedRoute),
 		needsSync:   true,
 	}
 }
@@ -68,17 +73,17 @@ func (l *listenerState) RemoveRoute(id string) {
 	if _, found := l.routes[id]; !found {
 		return
 	}
-	l.Logger().Trace("removing route from listener", "route", id)
+	l.logger.Trace("removing route from listener", "route", id)
 
 	l.needsSync = true
 	delete(l.routes, id)
 }
 
-func (l *listenerState) SetRoute(route Route) {
+func (l *listenerState) SetRoute(route core.Route) {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
 
-	l.Logger().Trace("setting route on listener", "route", route.ID())
+	l.logger.Trace("setting route on listener", "route", route.ID())
 	if resolved := route.Resolve(l.Listener); resolved != nil {
 		l.routes[route.ID()] = *resolved
 		l.needsSync = true
@@ -118,12 +123,12 @@ func (l *listenerState) MarkSynced() {
 	l.needsSync = false
 }
 
-func (l *listenerState) Resolve() ResolvedListener {
-	routes := []ResolvedRoute{}
+func (l *listenerState) Resolve() core.ResolvedListener {
+	routes := []core.ResolvedRoute{}
 	for _, route := range l.routes {
 		routes = append(routes, route)
 	}
-	return ResolvedListener{
+	return core.ResolvedListener{
 		Name:         l.name,
 		Hostname:     l.hostname,
 		Port:         l.port,

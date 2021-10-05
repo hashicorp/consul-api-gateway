@@ -5,7 +5,7 @@ import (
 
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
-	"github.com/hashicorp/consul-api-gateway/internal/state"
+	"github.com/hashicorp/consul-api-gateway/pkg/core"
 	"github.com/hashicorp/go-hclog"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
 )
@@ -17,7 +17,7 @@ type K8sGateway struct {
 	listeners       map[string]*K8sListener
 }
 
-var _ state.Gateway = &K8sGateway{}
+var _ core.Gateway = &K8sGateway{}
 
 type K8sGatewayConfig struct {
 	ConsulNamespace string
@@ -44,8 +44,8 @@ func NewK8sGateway(gateway *gw.Gateway, config K8sGatewayConfig) *K8sGateway {
 		listeners:       listeners,
 	}
 }
-func (g *K8sGateway) ID() state.GatewayID {
-	return state.GatewayID{
+func (g *K8sGateway) ID() core.GatewayID {
+	return core.GatewayID{
 		Service:         g.gateway.Name,
 		ConsulNamespace: g.consulNamespace,
 	}
@@ -63,8 +63,8 @@ func (g *K8sGateway) ConsulMeta() map[string]string {
 	}
 }
 
-func (g *K8sGateway) Listeners() []state.Listener {
-	listeners := []state.Listener{}
+func (g *K8sGateway) Listeners() []core.Listener {
+	listeners := []core.Listener{}
 
 	for _, listener := range g.listeners {
 		listeners = append(listeners, listener)
@@ -73,27 +73,27 @@ func (g *K8sGateway) Listeners() []state.Listener {
 	return listeners
 }
 
-func (g *K8sGateway) Compare(other state.Gateway) state.CompareResult {
+func (g *K8sGateway) Compare(other core.Gateway) core.CompareResult {
 	if other == nil {
-		return state.CompareResultInvalid
+		return core.CompareResultInvalid
 	}
 	if g == nil {
-		return state.CompareResultNotEqual
+		return core.CompareResultNotEqual
 	}
 
 	if otherGateway, ok := other.(*K8sGateway); ok {
 		if g.gateway.Generation > otherGateway.gateway.Generation {
-			return state.CompareResultNewer
+			return core.CompareResultNewer
 		}
 		if reflect.DeepEqual(g.gateway.Spec, otherGateway.gateway.Spec) {
-			return state.CompareResultEqual
+			return core.CompareResultEqual
 		}
-		return state.CompareResultNotEqual
+		return core.CompareResultNotEqual
 	}
-	return state.CompareResultInvalid
+	return core.CompareResultInvalid
 }
 
-func (g *K8sGateway) ShouldBind(route state.Route) bool {
+func (g *K8sGateway) ShouldBind(route core.Route) bool {
 	k8sRoute, ok := route.(*K8sRoute)
 	if !ok {
 		return false

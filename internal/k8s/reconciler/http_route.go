@@ -2,7 +2,7 @@ package reconciler
 
 import (
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/service"
-	"github.com/hashicorp/consul-api-gateway/internal/state"
+	"github.com/hashicorp/consul-api-gateway/pkg/core"
 	"k8s.io/apimachinery/pkg/types"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
 )
@@ -11,7 +11,7 @@ func HTTPRouteID(namespacedName types.NamespacedName) string {
 	return "http-" + namespacedName.String()
 }
 
-func convertHTTPRoute(hostname, prefix string, meta map[string]string, route *gw.HTTPRoute, k8sRoute *K8sRoute) *state.ResolvedRoute {
+func convertHTTPRoute(hostname, prefix string, meta map[string]string, route *gw.HTTPRoute, k8sRoute *K8sRoute) *core.ResolvedRoute {
 	hostnames := []string{}
 	for _, hostname := range route.Spec.Hostnames {
 		hostnames = append(hostnames, string(hostname))
@@ -22,7 +22,7 @@ func convertHTTPRoute(hostname, prefix string, meta map[string]string, route *gw
 	name := prefix + route.Name
 
 	// TODO: add consul namespace mappings
-	resolved := state.NewHTTPRouteBuilder().
+	resolved := core.NewHTTPRouteBuilder().
 		WithName(name).
 		WithHostnames(hostnames).
 		WithMeta(meta).
@@ -31,40 +31,40 @@ func convertHTTPRoute(hostname, prefix string, meta map[string]string, route *gw
 	return &resolved
 }
 
-var methodMappings = map[gw.HTTPMethod]state.HTTPMethod{
-	gw.HTTPMethodConnect: state.HTTPMethodConnect,
-	gw.HTTPMethodDelete:  state.HTTPMethodDelete,
-	gw.HTTPMethodPost:    state.HTTPMethodPost,
-	gw.HTTPMethodPut:     state.HTTPMethodPut,
-	gw.HTTPMethodPatch:   state.HTTPMethodPatch,
-	gw.HTTPMethodGet:     state.HTTPMethodGet,
-	gw.HTTPMethodOptions: state.HTTPMethodOptions,
-	gw.HTTPMethodTrace:   state.HTTPMethodTrace,
-	gw.HTTPMethodHead:    state.HTTPMethodHead,
+var methodMappings = map[gw.HTTPMethod]core.HTTPMethod{
+	gw.HTTPMethodConnect: core.HTTPMethodConnect,
+	gw.HTTPMethodDelete:  core.HTTPMethodDelete,
+	gw.HTTPMethodPost:    core.HTTPMethodPost,
+	gw.HTTPMethodPut:     core.HTTPMethodPut,
+	gw.HTTPMethodPatch:   core.HTTPMethodPatch,
+	gw.HTTPMethodGet:     core.HTTPMethodGet,
+	gw.HTTPMethodOptions: core.HTTPMethodOptions,
+	gw.HTTPMethodTrace:   core.HTTPMethodTrace,
+	gw.HTTPMethodHead:    core.HTTPMethodHead,
 }
 
-var pathMappings = map[gw.PathMatchType]state.HTTPPathMatchType{
-	gw.PathMatchExact:             state.HTTPPathMatchExactType,
-	gw.PathMatchRegularExpression: state.HTTPPathMatchRegularExpressionType,
+var pathMappings = map[gw.PathMatchType]core.HTTPPathMatchType{
+	gw.PathMatchExact:             core.HTTPPathMatchExactType,
+	gw.PathMatchRegularExpression: core.HTTPPathMatchRegularExpressionType,
 }
 
-var queryMappings = map[gw.QueryParamMatchType]state.HTTPQueryMatchType{
-	gw.QueryParamMatchExact: state.HTTPQueryMatchExactType,
+var queryMappings = map[gw.QueryParamMatchType]core.HTTPQueryMatchType{
+	gw.QueryParamMatchExact: core.HTTPQueryMatchExactType,
 }
 
-var headerMappings = map[gw.HeaderMatchType]state.HTTPHeaderMatchType{
-	gw.HeaderMatchExact:             state.HTTPHeaderMatchExactType,
-	gw.HeaderMatchRegularExpression: state.HTTPHeaderMatchRegularExpressionType,
+var headerMappings = map[gw.HeaderMatchType]core.HTTPHeaderMatchType{
+	gw.HeaderMatchExact:             core.HTTPHeaderMatchExactType,
+	gw.HeaderMatchRegularExpression: core.HTTPHeaderMatchRegularExpressionType,
 }
 
-func httpReferencesToRules(referenceMap service.RouteRuleReferenceMap) []state.HTTPRouteRule {
-	resolved := []state.HTTPRouteRule{}
+func httpReferencesToRules(referenceMap service.RouteRuleReferenceMap) []core.HTTPRouteRule {
+	resolved := []core.HTTPRouteRule{}
 
 	for rule, references := range referenceMap {
 		filters := convertHTTPRouteFilters(rule.HTTPRule.Filters)
-		matches := []state.HTTPMatch{}
+		matches := []core.HTTPMatch{}
 		for _, match := range rule.HTTPRule.Matches {
-			stateMatch := state.HTTPMatch{}
+			stateMatch := core.HTTPMatch{}
 			if match.Method != nil {
 				if method, found := methodMappings[*match.Method]; found {
 					stateMatch.Method = method
@@ -76,7 +76,7 @@ func httpReferencesToRules(referenceMap service.RouteRuleReferenceMap) []state.H
 					matchType = *match.Path.Type
 				}
 				if mappedType, found := pathMappings[matchType]; found {
-					stateMatch.Path = state.HTTPPathMatch{
+					stateMatch.Path = core.HTTPPathMatch{
 						Type:  mappedType,
 						Value: *match.Path.Value,
 					}
@@ -88,7 +88,7 @@ func httpReferencesToRules(referenceMap service.RouteRuleReferenceMap) []state.H
 					matchType = *param.Type
 				}
 				if mappedType, found := queryMappings[matchType]; found {
-					stateMatch.Query = append(stateMatch.Query, state.HTTPQueryMatch{
+					stateMatch.Query = append(stateMatch.Query, core.HTTPQueryMatch{
 						Type:  mappedType,
 						Name:  param.Name,
 						Value: param.Value,
@@ -101,7 +101,7 @@ func httpReferencesToRules(referenceMap service.RouteRuleReferenceMap) []state.H
 					matchType = *header.Type
 				}
 				if mappedType, found := headerMappings[matchType]; found {
-					stateMatch.Headers = append(stateMatch.Headers, state.HTTPHeaderMatch{
+					stateMatch.Headers = append(stateMatch.Headers, core.HTTPHeaderMatch{
 						Type:  mappedType,
 						Name:  string(header.Name),
 						Value: header.Value,
@@ -111,7 +111,7 @@ func httpReferencesToRules(referenceMap service.RouteRuleReferenceMap) []state.H
 			matches = append(matches, stateMatch)
 		}
 
-		services := []state.HTTPService{}
+		services := []core.HTTPService{}
 		for _, reference := range references {
 			switch reference.Type {
 			case service.ConsulServiceReference:
@@ -120,8 +120,8 @@ func httpReferencesToRules(referenceMap service.RouteRuleReferenceMap) []state.H
 					weight = *reference.Reference.HTTPRef.Weight
 				}
 				// note that we ignore the Port value
-				services = append(services, state.HTTPService{
-					Service: state.ResolvedService{
+				services = append(services, core.HTTPService{
+					Service: core.ResolvedService{
 						ConsulNamespace: reference.Consul.Namespace,
 						Service:         reference.Consul.Name,
 					},
@@ -133,7 +133,7 @@ func httpReferencesToRules(referenceMap service.RouteRuleReferenceMap) []state.H
 				continue
 			}
 		}
-		resolved = append(resolved, state.HTTPRouteRule{
+		resolved = append(resolved, core.HTTPRouteRule{
 			Filters:  filters,
 			Matches:  matches,
 			Services: services,
@@ -142,14 +142,14 @@ func httpReferencesToRules(referenceMap service.RouteRuleReferenceMap) []state.H
 	return resolved
 }
 
-func convertHTTPRouteFilters(routeFilters []gw.HTTPRouteFilter) []state.HTTPFilter {
-	filters := []state.HTTPFilter{}
+func convertHTTPRouteFilters(routeFilters []gw.HTTPRouteFilter) []core.HTTPFilter {
+	filters := []core.HTTPFilter{}
 	for _, filter := range routeFilters {
 		switch filter.Type {
 		case gw.HTTPRouteFilterRequestHeaderModifier:
-			filters = append(filters, state.HTTPFilter{
-				Type: state.HTTPHeaderFilterType,
-				Header: state.HTTPHeaderFilter{
+			filters = append(filters, core.HTTPFilter{
+				Type: core.HTTPHeaderFilterType,
+				Header: core.HTTPHeaderFilter{
 					Set:    httpHeadersToMap(filter.RequestHeaderModifier.Set),
 					Add:    httpHeadersToMap(filter.RequestHeaderModifier.Add),
 					Remove: filter.RequestHeaderModifier.Remove,
@@ -172,9 +172,9 @@ func convertHTTPRouteFilters(routeFilters []gw.HTTPRouteFilter) []state.HTTPFilt
 			if filter.RequestRedirect.StatusCode != nil {
 				statusCode = *filter.RequestRedirect.StatusCode
 			}
-			filters = append(filters, state.HTTPFilter{
-				Type: state.HTTPHeaderFilterType,
-				Redirect: state.HTTPRedirectFilter{
+			filters = append(filters, core.HTTPFilter{
+				Type: core.HTTPHeaderFilterType,
+				Redirect: core.HTTPRedirectFilter{
 					Scheme:   scheme,
 					Hostname: hostname,
 					Port:     port,

@@ -1,9 +1,7 @@
-package state
+package core
 
 import (
 	"context"
-
-	"github.com/hashicorp/go-hclog"
 )
 
 type CompareResult int
@@ -16,8 +14,6 @@ const (
 )
 
 type Gateway interface {
-	Logger() hclog.Logger
-
 	ID() GatewayID
 	ConsulMeta() map[string]string
 	Compare(other Gateway) CompareResult
@@ -34,8 +30,6 @@ type ListenerConfig struct {
 }
 
 type Listener interface {
-	Logger() hclog.Logger
-
 	ID() string
 	CanBind(route Route) (bool, error)
 	Certificates(ctx context.Context) ([]string, error)
@@ -58,8 +52,6 @@ type InitializableRoute interface {
 }
 
 type Route interface {
-	Logger() hclog.Logger
-
 	ID() string
 	Compare(other Route) CompareResult
 	Resolve(listener Listener) *ResolvedRoute

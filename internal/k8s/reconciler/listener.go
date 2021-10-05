@@ -7,9 +7,9 @@ import (
 
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
-	"github.com/hashicorp/consul-api-gateway/internal/state"
+	"github.com/hashicorp/consul-api-gateway/pkg/core"
 	"github.com/hashicorp/go-hclog"
-	core "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
 )
@@ -37,7 +37,7 @@ type K8sListener struct {
 	client          gatewayclient.Client
 }
 
-var _ state.Listener = &K8sListener{}
+var _ core.Listener = &K8sListener{}
 
 type K8sListenerConfig struct {
 	ConsulNamespace string
@@ -87,7 +87,7 @@ func (l *K8sListener) Certificates(ctx context.Context) ([]string, error) {
 }
 
 func (l *K8sListener) resolveCertificateReference(ctx context.Context, ref gw.SecretObjectReference) (string, error) {
-	group := core.GroupName
+	group := corev1.GroupName
 	kind := "Secret"
 	namespace := l.gateway.Namespace
 
@@ -102,7 +102,7 @@ func (l *K8sListener) resolveCertificateReference(ctx context.Context, ref gw.Se
 	}
 
 	switch {
-	case kind == "Secret" && group == core.GroupName:
+	case kind == "Secret" && group == corev1.GroupName:
 		cert, err := l.client.GetSecret(ctx, types.NamespacedName{Name: ref.Name, Namespace: namespace})
 		if err != nil {
 			return "", fmt.Errorf("error fetching secret: %w", err)
@@ -117,7 +117,7 @@ func (l *K8sListener) resolveCertificateReference(ctx context.Context, ref gw.Se
 	}
 }
 
-func (l *K8sListener) Config() state.ListenerConfig {
+func (l *K8sListener) Config() core.ListenerConfig {
 	name := defaultListenerName
 	if l.listener.Name != "" {
 		name = string(l.listener.Name)
@@ -127,7 +127,7 @@ func (l *K8sListener) Config() state.ListenerConfig {
 		hostname = string(*l.listener.Hostname)
 	}
 	protocol, tls := utils.ProtocolToConsul(l.listener.Protocol)
-	return state.ListenerConfig{
+	return core.ListenerConfig{
 		Name:     name,
 		Hostname: hostname,
 		Port:     int(l.listener.Port),
@@ -141,7 +141,7 @@ func (l *K8sListener) Config() state.ListenerConfig {
 // on the gateway the return value is nil, if not,
 // an error specifying why the route cannot bind
 // is returned.
-func (l *K8sListener) CanBind(route state.Route) (bool, error) {
+func (l *K8sListener) CanBind(route core.Route) (bool, error) {
 	k8sRoute, ok := route.(*K8sRoute)
 	if !ok {
 		return false, nil

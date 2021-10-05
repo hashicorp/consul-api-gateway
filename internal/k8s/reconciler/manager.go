@@ -14,6 +14,7 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	"github.com/hashicorp/consul-api-gateway/internal/state"
+	"github.com/hashicorp/consul-api-gateway/pkg/core"
 )
 
 //go:generate mockgen -source ./manager.go -destination ./mocks/manager.go -package mocks ReconcileManager
@@ -120,7 +121,7 @@ func (m *GatewayReconcileManager) DeleteGateway(ctx context.Context, name types.
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
-	err := m.state.DeleteGateway(ctx, state.GatewayID{
+	err := m.state.DeleteGateway(ctx, core.GatewayID{
 		Service:         name.Name,
 		ConsulNamespace: m.namespaceMap[name],
 	})

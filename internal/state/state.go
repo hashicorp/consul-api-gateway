@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 
 	"github.com/hashicorp/consul-api-gateway/internal/metrics"
+	"github.com/hashicorp/consul-api-gateway/pkg/core"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-multierror"
 )
@@ -18,17 +19,17 @@ var (
 
 type State struct {
 	logger  hclog.Logger
-	adapter SyncAdapter
+	adapter core.SyncAdapter
 
-	gateways map[GatewayID]*gatewayState
-	routes   map[string]Route
+	gateways map[core.GatewayID]*gatewayState
+	routes   map[string]core.Route
 	mutex    sync.RWMutex
 
 	activeGateways int64
 }
 
 type StateConfig struct {
-	Adapter SyncAdapter
+	Adapter core.SyncAdapter
 	Logger  hclog.Logger
 }
 
@@ -36,13 +37,13 @@ func NewState(config StateConfig) *State {
 	return &State{
 		logger:   config.Logger,
 		adapter:  config.Adapter,
-		routes:   make(map[string]Route),
-		gateways: make(map[GatewayID]*gatewayState),
+		routes:   make(map[string]core.Route),
+		gateways: make(map[core.GatewayID]*gatewayState),
 	}
 }
 
 // GatewayExists checks if the registry knows about a gateway
-func (s *State) GatewayExists(id GatewayID) bool {
+func (s *State) GatewayExists(id core.GatewayID) bool {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
@@ -51,7 +52,7 @@ func (s *State) GatewayExists(id GatewayID) bool {
 }
 
 // CanFetchSecrets checks if a gateway should be able to access a set of secrets
-func (s *State) CanFetchSecrets(id GatewayID, secrets []string) bool {
+func (s *State) CanFetchSecrets(id core.GatewayID, secrets []string) bool {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
@@ -89,7 +90,7 @@ func (s *State) syncRouteStatuses(ctx context.Context) error {
 
 	for _, r := range s.routes {
 		route := r
-		if tracker, ok := route.(StatusTrackingRoute); ok {
+		if tracker, ok := route.(core.StatusTrackingRoute); ok {
 			syncGroup.Go(func() error {
 				return tracker.SyncStatus(ctx)
 			})
@@ -130,22 +131,22 @@ func (s *State) DeleteRoute(ctx context.Context, id string) error {
 	return s.Sync(ctx)
 }
 
-func (s *State) AddRoute(ctx context.Context, route Route) error {
+func (s *State) AddRoute(ctx context.Context, route core.Route) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
 	id := route.ID()
 
 	switch compareRoutes(s.routes[id], route) {
-	case CompareResultInvalid, CompareResultNewer:
+	case core.CompareResultInvalid, core.CompareResultNewer:
 		// we have an old or invalid route, ignore it
 		return nil
-	case CompareResultNotEqual:
+	case core.CompareResultNotEqual:
 		s.logger.Trace("adding route", "id", id)
 
 		s.routes[id] = route
 
-		if initializable, ok := route.(InitializableRoute); ok {
+		if initializable, ok := route.(core.InitializableRoute); ok {
 			if err := initializable.Init(ctx); err != nil {
 				// the route is considered invalid, so don't try to bind it at all
 				return err
@@ -162,17 +163,17 @@ func (s *State) AddRoute(ctx context.Context, route Route) error {
 	return s.Sync(ctx)
 }
 
-func compareRoutes(a, b Route) CompareResult {
+func compareRoutes(a, b core.Route) core.CompareResult {
 	if b == nil {
-		return CompareResultInvalid
+		return core.CompareResultInvalid
 	}
 	if a == nil {
-		return CompareResultNotEqual
+		return core.CompareResultNotEqual
 	}
 	return a.Compare(b)
 }
 
-func (s *State) AddGateway(ctx context.Context, gateway Gateway) error {
+func (s *State) AddGateway(ctx context.Context, gateway core.Gateway) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -180,13 +181,13 @@ func (s *State) AddGateway(ctx context.Context, gateway Gateway) error {
 
 	current, found := s.gateways[id]
 	switch current.Compare(gateway) {
-	case CompareResultInvalid, CompareResultNewer:
+	case core.CompareResultInvalid, core.CompareResultNewer:
 		// we have an invalid or old route, ignore it
 		return nil
-	case CompareResultNotEqual:
+	case core.CompareResultNotEqual:
 		s.logger.Trace("adding gateway", "service", id.Service, "namespace", id.ConsulNamespace)
 
-		updated := newGatewayState(gateway, s.adapter)
+		updated := newGatewayState(s.logger, gateway, s.adapter)
 		if err := updated.ResolveListenerTLS(ctx); err != nil {
 			// we have invalid listener references, consider the gateway bad
 			return err
@@ -210,7 +211,7 @@ func (s *State) AddGateway(ctx context.Context, gateway Gateway) error {
 	return s.Sync(ctx)
 }
 
-func (s *State) DeleteGateway(ctx context.Context, id GatewayID) error {
+func (s *State) DeleteGateway(ctx context.Context, id core.GatewayID) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -225,7 +226,7 @@ func (s *State) DeleteGateway(ctx context.Context, id GatewayID) error {
 	// handles resource cleanup, we can just remove
 	// it from being tracked and sync back route statuses
 	for _, route := range s.routes {
-		if tracker, ok := route.(StatusTrackingRoute); ok {
+		if tracker, ok := route.(core.StatusTrackingRoute); ok {
 			tracker.OnGatewayRemoved(gateway)
 		}
 	}
