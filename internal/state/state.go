@@ -6,7 +6,6 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/hashicorp/consul-api-gateway/internal/common"
 	"github.com/hashicorp/consul-api-gateway/internal/metrics"
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
@@ -17,32 +16,62 @@ var (
 	ErrCannotBindListener = errors.New("cannot bind listener")
 )
 
-type State struct {
-	logger   hclog.Logger
-	consul   *api.Client
-	registry *common.GatewaySecretRegistry
+// GatewayID encapsulates enough information
+// to describe a particular deployed gateway
+type GatewayID struct {
+	ConsulNamespace string
+	Service         string
+}
 
-	gateways map[string]*BoundGateway
+type State struct {
+	logger hclog.Logger
+	consul *api.Client
+
+	gateways map[GatewayID]*BoundGateway
 	routes   map[string]Route
-	mutex    sync.Mutex
+	mutex    sync.RWMutex
 
 	activeGateways int64
 }
 
 type StateConfig struct {
-	Registry *common.GatewaySecretRegistry
-	Consul   *api.Client
-	Logger   hclog.Logger
+	Consul *api.Client
+	Logger hclog.Logger
 }
 
 func NewState(config StateConfig) *State {
 	return &State{
 		logger:   config.Logger,
 		consul:   config.Consul,
-		registry: config.Registry,
 		routes:   make(map[string]Route),
-		gateways: make(map[string]*BoundGateway),
+		gateways: make(map[GatewayID]*BoundGateway),
 	}
+}
+
+// GatewayExists checks if the registry knows about a gateway
+func (s *State) GatewayExists(id GatewayID) bool {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	_, found := s.gateways[id]
+	return found
+}
+
+// CanFetchSecrets checks if a gateway should be able to access a set of secrets
+func (s *State) CanFetchSecrets(id GatewayID, secrets []string) bool {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	gateway, found := s.gateways[id]
+	if !found {
+		return false
+	}
+	for _, secret := range secrets {
+		if _, found := gateway.secrets[secret]; !found {
+			return false
+		}
+	}
+	return true
 }
 
 func (s *State) syncGateways(ctx context.Context) error {
@@ -175,10 +204,6 @@ func (s *State) AddGateway(ctx context.Context, gateway Gateway) error {
 		// this was an insert
 		activeGateways := atomic.AddInt64(&s.activeGateways, 1)
 		metrics.Registry.SetGauge(metrics.K8sGateways, float32(activeGateways))
-		s.registry.AddGateway(common.GatewayInfo{
-			Service:   gateway.Name(),
-			Namespace: gateway.Namespace(),
-		}, gateway.Secrets()...)
 		s.logger.Trace("gateway inserted", "gateway", gateway.Name())
 	}
 
@@ -186,7 +211,7 @@ func (s *State) AddGateway(ctx context.Context, gateway Gateway) error {
 	return s.Sync(ctx)
 }
 
-func (s *State) DeleteGateway(ctx context.Context, id string) error {
+func (s *State) DeleteGateway(ctx context.Context, id GatewayID) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -206,10 +231,6 @@ func (s *State) DeleteGateway(ctx context.Context, id string) error {
 	}
 	delete(s.gateways, id)
 
-	s.registry.RemoveGateway(common.GatewayInfo{
-		Service:   gateway.Name(),
-		Namespace: gateway.Namespace(),
-	})
 	activeGateways := atomic.AddInt64(&s.activeGateways, -1)
 	metrics.Registry.SetGauge(metrics.K8sGateways, float32(activeGateways))
 

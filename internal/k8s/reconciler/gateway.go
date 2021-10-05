@@ -11,19 +11,18 @@ import (
 )
 
 type K8sGateway struct {
-	logger         hclog.Logger
-	controllerName string
-
-	gateway   *gw.Gateway
-	listeners map[string]*K8sListener
+	consulNamespace string
+	logger          hclog.Logger
+	gateway         *gw.Gateway
+	listeners       map[string]*K8sListener
 }
 
 var _ state.Gateway = &K8sGateway{}
 
 type K8sGatewayConfig struct {
-	Logger         hclog.Logger
-	Client         gatewayclient.Client
-	ControllerName string
+	ConsulNamespace string
+	Logger          hclog.Logger
+	Client          gatewayclient.Client
 }
 
 func NewK8sGateway(gateway *gw.Gateway, config K8sGatewayConfig) *K8sGateway {
@@ -31,21 +30,25 @@ func NewK8sGateway(gateway *gw.Gateway, config K8sGatewayConfig) *K8sGateway {
 	listeners := make(map[string]*K8sListener)
 	for _, listener := range gateway.Spec.Listeners {
 		k8sListener := NewK8sListener(gateway, listener, K8sListenerConfig{
-			Logger: gatewayLogger,
-			Client: config.Client,
+			ConsulNamespace: config.ConsulNamespace,
+			Logger:          gatewayLogger,
+			Client:          config.Client,
 		})
 		listeners[k8sListener.ID()] = k8sListener
 	}
 
 	return &K8sGateway{
-		logger:         gatewayLogger,
-		controllerName: config.ControllerName,
-		gateway:        gateway,
-		listeners:      listeners,
+		consulNamespace: config.ConsulNamespace,
+		logger:          gatewayLogger,
+		gateway:         gateway,
+		listeners:       listeners,
 	}
 }
-func (g *K8sGateway) ID() string {
-	return utils.NamespacedName(g.gateway).String()
+func (g *K8sGateway) ID() state.GatewayID {
+	return state.GatewayID{
+		Service:         g.gateway.Name,
+		ConsulNamespace: g.consulNamespace,
+	}
 }
 
 func (g *K8sGateway) Logger() hclog.Logger {

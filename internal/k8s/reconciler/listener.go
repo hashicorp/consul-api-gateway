@@ -31,27 +31,30 @@ const (
 )
 
 type K8sListener struct {
-	logger   hclog.Logger
-	gateway  *gw.Gateway
-	listener gw.Listener
-	client   gatewayclient.Client
+	consulNamespace string
+	logger          hclog.Logger
+	gateway         *gw.Gateway
+	listener        gw.Listener
+	client          gatewayclient.Client
 }
 
 var _ state.Listener = &K8sListener{}
 
 type K8sListenerConfig struct {
-	Logger hclog.Logger
-	Client gatewayclient.Client
+	ConsulNamespace string
+	Logger          hclog.Logger
+	Client          gatewayclient.Client
 }
 
 func NewK8sListener(gateway *gw.Gateway, listener gw.Listener, config K8sListenerConfig) *K8sListener {
 	listenerLogger := config.Logger.Named("listener").With("listener", string(listener.Name))
 
 	return &K8sListener{
-		logger:   listenerLogger,
-		client:   config.Client,
-		gateway:  gateway,
-		listener: listener,
+		consulNamespace: config.ConsulNamespace,
+		logger:          listenerLogger,
+		client:          config.Client,
+		gateway:         gateway,
+		listener:        listener,
 	}
 }
 

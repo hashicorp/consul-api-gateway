@@ -24,8 +24,8 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/status"
 
-	"github.com/hashicorp/consul-api-gateway/internal/common"
 	"github.com/hashicorp/consul-api-gateway/internal/envoy/mocks"
+	"github.com/hashicorp/consul-api-gateway/internal/state"
 	gwTesting "github.com/hashicorp/consul-api-gateway/internal/testing"
 	"github.com/hashicorp/go-hclog"
 )
@@ -244,7 +244,7 @@ func runTestServer(t *testing.T, ca []byte, registryFn func(*gomock.Controller) 
 		Name: "test",
 	}, time.Now(), nil)
 
-	sds := NewSDSServer(hclog.NewNullLogger(), fetcher, secretClient, common.NewGatewaySecretRegistry())
+	sds := NewSDSServer(hclog.NewNullLogger(), fetcher, secretClient, state.NewState(state.StateConfig{}))
 	sds.bindAddress = serverAddress
 	sds.protocol = "unix"
 	if registryFn != nil {

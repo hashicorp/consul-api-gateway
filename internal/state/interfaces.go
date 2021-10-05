@@ -11,7 +11,7 @@ import (
 type Gateway interface {
 	Logger() hclog.Logger
 
-	ID() string
+	ID() GatewayID
 	Name() string
 	Namespace() string
 	Meta() map[string]string

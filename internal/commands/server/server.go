@@ -14,6 +14,7 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/k8s"
 	"github.com/hashicorp/consul-api-gateway/internal/metrics"
 	"github.com/hashicorp/consul-api-gateway/internal/profiling"
+	"github.com/hashicorp/consul-api-gateway/internal/state"
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
 )
@@ -67,7 +68,14 @@ func RunServer(config ServerConfig) int {
 		config.Logger.Error("error creating a Consul API client", "error", err)
 		return 1
 	}
+
+	state := state.NewState(state.StateConfig{
+		Consul: consulClient,
+		Logger: config.Logger.Named("state"),
+	})
+
 	controller.SetConsul(consulClient)
+	controller.SetState(state)
 
 	options := consul.DefaultCertManagerOptions()
 	certManager := consul.NewCertManager(
@@ -91,7 +99,7 @@ func RunServer(config ServerConfig) int {
 	}
 	config.Logger.Trace("initial certificates written")
 
-	server := envoy.NewSDSServer(config.Logger.Named("sds-server"), certManager, secretClient, config.K8sConfig.Registry)
+	server := envoy.NewSDSServer(config.Logger.Named("sds-server"), certManager, secretClient, state)
 	group.Go(func() error {
 		return server.Run(groupCtx)
 	})

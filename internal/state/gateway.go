@@ -17,6 +17,7 @@ type BoundGateway struct {
 
 	consul    *api.Client
 	listeners map[string]*BoundListener
+	secrets   map[string]struct{}
 
 	routers   *consul.ConfigEntryIndex
 	splitters *consul.ConfigEntryIndex
@@ -32,6 +33,11 @@ func NewBoundGateway(gateway Gateway, client *api.Client) *BoundGateway {
 		listeners[listener.ID()] = NewBoundListener(gateway, listener)
 	}
 
+	secrets := make(map[string]struct{})
+	for _, secret := range gateway.Secrets() {
+		secrets[secret] = struct{}{}
+	}
+
 	return &BoundGateway{
 		Gateway:   gateway,
 		consul:    client,
@@ -39,6 +45,7 @@ func NewBoundGateway(gateway Gateway, client *api.Client) *BoundGateway {
 		routers:   consul.NewConfigEntryIndex(api.ServiceRouter),
 		splitters: consul.NewConfigEntryIndex(api.ServiceSplitter),
 		defaults:  consul.NewConfigEntryIndex(api.ServiceDefaults),
+		secrets:   secrets,
 	}
 }
 

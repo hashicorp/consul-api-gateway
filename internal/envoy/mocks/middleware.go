@@ -8,7 +8,7 @@ import (
 	reflect "reflect"
 
 	gomock "github.com/golang/mock/gomock"
-	common "github.com/hashicorp/consul-api-gateway/internal/common"
+	state "github.com/hashicorp/consul-api-gateway/internal/state"
 )
 
 // MockGatewaySecretRegistry is a mock of GatewaySecretRegistry interface.
@@ -35,7 +35,7 @@ func (m *MockGatewaySecretRegistry) EXPECT() *MockGatewaySecretRegistryMockRecor
 }
 
 // CanFetchSecrets mocks base method.
-func (m *MockGatewaySecretRegistry) CanFetchSecrets(info common.GatewayInfo, secrets []string) bool {
+func (m *MockGatewaySecretRegistry) CanFetchSecrets(info state.GatewayID, secrets []string) bool {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CanFetchSecrets", info, secrets)
 	ret0, _ := ret[0].(bool)
@@ -49,7 +49,7 @@ func (mr *MockGatewaySecretRegistryMockRecorder) CanFetchSecrets(info, secrets i
 }
 
 // GatewayExists mocks base method.
-func (m *MockGatewaySecretRegistry) GatewayExists(info common.GatewayInfo) bool {
+func (m *MockGatewaySecretRegistry) GatewayExists(info state.GatewayID) bool {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GatewayExists", info)
 	ret0, _ := ret[0].(bool)
