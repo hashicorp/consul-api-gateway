@@ -181,7 +181,7 @@ func (g *BoundGateway) sync(ctx context.Context) error {
 		Kind:      api.IngressGateway,
 		Name:      g.ID().Service,
 		Namespace: g.ID().ConsulNamespace,
-		Meta:      g.Meta(),
+		Meta:      g.ConsulMeta(),
 	}
 
 	computedRouters := consul.NewConfigEntryIndex(api.ServiceRouter)

@@ -26,7 +26,7 @@ type Gateway interface {
 	Logger() hclog.Logger
 
 	ID() GatewayID
-	Meta() map[string]string
+	ConsulMeta() map[string]string
 	Compare(other Gateway) CompareResult
 	Listeners() []Listener
 	ShouldBind(route Route) bool

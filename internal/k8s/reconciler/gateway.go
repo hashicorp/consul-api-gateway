@@ -55,7 +55,7 @@ func (g *K8sGateway) Logger() hclog.Logger {
 	return g.logger
 }
 
-func (g *K8sGateway) Meta() map[string]string {
+func (g *K8sGateway) ConsulMeta() map[string]string {
 	return map[string]string{
 		"managed_by":                               "consul-api-gateway",
 		"consul-api-gateway/k8s/Gateway.Name":      g.gateway.Name,
