@@ -256,14 +256,3 @@ func (s *Store) DeleteGateway(ctx context.Context, id core.GatewayID) error {
 	// sync route statuses to k8s
 	return s.syncRouteStatuses(ctx)
 }
-
-func (s *Store) State(ctx context.Context) ([]core.ResolvedGateway, error) {
-	s.mutex.RLock()
-	defer s.mutex.RUnlock()
-
-	resolved := []core.ResolvedGateway{}
-	for _, gateway := range s.gateways {
-		resolved = append(resolved, gateway.Resolve())
-	}
-	return resolved, nil
-}
