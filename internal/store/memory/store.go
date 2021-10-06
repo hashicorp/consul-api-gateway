@@ -76,20 +76,23 @@ func (s *Store) GetGateway(ctx context.Context, id core.GatewayID) (core.Gateway
 	return gateway.Gateway, nil
 }
 
-func (s *Store) syncGateways(ctx context.Context) error {
+func (s *Store) syncGateway(ctx context.Context, gateway *gatewayState) error {
+	if tracker, ok := gateway.Gateway.(core.StatusTrackingGateway); ok {
+		return tracker.TrackSync(ctx, func() (bool, error) {
+			return gateway.Sync(ctx)
+		})
+	}
+	_, err := gateway.Sync(ctx)
+	return err
+}
+
+func (s *Store) syncGateways(ctx context.Context, gateways ...*gatewayState) error {
 	var syncGroup multierror.Group
 
-	for _, gw := range s.gateways {
+	for _, gw := range gateways {
 		gateway := gw
 		syncGroup.Go(func() error {
-			if tracker, ok := gateway.Gateway.(core.StatusTrackingGateway); ok {
-				return tracker.TrackSync(ctx, func() (bool, error) {
-					return gateway.Sync(ctx)
-				})
-			} else {
-				_, err := gateway.Sync(ctx)
-				return err
-			}
+			return s.syncGateway(ctx, gateway)
 		})
 	}
 	if err := syncGroup.Wait(); err != nil {
@@ -117,11 +120,17 @@ func (s *Store) syncRouteStatuses(ctx context.Context) error {
 	return nil
 }
 
-func (s *Store) Sync(ctx context.Context) error {
+func (s *Store) sync(ctx context.Context, gateways ...*gatewayState) error {
 	var syncGroup multierror.Group
 
+	if gateways == nil {
+		for _, gateway := range s.gateways {
+			gateways = append(gateways, gateway)
+		}
+	}
+
 	syncGroup.Go(func() error {
-		return s.syncGateways(ctx)
+		return s.syncGateways(ctx, gateways...)
 	})
 	syncGroup.Go(func() error {
 		return s.syncRouteStatuses(ctx)
@@ -130,6 +139,10 @@ func (s *Store) Sync(ctx context.Context) error {
 		return err
 	}
 	return nil
+}
+
+func (s *Store) Sync(ctx context.Context) error {
+	return s.sync(ctx)
 }
 
 func (s *Store) GetRoute(ctx context.Context, id string) (core.Route, error) {
@@ -224,8 +237,8 @@ func (s *Store) UpsertGateway(ctx context.Context, gateway core.Gateway) error {
 		metrics.Registry.SetGauge(metrics.K8sGateways, float32(activeGateways))
 	}
 
-	// sync the gateways to consul and route statuses to k8s
-	return s.Sync(ctx)
+	// sync the gateway to consul and any updated route statuses
+	return s.sync(ctx, s.gateways[id])
 }
 
 func (s *Store) DeleteGateway(ctx context.Context, id core.GatewayID) error {
