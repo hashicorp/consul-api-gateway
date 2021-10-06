@@ -78,6 +78,7 @@ type Route interface {
 // an external system
 type SyncAdapter interface {
 	Sync(ctx context.Context, gateway ResolvedGateway) error
+	Clear(ctx context.Context, id GatewayID) error
 }
 
 // Store is used for persisting and querying gateways and routes

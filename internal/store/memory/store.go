@@ -240,9 +240,9 @@ func (s *Store) DeleteGateway(ctx context.Context, id core.GatewayID) error {
 
 	s.logger.Trace("deleting gateway", "id", id)
 
-	// deregistration of the service in the gateway
-	// handles resource cleanup, we can just remove
-	// it from being tracked and sync back route statuses
+	if err := s.adapter.Clear(ctx, id); err != nil {
+		return err
+	}
 	for _, route := range s.routes {
 		if tracker, ok := route.(core.StatusTrackingRoute); ok {
 			tracker.OnGatewayRemoved(gateway)

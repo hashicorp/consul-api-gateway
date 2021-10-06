@@ -298,8 +298,8 @@ func discoveryChain(gateway core.ResolvedGateway) (*api.IngressGatewayConfigEntr
 	return ingress, routers, splitters, defaults
 }
 
-func (a *ConsulSyncAdapter) entriesForGateway(gateway core.ResolvedGateway) (*consul.ConfigEntryIndex, *consul.ConfigEntryIndex, *consul.ConfigEntryIndex) {
-	existing, found := a.sync[gateway.ID]
+func (a *ConsulSyncAdapter) entriesForGateway(id core.GatewayID) (*consul.ConfigEntryIndex, *consul.ConfigEntryIndex, *consul.ConfigEntryIndex) {
+	existing, found := a.sync[id]
 	if !found {
 		routers := consul.NewConfigEntryIndex(api.ServiceRouter)
 		splitters := consul.NewConfigEntryIndex(api.ServiceSplitter)
@@ -317,6 +317,60 @@ func (a *ConsulSyncAdapter) setEntriesForGateway(gateway core.ResolvedGateway, r
 	}
 }
 
+func (a *ConsulSyncAdapter) Clear(ctx context.Context, id core.GatewayID) error {
+	a.mutex.Lock()
+	defer a.mutex.Unlock()
+
+	if _, found := a.sync[id]; !found {
+		return nil
+	}
+
+	if a.logger.IsTrace() {
+		started := time.Now()
+		a.logger.Trace("clearing entries for gateway", "time", started)
+		defer a.logger.Trace("entries cleared", "time", time.Now(), "spent", time.Since(started))
+	}
+
+	ingress := &api.IngressGatewayConfigEntry{
+		Kind:      api.IngressGateway,
+		Name:      id.Service,
+		Namespace: id.ConsulNamespace,
+	}
+	existingRouters, existingSplitters, existingDefaults := a.entriesForGateway(id)
+	removedRouters := existingRouters.ToArray()
+	removedSplitters := existingSplitters.ToArray()
+	removedDefaults := existingDefaults.ToArray()
+
+	if a.logger.IsTrace() {
+		ingressEntry, err := json.MarshalIndent(ingress, "", "  ")
+		if err == nil {
+			a.logger.Trace("removing ingress", "items", string(ingressEntry))
+		}
+		removed, err := json.MarshalIndent(append(append(removedRouters, removedSplitters...), removedDefaults...), "", "  ")
+		if err == nil {
+			a.logger.Trace("removing", "items", string(removed))
+		}
+	}
+
+	if err := a.deleteConfigEntries(ctx, removedRouters...); err != nil {
+		return fmt.Errorf("error removing service router config entries: %w", err)
+	}
+	if err := a.deleteConfigEntries(ctx, removedSplitters...); err != nil {
+		return fmt.Errorf("error removing service splitter config entries: %w", err)
+	}
+	if err := a.deleteConfigEntries(ctx, removedDefaults...); err != nil {
+		return fmt.Errorf("error removing service defaults config entries: %w", err)
+	}
+
+	if err := a.deleteConfigEntries(ctx, ingress); err != nil {
+		return fmt.Errorf("error removing ingress config entry: %w", err)
+	}
+
+	delete(a.sync, id)
+
+	return nil
+}
+
 func (a *ConsulSyncAdapter) Sync(ctx context.Context, gateway core.ResolvedGateway) error {
 	a.mutex.Lock()
 	defer a.mutex.Unlock()
@@ -328,7 +382,7 @@ func (a *ConsulSyncAdapter) Sync(ctx context.Context, gateway core.ResolvedGatew
 	}
 
 	ingress, computedRouters, computedSplitters, computedDefaults := discoveryChain(gateway)
-	existingRouters, existingSplitters, existingDefaults := a.entriesForGateway(gateway)
+	existingRouters, existingSplitters, existingDefaults := a.entriesForGateway(gateway.ID)
 
 	// Since we can't make multiple config entry changes in a single transaction we must
 	// perform the operations in a set that is least likely to induce downtime.
