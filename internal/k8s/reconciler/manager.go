@@ -4,9 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
-	"sync/atomic"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
@@ -14,210 +12,149 @@ import (
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
 
-	"github.com/hashicorp/consul-api-gateway/internal/common"
+	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
-	"github.com/hashicorp/consul-api-gateway/internal/metrics"
 )
 
 //go:generate mockgen -source ./manager.go -destination ./mocks/manager.go -package mocks ReconcileManager
 
 type ReconcileManager interface {
-	UpsertGatewayClass(gc *gw.GatewayClass, validParameters bool) error
-	UpsertGateway(g *gw.Gateway)
-	UpsertHTTPRoute(r *gw.HTTPRoute)
-	DeleteGatewayClass(name string)
-	DeleteGateway(name types.NamespacedName)
-	DeleteRoute(name types.NamespacedName)
+	UpsertGatewayClass(ctx context.Context, gc *gw.GatewayClass, validParameters bool) error
+	UpsertGateway(ctx context.Context, g *gw.Gateway) error
+	UpsertHTTPRoute(ctx context.Context, r Route) error
+	UpsertTCPRoute(ctx context.Context, r Route) error
+	UpsertTLSRoute(ctx context.Context, r Route) error
+	DeleteGatewayClass(ctx context.Context, name string) error
+	DeleteGateway(ctx context.Context, name types.NamespacedName) error
+	DeleteHTTPRoute(ctx context.Context, name types.NamespacedName) error
+	DeleteTCPRoute(ctx context.Context, name types.NamespacedName) error
+	DeleteTLSRoute(ctx context.Context, name types.NamespacedName) error
 }
 
 // GatewayReconcileManager manages a GatewayReconciler for each Gateway and is the interface by which Consul operations
 // should be invoked in a kubernetes controller.
 type GatewayReconcileManager struct {
 	controllerName string
-	ctx            context.Context
-	registry       *common.GatewaySecretRegistry
+	logger         hclog.Logger
 	client         gatewayclient.Client
 	consul         *api.Client
-	routes         *KubernetesRoutes
-	logger         hclog.Logger
-	activeGateways int64
+	tracker        GatewayStatusTracker
 
-	reconcilersMu  sync.Mutex
-	reconcilers    map[types.NamespacedName]*GatewayReconciler
-	gatewayClasses map[string]client.Object
+	store          core.Store
+	gatewayClasses *K8sGatewayClasses
+
+	namespaceMap map[types.NamespacedName]string
+	// guards the above map
+	mutex sync.RWMutex
 }
+
+var _ ReconcileManager = &GatewayReconcileManager{}
 
 type ManagerConfig struct {
 	ControllerName string
-	Registry       *common.GatewaySecretRegistry
 	Client         gatewayclient.Client
 	Consul         *api.Client
 	Status         client.StatusWriter
+	Store          core.Store
+	Tracker        GatewayStatusTracker
 	Logger         hclog.Logger
 }
 
-func NewReconcileManager(ctx context.Context, config *ManagerConfig) *GatewayReconcileManager {
+func NewReconcileManager(config ManagerConfig) *GatewayReconcileManager {
 	return &GatewayReconcileManager{
 		controllerName: config.ControllerName,
-		ctx:            ctx,
+		logger:         config.Logger,
 		client:         config.Client,
 		consul:         config.Consul,
-		registry:       config.Registry,
-		reconcilers:    map[types.NamespacedName]*GatewayReconciler{},
-		gatewayClasses: map[string]client.Object{},
-		routes:         NewKubernetesRoutes(),
-		logger:         config.Logger,
+		tracker:        config.Tracker,
+		gatewayClasses: NewK8sGatewayClasses(config.Logger.Named("gatewayclasses"), config.Client),
+		namespaceMap:   make(map[types.NamespacedName]string),
+		store:          config.Store,
 	}
 }
 
-func (m *GatewayReconcileManager) UpsertGatewayClass(gc *gw.GatewayClass, validParameters bool) error {
-	m.reconcilersMu.Lock()
+func (m *GatewayReconcileManager) UpsertGatewayClass(ctx context.Context, gc *gw.GatewayClass, validParameters bool) error {
+	return m.gatewayClasses.Upsert(ctx, gc, validParameters)
+}
 
-	var currentGen int64
-	if current, ok := m.gatewayClasses[gc.Name]; ok {
-		currentGen = current.GetGeneration()
-	}
-	if gc.Generation > currentGen {
-		m.gatewayClasses[gc.Name] = gc
-		m.reconcilersMu.Unlock()
+func (m *GatewayReconcileManager) UpsertGateway(ctx context.Context, g *gw.Gateway) error {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
 
-		conditions := gatewayClassConditions(gc, validParameters)
-		if utils.IsFieldUpdated(gc.Status.Conditions, conditions) {
-			gc.Status.Conditions = conditions
-			if err := m.client.UpdateStatus(m.ctx, gc); err != nil {
-				m.logger.Error("error updating gatewayclass status", "error", err)
-				return err
-			}
+	// TODO: do real namespace mapping
+	consulNamespace := ""
+
+	m.namespaceMap[utils.NamespacedName(g)] = consulNamespace
+
+	return m.store.UpsertGateway(ctx, NewK8sGateway(g, K8sGatewayConfig{
+		ConsulNamespace: consulNamespace,
+		Logger:          m.logger,
+		Client:          m.client,
+		Tracker:         m.tracker,
+	}))
+}
+
+func (m *GatewayReconcileManager) UpsertHTTPRoute(ctx context.Context, r Route) error {
+	return m.upsertRoute(ctx, r)
+}
+
+func (m *GatewayReconcileManager) UpsertTCPRoute(ctx context.Context, r Route) error {
+	return m.upsertRoute(ctx, r)
+}
+
+func (m *GatewayReconcileManager) UpsertTLSRoute(ctx context.Context, r Route) error {
+	return m.upsertRoute(ctx, r)
+}
+
+func (m *GatewayReconcileManager) upsertRoute(ctx context.Context, r Route) error {
+	route := NewK8sRoute(r, K8sRouteConfig{
+		ControllerName: m.controllerName,
+		Logger:         m.logger,
+		Client:         m.client,
+		Consul:         m.consul,
+	})
+	if err := route.ResolveReferences(ctx); err != nil {
+		if err := route.SyncStatus(ctx); err != nil {
+			return fmt.Errorf("error updating route status: %w", err)
 		}
-	} else {
-		m.reconcilersMu.Unlock()
+		return fmt.Errorf("error resolving route references: %w", err)
 	}
+	return m.store.UpsertRoute(ctx, route)
+}
+
+func (m *GatewayReconcileManager) DeleteGatewayClass(ctx context.Context, name string) error {
+	m.gatewayClasses.Delete(name)
 	return nil
 }
 
-func gatewayClassConditions(gc *gw.GatewayClass, validParameters bool) []metav1.Condition {
-	if validParameters {
-		return []metav1.Condition{
-			{
-				Type:               string(gw.GatewayClassConditionStatusAdmitted),
-				Status:             metav1.ConditionTrue,
-				ObservedGeneration: gc.Generation,
-				LastTransitionTime: metav1.Now(),
-				Reason:             string(gw.GatewayClassReasonAdmitted),
-				Message:            fmt.Sprintf("admitted by controller %q", gc.Spec.Controller),
-			},
-		}
-	}
-	return []metav1.Condition{
-		{
-			Type:               string(gw.GatewayClassConditionStatusAdmitted),
-			Status:             metav1.ConditionFalse,
-			ObservedGeneration: gc.Generation,
-			LastTransitionTime: metav1.Now(),
-			Reason:             string(gw.GatewayClassReasonInvalidParameters),
-			Message:            fmt.Sprintf("rejected by controller %q", gc.Spec.Controller),
-		},
-	}
-}
+func (m *GatewayReconcileManager) DeleteGateway(ctx context.Context, name types.NamespacedName) error {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
 
-func (m *GatewayReconcileManager) UpsertGateway(g *gw.Gateway) {
-	namespacedName := utils.NamespacedName(g)
-	m.reconcilersMu.Lock()
-	defer m.reconcilersMu.Unlock()
-
-	// check that a matching gateway class exists
-	if _, ok := m.gatewayClasses[g.Spec.GatewayClassName]; !ok {
-		return
-	}
-
-	r, ok := m.reconcilers[namespacedName]
-	if !ok {
-		m.registry.AddGateway(common.GatewayInfo{
-			Service:   g.GetName(),
-			Namespace: g.GetNamespace(),
-		}, referencedSecretsForGateway(g)...)
-		activeGateways := atomic.AddInt64(&m.activeGateways, 1)
-		metrics.Registry.SetGauge(metrics.K8sGateways, float32(activeGateways))
-		r = newReconcilerForGateway(m.ctx, &gatewayReconcilerArgs{
-			controllerName: m.controllerName,
-			consul:         m.consul,
-			client:         m.client,
-			logger:         m.logger,
-			gateway:        g,
-			routes:         m.routes,
-		})
-		go r.loop()
-		m.reconcilers[namespacedName] = r
-		m.logger.Debug("gateway inserted", "gateway", g.Name)
-		r.signalReconcile()
-		return
-	}
-
-	if r.kubeGateway.GetGeneration() != g.GetGeneration() {
-		r.kubeGateway = g
-		m.logger.Debug("gateway updated", "gateway", g.Name)
-		r.signalReconcile()
-	}
-}
-
-func (m *GatewayReconcileManager) UpsertHTTPRoute(r *gw.HTTPRoute) {
-	if m.routes.Set(r) {
-		m.logger.Debug("route upserted", "route", r.Name)
-		m.signalAll()
-	}
-}
-
-func (m *GatewayReconcileManager) DeleteGatewayClass(name string) {
-	m.reconcilersMu.Lock()
-	delete(m.gatewayClasses, name)
-	m.reconcilersMu.Unlock()
-}
-
-func (m *GatewayReconcileManager) DeleteGateway(name types.NamespacedName) {
-	m.reconcilersMu.Lock()
-	defer m.reconcilersMu.Unlock()
-	r, ok := m.reconcilers[name]
-	if !ok {
-		return
-	}
-
-	r.stop()
-	delete(m.reconcilers, name)
-
-	m.registry.RemoveGateway(common.GatewayInfo{
-		Service:   name.Name,
-		Namespace: name.Namespace,
+	err := m.store.DeleteGateway(ctx, core.GatewayID{
+		Service:         name.Name,
+		ConsulNamespace: m.namespaceMap[name],
 	})
-	activeGateways := atomic.AddInt64(&m.activeGateways, -1)
-	metrics.Registry.SetGauge(metrics.K8sGateways, float32(activeGateways))
-}
 
-func (m *GatewayReconcileManager) DeleteRoute(name types.NamespacedName) {
-	m.routes.Delete(name)
-	m.signalAll()
-}
-
-func (m *GatewayReconcileManager) signalAll() {
-	for _, r := range m.reconcilers {
-		r.signalReconcile()
+	if err != nil {
+		return err
 	}
+
+	m.tracker.DeleteStatus(name)
+	delete(m.namespaceMap, name)
+
+	return nil
 }
 
-func referencedSecretsForGateway(g *gw.Gateway) []string {
-	secrets := []string{}
-	for _, listener := range g.Spec.Listeners {
-		if listener.TLS != nil {
-			ref := listener.TLS.CertificateRef
-			if ref != nil {
-				n := ref.Namespace
-				namespace := "default"
-				if n != nil {
-					namespace = string(*n)
-				}
-				secrets = append(secrets, utils.NewK8sSecret(namespace, ref.Name).String())
-			}
-		}
-	}
-	return secrets
+func (m *GatewayReconcileManager) DeleteHTTPRoute(ctx context.Context, name types.NamespacedName) error {
+	return m.store.DeleteRoute(ctx, HTTPRouteID(name))
+}
+
+func (m *GatewayReconcileManager) DeleteTLSRoute(ctx context.Context, name types.NamespacedName) error {
+	return m.store.DeleteRoute(ctx, TLSRouteID(name))
+}
+
+func (m *GatewayReconcileManager) DeleteTCPRoute(ctx context.Context, name types.NamespacedName) error {
+	return m.store.DeleteRoute(ctx, TCPRouteID(name))
 }

@@ -5,10 +5,11 @@
 package mocks
 
 import (
+	context "context"
 	reflect "reflect"
 
 	gomock "github.com/golang/mock/gomock"
-	common "github.com/hashicorp/consul-api-gateway/internal/common"
+	core "github.com/hashicorp/consul-api-gateway/internal/core"
 )
 
 // MockGatewaySecretRegistry is a mock of GatewaySecretRegistry interface.
@@ -35,29 +36,31 @@ func (m *MockGatewaySecretRegistry) EXPECT() *MockGatewaySecretRegistryMockRecor
 }
 
 // CanFetchSecrets mocks base method.
-func (m *MockGatewaySecretRegistry) CanFetchSecrets(info common.GatewayInfo, secrets []string) bool {
+func (m *MockGatewaySecretRegistry) CanFetchSecrets(ctx context.Context, info core.GatewayID, secrets []string) (bool, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CanFetchSecrets", info, secrets)
+	ret := m.ctrl.Call(m, "CanFetchSecrets", ctx, info, secrets)
 	ret0, _ := ret[0].(bool)
-	return ret0
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // CanFetchSecrets indicates an expected call of CanFetchSecrets.
-func (mr *MockGatewaySecretRegistryMockRecorder) CanFetchSecrets(info, secrets interface{}) *gomock.Call {
+func (mr *MockGatewaySecretRegistryMockRecorder) CanFetchSecrets(ctx, info, secrets interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CanFetchSecrets", reflect.TypeOf((*MockGatewaySecretRegistry)(nil).CanFetchSecrets), info, secrets)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CanFetchSecrets", reflect.TypeOf((*MockGatewaySecretRegistry)(nil).CanFetchSecrets), ctx, info, secrets)
 }
 
 // GatewayExists mocks base method.
-func (m *MockGatewaySecretRegistry) GatewayExists(info common.GatewayInfo) bool {
+func (m *MockGatewaySecretRegistry) GatewayExists(ctx context.Context, info core.GatewayID) (bool, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GatewayExists", info)
+	ret := m.ctrl.Call(m, "GatewayExists", ctx, info)
 	ret0, _ := ret[0].(bool)
-	return ret0
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // GatewayExists indicates an expected call of GatewayExists.
-func (mr *MockGatewaySecretRegistryMockRecorder) GatewayExists(info interface{}) *gomock.Call {
+func (mr *MockGatewaySecretRegistryMockRecorder) GatewayExists(ctx, info interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GatewayExists", reflect.TypeOf((*MockGatewaySecretRegistry)(nil).GatewayExists), info)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GatewayExists", reflect.TypeOf((*MockGatewaySecretRegistry)(nil).GatewayExists), ctx, info)
 }

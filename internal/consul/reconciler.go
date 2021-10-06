@@ -1,9 +1,6 @@
-package reconciler
+package consul
 
 import (
-	"fmt"
-
-	"github.com/hashicorp/consul-api-gateway/internal/consul"
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
 )
@@ -12,18 +9,18 @@ type ConfigEntriesReconciler struct {
 	consul *api.Client
 	logger hclog.Logger
 
-	routers   *consul.ConfigEntryIndex
-	splitters *consul.ConfigEntryIndex
-	defaults  *consul.ConfigEntryIndex
+	routers   *ConfigEntryIndex
+	splitters *ConfigEntryIndex
+	defaults  *ConfigEntryIndex
 }
 
 func NewReconciler(c *api.Client, logger hclog.Logger) *ConfigEntriesReconciler {
 	return &ConfigEntriesReconciler{
 		consul:    c,
 		logger:    logger.Named("consul"),
-		routers:   consul.NewConfigEntryIndex(api.ServiceRouter),
-		splitters: consul.NewConfigEntryIndex(api.ServiceSplitter),
-		defaults:  consul.NewConfigEntryIndex(api.ServiceDefaults),
+		routers:   NewConfigEntryIndex(api.ServiceRouter),
+		splitters: NewConfigEntryIndex(api.ServiceSplitter),
+		defaults:  NewConfigEntryIndex(api.ServiceDefaults),
 	}
 }
 
@@ -47,12 +44,7 @@ func (c *ConfigEntriesReconciler) DeleteConfigEntries(entries ...api.ConfigEntry
 	}
 }
 
-func (c *ConfigEntriesReconciler) ReconcileGateway(gw *ResolvedGateway) error {
-	igw, computedRouters, computedSplitters, computedDefaults, err := gw.computeConfigEntries()
-	if err != nil {
-		return fmt.Errorf("failed to reconcile config entries: %w", err)
-	}
-
+func (c *ConfigEntriesReconciler) Reconcile(igw api.ConfigEntry, computedRouters, computedSplitters, computedDefaults *ConfigEntryIndex) error {
 	// Since we can't make multiple config entry changes in a single transaction we must
 	// perform the operations in a set that is least likely to induce downtime.
 	// First the new service-defaults, routers and splitters should be set

@@ -85,7 +85,12 @@ func (r *RequestHandler) OnStreamRequest(streamID int64, req *discovery.Discover
 	resources := req.GetResourceNames()
 
 	// check to make sure we're actually authorized to do this
-	if !r.registry.CanFetchSecrets(GatewayFromContext(ctx), resources) {
+	allowed, err := r.registry.CanFetchSecrets(ctx, GatewayFromContext(ctx), resources)
+	if err != nil {
+		r.logger.Error("error checking gateway secrets", "error", err)
+		return err
+	}
+	if !allowed {
 		r.logger.Warn("gateway attempting to fetch secrets without permission", "gateway", req.Node.Id, "secrets", resources)
 		return status.Errorf(codes.PermissionDenied, "the current gateway does not have permission to fetch the requested secrets")
 	}

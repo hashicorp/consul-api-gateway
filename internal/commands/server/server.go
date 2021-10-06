@@ -9,11 +9,13 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
+	consulAdapters "github.com/hashicorp/consul-api-gateway/internal/adapters/consul"
 	"github.com/hashicorp/consul-api-gateway/internal/consul"
 	"github.com/hashicorp/consul-api-gateway/internal/envoy"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s"
 	"github.com/hashicorp/consul-api-gateway/internal/metrics"
 	"github.com/hashicorp/consul-api-gateway/internal/profiling"
+	"github.com/hashicorp/consul-api-gateway/internal/store/memory"
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
 )
@@ -67,7 +69,14 @@ func RunServer(config ServerConfig) int {
 		config.Logger.Error("error creating a Consul API client", "error", err)
 		return 1
 	}
+
+	store := memory.NewStore(memory.StoreConfig{
+		Adapter: consulAdapters.NewConsulSyncAdapter(config.Logger.Named("consul-adapter"), consulClient),
+		Logger:  config.Logger.Named("state"),
+	})
+
 	controller.SetConsul(consulClient)
+	controller.SetStore(store)
 
 	options := consul.DefaultCertManagerOptions()
 	certManager := consul.NewCertManager(
@@ -91,7 +100,7 @@ func RunServer(config ServerConfig) int {
 	}
 	config.Logger.Trace("initial certificates written")
 
-	server := envoy.NewSDSServer(config.Logger.Named("sds-server"), certManager, secretClient, config.K8sConfig.Registry)
+	server := envoy.NewSDSServer(config.Logger.Named("sds-server"), certManager, secretClient, store)
 	group.Go(func() error {
 		return server.Run(groupCtx)
 	})

@@ -16,7 +16,7 @@ import (
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
 
-	"github.com/hashicorp/consul-api-gateway/internal/common"
+	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/controllers"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler"
@@ -49,7 +49,7 @@ type Kubernetes struct {
 	sDSServerPort int
 	k8sManager    ctrl.Manager
 	consul        *api.Client
-	registry      *common.GatewaySecretRegistry
+	store         core.Store
 	logger        hclog.Logger
 }
 
@@ -62,7 +62,6 @@ type Config struct {
 	MetricsBindAddr       string
 	HealthProbeBindAddr   string
 	WebhookPort           int
-	Registry              *common.GatewaySecretRegistry
 	RestConfig            *rest.Config
 	Namespace             string
 }
@@ -120,7 +119,6 @@ func New(logger hclog.Logger, config *Config) (*Kubernetes, error) {
 
 	return &Kubernetes{
 		k8sManager:    mgr,
-		registry:      config.Registry,
 		sDSServerHost: config.SDSServerHost,
 		sDSServerPort: config.SDSServerPort,
 		logger:        logger.Named("k8s"),
@@ -129,6 +127,10 @@ func New(logger hclog.Logger, config *Config) (*Kubernetes, error) {
 
 func (k *Kubernetes) SetConsul(consul *api.Client) {
 	k.consul = consul
+}
+
+func (k *Kubernetes) SetStore(store core.Store) {
+	k.store = store
 }
 
 // Start will run the kubernetes controllers and return a startup error if occurred
@@ -140,13 +142,14 @@ func (k *Kubernetes) Start(ctx context.Context) error {
 
 	gwClient := gatewayclient.New(k.k8sManager.GetClient(), scheme)
 
-	reconcileManager := reconciler.NewReconcileManager(ctx, &reconciler.ManagerConfig{
+	reconcileManager := reconciler.NewReconcileManager(reconciler.ManagerConfig{
 		ControllerName: ControllerName,
-		Registry:       k.registry,
 		Client:         gwClient,
 		Consul:         k.consul,
+		Tracker:        reconciler.NewStatusTracker(),
 		Status:         k.k8sManager.GetClient().Status(),
 		Logger:         k.logger.Named("Reconciler"),
+		Store:          k.store,
 	})
 
 	err := (&controllers.GatewayClassConfigReconciler{
@@ -172,7 +175,6 @@ func (k *Kubernetes) Start(ctx context.Context) error {
 		Log:            k.logger.Named("Gateway"),
 		Manager:        reconcileManager,
 		ControllerName: ControllerName,
-		Tracker:        reconciler.NewStatusTracker(),
 		SDSServerHost:  k.sDSServerHost,
 		SDSServerPort:  k.sDSServerPort,
 	}).SetupWithManager(k.k8sManager)

@@ -15,7 +15,6 @@ import (
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
 
-	"github.com/hashicorp/consul-api-gateway/internal/common"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s"
 )
 
@@ -88,15 +87,14 @@ func (c *Command) Run(args []string) int {
 	}
 
 	logger := hclog.New(&hclog.LoggerOptions{
-		Level:      hclog.LevelFromString(c.flagLogLevel),
-		Output:     c.output,
-		JSONFormat: c.flagLogJSON,
+		Level:           hclog.LevelFromString(c.flagLogLevel),
+		Output:          c.output,
+		JSONFormat:      c.flagLogJSON,
+		IncludeLocation: true,
 	}).Named("consul-api-gateway-server")
 
 	consulCfg := api.DefaultConfig()
 	cfg := k8s.Defaults()
-	gatewaySecretRegistry := common.NewGatewaySecretRegistry()
-	cfg.Registry = gatewaySecretRegistry
 
 	if c.flagCAFile != "" {
 		consulCfg.TLSConfig.CAFile = c.flagCAFile
