@@ -240,7 +240,7 @@ func (l *K8sListener) OnRouteAdded(_ core.Route) {
 	atomic.AddInt32(&l.routeCount, 1)
 }
 
-func (l *K8sListener) OnRouteRemoved(_ core.Route) {
+func (l *K8sListener) OnRouteRemoved(_ string) {
 	atomic.AddInt32(&l.routeCount, -1)
 }
 

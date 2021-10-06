@@ -50,7 +50,7 @@ type RouteTrackingListener interface {
 	Listener
 
 	OnRouteAdded(route Route)
-	OnRouteRemoved(route Route)
+	OnRouteRemoved(id string)
 }
 
 // Listener describes the basic methods of a gateway
