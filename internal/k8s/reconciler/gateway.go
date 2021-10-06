@@ -3,9 +3,9 @@ package reconciler
 import (
 	"reflect"
 
+	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
-	"github.com/hashicorp/consul-api-gateway/pkg/core"
 	"github.com/hashicorp/go-hclog"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
 )

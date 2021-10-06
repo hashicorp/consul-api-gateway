@@ -1,8 +1,8 @@
 package reconciler
 
 import (
+	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/service"
-	"github.com/hashicorp/consul-api-gateway/pkg/core"
 	"k8s.io/apimachinery/pkg/types"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
 )

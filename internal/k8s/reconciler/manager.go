@@ -11,9 +11,9 @@ import (
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
 
+	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
-	"github.com/hashicorp/consul-api-gateway/pkg/core"
 )
 
 //go:generate mockgen -source ./manager.go -destination ./mocks/manager.go -package mocks ReconcileManager

@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/hashicorp/consul-api-gateway/pkg/core"
+	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-multierror"
 )

@@ -16,12 +16,12 @@ import (
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
 
+	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/controllers"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
-	"github.com/hashicorp/consul-api-gateway/pkg/core"
 )
 
 // The following RBAC rules are for leader election

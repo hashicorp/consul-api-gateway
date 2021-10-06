@@ -12,7 +12,7 @@ import (
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 
-	"github.com/hashicorp/consul-api-gateway/pkg/core"
+	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/go-hclog"
 )
 
