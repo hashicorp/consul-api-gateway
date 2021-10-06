@@ -9,6 +9,14 @@ import (
 )
 
 func MapGatewayConditionsFromPod(pod *core.Pod) []meta.Condition {
+	if pod == nil {
+		return []meta.Condition{{
+			Type:               string(gateway.GatewayConditionScheduled),
+			Reason:             string(gateway.GatewayReasonNotReconciled),
+			Status:             meta.ConditionFalse,
+			LastTransitionTime: meta.Now(),
+		}}
+	}
 	// Pending: The pod has been accepted by the Kubernetes system, but one or more of the
 	// container images has not been created. This includes time before being scheduled as
 	// well as time spent downloading images over the network, which could take a while.

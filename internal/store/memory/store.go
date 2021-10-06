@@ -82,7 +82,14 @@ func (s *Store) syncGateways(ctx context.Context) error {
 	for _, gw := range s.gateways {
 		gateway := gw
 		syncGroup.Go(func() error {
-			return gateway.Sync(ctx)
+			if tracker, ok := gateway.Gateway.(core.StatusTrackingGateway); ok {
+				return tracker.TrackSync(ctx, func() (bool, error) {
+					return gateway.Sync(ctx)
+				})
+			} else {
+				_, err := gateway.Sync(ctx)
+				return err
+			}
 		})
 	}
 	if err := syncGroup.Wait(); err != nil {
@@ -161,15 +168,7 @@ func (s *Store) UpsertRoute(ctx context.Context, route core.Route) error {
 		return nil
 	case core.CompareResultNotEqual:
 		s.logger.Trace("adding route", "id", id)
-
 		s.routes[id] = route
-
-		if initializable, ok := route.(core.InitializableRoute); ok {
-			if err := initializable.Init(ctx); err != nil {
-				// the route is considered invalid, so don't try to bind it at all
-				return err
-			}
-		}
 
 		// bind to gateways
 		for _, gateway := range s.gateways {

@@ -82,8 +82,9 @@ func (r *GatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, err
 	}
 	if updated {
-		// requeue for versioning
-		return ctrl.Result{Requeue: true}, nil
+		// we return here since we've updated the finalizers, it'll enqueue another
+		// event
+		return ctrl.Result{}, nil
 	}
 	// this validation is used for setting the gateway class accepted status
 	valid, err := r.Client.IsValidGatewayClass(ctx, gc)

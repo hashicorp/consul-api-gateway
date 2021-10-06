@@ -2,8 +2,6 @@ package controllers
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
 	"fmt"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -36,7 +34,6 @@ type GatewayReconciler struct {
 	SDSServerHost  string
 	SDSServerPort  int
 	ControllerName string
-	Tracker        reconciler.GatewayStatusTracker
 	Manager        reconciler.ReconcileManager
 }
 
@@ -68,7 +65,6 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		if err := r.Manager.DeleteGateway(ctx, req.NamespacedName); err != nil {
 			return ctrl.Result{}, err
 		}
-		r.Tracker.DeleteStatus(req.NamespacedName)
 		return ctrl.Result{}, nil
 	}
 
@@ -90,34 +86,6 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	// Check if the deployment already exists, if not create a new one
 	if err := r.ensureDeployment(ctx, gc, gw); err != nil {
 		logger.Error("failed to ensure gateway deployment exists", "error", err)
-		return ctrl.Result{}, err
-	}
-
-	// update status based on pod
-	pod, err := r.Client.PodWithLabels(ctx, utils.LabelsForGateway(gw))
-	if err != nil {
-		if errors.Is(err, gatewayclient.ErrPodNotCreated) {
-			// the pod hasn't been created yet, just no-op since we'll
-			// eventually get the event from our Watch
-			logger.Trace("gateway deployment pod not yet created")
-			return ctrl.Result{}, nil
-		}
-		logger.Error("failed to get gateway deployment pod", "error", err)
-		return ctrl.Result{}, err
-	}
-	conditions := utils.MapGatewayConditionsFromPod(pod)
-	err = r.Tracker.UpdateStatus(req.NamespacedName, pod, conditions, func() error {
-		if logger.IsTrace() {
-			update, err := json.MarshalIndent(conditions, "", "  ")
-			if err == nil {
-				logger.Trace("gateway deployment pod status updated", "conditions", string(update))
-			}
-		}
-		gw.Status.Conditions = conditions
-		return r.Client.UpdateStatus(ctx, gw)
-	})
-	if err != nil {
-		logger.Error("failed to update gateway status", "error", err)
 		return ctrl.Result{}, err
 	}
 

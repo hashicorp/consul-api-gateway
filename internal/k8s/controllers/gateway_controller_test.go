@@ -216,7 +216,6 @@ func TestGateway(t *testing.T) {
 				Log:            hclog.NewNullLogger(),
 				ControllerName: mockControllerName,
 				Manager:        reconciler,
-				Tracker:        tracker,
 				SDSServerHost:  "host",
 				SDSServerPort:  1,
 			}

@@ -75,7 +75,7 @@ func TestStatusTracker(t *testing.T) {
 	// not found
 	condition := testCondition()
 	updated := false
-	err := tracker.UpdateStatus(currentDeployment.name, currentDeployment.pod, []meta.Condition{condition}, func() error {
+	err := tracker.UpdateStatus(currentDeployment.name, currentDeployment.pod, []meta.Condition{condition}, false, func() error {
 		updated = true
 		return nil
 	})
@@ -84,7 +84,7 @@ func TestStatusTracker(t *testing.T) {
 
 	// same conditions - cached
 	updated = false
-	err = tracker.UpdateStatus(currentDeployment.name, currentDeployment.pod, []meta.Condition{condition}, func() error {
+	err = tracker.UpdateStatus(currentDeployment.name, currentDeployment.pod, []meta.Condition{condition}, false, func() error {
 		updated = true
 		return nil
 	})
@@ -94,7 +94,7 @@ func TestStatusTracker(t *testing.T) {
 	// check condition Types
 	condition.Type = "new type"
 	updated = false
-	err = tracker.UpdateStatus(currentDeployment.name, currentDeployment.pod, []meta.Condition{condition}, func() error {
+	err = tracker.UpdateStatus(currentDeployment.name, currentDeployment.pod, []meta.Condition{condition}, false, func() error {
 		updated = true
 		return nil
 	})
@@ -104,7 +104,7 @@ func TestStatusTracker(t *testing.T) {
 	// check condition Reason
 	condition.Reason = "new reason"
 	updated = false
-	err = tracker.UpdateStatus(currentDeployment.name, currentDeployment.pod, []meta.Condition{condition}, func() error {
+	err = tracker.UpdateStatus(currentDeployment.name, currentDeployment.pod, []meta.Condition{condition}, false, func() error {
 		updated = true
 		return nil
 	})
@@ -114,7 +114,7 @@ func TestStatusTracker(t *testing.T) {
 	// check condition Status
 	condition.Status = meta.ConditionUnknown
 	updated = false
-	err = tracker.UpdateStatus(currentDeployment.name, currentDeployment.pod, []meta.Condition{condition}, func() error {
+	err = tracker.UpdateStatus(currentDeployment.name, currentDeployment.pod, []meta.Condition{condition}, false, func() error {
 		updated = true
 		return nil
 	})
@@ -123,7 +123,7 @@ func TestStatusTracker(t *testing.T) {
 
 	// check condition lengths
 	updated = false
-	err = tracker.UpdateStatus(currentDeployment.name, currentDeployment.pod, []meta.Condition{condition, testCondition()}, func() error {
+	err = tracker.UpdateStatus(currentDeployment.name, currentDeployment.pod, []meta.Condition{condition, testCondition()}, false, func() error {
 		updated = true
 		return nil
 	})
@@ -133,14 +133,14 @@ func TestStatusTracker(t *testing.T) {
 	// check pod generation
 	condition = testCondition()
 	updated = false
-	err = tracker.UpdateStatus(currentDeployment.name, currentDeployment.pod, []meta.Condition{condition}, func() error {
+	err = tracker.UpdateStatus(currentDeployment.name, currentDeployment.pod, []meta.Condition{condition}, false, func() error {
 		updated = true
 		return nil
 	})
 	require.NoError(t, err)
 	require.True(t, updated)
 	updated = false
-	err = tracker.UpdateStatus(initialDeployment.name, initialDeployment.pod, []meta.Condition{condition, condition}, func() error {
+	err = tracker.UpdateStatus(initialDeployment.name, initialDeployment.pod, []meta.Condition{condition, condition}, false, func() error {
 		updated = true
 		return nil
 	})
@@ -149,21 +149,21 @@ func TestStatusTracker(t *testing.T) {
 
 	// check pod timestamp
 	updated = false
-	err = tracker.UpdateStatus(currentDeployment.name, currentDeployment.pod, []meta.Condition{condition}, func() error {
+	err = tracker.UpdateStatus(currentDeployment.name, currentDeployment.pod, []meta.Condition{condition}, false, func() error {
 		updated = true
 		return nil
 	})
 	require.NoError(t, err)
 	require.False(t, updated)
 	updated = false
-	err = tracker.UpdateStatus(laterDeployment.name, laterDeployment.pod, []meta.Condition{condition}, func() error {
+	err = tracker.UpdateStatus(laterDeployment.name, laterDeployment.pod, []meta.Condition{condition}, false, func() error {
 		updated = true
 		return nil
 	})
 	require.NoError(t, err)
 	require.True(t, updated)
 	updated = false
-	err = tracker.UpdateStatus(currentDeployment.name, currentDeployment.pod, []meta.Condition{condition}, func() error {
+	err = tracker.UpdateStatus(currentDeployment.name, currentDeployment.pod, []meta.Condition{condition}, false, func() error {
 		updated = true
 		return nil
 	})

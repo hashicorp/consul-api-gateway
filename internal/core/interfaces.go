@@ -13,6 +13,17 @@ const (
 	CompareResultEqual
 )
 
+// StatusTrackingGateway is an optional extension
+// of Gateway. If supported by a Store, when
+// a Gateway is synced to an external location,
+// its corresponding callbacks should
+// be called.
+type StatusTrackingGateway interface {
+	Gateway
+
+	TrackSync(ctx context.Context, sync func() (bool, error)) error
+}
+
 // Gateway describes a gateway.
 type Gateway interface {
 	ID() GatewayID
@@ -54,16 +65,6 @@ type StatusTrackingRoute interface {
 	OnBound(gateway Gateway)
 	OnBindFailed(err error, gateway Gateway)
 	OnGatewayRemoved(gateway Gateway)
-}
-
-// InitializableRoute is an optional extension
-// of Route. If supported by a Store, when
-// a Route is upserted, it should attempt to
-// initialize and InitializableRoutes.
-type InitializableRoute interface {
-	Route
-
-	Init(ctx context.Context) error
 }
 
 // Route should be implemented by all route

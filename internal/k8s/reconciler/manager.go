@@ -2,6 +2,7 @@ package reconciler
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	"k8s.io/apimachinery/pkg/types"
@@ -38,6 +39,7 @@ type GatewayReconcileManager struct {
 	logger         hclog.Logger
 	client         gatewayclient.Client
 	consul         *api.Client
+	tracker        GatewayStatusTracker
 
 	store          core.Store
 	gatewayClasses *K8sGatewayClasses
@@ -55,6 +57,7 @@ type ManagerConfig struct {
 	Consul         *api.Client
 	Status         client.StatusWriter
 	Store          core.Store
+	Tracker        GatewayStatusTracker
 	Logger         hclog.Logger
 }
 
@@ -64,6 +67,7 @@ func NewReconcileManager(config ManagerConfig) *GatewayReconcileManager {
 		logger:         config.Logger,
 		client:         config.Client,
 		consul:         config.Consul,
+		tracker:        config.Tracker,
 		gatewayClasses: NewK8sGatewayClasses(config.Logger.Named("gatewayclasses"), config.Client),
 		namespaceMap:   make(map[types.NamespacedName]string),
 		store:          config.Store,
@@ -87,6 +91,7 @@ func (m *GatewayReconcileManager) UpsertGateway(ctx context.Context, g *gw.Gatew
 		ConsulNamespace: consulNamespace,
 		Logger:          m.logger,
 		Client:          m.client,
+		Tracker:         m.tracker,
 	}))
 }
 
@@ -103,12 +108,19 @@ func (m *GatewayReconcileManager) UpsertTLSRoute(ctx context.Context, r Route) e
 }
 
 func (m *GatewayReconcileManager) upsertRoute(ctx context.Context, r Route) error {
-	return m.store.UpsertRoute(ctx, NewK8sRoute(r, K8sRouteConfig{
+	route := NewK8sRoute(r, K8sRouteConfig{
 		ControllerName: m.controllerName,
 		Logger:         m.logger,
 		Client:         m.client,
 		Consul:         m.consul,
-	}))
+	})
+	if err := route.ResolveReferences(ctx); err != nil {
+		if err := route.SyncStatus(ctx); err != nil {
+			return fmt.Errorf("error updating route status: %w", err)
+		}
+		return fmt.Errorf("error resolving route references: %w", err)
+	}
+	return m.store.UpsertRoute(ctx, route)
 }
 
 func (m *GatewayReconcileManager) DeleteGatewayClass(ctx context.Context, name string) error {
@@ -129,6 +141,7 @@ func (m *GatewayReconcileManager) DeleteGateway(ctx context.Context, name types.
 		return err
 	}
 
+	m.tracker.DeleteStatus(name)
 	delete(m.namespaceMap, name)
 
 	return nil

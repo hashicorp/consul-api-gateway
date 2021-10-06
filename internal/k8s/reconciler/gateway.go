@@ -1,27 +1,41 @@
 package reconciler
 
 import (
+	"context"
+	"errors"
 	"reflect"
 
 	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	"github.com/hashicorp/go-hclog"
+	"github.com/hashicorp/go-multierror"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
+)
+
+const (
+	ConditionTypeSynced          = "Synced"
+	ConditionReasonSyncFailed    = "SyncFailed"
+	ConditionReasonSyncSucceeded = "SyncSucceeded"
 )
 
 type K8sGateway struct {
 	consulNamespace string
 	logger          hclog.Logger
+	client          gatewayclient.Client
 	gateway         *gw.Gateway
+	syncedStatus    *metav1.Condition
+	tracker         GatewayStatusTracker
 	listeners       map[string]*K8sListener
 }
 
-var _ core.Gateway = &K8sGateway{}
+var _ core.StatusTrackingGateway = &K8sGateway{}
 
 type K8sGatewayConfig struct {
 	ConsulNamespace string
 	Logger          hclog.Logger
+	Tracker         GatewayStatusTracker
 	Client          gatewayclient.Client
 }
 
@@ -40,6 +54,8 @@ func NewK8sGateway(gateway *gw.Gateway, config K8sGatewayConfig) *K8sGateway {
 	return &K8sGateway{
 		consulNamespace: config.ConsulNamespace,
 		logger:          gatewayLogger,
+		client:          config.Client,
+		tracker:         config.Tracker,
 		gateway:         gateway,
 		listeners:       listeners,
 	}
@@ -108,4 +124,56 @@ func (g *K8sGateway) ShouldBind(route core.Route) bool {
 	}
 
 	return false
+}
+
+func (g *K8sGateway) TrackSync(ctx context.Context, sync func() (bool, error)) error {
+	namedGateway := utils.NamespacedName(g.gateway)
+	pod, err := g.client.PodWithLabels(ctx, utils.LabelsForGateway(g.gateway))
+	if err != nil {
+		if !errors.Is(err, gatewayclient.ErrPodNotCreated) {
+			return err
+		}
+	}
+
+	conditions := utils.MapGatewayConditionsFromPod(pod)
+	var result error
+
+	didSync, err := sync()
+	syncStatusUpdated := false
+	if err != nil {
+		syncStatusUpdated = true
+		g.logger.Trace("gateway sync failed, updating sync status")
+		g.syncedStatus = &metav1.Condition{
+			Type:               ConditionTypeSynced,
+			Reason:             ConditionReasonSyncFailed,
+			Message:            err.Error(),
+			Status:             metav1.ConditionFalse,
+			LastTransitionTime: metav1.Now(),
+		}
+		result = multierror.Append(result, err)
+	} else if didSync {
+		syncStatusUpdated = true
+		g.logger.Trace("synced gateway, updating sync status")
+		g.syncedStatus = &metav1.Condition{
+			Type:               ConditionTypeSynced,
+			Reason:             ConditionReasonSyncSucceeded,
+			Status:             metav1.ConditionTrue,
+			LastTransitionTime: metav1.Now(),
+		}
+	}
+
+	if err := g.tracker.UpdateStatus(namedGateway, pod, conditions, syncStatusUpdated, func() error {
+		if g.syncedStatus != nil {
+			conditions = append(conditions, *g.syncedStatus)
+		}
+		g.gateway.Status.Conditions = conditions
+		return g.client.UpdateStatus(ctx, g.gateway)
+	}); err != nil {
+		return multierror.Append(result, err)
+	}
+
+	if result != nil {
+		return result
+	}
+	return nil
 }

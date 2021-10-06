@@ -107,16 +107,18 @@ func (g *gatewayState) Compare(other core.Gateway) core.CompareResult {
 	return g.Gateway.Compare(other)
 }
 
-func (g *gatewayState) Sync(ctx context.Context) error {
+func (g *gatewayState) Sync(ctx context.Context) (bool, error) {
 	g.mutex.Lock()
 	defer g.mutex.Unlock()
 
+	didSync := false
 	for _, listener := range g.listeners {
 		if listener.ShouldSync() {
 			g.logger.Trace("syncing gateway")
 			if err := g.sync(ctx); err != nil {
-				return err
+				return false, err
 			}
+			didSync = true
 			break
 		}
 	}
@@ -125,7 +127,7 @@ func (g *gatewayState) Sync(ctx context.Context) error {
 		listener.MarkSynced()
 	}
 
-	return nil
+	return didSync, nil
 }
 
 func (g *gatewayState) sync(ctx context.Context) error {

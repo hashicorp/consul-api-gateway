@@ -43,7 +43,6 @@ type K8sRoute struct {
 }
 
 var _ core.StatusTrackingRoute = &K8sRoute{}
-var _ core.InitializableRoute = &K8sRoute{}
 
 type K8sRouteConfig struct {
 	ControllerName string
@@ -233,6 +232,7 @@ func (r *K8sRoute) Compare(other core.Route) core.CompareResult {
 		if r.GetGeneration() > otherRoute.GetGeneration() {
 			return core.CompareResultNewer
 		}
+
 		if r.equals(otherRoute) {
 			return core.CompareResultEqual
 		}
@@ -242,6 +242,10 @@ func (r *K8sRoute) Compare(other core.Route) core.CompareResult {
 }
 
 func (r *K8sRoute) equals(k8sRoute *K8sRoute) bool {
+	if !reflect.DeepEqual(r.references, k8sRoute.references) || r.isResolved != k8sRoute.isResolved {
+		return false
+	}
+
 	switch route := r.Route.(type) {
 	case *gw.HTTPRoute:
 		if otherRoute, ok := k8sRoute.Route.(*gw.HTTPRoute); ok {
@@ -305,7 +309,7 @@ func (r *K8sRoute) Parents() []gw.ParentRef {
 	return nil
 }
 
-func (r *K8sRoute) Init(ctx context.Context) error {
+func (r *K8sRoute) ResolveReferences(ctx context.Context) error {
 	var result error
 
 	if r.isResolved {
