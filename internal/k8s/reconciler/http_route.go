@@ -11,7 +11,7 @@ func HTTPRouteID(namespacedName types.NamespacedName) string {
 	return "http-" + namespacedName.String()
 }
 
-func convertHTTPRoute(hostname, prefix string, meta map[string]string, route *gw.HTTPRoute, k8sRoute *K8sRoute) *core.ResolvedRoute {
+func convertHTTPRoute(namespace, hostname, prefix string, meta map[string]string, route *gw.HTTPRoute, k8sRoute *K8sRoute) *core.ResolvedRoute {
 	hostnames := []string{}
 	for _, hostname := range route.Spec.Hostnames {
 		hostnames = append(hostnames, string(hostname))
@@ -21,9 +21,12 @@ func convertHTTPRoute(hostname, prefix string, meta map[string]string, route *gw
 	}
 	name := prefix + route.Name
 
-	// TODO: add consul namespace mappings
 	resolved := core.NewHTTPRouteBuilder().
 		WithName(name).
+		// we always use the listener namespace for the routes
+		// themselves, while the services they route to might
+		// be in different namespaces
+		WithNamespace(namespace).
 		WithHostnames(hostnames).
 		WithMeta(meta).
 		WithRules(httpReferencesToRules(k8sRoute.references)).
