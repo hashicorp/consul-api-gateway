@@ -1,9 +1,8 @@
-package state
+package memory
 
 import (
 	"context"
 	"errors"
-	"log"
 	"sync"
 	"sync/atomic"
 
@@ -17,7 +16,7 @@ var (
 	ErrCannotBindListener = errors.New("cannot bind listener")
 )
 
-type State struct {
+type Store struct {
 	logger  hclog.Logger
 	adapter core.SyncAdapter
 
@@ -28,13 +27,13 @@ type State struct {
 	activeGateways int64
 }
 
-type StateConfig struct {
+type StoreConfig struct {
 	Adapter core.SyncAdapter
 	Logger  hclog.Logger
 }
 
-func NewState(config StateConfig) *State {
-	return &State{
+func NewStore(config StoreConfig) *Store {
+	return &Store{
 		logger:   config.Logger,
 		adapter:  config.Adapter,
 		routes:   make(map[string]core.Route),
@@ -42,34 +41,42 @@ func NewState(config StateConfig) *State {
 	}
 }
 
-// GatewayExists checks if the registry knows about a gateway
-func (s *State) GatewayExists(id core.GatewayID) bool {
+func (s *Store) GatewayExists(ctx context.Context, id core.GatewayID) (bool, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
 	_, found := s.gateways[id]
-	return found
+	return found, nil
 }
 
-// CanFetchSecrets checks if a gateway should be able to access a set of secrets
-func (s *State) CanFetchSecrets(id core.GatewayID, secrets []string) bool {
+func (s *Store) CanFetchSecrets(ctx context.Context, id core.GatewayID, secrets []string) (bool, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
 	gateway, found := s.gateways[id]
 	if !found {
-		log.Println("foo not found")
-		return false
+		return false, nil
 	}
 	for _, secret := range secrets {
 		if _, found := gateway.secrets[secret]; !found {
-			return false
+			return false, nil
 		}
 	}
-	return true
+	return true, nil
 }
 
-func (s *State) syncGateways(ctx context.Context) error {
+func (s *Store) GetGateway(ctx context.Context, id core.GatewayID) (core.Gateway, error) {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	gateway, found := s.gateways[id]
+	if !found {
+		return nil, nil
+	}
+	return gateway.Gateway, nil
+}
+
+func (s *Store) syncGateways(ctx context.Context) error {
 	var syncGroup multierror.Group
 
 	for _, gw := range s.gateways {
@@ -85,7 +92,7 @@ func (s *State) syncGateways(ctx context.Context) error {
 	return nil
 }
 
-func (s *State) syncRouteStatuses(ctx context.Context) error {
+func (s *Store) syncRouteStatuses(ctx context.Context) error {
 	var syncGroup multierror.Group
 
 	for _, r := range s.routes {
@@ -103,7 +110,7 @@ func (s *State) syncRouteStatuses(ctx context.Context) error {
 	return nil
 }
 
-func (s *State) Sync(ctx context.Context) error {
+func (s *Store) Sync(ctx context.Context) error {
 	var syncGroup multierror.Group
 
 	syncGroup.Go(func() error {
@@ -118,7 +125,18 @@ func (s *State) Sync(ctx context.Context) error {
 	return nil
 }
 
-func (s *State) DeleteRoute(ctx context.Context, id string) error {
+func (s *Store) GetRoute(ctx context.Context, id string) (core.Route, error) {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	route, found := s.routes[id]
+	if !found {
+		return nil, nil
+	}
+	return route, nil
+}
+
+func (s *Store) DeleteRoute(ctx context.Context, id string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -131,7 +149,7 @@ func (s *State) DeleteRoute(ctx context.Context, id string) error {
 	return s.Sync(ctx)
 }
 
-func (s *State) AddRoute(ctx context.Context, route core.Route) error {
+func (s *Store) UpsertRoute(ctx context.Context, route core.Route) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -173,7 +191,7 @@ func compareRoutes(a, b core.Route) core.CompareResult {
 	return a.Compare(b)
 }
 
-func (s *State) AddGateway(ctx context.Context, gateway core.Gateway) error {
+func (s *Store) UpsertGateway(ctx context.Context, gateway core.Gateway) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -211,7 +229,7 @@ func (s *State) AddGateway(ctx context.Context, gateway core.Gateway) error {
 	return s.Sync(ctx)
 }
 
-func (s *State) DeleteGateway(ctx context.Context, id core.GatewayID) error {
+func (s *Store) DeleteGateway(ctx context.Context, id core.GatewayID) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -237,4 +255,15 @@ func (s *State) DeleteGateway(ctx context.Context, id core.GatewayID) error {
 
 	// sync route statuses to k8s
 	return s.syncRouteStatuses(ctx)
+}
+
+func (s *Store) State(ctx context.Context) ([]core.ResolvedGateway, error) {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	resolved := []core.ResolvedGateway{}
+	for _, gateway := range s.gateways {
+		resolved = append(resolved, gateway.Resolve())
+	}
+	return resolved, nil
 }

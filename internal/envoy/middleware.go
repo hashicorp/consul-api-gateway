@@ -53,10 +53,10 @@ func GatewayFromContext(ctx context.Context) core.GatewayID {
 // should actually respond to because they're managed by consul-api-gateway
 type GatewaySecretRegistry interface {
 	// GatewayExists is used to determine whether or not we know a particular gateway instance
-	GatewayExists(info core.GatewayID) bool
+	GatewayExists(ctx context.Context, info core.GatewayID) (bool, error)
 	// CanFetchSecrets is used to determine whether a gateway should be able to fetch a set
 	// of secrets it has requested
-	CanFetchSecrets(info core.GatewayID, secrets []string) bool
+	CanFetchSecrets(ctx context.Context, info core.GatewayID, secrets []string) (bool, error)
 }
 
 // SPIFFEStreamMiddleware verifies the spiffe entries for the certificate
@@ -94,7 +94,12 @@ func verifySPIFFE(ctx context.Context, logger hclog.Logger, spiffeCA *url.URL, r
 							continue
 						}
 						// if we're tracking the gateway then we're good
-						if registry.GatewayExists(info) {
+						exists, err := registry.GatewayExists(ctx, info)
+						if err != nil {
+							logger.Error("error checking for gateway, skipping", "error", err)
+							continue
+						}
+						if exists {
 							return info, true
 						}
 						logger.Warn("gateway not found", "namespace", info.ConsulNamespace, "service", info.Service)

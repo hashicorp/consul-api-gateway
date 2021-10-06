@@ -44,6 +44,7 @@ func NewK8sGateway(gateway *gw.Gateway, config K8sGatewayConfig) *K8sGateway {
 		listeners:       listeners,
 	}
 }
+
 func (g *K8sGateway) ID() core.GatewayID {
 	return core.GatewayID{
 		Service:         g.gateway.Name,
@@ -55,7 +56,7 @@ func (g *K8sGateway) Logger() hclog.Logger {
 	return g.logger
 }
 
-func (g *K8sGateway) ConsulMeta() map[string]string {
+func (g *K8sGateway) Meta() map[string]string {
 	return map[string]string{
 		"managed_by":                               "consul-api-gateway",
 		"consul-api-gateway/k8s/Gateway.Name":      g.gateway.Name,

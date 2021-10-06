@@ -1,4 +1,4 @@
-package state
+package memory
 
 import (
 	"context"
@@ -139,7 +139,7 @@ func (g *gatewayState) Resolve() core.ResolvedGateway {
 	}
 	return core.ResolvedGateway{
 		ID:        g.ID(),
-		Meta:      g.ConsulMeta(),
+		Meta:      g.Meta(),
 		Listeners: listeners,
 	}
 }

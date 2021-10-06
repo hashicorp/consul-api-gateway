@@ -13,14 +13,17 @@ const (
 	CompareResultEqual
 )
 
+// Gateway describes a gateway.
 type Gateway interface {
 	ID() GatewayID
-	ConsulMeta() map[string]string
+	Meta() map[string]string
 	Compare(other Gateway) CompareResult
 	Listeners() []Listener
 	ShouldBind(route Route) bool
 }
 
+// ListenerConfig contains the common configuration
+// options of a listener.
 type ListenerConfig struct {
 	Name     string
 	Hostname string
@@ -29,6 +32,8 @@ type ListenerConfig struct {
 	TLS      bool
 }
 
+// Listener describes the basic methods of a gateway
+// listener.
 type Listener interface {
 	ID() string
 	CanBind(route Route) (bool, error)
@@ -36,6 +41,12 @@ type Listener interface {
 	Config() ListenerConfig
 }
 
+// StatusTrackingRoute is an optional extension
+// of Route. If supported by a Store, when
+// a Route is bound or fails to be bound to
+// a gateway, its corresponding callbacks should
+// be called. At the end of any methods affecting
+// the route's binding, SyncStatus should be called.
 type StatusTrackingRoute interface {
 	Route
 
@@ -45,18 +56,39 @@ type StatusTrackingRoute interface {
 	OnGatewayRemoved(gateway Gateway)
 }
 
+// InitializableRoute is an optional extension
+// of Route. If supported by a Store, when
+// a Route is upserted, it should attempt to
+// initialize and InitializableRoutes.
 type InitializableRoute interface {
 	Route
 
 	Init(ctx context.Context) error
 }
 
+// Route should be implemented by all route
+// source integrations
 type Route interface {
 	ID() string
 	Compare(other Route) CompareResult
 	Resolve(listener Listener) *ResolvedRoute
 }
 
+// SyncAdapter is used for synchronizing store state to
+// an external system
 type SyncAdapter interface {
 	Sync(ctx context.Context, gateway ResolvedGateway) error
+}
+
+// Store is used for persisting and querying gateways and routes
+type Store interface {
+	GatewayExists(ctx context.Context, id GatewayID) (bool, error)
+	CanFetchSecrets(ctx context.Context, id GatewayID, secrets []string) (bool, error)
+	GetGateway(ctx context.Context, id GatewayID) (Gateway, error)
+	DeleteGateway(ctx context.Context, id GatewayID) error
+	UpsertGateway(ctx context.Context, gateway Gateway) error
+	GetRoute(ctx context.Context, id string) (Route, error)
+	DeleteRoute(ctx context.Context, id string) error
+	UpsertRoute(ctx context.Context, route Route) error
+	Sync(ctx context.Context) error
 }

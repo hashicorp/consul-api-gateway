@@ -25,7 +25,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/hashicorp/consul-api-gateway/internal/envoy/mocks"
-	"github.com/hashicorp/consul-api-gateway/internal/state"
+	"github.com/hashicorp/consul-api-gateway/internal/store/memory"
 	gwTesting "github.com/hashicorp/consul-api-gateway/internal/testing"
 	"github.com/hashicorp/go-hclog"
 )
@@ -37,8 +37,8 @@ func TestSDSRunCertificateVerification(t *testing.T) {
 
 	err := runTestServer(t, ca.CertBytes, func(ctrl *gomock.Controller) GatewaySecretRegistry {
 		gatewayRegistry := mocks.NewMockGatewaySecretRegistry(ctrl)
-		gatewayRegistry.EXPECT().GatewayExists(gomock.Any()).MinTimes(1).Return(true)
-		gatewayRegistry.EXPECT().CanFetchSecrets(gomock.Any(), gomock.Any()).Return(true).MinTimes(1).Return(true)
+		gatewayRegistry.EXPECT().GatewayExists(gomock.Any(), gomock.Any()).MinTimes(1).Return(true, nil)
+		gatewayRegistry.EXPECT().CanFetchSecrets(gomock.Any(), gomock.Any(), gomock.Any()).MinTimes(1).Return(true, nil)
 		return gatewayRegistry
 	}, func(serverAddress string, fetcher *mocks.MockCertificateFetcher) {
 		fetcher.EXPECT().TLSCertificate().MinTimes(1).Return(&server.X509)
@@ -169,7 +169,7 @@ func TestSDSSPIFFENoMatchingGateway(t *testing.T) {
 
 	err := runTestServer(t, ca.CertBytes, func(ctrl *gomock.Controller) GatewaySecretRegistry {
 		gatewayRegistry := mocks.NewMockGatewaySecretRegistry(ctrl)
-		gatewayRegistry.EXPECT().GatewayExists(gomock.Any()).MinTimes(1).Return(false)
+		gatewayRegistry.EXPECT().GatewayExists(gomock.Any(), gomock.Any()).MinTimes(1).Return(false, nil)
 		return gatewayRegistry
 	}, func(serverAddress string, fetcher *mocks.MockCertificateFetcher) {
 		fetcher.EXPECT().TLSCertificate().Return(&server.X509)
@@ -244,7 +244,7 @@ func runTestServer(t *testing.T, ca []byte, registryFn func(*gomock.Controller) 
 		Name: "test",
 	}, time.Now(), nil)
 
-	sds := NewSDSServer(hclog.NewNullLogger(), fetcher, secretClient, state.NewState(state.StateConfig{}))
+	sds := NewSDSServer(hclog.NewNullLogger(), fetcher, secretClient, memory.NewStore(memory.StoreConfig{}))
 	sds.bindAddress = serverAddress
 	sds.protocol = "unix"
 	if registryFn != nil {

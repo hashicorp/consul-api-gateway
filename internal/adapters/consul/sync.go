@@ -1,4 +1,4 @@
-package adapters
+package consul
 
 import (
 	"context"
@@ -27,6 +27,8 @@ type ConsulSyncAdapter struct {
 	sync  map[core.GatewayID]syncState
 	mutex sync.Mutex
 }
+
+var _ core.SyncAdapter = &ConsulSyncAdapter{}
 
 func NewConsulSyncAdapter(logger hclog.Logger, consul *api.Client) *ConsulSyncAdapter {
 	return &ConsulSyncAdapter{

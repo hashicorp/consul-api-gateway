@@ -13,7 +13,6 @@ import (
 
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
-	"github.com/hashicorp/consul-api-gateway/internal/state"
 	"github.com/hashicorp/consul-api-gateway/pkg/core"
 )
 
@@ -40,7 +39,7 @@ type GatewayReconcileManager struct {
 	client         gatewayclient.Client
 	consul         *api.Client
 
-	state          *state.State
+	store          core.Store
 	gatewayClasses *K8sGatewayClasses
 
 	namespaceMap map[types.NamespacedName]string
@@ -55,7 +54,7 @@ type ManagerConfig struct {
 	Client         gatewayclient.Client
 	Consul         *api.Client
 	Status         client.StatusWriter
-	State          *state.State
+	Store          core.Store
 	Logger         hclog.Logger
 }
 
@@ -67,7 +66,7 @@ func NewReconcileManager(config ManagerConfig) *GatewayReconcileManager {
 		consul:         config.Consul,
 		gatewayClasses: NewK8sGatewayClasses(config.Logger.Named("gatewayclasses"), config.Client),
 		namespaceMap:   make(map[types.NamespacedName]string),
-		state:          config.State,
+		store:          config.Store,
 	}
 }
 
@@ -84,7 +83,7 @@ func (m *GatewayReconcileManager) UpsertGateway(ctx context.Context, g *gw.Gatew
 
 	m.namespaceMap[utils.NamespacedName(g)] = consulNamespace
 
-	return m.state.AddGateway(ctx, NewK8sGateway(g, K8sGatewayConfig{
+	return m.store.UpsertGateway(ctx, NewK8sGateway(g, K8sGatewayConfig{
 		ConsulNamespace: consulNamespace,
 		Logger:          m.logger,
 		Client:          m.client,
@@ -104,7 +103,7 @@ func (m *GatewayReconcileManager) UpsertTLSRoute(ctx context.Context, r Route) e
 }
 
 func (m *GatewayReconcileManager) upsertRoute(ctx context.Context, r Route) error {
-	return m.state.AddRoute(ctx, NewK8sRoute(r, K8sRouteConfig{
+	return m.store.UpsertRoute(ctx, NewK8sRoute(r, K8sRouteConfig{
 		ControllerName: m.controllerName,
 		Logger:         m.logger,
 		Client:         m.client,
@@ -121,7 +120,7 @@ func (m *GatewayReconcileManager) DeleteGateway(ctx context.Context, name types.
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
-	err := m.state.DeleteGateway(ctx, core.GatewayID{
+	err := m.store.DeleteGateway(ctx, core.GatewayID{
 		Service:         name.Name,
 		ConsulNamespace: m.namespaceMap[name],
 	})
@@ -136,13 +135,13 @@ func (m *GatewayReconcileManager) DeleteGateway(ctx context.Context, name types.
 }
 
 func (m *GatewayReconcileManager) DeleteHTTPRoute(ctx context.Context, name types.NamespacedName) error {
-	return m.state.DeleteRoute(ctx, HTTPRouteID(name))
+	return m.store.DeleteRoute(ctx, HTTPRouteID(name))
 }
 
 func (m *GatewayReconcileManager) DeleteTLSRoute(ctx context.Context, name types.NamespacedName) error {
-	return m.state.DeleteRoute(ctx, TLSRouteID(name))
+	return m.store.DeleteRoute(ctx, TLSRouteID(name))
 }
 
 func (m *GatewayReconcileManager) DeleteTCPRoute(ctx context.Context, name types.NamespacedName) error {
-	return m.state.DeleteRoute(ctx, TCPRouteID(name))
+	return m.store.DeleteRoute(ctx, TCPRouteID(name))
 }

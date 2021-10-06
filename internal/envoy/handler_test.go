@@ -28,7 +28,7 @@ func TestOnStreamRequest(t *testing.T) {
 
 	secrets := mocks.NewMockSecretManager(ctrl)
 	registry := mocks.NewMockGatewaySecretRegistry(ctrl)
-	registry.EXPECT().CanFetchSecrets(gomock.Any(), requestedSecrets).Return(true)
+	registry.EXPECT().CanFetchSecrets(gomock.Any(), gomock.Any(), requestedSecrets).Return(true, nil)
 	handler := NewRequestHandler(hclog.NewNullLogger(), registry, secrets)
 
 	request := &discovery.DiscoveryRequest{
@@ -58,7 +58,7 @@ func TestOnStreamRequest_PermissionError(t *testing.T) {
 
 	secrets := mocks.NewMockSecretManager(ctrl)
 	registry := mocks.NewMockGatewaySecretRegistry(ctrl)
-	registry.EXPECT().CanFetchSecrets(gomock.Any(), requestedSecrets).Return(false)
+	registry.EXPECT().CanFetchSecrets(gomock.Any(), gomock.Any(), requestedSecrets).Return(false, nil)
 	handler := NewRequestHandler(hclog.NewNullLogger(), registry, secrets)
 
 	request := &discovery.DiscoveryRequest{
@@ -88,7 +88,7 @@ func TestOnStreamRequest_SetResourcesForNodeError(t *testing.T) {
 	expectedErr := errors.New("error")
 	secrets := mocks.NewMockSecretManager(ctrl)
 	registry := mocks.NewMockGatewaySecretRegistry(ctrl)
-	registry.EXPECT().CanFetchSecrets(gomock.Any(), requestedSecrets).Return(true)
+	registry.EXPECT().CanFetchSecrets(gomock.Any(), gomock.Any(), requestedSecrets).Return(true, nil)
 	handler := NewRequestHandler(hclog.NewNullLogger(), registry, secrets)
 
 	request := &discovery.DiscoveryRequest{
@@ -118,7 +118,7 @@ func TestOnStreamRequest_Graceful(t *testing.T) {
 
 	secrets := mocks.NewMockSecretManager(ctrl)
 	registry := mocks.NewMockGatewaySecretRegistry(ctrl)
-	registry.EXPECT().CanFetchSecrets(gomock.Any(), requestedSecrets).Return(true)
+	registry.EXPECT().CanFetchSecrets(gomock.Any(), gomock.Any(), requestedSecrets).Return(true, nil)
 	handler := NewRequestHandler(hclog.NewNullLogger(), registry, secrets)
 
 	request := &discovery.DiscoveryRequest{
@@ -147,7 +147,7 @@ func TestOnStreamClosed(t *testing.T) {
 
 	secrets := mocks.NewMockSecretManager(ctrl)
 	registry := mocks.NewMockGatewaySecretRegistry(ctrl)
-	registry.EXPECT().CanFetchSecrets(gomock.Any(), requestedSecrets).Return(true)
+	registry.EXPECT().CanFetchSecrets(gomock.Any(), gomock.Any(), requestedSecrets).Return(true, nil)
 	handler := NewRequestHandler(hclog.NewNullLogger(), registry, secrets)
 
 	request := &discovery.DiscoveryRequest{

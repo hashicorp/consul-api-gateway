@@ -20,8 +20,8 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
-	"github.com/hashicorp/consul-api-gateway/internal/state"
 	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
+	"github.com/hashicorp/consul-api-gateway/pkg/core"
 )
 
 // The following RBAC rules are for leader election
@@ -49,7 +49,7 @@ type Kubernetes struct {
 	sDSServerPort int
 	k8sManager    ctrl.Manager
 	consul        *api.Client
-	state         *state.State
+	store         core.Store
 	logger        hclog.Logger
 }
 
@@ -129,8 +129,8 @@ func (k *Kubernetes) SetConsul(consul *api.Client) {
 	k.consul = consul
 }
 
-func (k *Kubernetes) SetState(state *state.State) {
-	k.state = state
+func (k *Kubernetes) SetStore(store core.Store) {
+	k.store = store
 }
 
 // Start will run the kubernetes controllers and return a startup error if occurred
@@ -148,7 +148,7 @@ func (k *Kubernetes) Start(ctx context.Context) error {
 		Consul:         k.consul,
 		Status:         k.k8sManager.GetClient().Status(),
 		Logger:         k.logger.Named("Reconciler"),
-		State:          k.state,
+		Store:          k.store,
 	})
 
 	err := (&controllers.GatewayClassConfigReconciler{
