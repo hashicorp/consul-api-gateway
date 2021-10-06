@@ -11,6 +11,7 @@ require (
 	github.com/google/uuid v1.1.2
 	github.com/hashicorp/consul/api v1.10.1-0.20210924170522-581357c32a29
 	github.com/hashicorp/go-hclog v0.16.2
+	github.com/hashicorp/go-multierror v1.1.0 // indirect
 	github.com/mitchellh/cli v1.1.2
 	github.com/onsi/gomega v1.15.0 // indirect
 	github.com/prometheus/client_golang v1.11.0
