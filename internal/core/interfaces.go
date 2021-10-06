@@ -43,12 +43,22 @@ type ListenerConfig struct {
 	TLS      bool
 }
 
+// RouteTrackingListener is an optional extension
+// to Listener that tracks when routes have been
+// bound to it.
+type RouteTrackingListener interface {
+	Listener
+
+	OnRouteAdded(route Route)
+	OnRouteRemoved(route Route)
+}
+
 // Listener describes the basic methods of a gateway
 // listener.
 type Listener interface {
 	ID() string
 	CanBind(route Route) (bool, error)
-	Certificates(ctx context.Context) ([]string, error)
+	Certificates() []string
 	Config() ListenerConfig
 }
 
@@ -80,6 +90,21 @@ type Route interface {
 type SyncAdapter interface {
 	Sync(ctx context.Context, gateway ResolvedGateway) error
 	Clear(ctx context.Context, id GatewayID) error
+}
+
+// SyncError is an error type that can
+// be returned by the store to indicate that there was an error
+// with external synchronization
+type SyncError struct {
+	inner error
+}
+
+func NewSyncError(err error) SyncError {
+	return SyncError{inner: err}
+}
+
+func (s SyncError) Error() string {
+	return s.inner.Error()
 }
 
 // Store is used for persisting and querying gateways and routes

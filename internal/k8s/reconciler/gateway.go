@@ -61,6 +61,23 @@ func NewK8sGateway(gateway *gw.Gateway, config K8sGatewayConfig) *K8sGateway {
 	}
 }
 
+func (g *K8sGateway) certificates() []string {
+	certificates := []string{}
+	for _, listener := range g.listeners {
+		certificates = append(certificates, listener.Certificates()...)
+	}
+	return certificates
+}
+
+func (g *K8sGateway) ResolveCertificates(ctx context.Context) error {
+	for _, listener := range g.listeners {
+		if err := listener.ResolveCertificates(ctx); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (g *K8sGateway) ID() core.GatewayID {
 	return core.GatewayID{
 		Service:         g.gateway.Name,
@@ -102,6 +119,11 @@ func (g *K8sGateway) Compare(other core.Gateway) core.CompareResult {
 		if g.gateway.Generation > otherGateway.gateway.Generation {
 			return core.CompareResultNewer
 		}
+
+		if !reflect.DeepEqual(g.certificates(), otherGateway.certificates()) {
+			return core.CompareResultNotEqual
+		}
+
 		if reflect.DeepEqual(g.gateway.Spec, otherGateway.gateway.Spec) {
 			return core.CompareResultEqual
 		}
@@ -115,6 +137,11 @@ func (g *K8sGateway) ShouldBind(route core.Route) bool {
 	if !ok {
 		return false
 	}
+
+	if !k8sRoute.isResolved {
+		return false
+	}
+
 	for _, ref := range k8sRoute.CommonRouteSpec().ParentRefs {
 		if namespacedName, isGateway := referencesGateway(k8sRoute.GetNamespace(), ref); isGateway {
 			if utils.NamespacedName(g.gateway) == namespacedName {
@@ -162,10 +189,17 @@ func (g *K8sGateway) TrackSync(ctx context.Context, sync func() (bool, error)) e
 		}
 	}
 
-	if err := g.tracker.UpdateStatus(namedGateway, pod, conditions, syncStatusUpdated, func() error {
+	listenerStatuses := []gw.ListenerStatus{}
+	for _, listener := range g.listeners {
+		listenerStatuses = append(listenerStatuses, listener.status())
+	}
+	listenerStatusUpdate := !listenerStatusesEqual(listenerStatuses, g.gateway.Status.Listeners)
+
+	if err := g.tracker.UpdateStatus(namedGateway, pod, conditions, syncStatusUpdated || listenerStatusUpdate, func() error {
 		if g.syncedStatus != nil {
 			conditions = append(conditions, *g.syncedStatus)
 		}
+		g.gateway.Status.Listeners = listenerStatuses
 		g.gateway.Status.Conditions = conditions
 		return g.client.UpdateStatus(ctx, g.gateway)
 	}); err != nil {

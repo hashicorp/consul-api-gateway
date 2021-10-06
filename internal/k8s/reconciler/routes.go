@@ -3,6 +3,7 @@ package reconciler
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"reflect"
 
@@ -325,6 +326,9 @@ func (r *K8sRoute) ResolveReferences(ctx context.Context) error {
 			for _, ref := range rule.BackendRefs {
 				reference, err := resolver.Resolve(ctx, ref.BackendObjectReference)
 				if err != nil {
+					if !errors.Is(err, service.ErrNotResolved) {
+						return err
+					}
 					result = multierror.Append(result, err)
 					continue
 				}
@@ -341,9 +345,8 @@ func (r *K8sRoute) ResolveReferences(ctx context.Context) error {
 	if result == nil {
 		r.references = resolved
 		r.isResolved = true
-		return nil
 	}
-	return result
+	return nil
 }
 
 func (r *K8sRoute) markReferencesResolved(err error) {

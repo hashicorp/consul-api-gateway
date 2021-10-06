@@ -24,9 +24,13 @@ type gatewayState struct {
 func newGatewayState(logger hclog.Logger, gateway core.Gateway, adapter core.SyncAdapter) *gatewayState {
 	id := gateway.ID()
 
+	secrets := make(map[string]struct{})
 	gatewayLogger := logger.With("gateway.consul.namespace", id.ConsulNamespace, "gateway.consul.service", id.Service)
 	listeners := make(map[string]*listenerState)
 	for _, listener := range gateway.Listeners() {
+		for _, cert := range listener.Certificates() {
+			secrets[cert] = struct{}{}
+		}
 		listeners[listener.ID()] = newListenerState(gatewayLogger, gateway, listener)
 	}
 
@@ -35,29 +39,8 @@ func newGatewayState(logger hclog.Logger, gateway core.Gateway, adapter core.Syn
 		logger:    gatewayLogger,
 		adapter:   adapter,
 		listeners: listeners,
-		secrets:   make(map[string]struct{}),
+		secrets:   secrets,
 	}
-}
-
-func (g *gatewayState) ResolveListenerTLS(ctx context.Context) error {
-	g.mutex.Lock()
-	defer g.mutex.Unlock()
-
-	var result error
-	for _, listener := range g.listeners {
-		certificates, err := listener.ResolveAndCacheTLS(ctx)
-		if err != nil {
-			result = multierror.Append(result, err)
-			continue
-		}
-		for _, cert := range certificates {
-			g.secrets[cert] = struct{}{}
-		}
-	}
-	if result != nil {
-		return result
-	}
-	return nil
 }
 
 // Remove removes a route from the gateway's listeners if

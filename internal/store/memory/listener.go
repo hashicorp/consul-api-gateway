@@ -1,7 +1,6 @@
 package memory
 
 import (
-	"context"
 	"sync"
 
 	"github.com/hashicorp/consul-api-gateway/internal/core"
@@ -24,9 +23,6 @@ type listenerState struct {
 	port     int
 	protocol string
 
-	tlsResolved  bool
-	certificates []string
-
 	routes map[string]core.ResolvedRoute
 
 	needsSync bool
@@ -45,24 +41,17 @@ func newListenerState(logger hclog.Logger, gateway core.Gateway, listener core.L
 	if listenerConfig.Hostname != "" {
 		hostname = listenerConfig.Hostname
 	}
-	tlsResolved := false
-	if !listenerConfig.TLS {
-		// we don't need to resolve any cert references, just
-		// consider them resolved already
-		tlsResolved = true
-	}
 
 	return &listenerState{
-		Listener:    listener,
-		gateway:     gateway,
-		logger:      logger.With("listener", name),
-		name:        name,
-		port:        listenerConfig.Port,
-		protocol:    listenerConfig.Protocol,
-		hostname:    hostname,
-		tlsResolved: tlsResolved,
-		routes:      make(map[string]core.ResolvedRoute),
-		needsSync:   true,
+		Listener:  listener,
+		gateway:   gateway,
+		logger:    logger.With("listener", name),
+		name:      name,
+		port:      listenerConfig.Port,
+		protocol:  listenerConfig.Protocol,
+		hostname:  hostname,
+		routes:    make(map[string]core.ResolvedRoute),
+		needsSync: true,
 	}
 }
 
@@ -90,25 +79,6 @@ func (l *listenerState) SetRoute(route core.Route) {
 	}
 }
 
-func (l *listenerState) ResolveAndCacheTLS(ctx context.Context) ([]string, error) {
-	l.mutex.Lock()
-	defer l.mutex.Unlock()
-
-	if l.tlsResolved {
-		return l.certificates, nil
-	}
-
-	certificates, err := l.Listener.Certificates(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	l.certificates = certificates
-	l.tlsResolved = true
-
-	return certificates, nil
-}
-
 func (l *listenerState) ShouldSync() bool {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
@@ -133,7 +103,7 @@ func (l *listenerState) Resolve() core.ResolvedListener {
 		Hostname:     l.hostname,
 		Port:         l.port,
 		Protocol:     l.protocol,
-		Certificates: l.certificates,
+		Certificates: l.Listener.Certificates(),
 		Routes:       routes,
 	}
 }

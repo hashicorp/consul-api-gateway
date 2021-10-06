@@ -18,10 +18,7 @@ import (
 type ResolvedReferenceType int
 
 var (
-	ErrEmptyPort            = errors.New("port cannot be empty with kubernetes service")
-	ErrNotResolved          = errors.New("backend reference not found")
-	ErrConsulNotResolved    = errors.New("consul service not found")
-	ErrUnsupportedReference = errors.New("unsupported reference type")
+	ErrNotResolved = errors.New("backend reference not resolved")
 )
 
 const (
@@ -103,11 +100,11 @@ func (r *BackendResolver) Resolve(ctx context.Context, ref gw.BackendObjectRefer
 	switch {
 	case group == corev1.GroupName && kind == "Service":
 		if ref.Port == nil {
-			return nil, ErrEmptyPort
+			return nil, fmt.Errorf("%w: empty port", ErrNotResolved)
 		}
 		return r.consulServiceForK8SService(ctx, namespacedName)
 	default:
-		return nil, ErrUnsupportedReference
+		return nil, fmt.Errorf("%w: unsupported reference", ErrNotResolved)
 	}
 }
 
@@ -117,10 +114,10 @@ func (r *BackendResolver) consulServiceForK8SService(ctx context.Context, namesp
 
 	service, err := r.client.GetService(ctx, namespacedName)
 	if err != nil {
-		return nil, fmt.Errorf("error resolving reference: %w", err)
+		return nil, err
 	}
 	if service == nil {
-		return nil, ErrNotResolved
+		return nil, fmt.Errorf("%w: service not found", ErrNotResolved)
 	}
 
 	// we do an inner retry since consul may take some time to sync
@@ -140,7 +137,7 @@ func (r *BackendResolver) consulServiceForK8SService(ctx context.Context, namesp
 
 func validateConsulReference(services map[string]*api.AgentService, object client.Object) (*ResolvedReference, error) {
 	if len(services) == 0 {
-		return nil, ErrConsulNotResolved
+		return nil, fmt.Errorf("%w: consul service not found", ErrNotResolved)
 	}
 	serviceName := ""
 	serviceNamespace := ""
@@ -153,8 +150,8 @@ func validateConsulReference(services map[string]*api.AgentService, object clien
 		}
 		if service.Service != serviceName || service.Namespace != serviceNamespace {
 			return nil, fmt.Errorf(
-				"must have a single service map to a kubernetes service, found: (%q, %q) and (%q, %q): %w",
-				serviceNamespace, serviceName, service.Namespace, service.Service, ErrConsulNotResolved,
+				"%w: must have a single service map to a kubernetes service, found - (%q, %q) and (%q, %q)",
+				ErrNotResolved, serviceNamespace, serviceName, service.Namespace, service.Service,
 			)
 		}
 	}

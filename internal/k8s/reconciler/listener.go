@@ -4,12 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
+	"sync/atomic"
 
 	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	"github.com/hashicorp/go-hclog"
 	corev1 "k8s.io/api/core/v1"
+	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
 )
@@ -29,15 +32,24 @@ const (
 	ConditionReasonRouteAdmitted = "RouteAdmitted"
 )
 
+type resolvedCertificate struct {
+	err         error
+	certificate string
+}
+
 type K8sListener struct {
 	consulNamespace string
 	logger          hclog.Logger
 	gateway         *gw.Gateway
 	listener        gw.Listener
 	client          gatewayclient.Client
+
+	routeCount      int32
+	resolutionError error
+	certificates    []resolvedCertificate
 }
 
-var _ core.Listener = &K8sListener{}
+var _ core.RouteTrackingListener = &K8sListener{}
 
 type K8sListenerConfig struct {
 	ConsulNamespace string
@@ -65,25 +77,47 @@ func (l *K8sListener) Logger() hclog.Logger {
 	return l.logger
 }
 
-func (l *K8sListener) Certificates(ctx context.Context) ([]string, error) {
+func (l *K8sListener) Certificates() []string {
+	certificates := []string{}
+	for _, cert := range l.certificates {
+		if cert.certificate != "" {
+			certificates = append(certificates, cert.certificate)
+		}
+	}
+	return certificates
+}
+
+func (l *K8sListener) ResolveCertificates(ctx context.Context) error {
 	if l.listener.TLS == nil {
-		return nil, ErrInvalidTLSConfiguration
+		return nil
 	}
 
 	if l.listener.TLS.Mode != nil && *l.listener.TLS.Mode == gw.TLSModePassthrough {
-		return nil, ErrTLSPassthroughUnsupported
+		l.resolutionError = ErrTLSPassthroughUnsupported
+		return nil
 	}
 
 	if l.listener.TLS.CertificateRef == nil {
-		return nil, ErrInvalidTLSCertReference
+		l.resolutionError = ErrInvalidTLSCertReference
+		return nil
 	}
 
 	ref := *l.listener.TLS.CertificateRef
 	resource, err := l.resolveCertificateReference(ctx, ref)
 	if err != nil {
-		return nil, err
+		if !errors.Is(err, ErrInvalidTLSCertReference) {
+			return err
+		}
+		l.certificates = []resolvedCertificate{{
+			err: err,
+		}}
+	} else {
+		l.certificates = []resolvedCertificate{{
+			certificate: resource,
+		}}
 	}
-	return []string{resource}, nil
+
+	return nil
 }
 
 func (l *K8sListener) resolveCertificateReference(ctx context.Context, ref gw.SecretObjectReference) (string, error) {
@@ -164,6 +198,10 @@ func (l *K8sListener) CanBind(route core.Route) (bool, error) {
 }
 
 func (l *K8sListener) canBind(ref gw.ParentRef, route *K8sRoute) (bool, error) {
+	if l.resolutionError != nil {
+		return false, nil
+	}
+
 	// must is only true if there's a ref with a specific listener name
 	// meaning if we must attach, but cannot, it's an error
 	allowed, must := routeMatchesListener(l.listener.Name, ref.SectionName)
@@ -196,4 +234,89 @@ func (l *K8sListener) canBind(ref gw.ParentRef, route *K8sRoute) (bool, error) {
 	}
 
 	return false, nil
+}
+
+func (l *K8sListener) OnRouteAdded(_ core.Route) {
+	atomic.AddInt32(&l.routeCount, 1)
+}
+
+func (l *K8sListener) OnRouteRemoved(_ core.Route) {
+	atomic.AddInt32(&l.routeCount, -1)
+}
+
+func (l *K8sListener) status() gw.ListenerStatus {
+	certificateRefCondition := meta.Condition{
+		Type:               string(gw.ListenerConditionResolvedRefs),
+		ObservedGeneration: l.gateway.Generation,
+		LastTransitionTime: meta.Now(),
+	}
+	if l.resolutionError != nil {
+		certificateRefCondition.Status = meta.ConditionFalse
+		certificateRefCondition.Reason = string(gw.ListenerReasonInvalidCertificateRef)
+		certificateRefCondition.Message = l.resolutionError.Error()
+	} else {
+		// TODO: handle other resolved refs issues
+		certificateRefCondition.Status = meta.ConditionTrue
+		certificateRefCondition.Reason = string(gw.ListenerReasonResolvedRefs)
+	}
+	return gw.ListenerStatus{
+		Name:           l.listener.Name,
+		SupportedKinds: allowedKinds(l.listener.AllowedRoutes.Kinds),
+		AttachedRoutes: atomic.LoadInt32(&l.routeCount),
+		Conditions:     []meta.Condition{certificateRefCondition},
+	}
+}
+
+func allowedKinds(allowed []gw.RouteGroupKind) []gw.RouteGroupKind {
+	if allowed != nil {
+		return allowed
+	}
+	return []gw.RouteGroupKind{{
+		Group: (*gw.Group)(&gw.GroupVersion.Group),
+		Kind:  "HTTPRoute",
+	}}
+}
+
+func conditionsEqual(a, b []meta.Condition) bool {
+	if len(a) != len(b) {
+		// we have a different number of conditions, so they aren't the same
+		return false
+	}
+
+	for i, newCondition := range a {
+		oldCondition := b[i]
+		if newCondition.Type != oldCondition.Type ||
+			newCondition.Status != oldCondition.Status ||
+			newCondition.Reason != oldCondition.Reason ||
+			newCondition.Message != oldCondition.Message {
+			return false
+		}
+	}
+	return true
+}
+
+func listenerStatusEqual(a, b gw.ListenerStatus) bool {
+	if a.Name != b.Name {
+		return false
+	}
+	if !reflect.DeepEqual(a.SupportedKinds, b.SupportedKinds) {
+		return false
+	}
+	if a.AttachedRoutes != b.AttachedRoutes {
+		return false
+	}
+	return conditionsEqual(a.Conditions, b.Conditions)
+}
+
+func listenerStatusesEqual(a, b []gw.ListenerStatus) bool {
+	if len(a) != len(b) {
+		// we have a different number of conditions, so they aren't the same
+		return false
+	}
+	for i, newStatus := range a {
+		if !listenerStatusEqual(newStatus, b[i]) {
+			return false
+		}
+	}
+	return true
 }

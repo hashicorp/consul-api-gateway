@@ -2,7 +2,6 @@ package reconciler
 
 import (
 	"context"
-	"fmt"
 	"sync"
 
 	"k8s.io/apimachinery/pkg/types"
@@ -87,12 +86,18 @@ func (m *GatewayReconcileManager) UpsertGateway(ctx context.Context, g *gw.Gatew
 
 	m.namespaceMap[utils.NamespacedName(g)] = consulNamespace
 
-	return m.store.UpsertGateway(ctx, NewK8sGateway(g, K8sGatewayConfig{
+	gateway := NewK8sGateway(g, K8sGatewayConfig{
 		ConsulNamespace: consulNamespace,
 		Logger:          m.logger,
 		Client:          m.client,
 		Tracker:         m.tracker,
-	}))
+	})
+
+	if err := gateway.ResolveCertificates(ctx); err != nil {
+		return err
+	}
+
+	return m.store.UpsertGateway(ctx, gateway)
 }
 
 func (m *GatewayReconcileManager) UpsertHTTPRoute(ctx context.Context, r Route) error {
@@ -115,10 +120,7 @@ func (m *GatewayReconcileManager) upsertRoute(ctx context.Context, r Route) erro
 		Consul:         m.consul,
 	})
 	if err := route.ResolveReferences(ctx); err != nil {
-		if err := route.SyncStatus(ctx); err != nil {
-			return fmt.Errorf("error updating route status: %w", err)
-		}
-		return fmt.Errorf("error resolving route references: %w", err)
+		return err
 	}
 	return m.store.UpsertRoute(ctx, route)
 }

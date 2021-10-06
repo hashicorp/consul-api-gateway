@@ -79,10 +79,17 @@ func (s *Store) GetGateway(ctx context.Context, id core.GatewayID) (core.Gateway
 func (s *Store) syncGateway(ctx context.Context, gateway *gatewayState) error {
 	if tracker, ok := gateway.Gateway.(core.StatusTrackingGateway); ok {
 		return tracker.TrackSync(ctx, func() (bool, error) {
-			return gateway.Sync(ctx)
+			didSync, err := gateway.Sync(ctx)
+			if err != nil {
+				return didSync, core.NewSyncError(err)
+			}
+			return didSync, nil
 		})
 	}
 	_, err := gateway.Sync(ctx)
+	if err != nil {
+		return core.NewSyncError(err)
+	}
 	return err
 }
 
@@ -218,10 +225,6 @@ func (s *Store) UpsertGateway(ctx context.Context, gateway core.Gateway) error {
 		s.logger.Trace("adding gateway", "service", id.Service, "namespace", id.ConsulNamespace)
 
 		updated := newGatewayState(s.logger, gateway, s.adapter)
-		if err := updated.ResolveListenerTLS(ctx); err != nil {
-			// we have invalid listener references, consider the gateway bad
-			return err
-		}
 
 		s.gateways[id] = updated
 
