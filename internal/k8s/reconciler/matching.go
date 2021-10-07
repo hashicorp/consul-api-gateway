@@ -1,7 +1,7 @@
 package reconciler
 
 import (
-	"errors"
+	"fmt"
 
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -9,8 +9,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
 )
-
-var ErrInvalidNamespaceSelector = errors.New("invalid namespace selector")
 
 func referencesGateway(namespace string, ref gw.ParentRef) (types.NamespacedName, bool) {
 	gatewayGroup := gw.Group(gw.GroupName)
@@ -89,7 +87,7 @@ func routeAllowedForListenerNamespaces(gatewayNS string, allowedRoutes *gw.Allow
 	case gw.NamespacesFromSelector:
 		ns, err := metav1.LabelSelectorAsSelector(namespaceSelector.Selector)
 		if err != nil {
-			return false, ErrInvalidNamespaceSelector
+			return false, fmt.Errorf("error parsing label selector: %v", err)
 		}
 
 		return ns.Matches(toNamespaceSet(route.GetNamespace(), route.GetLabels())), nil

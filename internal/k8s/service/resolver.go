@@ -28,24 +28,24 @@ const (
 )
 
 type ResolutionError struct {
-	inner  error
+	inner  string
 	remote ServiceResolutionErrorType
 }
 
-func NewResolutionError(inner error) ResolutionError {
+func NewResolutionError(inner string) ResolutionError {
 	return ResolutionError{inner, GenericResolutionErrorType}
 }
 
-func NewK8sResolutionError(inner error) ResolutionError {
+func NewK8sResolutionError(inner string) ResolutionError {
 	return ResolutionError{inner, K8sServiceResolutionErrorType}
 }
 
-func NewConsulResolutionError(inner error) ResolutionError {
+func NewConsulResolutionError(inner string) ResolutionError {
 	return ResolutionError{inner, ConsulServiceResolutionErrorType}
 }
 
 func (r ResolutionError) Error() string {
-	return r.inner.Error()
+	return r.inner
 }
 
 type ResolutionErrors struct {
@@ -206,11 +206,11 @@ func (r *BackendResolver) Resolve(ctx context.Context, ref gw.BackendObjectRefer
 	switch {
 	case group == corev1.GroupName && kind == "Service":
 		if ref.Port == nil {
-			return nil, NewK8sResolutionError(errors.New("service port must not be empty"))
+			return nil, NewK8sResolutionError("service port must not be empty")
 		}
 		return r.consulServiceForK8SService(ctx, namespacedName)
 	default:
-		return nil, NewResolutionError(errors.New("unsupported reference type"))
+		return nil, NewResolutionError("unsupported reference type")
 	}
 }
 
@@ -223,7 +223,7 @@ func (r *BackendResolver) consulServiceForK8SService(ctx context.Context, namesp
 		return nil, err
 	}
 	if service == nil {
-		return nil, NewK8sResolutionError(errors.New("service not found"))
+		return nil, NewK8sResolutionError("service not found")
 	}
 
 	// we do an inner retry since consul may take some time to sync
@@ -243,7 +243,7 @@ func (r *BackendResolver) consulServiceForK8SService(ctx context.Context, namesp
 
 func validateConsulReference(services map[string]*api.AgentService, object client.Object) (*ResolvedReference, error) {
 	if len(services) == 0 {
-		return nil, NewConsulResolutionError(errors.New("consul service not found"))
+		return nil, NewConsulResolutionError("consul service not found")
 	}
 	serviceName := ""
 	serviceNamespace := ""
@@ -256,7 +256,7 @@ func validateConsulReference(services map[string]*api.AgentService, object clien
 		}
 		if service.Service != serviceName || service.Namespace != serviceNamespace {
 			return nil,
-				NewConsulResolutionError(fmt.Errorf(
+				NewConsulResolutionError(fmt.Sprintf(
 					"must have a single service map to a kubernetes service, found - (%q, %q) and (%q, %q)",
 					serviceNamespace, serviceName, service.Namespace, service.Service,
 				))

@@ -38,7 +38,6 @@ type GatewayReconcileManager struct {
 	logger         hclog.Logger
 	client         gatewayclient.Client
 	consul         *api.Client
-	tracker        GatewayStatusTracker
 
 	store          core.Store
 	gatewayClasses *K8sGatewayClasses
@@ -56,7 +55,6 @@ type ManagerConfig struct {
 	Consul         *api.Client
 	Status         client.StatusWriter
 	Store          core.Store
-	Tracker        GatewayStatusTracker
 	Logger         hclog.Logger
 }
 
@@ -66,7 +64,6 @@ func NewReconcileManager(config ManagerConfig) *GatewayReconcileManager {
 		logger:         config.Logger,
 		client:         config.Client,
 		consul:         config.Consul,
-		tracker:        config.Tracker,
 		gatewayClasses: NewK8sGatewayClasses(config.Logger.Named("gatewayclasses"), config.Client),
 		namespaceMap:   make(map[types.NamespacedName]string),
 		store:          config.Store,
@@ -90,7 +87,6 @@ func (m *GatewayReconcileManager) UpsertGateway(ctx context.Context, g *gw.Gatew
 		ConsulNamespace: consulNamespace,
 		Logger:          m.logger,
 		Client:          m.client,
-		Tracker:         m.tracker,
 	})
 
 	if err := gateway.Validate(ctx); err != nil {
@@ -143,7 +139,6 @@ func (m *GatewayReconcileManager) DeleteGateway(ctx context.Context, name types.
 		return err
 	}
 
-	m.tracker.DeleteStatus(name)
 	delete(m.namespaceMap, name)
 
 	return nil

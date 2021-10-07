@@ -11,15 +11,8 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/go-multierror"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	corev1 "k8s.io/api/core/v1"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
-)
-
-const (
-	ConditionTypeSynced          = "Synced"
-	ConditionReasonSyncFailed    = "SyncFailed"
-	ConditionReasonSyncSucceeded = "SyncSucceeded"
 )
 
 type K8sGateway struct {
@@ -27,9 +20,11 @@ type K8sGateway struct {
 	logger          hclog.Logger
 	client          gatewayclient.Client
 	gateway         *gw.Gateway
-	syncedStatus    *metav1.Condition
-	tracker         GatewayStatusTracker
-	listeners       map[string]*K8sListener
+
+	status    GatewayStatus
+	podReady  bool
+	addresses []string
+	listeners map[string]*K8sListener
 }
 
 var _ core.StatusTrackingGateway = &K8sGateway{}
@@ -37,7 +32,6 @@ var _ core.StatusTrackingGateway = &K8sGateway{}
 type K8sGatewayConfig struct {
 	ConsulNamespace string
 	Logger          hclog.Logger
-	Tracker         GatewayStatusTracker
 	Client          gatewayclient.Client
 }
 
@@ -57,7 +51,6 @@ func NewK8sGateway(gateway *gw.Gateway, config K8sGatewayConfig) *K8sGateway {
 		consulNamespace: config.ConsulNamespace,
 		logger:          gatewayLogger,
 		client:          config.Client,
-		tracker:         config.Tracker,
 		gateway:         gateway,
 		listeners:       listeners,
 	}
@@ -73,6 +66,10 @@ func (g *K8sGateway) certificates() []string {
 
 func (g *K8sGateway) Validate(ctx context.Context) error {
 	g.validateListenerConflicts()
+
+	if err := g.validatePods(ctx); err != nil {
+		return err
+	}
 
 	for _, listener := range g.listeners {
 		if err := listener.Validate(ctx); err != nil {
@@ -127,15 +124,71 @@ func (g *K8sGateway) validateListenerConflicts() {
 	}
 }
 
+func (g *K8sGateway) validatePods(ctx context.Context) error {
+	pod, err := g.client.PodWithLabels(ctx, utils.LabelsForGateway(g.gateway))
+	if err != nil {
+		if !errors.Is(err, gatewayclient.ErrPodNotCreated) {
+			return err
+		}
+	}
+
+	g.validatePodConditions(pod)
+
+	return nil
+}
+
+func (g *K8sGateway) validatePodConditions(pod *corev1.Pod) {
+	if pod == nil {
+		g.status.Scheduled.NotReconciled = errors.New("pod not found")
+		return
+	}
+
+	switch pod.Status.Phase {
+	case corev1.PodPending:
+		g.validatePodStatusPending(pod)
+	case corev1.PodRunning:
+		g.validatePodStatusRunning(pod)
+	case corev1.PodSucceeded:
+		// this should never happen, occurs when the pod terminates
+		// with a 0 status code, consider this a failed deployment
+		fallthrough
+	case corev1.PodFailed:
+		// we have a failed deployment, set the status accordingly
+		// for now we just consider the pods unschedulable.
+		g.status.Scheduled.PodFailed = errors.New("pod not running")
+	default: // Unknown pod status
+		// we don't have a known pod status, just consider this unreconciled
+		g.status.Scheduled.Unknown = errors.New("pod status unknown")
+	}
+}
+
+func (g *K8sGateway) validatePodStatusPending(pod *corev1.Pod) {
+	for _, condition := range pod.Status.Conditions {
+		if condition.Type == corev1.PodScheduled && condition.Status == corev1.ConditionFalse &&
+			strings.Contains(condition.Reason, "Unschedulable") {
+			g.status.Scheduled.NoResources = errors.New(condition.Message)
+			return
+		}
+	}
+	// if no conditions exist, or we haven't found a specific above condition, just default
+	// to not reconciled
+	g.status.Scheduled.NotReconciled = errors.New("pod conditions not found")
+}
+
+func (g *K8sGateway) validatePodStatusRunning(pod *corev1.Pod) {
+	for _, condition := range pod.Status.Conditions {
+		if condition.Type == corev1.PodReady && condition.Status == corev1.ConditionTrue {
+			g.podReady = true
+			return
+		}
+	}
+}
+
 func (g *K8sGateway) ID() core.GatewayID {
 	return core.GatewayID{
 		Service:         g.gateway.Name,
 		ConsulNamespace: g.consulNamespace,
 	}
-}
-
-func (g *K8sGateway) Logger() hclog.Logger {
-	return g.logger
 }
 
 func (g *K8sGateway) Meta() map[string]string {
@@ -173,6 +226,21 @@ func (g *K8sGateway) Compare(other core.Gateway) core.CompareResult {
 			return core.CompareResultNotEqual
 		}
 
+		// check the conditions for everything except the Ready status, which is a roll-up
+		// of everything else
+		if !listenerStatusesEqual(g.gateway.Status.Listeners, otherGateway.gateway.Status.Listeners) {
+			return core.CompareResultNotEqual
+		}
+		if !conditionEqual(g.status.Scheduled.Condition(g.gateway.Generation), otherGateway.status.Scheduled.Condition(g.gateway.Generation)) {
+			return core.CompareResultNotEqual
+		}
+		if g.podReady != otherGateway.podReady {
+			return core.CompareResultNotEqual
+		}
+		if !reflect.DeepEqual(g.addresses, otherGateway.addresses) {
+			return core.CompareResultNotEqual
+		}
+
 		if reflect.DeepEqual(g.gateway.Spec, otherGateway.gateway.Spec) {
 			return core.CompareResultEqual
 		}
@@ -187,7 +255,7 @@ func (g *K8sGateway) ShouldBind(route core.Route) bool {
 		return false
 	}
 
-	if !k8sRoute.isResolved {
+	if !k8sRoute.IsValid() {
 		return false
 	}
 
@@ -202,61 +270,60 @@ func (g *K8sGateway) ShouldBind(route core.Route) bool {
 	return false
 }
 
-func (g *K8sGateway) TrackSync(ctx context.Context, sync func() (bool, error)) error {
-	namedGateway := utils.NamespacedName(g.gateway)
-	pod, err := g.client.PodWithLabels(ctx, utils.LabelsForGateway(g.gateway))
-	if err != nil {
-		if !errors.Is(err, gatewayclient.ErrPodNotCreated) {
-			return err
-		}
-	}
-
-	conditions := utils.MapGatewayConditionsFromPod(pod)
-	var result error
-
-	didSync, err := sync()
-	syncStatusUpdated := false
-	if err != nil {
-		syncStatusUpdated = true
-		g.logger.Trace("gateway sync failed, updating sync status")
-		g.syncedStatus = &metav1.Condition{
-			Type:               ConditionTypeSynced,
-			Reason:             ConditionReasonSyncFailed,
-			Message:            err.Error(),
-			Status:             metav1.ConditionFalse,
-			LastTransitionTime: metav1.Now(),
-		}
-		result = multierror.Append(result, err)
-	} else if didSync {
-		syncStatusUpdated = true
-		g.logger.Trace("synced gateway, updating sync status")
-		g.syncedStatus = &metav1.Condition{
-			Type:               ConditionTypeSynced,
-			Reason:             ConditionReasonSyncSucceeded,
-			Status:             metav1.ConditionTrue,
-			LastTransitionTime: metav1.Now(),
-		}
-	}
-
+func (g *K8sGateway) Status() gw.GatewayStatus {
 	listenerStatuses := []gw.ListenerStatus{}
+	listenersReady := true
+	listenersInvalid := false
 	for _, listener := range g.listeners {
+		if listener.status.Ready.Pending != nil {
+			listenersReady = false
+		}
+		if listener.status.Ready.Invalid != nil {
+			listenersInvalid = true
+		}
 		listenerStatuses = append(listenerStatuses, listener.Status())
 	}
-	listenerStatusUpdate := !listenerStatusesEqual(listenerStatuses, g.gateway.Status.Listeners)
 
-	if err := g.tracker.UpdateStatus(namedGateway, pod, conditions, syncStatusUpdated || listenerStatusUpdate, func() error {
-		if g.syncedStatus != nil {
-			conditions = append(conditions, *g.syncedStatus)
-		}
-		g.gateway.Status.Listeners = listenerStatuses
-		g.gateway.Status.Conditions = conditions
-		return g.client.UpdateStatus(ctx, g.gateway)
-	}); err != nil {
-		return multierror.Append(result, err)
+	if listenersInvalid {
+		g.status.Ready.ListenersNotValid = errors.New("gateway listeners not valid")
+	} else if !g.podReady || !listenersReady {
+		g.status.Ready.ListenersNotReady = errors.New("gateway listeners not ready")
+	} else if len(g.gateway.Spec.Addresses) != 0 {
+		g.status.Ready.AddressNotAssigned = errors.New("gateway does not support requesting addresses")
+	}
+	conditions := g.status.Conditions(g.gateway.Generation)
+
+	// prefer to not update to not mess up timestamps
+	if listenerStatusesEqual(listenerStatuses, g.gateway.Status.Listeners) {
+		listenerStatuses = g.gateway.Status.Listeners
+	}
+	if conditionsEqual(conditions, g.gateway.Status.Conditions) {
+		conditions = g.gateway.Status.Conditions
 	}
 
-	if result != nil {
-		return result
+	// TODO: set addresses based off of pod/service lookup
+	return gw.GatewayStatus{
+		Conditions: conditions,
+		Listeners:  listenerStatuses,
+	}
+}
+
+func (g *K8sGateway) TrackSync(ctx context.Context, sync func() (bool, error)) error {
+	didSync, err := sync()
+	if err != nil {
+		g.status.InSync.SyncError = err
+	} else if didSync {
+		// clear out any old synchronization error statuses
+		g.status.InSync = GatewayInSyncStatus{}
+	}
+
+	status := g.Status()
+	if !gatewayStatusEqual(status, g.gateway.Status) {
+		g.gateway.Status = status
+		if err := g.client.UpdateStatus(ctx, g.gateway); err != nil {
+			// make sure we return an error immediately that's unwrapped
+			return err
+		}
 	}
 	return nil
 }

@@ -16,12 +16,6 @@ import (
 )
 
 var (
-	ErrInvalidGatewayListener    = errors.New("invalid gateway listener")
-	ErrTLSPassthroughUnsupported = errors.New("tls passthrough unsupported")
-	ErrInvalidTLSConfiguration   = errors.New("invalid tls configuration")
-	ErrInvalidTLSCertReference   = errors.New("invalid tls certificate reference")
-	ErrCannotBindListener        = errors.New("cannot bind listener")
-
 	gatewayGroup = (*gw.Group)(&gw.GroupVersion.Group)
 
 	supportedProtocols = map[gw.ProtocolType][]gw.RouteGroupKind{
@@ -38,9 +32,6 @@ var (
 
 const (
 	defaultListenerName = "default"
-
-	ConditionReasonUnableToBind  = "UnableToBindGateway"
-	ConditionReasonRouteAdmitted = "RouteAdmitted"
 )
 
 type K8sListener struct {
@@ -106,22 +97,23 @@ func (l *K8sListener) validateTLS(ctx context.Context) error {
 	}
 
 	if l.listener.TLS.Mode != nil && *l.listener.TLS.Mode == gw.TLSModePassthrough {
-		l.status.Ready.Invalid = ErrTLSPassthroughUnsupported
+		l.status.Ready.Invalid = errors.New("tls passthrough not supported")
 		return nil
 	}
 
 	if l.listener.TLS.CertificateRef == nil {
-		l.status.ResolvedRefs.InvalidCertificateRef = ErrInvalidTLSCertReference
+		l.status.ResolvedRefs.InvalidCertificateRef = errors.New("certificate reference must be set")
 		return nil
 	}
 
 	ref := *l.listener.TLS.CertificateRef
 	resource, err := l.resolveCertificateReference(ctx, ref)
 	if err != nil {
-		if !errors.Is(err, ErrInvalidTLSCertReference) {
+		var certificateErr CertificateResolutionError
+		if !errors.As(err, &certificateErr) {
 			return err
 		}
-		l.status.ResolvedRefs.InvalidCertificateRef = ErrInvalidTLSCertReference
+		l.status.ResolvedRefs.InvalidCertificateRef = certificateErr
 	} else {
 		l.certificates = []string{resource}
 	}
@@ -199,12 +191,12 @@ func (l *K8sListener) resolveCertificateReference(ctx context.Context, ref gw.Se
 			return "", fmt.Errorf("error fetching secret: %w", err)
 		}
 		if cert == nil {
-			return "", fmt.Errorf("%w: certificate not found", ErrInvalidTLSCertReference)
+			return "", NewCertificateResolutionErrorNotFound("certificate not found")
 		}
 		return utils.NewK8sSecret(namespace, ref.Name).String(), nil
 	// add more supported types here
 	default:
-		return "", fmt.Errorf("%w: unsupport certificate type", ErrInvalidTLSCertReference)
+		return "", NewCertificateResolutionErrorUnsupported(fmt.Sprintf("unsupported certificate type - group: %s, kind: %s", group, kind))
 	}
 }
 
@@ -269,7 +261,7 @@ func (l *K8sListener) canBind(ref gw.ParentRef, route *K8sRoute) (bool, error) {
 	if allowed {
 		if !routeKindIsAllowedForListener(l.listener.AllowedRoutes, route) {
 			if must {
-				return false, fmt.Errorf("route kind not allowed for listener: %w", ErrCannotBindListener)
+				return false, NewBindErrorRouteKind("route kind not allowed for listener")
 			}
 			return false, nil
 		}
@@ -279,14 +271,14 @@ func (l *K8sListener) canBind(ref gw.ParentRef, route *K8sRoute) (bool, error) {
 		}
 		if !allowed {
 			if must {
-				return false, fmt.Errorf("route not allowed because of listener namespace policy: %w", ErrCannotBindListener)
+				return false, NewBindErrorListenerNamespacePolicy("route not allowed because of listener namespace policy")
 			}
 			return false, nil
 		}
 
 		if !route.MatchesHostname(l.listener.Hostname) {
 			if must {
-				return false, fmt.Errorf("route does not match listener hostname: %w", ErrCannotBindListener)
+				return false, NewBindErrorHostnameMismatch("route does not match listener hostname")
 			}
 			return false, nil
 		}

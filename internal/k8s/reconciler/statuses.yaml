@@ -40,18 +40,40 @@
         - name: "NotReconciled"
           description: >
             This reason is used with the “Scheduled” condition when no controller has reconciled the Gateway.
+        - name: "PodFailed"
+          support: custom
+          description: >
+            This reason is used when the underlying pod on the gateway has failed.
+        - name: "Unknown"
+          support: custom
+          description: >
+            This reason is used when the underlying pod has an unhandled pod status.
         - name: "NoResources"
           description: >
             This reason is used with the “Scheduled” condition when the Gateway is not scheduled because
             insufficient infrastructure resources are available.
+    - name: InSync
+      description: >
+        This condition is true when the Gateway has successfully synced externally.
+      base:
+        description: >
+          This reason is used with the “InSync” condition when the condition is true.
+      errors:
+        - name: "SyncError"
+          description: >
+            This reason is used with the "InSync" condition when there has been an error encountered synchronizing
+            the Gateway.
 - kind: Route
   description:
     The status associated with a Route with respect to a given parent.
   types:
     - name: Accepted
+      ignore: true
       description: >
         This condition indicates whether the route has been accepted or rejected by a Gateway, and why.
       base:
+        name: Accepted
+        message: Route accepted.
         support: custom
         description: >
           This reason is used with the "Accepted" condition when the condition is True.
@@ -71,6 +93,10 @@
           description: >
             This reason is used when a Route is rejected from binding to a Listener
             becasue it does not match a Listener's hostname.
+        - name: "BindError"
+          support: custom
+          description: >
+            This reason is used when there is a generic binding error for a Route.
     - name: ResolvedRefs
       description: >
         This condition indicates whether the controller was able to resolve all the object references for the Route.

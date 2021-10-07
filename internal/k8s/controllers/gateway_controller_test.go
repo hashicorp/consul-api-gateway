@@ -7,14 +7,12 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 	core "k8s.io/api/core/v1"
-	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	gateway "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient/mocks"
 	reconcilerMocks "github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/mocks"
-	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 	"github.com/hashicorp/go-hclog"
 )
@@ -28,26 +26,6 @@ var (
 
 func TestGatewaySetup(t *testing.T) {
 	require.Error(t, (&GatewayReconciler{}).SetupWithManager(nil))
-}
-
-func TestPodToGatewayRequest(t *testing.T) {
-	requests := podToGatewayRequest(&core.Pod{
-		ObjectMeta: meta.ObjectMeta{
-			Namespace: "default",
-			Labels:    utils.LabelsForNamedGateway(gatewayName),
-		},
-	})
-	require.Len(t, requests, 1)
-	require.Equal(t, reconcile.Request{
-		NamespacedName: gatewayName,
-	}, requests[0])
-
-	requests = podToGatewayRequest(&core.Pod{
-		ObjectMeta: meta.ObjectMeta{
-			Namespace: "default",
-		},
-	})
-	require.Len(t, requests, 0)
 }
 
 func TestGateway(t *testing.T) {

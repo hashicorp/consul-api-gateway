@@ -1,6 +1,6 @@
 package reconciler
 
-// GENERATED, DO NOT EDIT DIRECTLY
+// GENERATED from statuses.yaml, DO NOT EDIT DIRECTLY
 
 import (
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -141,6 +141,14 @@ type GatewayScheduledStatus struct {
 	//
 	// [spec]
 	NotReconciled error
+	// This reason is used when the underlying pod on the gateway has failed.
+	//
+	// [custom]
+	PodFailed error
+	// This reason is used when the underlying pod has an unhandled pod status.
+	//
+	// [custom]
+	Unknown error
 	// This reason is used with the “Scheduled” condition when the Gateway is
 	// not scheduled because insufficient infrastructure resources are available.
 	//
@@ -165,6 +173,16 @@ const (
 	//
 	// [spec]
 	GatewayConditionReasonNotReconciled = "NotReconciled"
+	// GatewayConditionReasonPodFailed - This reason is used when the underlying pod
+	// on the gateway has failed.
+	//
+	// [custom]
+	GatewayConditionReasonPodFailed = "PodFailed"
+	// GatewayConditionReasonUnknown - This reason is used when the underlying pod
+	// has an unhandled pod status.
+	//
+	// [custom]
+	GatewayConditionReasonUnknown = "Unknown"
 	// GatewayConditionReasonNoResources - This reason is used with the
 	// “Scheduled” condition when the Gateway is not scheduled because
 	// insufficient infrastructure resources are available.
@@ -182,6 +200,28 @@ func (s GatewayScheduledStatus) Condition(generation int64) meta.Condition {
 			Status:             meta.ConditionFalse,
 			Reason:             GatewayConditionReasonNotReconciled,
 			Message:            s.NotReconciled.Error(),
+			ObservedGeneration: generation,
+			LastTransitionTime: meta.Now(),
+		}
+	}
+
+	if s.PodFailed != nil {
+		return meta.Condition{
+			Type:               GatewayConditionScheduled,
+			Status:             meta.ConditionFalse,
+			Reason:             GatewayConditionReasonPodFailed,
+			Message:            s.PodFailed.Error(),
+			ObservedGeneration: generation,
+			LastTransitionTime: meta.Now(),
+		}
+	}
+
+	if s.Unknown != nil {
+		return meta.Condition{
+			Type:               GatewayConditionScheduled,
+			Status:             meta.ConditionFalse,
+			Reason:             GatewayConditionReasonUnknown,
+			Message:            s.Unknown.Error(),
 			ObservedGeneration: generation,
 			LastTransitionTime: meta.Now(),
 		}
@@ -210,7 +250,66 @@ func (s GatewayScheduledStatus) Condition(generation int64) meta.Condition {
 
 // HasError returns whether any of the GatewayScheduledStatus errors are set.
 func (s GatewayScheduledStatus) HasError() bool {
-	return s.NotReconciled != nil || s.NoResources != nil
+	return s.NotReconciled != nil || s.PodFailed != nil || s.Unknown != nil || s.NoResources != nil
+}
+
+// GatewayInSyncStatus - This condition is true when the Gateway has
+// successfully synced externally.
+//
+// [spec]
+type GatewayInSyncStatus struct {
+	// This reason is used with the "InSync" condition when there has been an error
+	// encountered synchronizing the Gateway.
+	//
+	// [spec]
+	SyncError error
+}
+
+const (
+	// GatewayConditionInSync - This condition is true when the Gateway has
+	// successfully synced externally.
+	//
+	// [spec]
+	GatewayConditionInSync = "InSync"
+	// GatewayConditionReasonInSync - This reason is used with the “InSync”
+	// condition when the condition is true.
+	//
+	// [spec]
+	GatewayConditionReasonInSync = "InSync"
+	// GatewayConditionReasonSyncError - This reason is used with the "InSync"
+	// condition when there has been an error encountered synchronizing the Gateway.
+	//
+	// [spec]
+	GatewayConditionReasonSyncError = "SyncError"
+)
+
+// Condition returns the status condition of the GatewayInSyncStatus based off
+// of the underlying errors that are set.
+func (s GatewayInSyncStatus) Condition(generation int64) meta.Condition {
+	if s.SyncError != nil {
+		return meta.Condition{
+			Type:               GatewayConditionInSync,
+			Status:             meta.ConditionFalse,
+			Reason:             GatewayConditionReasonSyncError,
+			Message:            s.SyncError.Error(),
+			ObservedGeneration: generation,
+			LastTransitionTime: meta.Now(),
+		}
+	}
+
+	return meta.Condition{
+		Type:               GatewayConditionInSync,
+		Status:             meta.ConditionTrue,
+		Reason:             GatewayConditionReasonInSync,
+		Message:            "InSync",
+		ObservedGeneration: generation,
+		LastTransitionTime: meta.Now(),
+	}
+}
+
+// HasError returns whether any of the GatewayInSyncStatus errors are set.
+func (s GatewayInSyncStatus) HasError() bool {
+	return s.SyncError != nil
 }
 
 // GatewayStatus - Defines the observed state of Gateway.
@@ -227,6 +326,8 @@ type GatewayStatus struct {
 	// This condition is true when the controller managing the Gateway has scheduled
 	// the Gateway to the underlying network infrastructure.
 	Scheduled GatewayScheduledStatus
+	// This condition is true when the Gateway has successfully synced externally.
+	InSync GatewayInSyncStatus
 }
 
 // Conditions returns the aggregated status conditions of the GatewayStatus.
@@ -234,6 +335,7 @@ func (s GatewayStatus) Conditions(generation int64) []meta.Condition {
 	return []meta.Condition{
 		s.Ready.Condition(generation),
 		s.Scheduled.Condition(generation),
+		s.InSync.Condition(generation),
 	}
 }
 
@@ -257,6 +359,10 @@ type RouteAcceptedStatus struct {
 	//
 	// [custom]
 	ListenerHostnameMismatch error
+	// This reason is used when there is a generic binding error for a Route.
+	//
+	// [custom]
+	BindError error
 }
 
 const (
@@ -288,6 +394,11 @@ const (
 	//
 	// [custom]
 	RouteConditionReasonListenerHostnameMismatch = "ListenerHostnameMismatch"
+	// RouteConditionReasonBindError - This reason is used when there is a generic
+	// binding error for a Route.
+	//
+	// [custom]
+	RouteConditionReasonBindError = "BindError"
 )
 
 // Condition returns the status condition of the RouteAcceptedStatus based off
@@ -326,19 +437,25 @@ func (s RouteAcceptedStatus) Condition(generation int64) meta.Condition {
 		}
 	}
 
+	if s.BindError != nil {
+		return meta.Condition{
+			Type:               RouteConditionAccepted,
+			Status:             meta.ConditionFalse,
+			Reason:             RouteConditionReasonBindError,
+			Message:            s.BindError.Error(),
+			ObservedGeneration: generation,
+			LastTransitionTime: meta.Now(),
+		}
+	}
+
 	return meta.Condition{
 		Type:               RouteConditionAccepted,
 		Status:             meta.ConditionTrue,
 		Reason:             RouteConditionReasonAccepted,
-		Message:            "Accepted",
+		Message:            "Route accepted.",
 		ObservedGeneration: generation,
 		LastTransitionTime: meta.Now(),
 	}
-}
-
-// HasError returns whether any of the RouteAcceptedStatus errors are set.
-func (s RouteAcceptedStatus) HasError() bool {
-	return s.InvalidRouteKind != nil || s.ListenerNamespacePolicy != nil || s.ListenerHostnameMismatch != nil
 }
 
 // RouteResolvedRefsStatus - This condition indicates whether the controller was

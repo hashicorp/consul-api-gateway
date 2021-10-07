@@ -146,7 +146,6 @@ func (k *Kubernetes) Start(ctx context.Context) error {
 		ControllerName: ControllerName,
 		Client:         gwClient,
 		Consul:         k.consul,
-		Tracker:        reconciler.NewStatusTracker(),
 		Status:         k.k8sManager.GetClient().Status(),
 		Logger:         k.logger.Named("Reconciler"),
 		Store:          k.store,
