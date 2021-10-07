@@ -2,6 +2,7 @@ package reconciler
 
 import (
 	"encoding/json"
+	"reflect"
 	"sort"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -159,4 +160,49 @@ func parseParentRef(stringified string) gw.ParentRef {
 	var ref gw.ParentRef
 	_ = json.Unmarshal([]byte(stringified), &ref)
 	return ref
+}
+
+func conditionsEqual(a, b []metav1.Condition) bool {
+	if len(a) != len(b) {
+		// we have a different number of conditions, so they aren't the same
+		return false
+	}
+
+	for i, newCondition := range a {
+		oldCondition := b[i]
+		if newCondition.Type != oldCondition.Type ||
+			newCondition.ObservedGeneration != oldCondition.ObservedGeneration ||
+			newCondition.Status != oldCondition.Status ||
+			newCondition.Reason != oldCondition.Reason ||
+			newCondition.Message != oldCondition.Message {
+			return false
+		}
+	}
+	return true
+}
+
+func listenerStatusEqual(a, b gw.ListenerStatus) bool {
+	if a.Name != b.Name {
+		return false
+	}
+	if !reflect.DeepEqual(a.SupportedKinds, b.SupportedKinds) {
+		return false
+	}
+	if a.AttachedRoutes != b.AttachedRoutes {
+		return false
+	}
+	return conditionsEqual(a.Conditions, b.Conditions)
+}
+
+func listenerStatusesEqual(a, b []gw.ListenerStatus) bool {
+	if len(a) != len(b) {
+		// we have a different number of conditions, so they aren't the same
+		return false
+	}
+	for i, newStatus := range a {
+		if !listenerStatusEqual(newStatus, b[i]) {
+			return false
+		}
+	}
+	return true
 }

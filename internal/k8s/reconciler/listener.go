@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"reflect"
 	"sync/atomic"
 
 	"github.com/hashicorp/consul-api-gateway/internal/core"
@@ -12,7 +11,6 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	"github.com/hashicorp/go-hclog"
 	corev1 "k8s.io/api/core/v1"
-	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
 )
@@ -23,6 +21,19 @@ var (
 	ErrInvalidTLSConfiguration   = errors.New("invalid tls configuration")
 	ErrInvalidTLSCertReference   = errors.New("invalid tls certificate reference")
 	ErrCannotBindListener        = errors.New("cannot bind listener")
+
+	gatewayGroup = (*gw.Group)(&gw.GroupVersion.Group)
+
+	supportedProtocols = map[gw.ProtocolType][]gw.RouteGroupKind{
+		gw.HTTPProtocolType: {{
+			Group: gatewayGroup,
+			Kind:  "HTTPRoute",
+		}},
+		gw.HTTPSProtocolType: {{
+			Group: gatewayGroup,
+			Kind:  "HTTPRoute",
+		}},
+	}
 )
 
 const (
@@ -32,11 +43,6 @@ const (
 	ConditionReasonRouteAdmitted = "RouteAdmitted"
 )
 
-type resolvedCertificate struct {
-	err         error
-	certificate string
-}
-
 type K8sListener struct {
 	consulNamespace string
 	logger          hclog.Logger
@@ -44,9 +50,10 @@ type K8sListener struct {
 	listener        gw.Listener
 	client          gatewayclient.Client
 
-	routeCount      int32
-	resolutionError error
-	certificates    []resolvedCertificate
+	status         ListenerStatus
+	routeCount     int32
+	certificates   []string
+	supportedKinds []gw.RouteGroupKind
 }
 
 var _ core.RouteTrackingListener = &K8sListener{}
@@ -73,32 +80,38 @@ func (l *K8sListener) ID() string {
 	return string(l.listener.Name)
 }
 
-func (l *K8sListener) Logger() hclog.Logger {
-	return l.logger
-}
-
 func (l *K8sListener) Certificates() []string {
-	certificates := []string{}
-	for _, cert := range l.certificates {
-		if cert.certificate != "" {
-			certificates = append(certificates, cert.certificate)
-		}
-	}
-	return certificates
+	return l.certificates
 }
 
-func (l *K8sListener) ResolveCertificates(ctx context.Context) error {
+func (l *K8sListener) Validate(ctx context.Context) error {
+	l.validateUnsupported()
+	l.validateProtocols()
+
+	if err := l.validateTLS(ctx); err != nil {
+		return err
+	}
+
+	if l.status.Ready.Invalid == nil && !l.status.Valid() {
+		// set the listener as invalid if any other statuses are not valid
+		l.status.Ready.Invalid = errors.New("listener is in an invalid state")
+	}
+
+	return nil
+}
+
+func (l *K8sListener) validateTLS(ctx context.Context) error {
 	if l.listener.TLS == nil {
 		return nil
 	}
 
 	if l.listener.TLS.Mode != nil && *l.listener.TLS.Mode == gw.TLSModePassthrough {
-		l.resolutionError = ErrTLSPassthroughUnsupported
+		l.status.Ready.Invalid = ErrTLSPassthroughUnsupported
 		return nil
 	}
 
 	if l.listener.TLS.CertificateRef == nil {
-		l.resolutionError = ErrInvalidTLSCertReference
+		l.status.ResolvedRefs.InvalidCertificateRef = ErrInvalidTLSCertReference
 		return nil
 	}
 
@@ -108,16 +121,60 @@ func (l *K8sListener) ResolveCertificates(ctx context.Context) error {
 		if !errors.Is(err, ErrInvalidTLSCertReference) {
 			return err
 		}
-		l.certificates = []resolvedCertificate{{
-			err: err,
-		}}
+		l.status.ResolvedRefs.InvalidCertificateRef = ErrInvalidTLSCertReference
 	} else {
-		l.certificates = []resolvedCertificate{{
-			certificate: resource,
-		}}
+		l.certificates = []string{resource}
 	}
 
 	return nil
+}
+
+func (l *K8sListener) validateUnsupported() {
+	// seems weird that we're looking at gateway fields for listener status
+	// but that's the weirdness of the spec
+	if len(l.gateway.Spec.Addresses) > 0 {
+		// we dnn't support address binding
+		l.status.Detached.UnsupportedAddress = errors.New("specified addresses are not supported")
+	}
+}
+
+func (l *K8sListener) validateProtocols() {
+	supportedKinds, found := supportedProtocols[l.listener.Protocol]
+	if !found {
+		l.status.Detached.UnsupportedProtocol = fmt.Errorf("unsupported protocol: %s", l.listener.Protocol)
+	}
+	l.supportedKinds = supportedKinds
+	if l.listener.AllowedRoutes != nil {
+		remainderKinds := kindsNotInSet(l.listener.AllowedRoutes.Kinds, supportedKinds)
+		if len(remainderKinds) != 0 {
+			l.status.ResolvedRefs.InvalidRouteKinds = fmt.Errorf("listener has unsupported kinds: %v", remainderKinds)
+		}
+	}
+}
+
+func kindsNotInSet(set, parent []gw.RouteGroupKind) []gw.RouteGroupKind {
+	kinds := []gw.RouteGroupKind{}
+	for _, kind := range set {
+		if !isKindInSet(kind, parent) {
+			kinds = append(kinds, kind)
+		}
+	}
+	return kinds
+}
+
+func isKindInSet(value gw.RouteGroupKind, set []gw.RouteGroupKind) bool {
+	for _, kind := range set {
+		groupsMatch := false
+		if value.Group == nil && kind.Group == nil {
+			groupsMatch = true
+		} else if value.Group != nil && kind.Group != nil && *value.Group == *kind.Group {
+			groupsMatch = true
+		}
+		if groupsMatch && value.Kind == kind.Kind {
+			return true
+		}
+	}
+	return false
 }
 
 func (l *K8sListener) resolveCertificateReference(ctx context.Context, ref gw.SecretObjectReference) (string, error) {
@@ -142,12 +199,12 @@ func (l *K8sListener) resolveCertificateReference(ctx context.Context, ref gw.Se
 			return "", fmt.Errorf("error fetching secret: %w", err)
 		}
 		if cert == nil {
-			return "", fmt.Errorf("certificate not found: %w", ErrInvalidTLSCertReference)
+			return "", fmt.Errorf("%w: certificate not found", ErrInvalidTLSCertReference)
 		}
 		return utils.NewK8sSecret(namespace, ref.Name).String(), nil
 	// add more supported types here
 	default:
-		return "", ErrInvalidTLSCertReference
+		return "", fmt.Errorf("%w: unsupport certificate type", ErrInvalidTLSCertReference)
 	}
 }
 
@@ -197,8 +254,12 @@ func (l *K8sListener) CanBind(route core.Route) (bool, error) {
 	return false, nil
 }
 
+func (l *K8sListener) IsReady() bool {
+	return !l.status.Ready.HasError()
+}
+
 func (l *K8sListener) canBind(ref gw.ParentRef, route *K8sRoute) (bool, error) {
-	if l.resolutionError != nil {
+	if !l.IsReady() {
 		return false, nil
 	}
 
@@ -244,79 +305,11 @@ func (l *K8sListener) OnRouteRemoved(_ string) {
 	atomic.AddInt32(&l.routeCount, -1)
 }
 
-func (l *K8sListener) status() gw.ListenerStatus {
-	certificateRefCondition := meta.Condition{
-		Type:               string(gw.ListenerConditionResolvedRefs),
-		ObservedGeneration: l.gateway.Generation,
-		LastTransitionTime: meta.Now(),
-	}
-	if l.resolutionError != nil {
-		certificateRefCondition.Status = meta.ConditionFalse
-		certificateRefCondition.Reason = string(gw.ListenerReasonInvalidCertificateRef)
-		certificateRefCondition.Message = l.resolutionError.Error()
-	} else {
-		// TODO: handle other resolved refs issues
-		certificateRefCondition.Status = meta.ConditionTrue
-		certificateRefCondition.Reason = string(gw.ListenerReasonResolvedRefs)
-	}
+func (l *K8sListener) Status() gw.ListenerStatus {
 	return gw.ListenerStatus{
 		Name:           l.listener.Name,
-		SupportedKinds: allowedKinds(l.listener.AllowedRoutes.Kinds),
+		SupportedKinds: l.supportedKinds,
 		AttachedRoutes: atomic.LoadInt32(&l.routeCount),
-		Conditions:     []meta.Condition{certificateRefCondition},
+		Conditions:     l.status.Conditions(l.gateway.Generation),
 	}
-}
-
-func allowedKinds(allowed []gw.RouteGroupKind) []gw.RouteGroupKind {
-	if allowed != nil {
-		return allowed
-	}
-	return []gw.RouteGroupKind{{
-		Group: (*gw.Group)(&gw.GroupVersion.Group),
-		Kind:  "HTTPRoute",
-	}}
-}
-
-func conditionsEqual(a, b []meta.Condition) bool {
-	if len(a) != len(b) {
-		// we have a different number of conditions, so they aren't the same
-		return false
-	}
-
-	for i, newCondition := range a {
-		oldCondition := b[i]
-		if newCondition.Type != oldCondition.Type ||
-			newCondition.Status != oldCondition.Status ||
-			newCondition.Reason != oldCondition.Reason ||
-			newCondition.Message != oldCondition.Message {
-			return false
-		}
-	}
-	return true
-}
-
-func listenerStatusEqual(a, b gw.ListenerStatus) bool {
-	if a.Name != b.Name {
-		return false
-	}
-	if !reflect.DeepEqual(a.SupportedKinds, b.SupportedKinds) {
-		return false
-	}
-	if a.AttachedRoutes != b.AttachedRoutes {
-		return false
-	}
-	return conditionsEqual(a.Conditions, b.Conditions)
-}
-
-func listenerStatusesEqual(a, b []gw.ListenerStatus) bool {
-	if len(a) != len(b) {
-		// we have a different number of conditions, so they aren't the same
-		return false
-	}
-	for i, newStatus := range a {
-		if !listenerStatusEqual(newStatus, b[i]) {
-			return false
-		}
-	}
-	return true
 }

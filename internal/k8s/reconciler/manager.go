@@ -93,7 +93,7 @@ func (m *GatewayReconcileManager) UpsertGateway(ctx context.Context, g *gw.Gatew
 		Tracker:         m.tracker,
 	})
 
-	if err := gateway.ResolveCertificates(ctx); err != nil {
+	if err := gateway.Validate(ctx); err != nil {
 		return err
 	}
 

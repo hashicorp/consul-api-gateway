@@ -3,7 +3,9 @@ package reconciler
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
+	"strings"
 
 	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
@@ -69,13 +71,60 @@ func (g *K8sGateway) certificates() []string {
 	return certificates
 }
 
-func (g *K8sGateway) ResolveCertificates(ctx context.Context) error {
+func (g *K8sGateway) Validate(ctx context.Context) error {
+	g.validateListenerConflicts()
+
 	for _, listener := range g.listeners {
-		if err := listener.ResolveCertificates(ctx); err != nil {
+		if err := listener.Validate(ctx); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+type mergedListener struct {
+	port      gw.PortNumber
+	listeners []*K8sListener
+	protocols map[string]struct{}
+	hostnames map[string]struct{}
+}
+
+func (g *K8sGateway) mergeListenersByPort() map[gw.PortNumber]mergedListener {
+	mergedListeners := make(map[gw.PortNumber]mergedListener)
+	for _, listener := range g.listeners {
+		merged, found := mergedListeners[listener.listener.Port]
+		if !found {
+			merged = mergedListener{
+				port:      listener.listener.Port,
+				protocols: make(map[string]struct{}),
+				hostnames: make(map[string]struct{}),
+			}
+		}
+		merged.listeners = append(merged.listeners, listener)
+		merged.protocols[string(listener.listener.Protocol)] = struct{}{}
+		if listener.listener.Hostname != nil {
+			merged.hostnames[string(*listener.listener.Hostname)] = struct{}{}
+		}
+		mergedListeners[listener.listener.Port] = merged
+	}
+	return mergedListeners
+}
+
+func (g *K8sGateway) validateListenerConflicts() {
+	for _, merged := range g.mergeListenersByPort() {
+		if len(merged.protocols) > 1 {
+			conflict := fmt.Errorf("listeners have conflicting protocols for port: %s", setToCSV(merged.protocols))
+			for _, listener := range merged.listeners {
+				listener.status.Conflicted.ProtocolConflict = conflict
+			}
+		}
+		if len(merged.hostnames) > 1 {
+			conflict := fmt.Errorf("listeners have conflicting hostnames for port: %s", setToCSV(merged.protocols))
+			for _, listener := range merged.listeners {
+				listener.status.Conflicted.HostnameConflict = conflict
+			}
+		}
+	}
 }
 
 func (g *K8sGateway) ID() core.GatewayID {
@@ -191,7 +240,7 @@ func (g *K8sGateway) TrackSync(ctx context.Context, sync func() (bool, error)) e
 
 	listenerStatuses := []gw.ListenerStatus{}
 	for _, listener := range g.listeners {
-		listenerStatuses = append(listenerStatuses, listener.status())
+		listenerStatuses = append(listenerStatuses, listener.Status())
 	}
 	listenerStatusUpdate := !listenerStatusesEqual(listenerStatuses, g.gateway.Status.Listeners)
 
@@ -210,4 +259,12 @@ func (g *K8sGateway) TrackSync(ctx context.Context, sync func() (bool, error)) e
 		return result
 	}
 	return nil
+}
+
+func setToCSV(set map[string]struct{}) string {
+	values := []string{}
+	for value := range set {
+		values = append(values, value)
+	}
+	return strings.Join(values, ", ")
 }
