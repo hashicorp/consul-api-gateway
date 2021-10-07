@@ -11,33 +11,37 @@ import (
 
 func sortParents(parents []gw.RouteParentStatus) []gw.RouteParentStatus {
 	for _, parent := range parents {
-		sort.SliceStable(parent.Conditions, sortConditions(parent.Conditions))
+		sort.SliceStable(parent.Conditions, func(i, j int) bool {
+			return asJSON(parent.Conditions[i]) < asJSON(parent.Conditions[j])
+		})
 	}
 	sort.SliceStable(parents, func(i, j int) bool {
-		return compareJSON(parents[i]) < compareJSON(parents[j])
+		return asJSON(parents[i]) < asJSON(parents[j])
 	})
 	return parents
 }
 
-func sortConditions(conditions []metav1.Condition) func(int, int) bool {
-	return func(i, j int) bool {
-		return compareJSON(conditions[i]) < compareJSON(conditions[j])
+func asJSON(item interface{}) string {
+	data, err := json.Marshal(item)
+	if err != nil {
+		// everything passed to this internally should be
+		// serializable, if something is passed to it that
+		// isn't, just panic since it's a usage error at
+		// that point
+		panic(err)
 	}
-}
-
-func compareJSON(item interface{}) string {
-	data, _ := json.Marshal(item)
 	return string(data)
 }
 
-func stringifyParentRef(ref gw.ParentRef) string {
-	data, _ := json.Marshal(ref)
-	return string(data)
-}
-
-func parseParentRef(stringified string) gw.ParentRef {
+func parseParent(stringified string) gw.ParentRef {
 	var ref gw.ParentRef
-	_ = json.Unmarshal([]byte(stringified), &ref)
+	if err := json.Unmarshal([]byte(stringified), &ref); err != nil {
+		// everything passed to this internally should be
+		// deserializable, if something is passed to it that
+		// isn't, just panic since it's a usage error at
+		// that point
+		panic(err)
+	}
 	return ref
 }
 
@@ -96,7 +100,7 @@ func parentStatusEqual(a, b gw.RouteParentStatus) bool {
 	if a.Controller != b.Controller {
 		return false
 	}
-	if stringifyParentRef(a.ParentRef) != stringifyParentRef(b.ParentRef) {
+	if asJSON(a.ParentRef) != asJSON(b.ParentRef) {
 		return false
 	}
 

@@ -246,12 +246,8 @@ func (l *K8sListener) CanBind(route core.Route) (bool, error) {
 	return false, nil
 }
 
-func (l *K8sListener) IsReady() bool {
-	return !l.status.Ready.HasError()
-}
-
 func (l *K8sListener) canBind(ref gw.ParentRef, route *K8sRoute) (bool, error) {
-	if !l.IsReady() {
+	if !l.status.Ready.HasError() {
 		return false, nil
 	}
 

@@ -70,7 +70,7 @@ func (r *K8sRoute) parentKeyForGateway(parent types.NamespacedName) (string, boo
 	for _, p := range r.Parents() {
 		gatewayName, isGateway := referencesGateway(r.GetNamespace(), p)
 		if isGateway && gatewayName == parent {
-			return stringifyParentRef(p), true
+			return asJSON(p), true
 		}
 	}
 	return "", false
@@ -144,7 +144,7 @@ func (r *K8sRoute) ParentStatuses() []gw.RouteParentStatus {
 	statuses := []gw.RouteParentStatus{}
 	for ref, status := range r.parentStatuses {
 		statuses = append(statuses, gw.RouteParentStatus{
-			ParentRef:  parseParentRef(ref),
+			ParentRef:  parseParent(ref),
 			Controller: gw.GatewayController(r.controllerName),
 			Conditions: status.Conditions(r.GetGeneration()),
 		})
@@ -155,7 +155,7 @@ func (r *K8sRoute) ParentStatuses() []gw.RouteParentStatus {
 func (r *K8sRoute) FilterParentStatuses() []gw.RouteParentStatus {
 	filtered := []gw.RouteParentStatus{}
 	for _, status := range r.routeStatus().Parents {
-		id := stringifyParentRef(status.ParentRef)
+		id := asJSON(status.ParentRef)
 		if _, found := r.parentStatuses[id]; !found {
 			filtered = append(filtered, status)
 		}
