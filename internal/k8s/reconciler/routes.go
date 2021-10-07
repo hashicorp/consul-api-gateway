@@ -13,9 +13,9 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/go-multierror"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
 )
@@ -41,6 +41,8 @@ type K8sRoute struct {
 	references      service.RouteRuleReferenceMap
 	needsStatusSync bool
 	isResolved      bool
+
+	parentStatuses map[string]RouteStatus
 }
 
 var _ core.StatusTrackingRoute = &K8sRoute{}
@@ -53,7 +55,7 @@ type K8sRouteConfig struct {
 }
 
 func NewK8sRoute(route Route, config K8sRouteConfig) *K8sRoute {
-	return &K8sRoute{
+	r := &K8sRoute{
 		Route:           route,
 		controllerName:  config.ControllerName,
 		logger:          config.Logger.Named("route").With("name", route.GetName()),
@@ -61,6 +63,20 @@ func NewK8sRoute(route Route, config K8sRouteConfig) *K8sRoute {
 		consul:          config.Consul,
 		needsStatusSync: true,
 	}
+
+	for _, parent := range r.Parents() {
+		r.parentStatuses[stringifyParentRef(parent)] = RouteStatus{}
+	}
+}
+
+func (r *K8sRoute) parentForGateway(parent types.NamespacedName) (gw.ParentRef, bool) {
+	for _, p := range r.Parents() {
+		gatewayName, isGateway := referencesGateway(r.GetNamespace(), p)
+		if isGateway && gatewayName == parent {
+			return p, true
+		}
+	}
+	return gw.ParentRef{}, false
 }
 
 func (r *K8sRoute) ID() string {
@@ -297,6 +313,7 @@ func (r *K8sRoute) Resolve(listener core.Listener) *core.ResolvedRoute {
 }
 
 func (r *K8sRoute) Parents() []gw.ParentRef {
+	// filter for this controller
 	switch route := r.Route.(type) {
 	case *gw.HTTPRoute:
 		return route.Spec.ParentRefs
@@ -310,15 +327,11 @@ func (r *K8sRoute) Parents() []gw.ParentRef {
 	return nil
 }
 
-func (r *K8sRoute) ResolveReferences(ctx context.Context) error {
-	var result error
-
-	if r.isResolved {
-		return nil
-	}
-
+func (r *K8sRoute) Validate(ctx context.Context) error {
 	resolver := service.NewBackendResolver(r.GetNamespace(), r.client, r.consul)
 	resolved := service.RouteRuleReferenceMap{}
+	resolutionErrors := service.NewResolutionErrors()
+
 	switch route := r.Route.(type) {
 	case *gw.HTTPRoute:
 		for _, rule := range route.Spec.Rules {
@@ -326,10 +339,11 @@ func (r *K8sRoute) ResolveReferences(ctx context.Context) error {
 			for _, ref := range rule.BackendRefs {
 				reference, err := resolver.Resolve(ctx, ref.BackendObjectReference)
 				if err != nil {
-					if !errors.Is(err, service.ErrNotResolved) {
+					var resolutionError service.ResolutionError
+					if !errors.As(err, &resolutionError) {
 						return err
 					}
-					result = multierror.Append(result, err)
+					resolutionErrors.Add(resolutionError)
 					continue
 				}
 				reference.Reference.Set(&ref)
@@ -340,43 +354,23 @@ func (r *K8sRoute) ResolveReferences(ctx context.Context) error {
 		return nil
 	}
 
-	r.markReferencesResolved(result)
-
-	if result == nil {
-		r.references = resolved
+	if resolutionErrors.Empty() {
 		r.isResolved = true
+		return nil
 	}
+
+	flattenedType, message := resolutionErrors.Flatten()
+	for _, parent := range r.Parents() {
+		status := r.parentStatuses[stringifyParentRef(parent)]
+		switch flattenedType {
+		case service.ConsulServiceResolutionErrorType:
+			status.ResolvedRefs.ConsulServiceNotFound = message
+		case service.K8sServiceResolutionErrorType:
+			status.ResolvedRefs.ServiceNotFound = message
+		default:
+			status.ResolvedRefs.Errors = message
+		}
+	}
+
 	return nil
-}
-
-func (r *K8sRoute) markReferencesResolved(err error) {
-	parents := r.Parents()
-	reason := string(gw.ConditionRouteResolvedRefs)
-	message := string(gw.ConditionRouteResolvedRefs)
-	resolvedStatus := metav1.ConditionTrue
-	if err != nil {
-		reason = "InvalidRefs"
-		message = err.Error()
-		resolvedStatus = metav1.ConditionFalse
-	}
-	conditions := []metav1.Condition{{
-		Type:               string(gw.ConditionRouteResolvedRefs),
-		Status:             resolvedStatus,
-		Reason:             reason,
-		Message:            message,
-		ObservedGeneration: r.GetGeneration(),
-		LastTransitionTime: metav1.Now(),
-	}}
-
-	// this seems odd to set this on the parent ref
-	statuses := []gw.RouteParentStatus{}
-	for _, ref := range parents {
-		statuses = append(statuses, gw.RouteParentStatus{
-			ParentRef:  ref,
-			Controller: gw.GatewayController(r.controllerName),
-			Conditions: conditions,
-		})
-	}
-
-	r.SetStatus(setResolvedRefsStatus(r.routeStatus(), statuses...))
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/cenkalti/backoff"
@@ -17,9 +18,114 @@ import (
 
 type ResolvedReferenceType int
 
-var (
-	ErrNotResolved = errors.New("backend reference not resolved")
+type ServiceResolutionErrorType int
+
+const (
+	K8sServiceResolutionErrorType ServiceResolutionErrorType = iota
+	ConsulServiceResolutionErrorType
+	GenericResolutionErrorType
+	NoResolutionErrorType
 )
+
+type ResolutionError struct {
+	inner  error
+	remote ServiceResolutionErrorType
+}
+
+func NewResolutionError(inner error) ResolutionError {
+	return ResolutionError{inner, GenericResolutionErrorType}
+}
+
+func NewK8sResolutionError(inner error) ResolutionError {
+	return ResolutionError{inner, K8sServiceResolutionErrorType}
+}
+
+func NewConsulResolutionError(inner error) ResolutionError {
+	return ResolutionError{inner, ConsulServiceResolutionErrorType}
+}
+
+func (r ResolutionError) Error() string {
+	return r.inner.Error()
+}
+
+type ResolutionErrors struct {
+	k8sErrors     []ResolutionError
+	consulErrors  []ResolutionError
+	genericErrors []ResolutionError
+}
+
+func NewResolutionErrors() *ResolutionErrors {
+	return &ResolutionErrors{}
+}
+
+func (r *ResolutionErrors) Add(err ResolutionError) {
+	switch err.remote {
+	case K8sServiceResolutionErrorType:
+		r.k8sErrors = append(r.k8sErrors, err)
+	case ConsulServiceResolutionErrorType:
+		r.consulErrors = append(r.consulErrors, err)
+	default:
+		r.genericErrors = append(r.genericErrors, err)
+	}
+}
+
+func (r *ResolutionErrors) String() string {
+	errs := []string{}
+	if len(r.k8sErrors) > 0 {
+		k8sErrs := "k8s: "
+		for i, err := range r.k8sErrors {
+			if i != 0 {
+				k8sErrs += ", "
+			}
+			k8sErrs += err.Error()
+		}
+		errs = append(errs, k8sErrs)
+	}
+
+	if len(r.consulErrors) > 0 {
+		consulErrs := "consul: "
+		for i, err := range r.consulErrors {
+			if i != 0 {
+				consulErrs += ", "
+			}
+			consulErrs += err.Error()
+		}
+		errs = append(errs, consulErrs)
+	}
+
+	if len(r.genericErrors) > 0 {
+		genericErrs := "k8s: "
+		for i, err := range r.genericErrors {
+			if i != 0 {
+				genericErrs += ", "
+			}
+			genericErrs += err.Error()
+		}
+		errs = append(errs, genericErrs)
+	}
+
+	return strings.Join(errs, "; ")
+}
+
+func (r *ResolutionErrors) Flatten() (ServiceResolutionErrorType, error) {
+	if r.Empty() {
+		return NoResolutionErrorType, nil
+	}
+
+	if len(r.genericErrors) != 0 || (len(r.consulErrors) != 0 && len(r.k8sErrors) != 0) {
+		return GenericResolutionErrorType, errors.New(r.String())
+	}
+
+	if len(r.consulErrors) != 0 {
+		return ConsulServiceResolutionErrorType, errors.New(r.String())
+	}
+
+	return K8sServiceResolutionErrorType, errors.New(r.String())
+}
+
+func (r *ResolutionErrors) Empty() bool {
+	return len(r.k8sErrors) == 0 && len(r.consulErrors) == 0 && len(r.genericErrors) == 0
+}
 
 const (
 	HTTPRouteReference ResolvedReferenceType = iota
@@ -100,11 +206,11 @@ func (r *BackendResolver) Resolve(ctx context.Context, ref gw.BackendObjectRefer
 	switch {
 	case group == corev1.GroupName && kind == "Service":
 		if ref.Port == nil {
-			return nil, fmt.Errorf("%w: empty port", ErrNotResolved)
+			return nil, NewK8sResolutionError(errors.New("service port must not be empty"))
 		}
 		return r.consulServiceForK8SService(ctx, namespacedName)
 	default:
-		return nil, fmt.Errorf("%w: unsupported reference", ErrNotResolved)
+		return nil, NewResolutionError(errors.New("unsupported reference type"))
 	}
 }
 
@@ -117,7 +223,7 @@ func (r *BackendResolver) consulServiceForK8SService(ctx context.Context, namesp
 		return nil, err
 	}
 	if service == nil {
-		return nil, fmt.Errorf("%w: service not found", ErrNotResolved)
+		return nil, NewK8sResolutionError(errors.New("service not found"))
 	}
 
 	// we do an inner retry since consul may take some time to sync
@@ -137,7 +243,7 @@ func (r *BackendResolver) consulServiceForK8SService(ctx context.Context, namesp
 
 func validateConsulReference(services map[string]*api.AgentService, object client.Object) (*ResolvedReference, error) {
 	if len(services) == 0 {
-		return nil, fmt.Errorf("%w: consul service not found", ErrNotResolved)
+		return nil, NewConsulResolutionError(errors.New("consul service not found"))
 	}
 	serviceName := ""
 	serviceNamespace := ""
@@ -149,10 +255,11 @@ func validateConsulReference(services map[string]*api.AgentService, object clien
 			serviceNamespace = service.Namespace
 		}
 		if service.Service != serviceName || service.Namespace != serviceNamespace {
-			return nil, fmt.Errorf(
-				"%w: must have a single service map to a kubernetes service, found - (%q, %q) and (%q, %q)",
-				ErrNotResolved, serviceNamespace, serviceName, service.Namespace, service.Service,
-			)
+			return nil,
+				NewConsulResolutionError(fmt.Errorf(
+					"must have a single service map to a kubernetes service, found - (%q, %q) and (%q, %q)",
+					serviceNamespace, serviceName, service.Namespace, service.Service,
+				))
 		}
 	}
 	return NewConsulServiceReference(object, &ConsulService{

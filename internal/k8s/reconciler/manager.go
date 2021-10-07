@@ -119,7 +119,7 @@ func (m *GatewayReconcileManager) upsertRoute(ctx context.Context, r Route) erro
 		Client:         m.client,
 		Consul:         m.consul,
 	})
-	if err := route.ResolveReferences(ctx); err != nil {
+	if err := route.Validate(ctx); err != nil {
 		return err
 	}
 	return m.store.UpsertRoute(ctx, route)
