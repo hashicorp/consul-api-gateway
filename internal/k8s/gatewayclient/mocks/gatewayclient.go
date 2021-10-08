@@ -287,21 +287,6 @@ func (mr *MockClientMockRecorder) IsManagedRoute(ctx, spec, routeNamespace, cont
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsManagedRoute", reflect.TypeOf((*MockClient)(nil).IsManagedRoute), ctx, spec, routeNamespace, controllerName)
 }
 
-// IsValidGatewayClass mocks base method.
-func (m *MockClient) IsValidGatewayClass(ctx context.Context, gc *v1alpha2.GatewayClass) (bool, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "IsValidGatewayClass", ctx, gc)
-	ret0, _ := ret[0].(bool)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// IsValidGatewayClass indicates an expected call of IsValidGatewayClass.
-func (mr *MockClientMockRecorder) IsValidGatewayClass(ctx, gc interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsValidGatewayClass", reflect.TypeOf((*MockClient)(nil).IsValidGatewayClass), ctx, gc)
-}
-
 // PodWithLabels mocks base method.
 func (m *MockClient) PodWithLabels(ctx context.Context, labels map[string]string) (*v10.Pod, error) {
 	m.ctrl.T.Helper()

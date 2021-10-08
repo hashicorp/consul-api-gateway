@@ -122,17 +122,17 @@ func (mr *MockReconcileManagerMockRecorder) UpsertGateway(ctx, g interface{}) *g
 }
 
 // UpsertGatewayClass mocks base method.
-func (m *MockReconcileManager) UpsertGatewayClass(ctx context.Context, gc *v1alpha2.GatewayClass, validParameters bool) error {
+func (m *MockReconcileManager) UpsertGatewayClass(ctx context.Context, gc *v1alpha2.GatewayClass) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpsertGatewayClass", ctx, gc, validParameters)
+	ret := m.ctrl.Call(m, "UpsertGatewayClass", ctx, gc)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // UpsertGatewayClass indicates an expected call of UpsertGatewayClass.
-func (mr *MockReconcileManagerMockRecorder) UpsertGatewayClass(ctx, gc, validParameters interface{}) *gomock.Call {
+func (mr *MockReconcileManagerMockRecorder) UpsertGatewayClass(ctx, gc interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertGatewayClass", reflect.TypeOf((*MockReconcileManager)(nil).UpsertGatewayClass), ctx, gc, validParameters)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertGatewayClass", reflect.TypeOf((*MockReconcileManager)(nil).UpsertGatewayClass), ctx, gc)
 }
 
 // UpsertHTTPRoute mocks base method.
