@@ -371,5 +371,5 @@ func newTestClient(list client.ObjectList, objects ...client.Object) Client {
 		builder = builder.WithObjects(objects...)
 	}
 
-	return New(builder.Build(), scheme)
+	return New(builder.Build(), scheme, "")
 }

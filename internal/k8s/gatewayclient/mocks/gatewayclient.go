@@ -152,6 +152,22 @@ func (mr *MockClientMockRecorder) GatewayClassInUse(ctx, gc interface{}) *gomock
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GatewayClassInUse", reflect.TypeOf((*MockClient)(nil).GatewayClassInUse), ctx, gc)
 }
 
+// GetConfigForGatewayClassName mocks base method.
+func (m *MockClient) GetConfigForGatewayClassName(ctx context.Context, name string) (v1alpha1.GatewayClassConfig, bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetConfigForGatewayClassName", ctx, name)
+	ret0, _ := ret[0].(v1alpha1.GatewayClassConfig)
+	ret1, _ := ret[1].(bool)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// GetConfigForGatewayClassName indicates an expected call of GetConfigForGatewayClassName.
+func (mr *MockClientMockRecorder) GetConfigForGatewayClassName(ctx, name interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetConfigForGatewayClassName", reflect.TypeOf((*MockClient)(nil).GetConfigForGatewayClassName), ctx, name)
+}
+
 // GetGateway mocks base method.
 func (m *MockClient) GetGateway(ctx context.Context, key types.NamespacedName) (*v1alpha2.Gateway, error) {
 	m.ctrl.T.Helper()
@@ -240,6 +256,36 @@ func (m *MockClient) GetService(ctx context.Context, key types.NamespacedName) (
 func (mr *MockClientMockRecorder) GetService(ctx, key interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetService", reflect.TypeOf((*MockClient)(nil).GetService), ctx, key)
+}
+
+// HasManagedDeployment mocks base method.
+func (m *MockClient) HasManagedDeployment(ctx context.Context, gw *v1alpha2.Gateway) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "HasManagedDeployment", ctx, gw)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// HasManagedDeployment indicates an expected call of HasManagedDeployment.
+func (mr *MockClientMockRecorder) HasManagedDeployment(ctx, gw interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasManagedDeployment", reflect.TypeOf((*MockClient)(nil).HasManagedDeployment), ctx, gw)
+}
+
+// IsManagedRoute mocks base method.
+func (m *MockClient) IsManagedRoute(ctx context.Context, namespace string, parents []v1alpha2.ParentRef) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IsManagedRoute", ctx, namespace, parents)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// IsManagedRoute indicates an expected call of IsManagedRoute.
+func (mr *MockClientMockRecorder) IsManagedRoute(ctx, namespace, parents interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsManagedRoute", reflect.TypeOf((*MockClient)(nil).IsManagedRoute), ctx, namespace, parents)
 }
 
 // PodWithLabels mocks base method.
