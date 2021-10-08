@@ -2,10 +2,16 @@
 
 package main
 
+/*
+This file generates boilerplate error structures and k8s object statuses to
+facillitate status construction
+*/
+
 import (
 	"bytes"
 	"fmt"
 	"os"
+	"path"
 	"strings"
 	"text/template"
 
@@ -81,7 +87,7 @@ func (c conditionType) normalize() conditionType {
 }
 
 func mustDecodeYAML(name string, into interface{}) {
-	file, err := os.OpenFile(name, os.O_RDONLY, 0644)
+	file, err := os.OpenFile(path.Join("config", name), os.O_RDONLY, 0644)
 	if err != nil {
 		panic(err)
 	}

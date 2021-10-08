@@ -11,17 +11,13 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/service"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
+	"github.com/hashicorp/consul-api-gateway/internal/store"
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
-)
-
-const (
-	// NamespaceNameLabel represents that label added automatically to namespaces is newer Kubernetes clusters
-	NamespaceNameLabel = "kubernetes.io/metadata.name"
 )
 
 // all kubernetes routes implement the following two interfaces
@@ -44,7 +40,7 @@ type K8sRoute struct {
 	parentStatuses map[string]*RouteStatus
 }
 
-var _ core.StatusTrackingRoute = &K8sRoute{}
+var _ store.StatusTrackingRoute = &K8sRoute{}
 
 type K8sRouteConfig struct {
 	ControllerName string
@@ -175,7 +171,7 @@ func (r *K8sRoute) NeedsStatusUpdate() bool {
 	return !routeStatusEqual(currentStatus, updatedStatus)
 }
 
-func (r *K8sRoute) OnBindFailed(err error, gateway core.Gateway) {
+func (r *K8sRoute) OnBindFailed(err error, gateway store.Gateway) {
 	k8sGateway, ok := gateway.(*K8sGateway)
 	if ok {
 		id, found := r.parentKeyForGateway(utils.NamespacedName(k8sGateway.gateway))
@@ -202,7 +198,7 @@ func (r *K8sRoute) OnBindFailed(err error, gateway core.Gateway) {
 	}
 }
 
-func (r *K8sRoute) OnBound(gateway core.Gateway) {
+func (r *K8sRoute) OnBound(gateway store.Gateway) {
 	k8sGateway, ok := gateway.(*K8sGateway)
 	if ok {
 		id, found := r.parentKeyForGateway(utils.NamespacedName(k8sGateway.gateway))
@@ -217,7 +213,7 @@ func (r *K8sRoute) OnBound(gateway core.Gateway) {
 	}
 }
 
-func (r *K8sRoute) OnGatewayRemoved(gateway core.Gateway) {
+func (r *K8sRoute) OnGatewayRemoved(gateway store.Gateway) {
 	k8sGateway, ok := gateway.(*K8sGateway)
 	if ok {
 		id, found := r.parentKeyForGateway(utils.NamespacedName(k8sGateway.gateway))
@@ -247,28 +243,29 @@ func (r *K8sRoute) SyncStatus(ctx context.Context) error {
 	return nil
 }
 
-func (r *K8sRoute) Compare(other core.Route) core.CompareResult {
+func (r *K8sRoute) Compare(other store.Route) store.CompareResult {
 	if other == nil {
-		return core.CompareResultInvalid
+		return store.CompareResultInvalid
 	}
 	if r == nil {
-		return core.CompareResultNotEqual
+		return store.CompareResultNotEqual
 	}
 
 	if otherRoute, ok := other.(*K8sRoute); ok {
 		if r.GetGeneration() > otherRoute.GetGeneration() {
-			return core.CompareResultNewer
+			return store.CompareResultNewer
 		}
 
-		if r.equals(otherRoute) {
-			return core.CompareResultEqual
+		if r.isEqual(otherRoute) {
+			r.logger.Trace("compared unequal routes", "references", reflect.DeepEqual(r.references, otherRoute.references), "errors", reflect.DeepEqual(r.resolutionErrors, otherRoute.resolutionErrors))
+			return store.CompareResultEqual
 		}
-		return core.CompareResultNotEqual
+		return store.CompareResultNotEqual
 	}
-	return core.CompareResultInvalid
+	return store.CompareResultInvalid
 }
 
-func (r *K8sRoute) equals(k8sRoute *K8sRoute) bool {
+func (r *K8sRoute) isEqual(k8sRoute *K8sRoute) bool {
 	if !reflect.DeepEqual(r.references, k8sRoute.references) || !reflect.DeepEqual(r.resolutionErrors, k8sRoute.resolutionErrors) {
 		return false
 	}
@@ -298,7 +295,7 @@ func (r *K8sRoute) equals(k8sRoute *K8sRoute) bool {
 	return false
 }
 
-func (r *K8sRoute) Resolve(listener core.Listener) *core.ResolvedRoute {
+func (r *K8sRoute) Resolve(listener store.Listener) *core.ResolvedRoute {
 	k8sListener, ok := listener.(*K8sListener)
 	if !ok {
 		return nil

@@ -6,6 +6,130 @@ import (
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// GatewayClassAcceptedStatus - This condition indicates whether the
+// GatewayClass has been accepted by the controller requested in the
+// spec.controller field.
+//
+// This condition defaults to Unknown, and MUST be set by a controller when it
+// sees a GatewayClass using its controller string. The status of this condition
+// MUST be set to True if the controller will support provisioning Gateways
+// using this class. Otherwise, this status MUST be set to False. If the status
+// is set to False, the controller SHOULD set a Message and Reason as an
+// explanation.
+//
+// [spec]
+type GatewayClassAcceptedStatus struct {
+	// This reason is used with the “Accepted” condition when the GatewayClass
+	// was not accepted because the parametersRef field was invalid, with more
+	// detail in the message.
+	//
+	// [spec]
+	InvalidParameters error
+	// This reason is used with the “Accepted” condition when the requested
+	// controller has not yet made a decision about whether to admit the
+	// GatewayClass. It is the default Reason on a new GatewayClass.
+	//
+	// [spec]
+	Waiting error
+}
+
+const (
+	// GatewayClassConditionAccepted - This condition indicates whether the
+	// GatewayClass has been accepted by the controller requested in the
+	// spec.controller field.
+	//
+	// This condition defaults to Unknown, and MUST be set by a controller when it
+	// sees a GatewayClass using its controller string. The status of this condition
+	// MUST be set to True if the controller will support provisioning Gateways
+	// using this class. Otherwise, this status MUST be set to False. If the status
+	// is set to False, the controller SHOULD set a Message and Reason as an
+	// explanation.
+	//
+	// [spec]
+	GatewayClassConditionAccepted = "Accepted"
+	// GatewayClassConditionReasonAccepted - This reason is used with the
+	// “Accepted” condition when the condition is true.
+	//
+	// [spec]
+	GatewayClassConditionReasonAccepted = "Accepted"
+	// GatewayClassConditionReasonInvalidParameters - This reason is used with the
+	// “Accepted” condition when the GatewayClass was not accepted because the
+	// parametersRef field was invalid, with more detail in the message.
+	//
+	// [spec]
+	GatewayClassConditionReasonInvalidParameters = "InvalidParameters"
+	// GatewayClassConditionReasonWaiting - This reason is used with the
+	// “Accepted” condition when the requested controller has not yet made a
+	// decision about whether to admit the GatewayClass. It is the default Reason on
+	// a new GatewayClass.
+	//
+	// [spec]
+	GatewayClassConditionReasonWaiting = "Waiting"
+)
+
+// Condition returns the status condition of the GatewayClassAcceptedStatus
+// based off of the underlying errors that are set.
+func (s GatewayClassAcceptedStatus) Condition(generation int64) meta.Condition {
+	if s.InvalidParameters != nil {
+		return meta.Condition{
+			Type:               GatewayClassConditionAccepted,
+			Status:             meta.ConditionFalse,
+			Reason:             GatewayClassConditionReasonInvalidParameters,
+			Message:            s.InvalidParameters.Error(),
+			ObservedGeneration: generation,
+			LastTransitionTime: meta.Now(),
+		}
+	}
+
+	if s.Waiting != nil {
+		return meta.Condition{
+			Type:               GatewayClassConditionAccepted,
+			Status:             meta.ConditionFalse,
+			Reason:             GatewayClassConditionReasonWaiting,
+			Message:            s.Waiting.Error(),
+			ObservedGeneration: generation,
+			LastTransitionTime: meta.Now(),
+		}
+	}
+
+	return meta.Condition{
+		Type:               GatewayClassConditionAccepted,
+		Status:             meta.ConditionTrue,
+		Reason:             GatewayClassConditionReasonAccepted,
+		Message:            "Accepted",
+		ObservedGeneration: generation,
+		LastTransitionTime: meta.Now(),
+	}
+}
+
+// HasError returns whether any of the GatewayClassAcceptedStatus errors are
+// set.
+func (s GatewayClassAcceptedStatus) HasError() bool {
+	return s.InvalidParameters != nil || s.Waiting != nil
+}
+
+// GatewayClassStatus - Defines the observed state of a GatewayClass.
+type GatewayClassStatus struct {
+	// This condition indicates whether the GatewayClass has been accepted by the
+	// controller requested in the spec.controller field.
+	//
+	// This condition defaults to Unknown, and MUST be set by a controller when it
+	// sees a GatewayClass using its controller string. The status of this condition
+	// MUST be set to True if the controller will support provisioning Gateways
+	// using this class. Otherwise, this status MUST be set to False. If the status
+	// is set to False, the controller SHOULD set a Message and Reason as an
+	// explanation.
+	Accepted GatewayClassAcceptedStatus
+}
+
+// Conditions returns the aggregated status conditions of the
+// GatewayClassStatus.
+func (s GatewayClassStatus) Conditions(generation int64) []meta.Condition {
+	return []meta.Condition{
+		s.Accepted.Condition(generation),
+	}
+}
+
 // GatewayReadyStatus - This condition is true when the Gateway is expected to
 // be able to serve traffic. Note that this does not indicate that the Gateway
 // configuration is current or even complete (e.g. the controller may still not
@@ -312,7 +436,7 @@ func (s GatewayInSyncStatus) HasError() bool {
 	return s.SyncError != nil
 }
 
-// GatewayStatus - Defines the observed state of Gateway.
+// GatewayStatus - Defines the observed state of a Gateway.
 type GatewayStatus struct {
 	// This condition is true when the Gateway is expected to be able to serve
 	// traffic. Note that this does not indicate that the Gateway configuration is

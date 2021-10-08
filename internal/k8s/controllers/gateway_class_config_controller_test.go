@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient/mocks"
@@ -60,8 +62,8 @@ func TestGatewayClassConfig(t *testing.T) {
 			client.EXPECT().GatewayClassConfigInUse(gomock.Any(), gomock.Any()).Return(false, errExpected)
 		},
 	}, {
-		name: "deleting-in-use",
-		err:  errGatewayClassConfigInUse,
+		name:   "deleting-in-use",
+		result: ctrl.Result{RequeueAfter: 10 * time.Second},
 		expectationCB: func(client *mocks.MockClient) {
 			now := meta.Now()
 			client.EXPECT().GetGatewayClassConfig(gomock.Any(), classConfigName).Return(&apigwv1alpha1.GatewayClassConfig{

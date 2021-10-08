@@ -18,6 +18,7 @@ import (
 
 	"github.com/cenkalti/backoff"
 
+	"github.com/hashicorp/consul-api-gateway/internal/metrics"
 	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 )
 
@@ -28,8 +29,10 @@ const (
 	maxStatusUpdateAttempts = 5
 )
 
-var ErrPodNotCreated = errors.New("pod not yet created for gateway")
-
+// Client is an abstraction around interactions with Kubernetes APIs. In order
+// to keep the error boundaries clear for our reconciliation code, care should
+// be taken not to return errors from these methods unless they're unexpected
+// Kubernetes API errors that should potentially be retried immediately.
 type Client interface {
 	// getters
 	GetGatewayClassConfig(ctx context.Context, key types.NamespacedName) (*apigwv1alpha1.GatewayClassConfig, error)
@@ -59,7 +62,6 @@ type Client interface {
 
 	// validation
 
-	IsValidGatewayClass(ctx context.Context, gc *gateway.GatewayClass) (bool, error)
 	IsManagedRoute(ctx context.Context, spec gateway.CommonRouteSpec, routeNamespace, controllerName string) (bool, error)
 
 	// status updates
@@ -104,31 +106,6 @@ func (g *gatewayClient) GatewayClassConfigInUse(ctx context.Context, gcc *apigwv
 	return false, nil
 }
 
-func (g *gatewayClient) IsValidGatewayClass(ctx context.Context, gc *gateway.GatewayClass) (bool, error) {
-	// only validate if we actually have a config reference
-	if parametersRef := gc.Spec.ParametersRef; parametersRef != nil {
-		// check that we're using a typed config
-		if parametersRef.Group != apigwv1alpha1.Group || parametersRef.Kind != apigwv1alpha1.GatewayClassConfigKind {
-			return false, nil
-		}
-
-		// try and retrieve the config
-		found := &apigwv1alpha1.GatewayClassConfig{}
-		name := types.NamespacedName{Name: parametersRef.Name}
-		// ignore namespace since we're cluster-scoped
-		err := g.Get(ctx, name, found)
-		if err != nil {
-			if k8serrors.IsNotFound(err) {
-				// no config
-				return false, nil
-			}
-			return false, err
-		}
-	}
-
-	return true, nil
-}
-
 func (g *gatewayClient) GatewayClassConfigForGatewayClass(ctx context.Context, gc *gateway.GatewayClass) (*apigwv1alpha1.GatewayClassConfig, error) {
 	if parametersRef := gc.Spec.ParametersRef; parametersRef != nil {
 		if parametersRef.Group != apigwv1alpha1.Group || parametersRef.Kind != apigwv1alpha1.GatewayClassConfigKind {
@@ -145,7 +122,9 @@ func (g *gatewayClient) GatewayClassConfigForGatewayClass(ctx context.Context, g
 		}
 		return found, nil
 	}
-	return nil, nil
+	// since Gateway configurations are optional, just return
+	// an empty configuration with all the defaults if none was specified
+	return &apigwv1alpha1.GatewayClassConfig{}, nil
 }
 
 func (g *gatewayClient) GatewayClassInUse(ctx context.Context, gc *gateway.GatewayClass) (bool, error) {
@@ -180,7 +159,7 @@ func (g *gatewayClient) PodWithLabels(ctx context.Context, labels map[string]str
 		}
 	}
 
-	return nil, ErrPodNotCreated
+	return nil, nil
 }
 
 func (g *gatewayClient) GatewayClassForGateway(ctx context.Context, gw *gateway.Gateway) (*gateway.GatewayClass, error) {
@@ -316,14 +295,12 @@ func (g *gatewayClient) IsManagedRoute(ctx context.Context, spec gateway.CommonR
 		if err := g.Get(ctx, name, gw); err != nil {
 			return false, fmt.Errorf("failed to get gateway: %w", err)
 		}
-
 		gc, err := g.GatewayClassForGateway(ctx, gw)
 		if err != nil {
 			return false, fmt.Errorf("failed to get gateway class: %w", err)
 		}
-
 		if string(gc.Spec.Controller) == controllerName {
-			return true, err
+			return true, nil
 		}
 	}
 	return false, nil
@@ -336,7 +313,7 @@ func (g *gatewayClient) UpdateStatus(ctx context.Context, obj client.Object) err
 }
 
 func (g *gatewayClient) CreateOrUpdateDeployment(ctx context.Context, deployment *apps.Deployment, mutators ...func() error) error {
-	_, err := controllerutil.CreateOrUpdate(ctx, g.Client, deployment, func() error {
+	operation, err := controllerutil.CreateOrUpdate(ctx, g.Client, deployment, func() error {
 		for _, mutate := range mutators {
 			if err := mutate(); err != nil {
 				return err
@@ -344,6 +321,9 @@ func (g *gatewayClient) CreateOrUpdateDeployment(ctx context.Context, deployment
 		}
 		return nil
 	})
+	if operation == controllerutil.OperationResultCreated {
+		metrics.Registry.IncrCounter(metrics.K8sNewGatewayDeployments, 1)
+	}
 	return err
 }
 

@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/hashicorp/consul-api-gateway/internal/core"
+	"github.com/hashicorp/consul-api-gateway/internal/store"
 	"github.com/hashicorp/go-hclog"
 )
 
@@ -14,9 +15,9 @@ const (
 
 // boundListener wraps a lstener and its set of routes
 type listenerState struct {
-	core.Listener
+	store.Listener
 
-	gateway core.Gateway
+	gateway store.Gateway
 
 	logger   hclog.Logger
 	name     string
@@ -31,7 +32,7 @@ type listenerState struct {
 	mutex sync.RWMutex
 }
 
-func newListenerState(logger hclog.Logger, gateway core.Gateway, listener core.Listener) *listenerState {
+func newListenerState(logger hclog.Logger, gateway store.Gateway, listener store.Listener) *listenerState {
 	listenerConfig := listener.Config()
 
 	name := defaultListenerName
@@ -64,7 +65,7 @@ func (l *listenerState) RemoveRoute(id string) {
 		return
 	}
 	l.logger.Trace("removing route from listener", "route", id)
-	if tracker, ok := l.Listener.(core.RouteTrackingListener); ok {
+	if tracker, ok := l.Listener.(store.RouteTrackingListener); ok {
 		tracker.OnRouteRemoved(id)
 	}
 
@@ -72,7 +73,7 @@ func (l *listenerState) RemoveRoute(id string) {
 	delete(l.routes, id)
 }
 
-func (l *listenerState) SetRoute(route core.Route) {
+func (l *listenerState) SetRoute(route store.Route) {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
 
@@ -83,7 +84,7 @@ func (l *listenerState) SetRoute(route core.Route) {
 			// don't bother updating if the route is the same
 			return
 		}
-		if tracker, ok := l.Listener.(core.RouteTrackingListener); ok {
+		if tracker, ok := l.Listener.(store.RouteTrackingListener); ok {
 			if !found {
 				tracker.OnRouteAdded(route)
 			}

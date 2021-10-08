@@ -390,68 +390,13 @@ func TestGatewayClassInUse(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, used)
 }
-
-func TestIsValidGatewayClass(t *testing.T) {
-	t.Parallel()
-
-	gatewayclient := newTestClient(nil, &apigwv1alpha1.GatewayClassConfig{
-		ObjectMeta: meta.ObjectMeta{
-			Name: "gatewayclassconfig",
-		},
-	})
-
-	// no configuration
-	valid, err := gatewayclient.IsValidGatewayClass(context.Background(), &gateway.GatewayClass{})
-	require.NoError(t, err)
-	require.True(t, valid)
-
-	// other param configuration
-	valid, err = gatewayclient.IsValidGatewayClass(context.Background(), &gateway.GatewayClass{
-		Spec: gateway.GatewayClassSpec{
-			ParametersRef: &gateway.ParametersReference{
-				Name: "map",
-				Kind: gateway.Kind("someotherkind"),
-			},
-		},
-	})
-	require.NoError(t, err)
-	require.False(t, valid)
-
-	// not found configuration
-	valid, err = gatewayclient.IsValidGatewayClass(context.Background(), &gateway.GatewayClass{
-		Spec: gateway.GatewayClassSpec{
-			ParametersRef: &gateway.ParametersReference{
-				Group: apigwv1alpha1.Group,
-				Kind:  apigwv1alpha1.GatewayClassConfigKind,
-				Name:  "nogatewayclassconfig",
-			},
-		},
-	})
-	require.NoError(t, err)
-	require.False(t, valid)
-
-	// found configuration
-	valid, err = gatewayclient.IsValidGatewayClass(context.Background(), &gateway.GatewayClass{
-		Spec: gateway.GatewayClassSpec{
-			ParametersRef: &gateway.ParametersReference{
-				Group: apigwv1alpha1.Group,
-				Kind:  apigwv1alpha1.GatewayClassConfigKind,
-				Name:  "gatewayclassconfig",
-			},
-		},
-	})
-	require.NoError(t, err)
-	require.True(t, valid)
-}
-
 func TestPodWithLabelsNoItems(t *testing.T) {
 	gatewayclient := newTestClient(nil)
 
 	pod, err := gatewayclient.PodWithLabels(context.Background(), map[string]string{
 		"label": "test",
 	})
-	require.Error(t, err)
-	require.Equal(t, ErrPodNotCreated, err)
+	require.NoError(t, err)
 	require.Nil(t, pod)
 }
 

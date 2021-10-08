@@ -16,11 +16,11 @@ import (
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
 
-	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/controllers"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
+	"github.com/hashicorp/consul-api-gateway/internal/store"
 	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 )
 
@@ -49,7 +49,7 @@ type Kubernetes struct {
 	sDSServerPort int
 	k8sManager    ctrl.Manager
 	consul        *api.Client
-	store         core.Store
+	store         store.Store
 	logger        hclog.Logger
 }
 
@@ -129,7 +129,7 @@ func (k *Kubernetes) SetConsul(consul *api.Client) {
 	k.consul = consul
 }
 
-func (k *Kubernetes) SetStore(store core.Store) {
+func (k *Kubernetes) SetStore(store store.Store) {
 	k.store = store
 }
 

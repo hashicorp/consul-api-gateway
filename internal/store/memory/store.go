@@ -3,11 +3,13 @@ package memory
 import (
 	"context"
 	"errors"
+	"reflect"
 	"sync"
 	"sync/atomic"
 
 	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul-api-gateway/internal/metrics"
+	"github.com/hashicorp/consul-api-gateway/internal/store"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-multierror"
 )
@@ -21,7 +23,7 @@ type Store struct {
 	adapter core.SyncAdapter
 
 	gateways map[core.GatewayID]*gatewayState
-	routes   map[string]core.Route
+	routes   map[string]store.Route
 	mutex    sync.RWMutex
 
 	activeGateways int64
@@ -36,7 +38,7 @@ func NewStore(config StoreConfig) *Store {
 	return &Store{
 		logger:   config.Logger,
 		adapter:  config.Adapter,
-		routes:   make(map[string]core.Route),
+		routes:   make(map[string]store.Route),
 		gateways: make(map[core.GatewayID]*gatewayState),
 	}
 }
@@ -65,7 +67,7 @@ func (s *Store) CanFetchSecrets(ctx context.Context, id core.GatewayID, secrets 
 	return true, nil
 }
 
-func (s *Store) GetGateway(ctx context.Context, id core.GatewayID) (core.Gateway, error) {
+func (s *Store) GetGateway(ctx context.Context, id core.GatewayID) (store.Gateway, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
@@ -77,7 +79,7 @@ func (s *Store) GetGateway(ctx context.Context, id core.GatewayID) (core.Gateway
 }
 
 func (s *Store) syncGateway(ctx context.Context, gateway *gatewayState) error {
-	if tracker, ok := gateway.Gateway.(core.StatusTrackingGateway); ok {
+	if tracker, ok := gateway.Gateway.(store.StatusTrackingGateway); ok {
 		return tracker.TrackSync(ctx, func() (bool, error) {
 			didSync, err := gateway.Sync(ctx)
 			if err != nil {
@@ -114,7 +116,7 @@ func (s *Store) syncRouteStatuses(ctx context.Context) error {
 
 	for _, r := range s.routes {
 		route := r
-		if tracker, ok := route.(core.StatusTrackingRoute); ok {
+		if tracker, ok := route.(store.StatusTrackingRoute); ok {
 			syncGroup.Go(func() error {
 				return tracker.SyncStatus(ctx)
 			})
@@ -152,7 +154,7 @@ func (s *Store) Sync(ctx context.Context) error {
 	return s.sync(ctx)
 }
 
-func (s *Store) GetRoute(ctx context.Context, id string) (core.Route, error) {
+func (s *Store) GetRoute(ctx context.Context, id string) (store.Route, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
@@ -176,17 +178,17 @@ func (s *Store) DeleteRoute(ctx context.Context, id string) error {
 	return s.Sync(ctx)
 }
 
-func (s *Store) UpsertRoute(ctx context.Context, route core.Route) error {
+func (s *Store) UpsertRoute(ctx context.Context, route store.Route) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
 	id := route.ID()
 
 	switch compareRoutes(s.routes[id], route) {
-	case core.CompareResultInvalid, core.CompareResultNewer:
+	case store.CompareResultInvalid, store.CompareResultNewer:
 		// we have an old or invalid route, ignore it
 		return nil
-	case core.CompareResultNotEqual:
+	case store.CompareResultNotEqual:
 		s.logger.Trace("adding route", "id", id)
 		s.routes[id] = route
 
@@ -200,17 +202,17 @@ func (s *Store) UpsertRoute(ctx context.Context, route core.Route) error {
 	return s.Sync(ctx)
 }
 
-func compareRoutes(a, b core.Route) core.CompareResult {
+func compareRoutes(a, b store.Route) store.CompareResult {
 	if b == nil {
-		return core.CompareResultInvalid
+		return store.CompareResultInvalid
 	}
 	if a == nil {
-		return core.CompareResultNotEqual
+		return store.CompareResultNotEqual
 	}
 	return a.Compare(b)
 }
 
-func (s *Store) UpsertGateway(ctx context.Context, gateway core.Gateway) error {
+func (s *Store) UpsertGateway(ctx context.Context, gateway store.Gateway) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -218,10 +220,10 @@ func (s *Store) UpsertGateway(ctx context.Context, gateway core.Gateway) error {
 
 	current, found := s.gateways[id]
 	switch current.Compare(gateway) {
-	case core.CompareResultInvalid, core.CompareResultNewer:
+	case store.CompareResultInvalid, store.CompareResultNewer:
 		// we have an invalid or old route, ignore it
 		return nil
-	case core.CompareResultNotEqual:
+	case store.CompareResultNotEqual:
 		s.logger.Trace("adding gateway", "service", id.Service, "namespace", id.ConsulNamespace)
 
 		updated := newGatewayState(s.logger, gateway, s.adapter)
@@ -231,6 +233,13 @@ func (s *Store) UpsertGateway(ctx context.Context, gateway core.Gateway) error {
 		// bind routes to this gateway
 		for _, route := range s.routes {
 			updated.TryBind(route)
+		}
+
+		if found && reflect.DeepEqual(current.Resolve(), updated.Resolve()) {
+			// we have the exact same render tree, mark the gateway as already synced
+			for _, listener := range updated.listeners {
+				listener.MarkSynced()
+			}
 		}
 	}
 
@@ -259,7 +268,7 @@ func (s *Store) DeleteGateway(ctx context.Context, id core.GatewayID) error {
 		return err
 	}
 	for _, route := range s.routes {
-		if tracker, ok := route.(core.StatusTrackingRoute); ok {
+		if tracker, ok := route.(store.StatusTrackingRoute); ok {
 			tracker.OnGatewayRemoved(gateway)
 		}
 	}

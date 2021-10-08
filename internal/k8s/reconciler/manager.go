@@ -14,12 +14,13 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
+	"github.com/hashicorp/consul-api-gateway/internal/store"
 )
 
 //go:generate mockgen -source ./manager.go -destination ./mocks/manager.go -package mocks ReconcileManager
 
 type ReconcileManager interface {
-	UpsertGatewayClass(ctx context.Context, gc *gw.GatewayClass, validParameters bool) error
+	UpsertGatewayClass(ctx context.Context, gc *gw.GatewayClass) error
 	UpsertGateway(ctx context.Context, g *gw.Gateway) error
 	UpsertHTTPRoute(ctx context.Context, r Route) error
 	UpsertTCPRoute(ctx context.Context, r Route) error
@@ -39,7 +40,7 @@ type GatewayReconcileManager struct {
 	client         gatewayclient.Client
 	consul         *api.Client
 
-	store          core.Store
+	store          store.Store
 	gatewayClasses *K8sGatewayClasses
 
 	namespaceMap map[types.NamespacedName]string
@@ -54,7 +55,7 @@ type ManagerConfig struct {
 	Client         gatewayclient.Client
 	Consul         *api.Client
 	Status         client.StatusWriter
-	Store          core.Store
+	Store          store.Store
 	Logger         hclog.Logger
 }
 
@@ -70,8 +71,8 @@ func NewReconcileManager(config ManagerConfig) *GatewayReconcileManager {
 	}
 }
 
-func (m *GatewayReconcileManager) UpsertGatewayClass(ctx context.Context, gc *gw.GatewayClass, validParameters bool) error {
-	return m.gatewayClasses.Upsert(ctx, gc, validParameters)
+func (m *GatewayReconcileManager) UpsertGatewayClass(ctx context.Context, gc *gw.GatewayClass) error {
+	return m.gatewayClasses.Upsert(ctx, gc)
 }
 
 func (m *GatewayReconcileManager) UpsertGateway(ctx context.Context, g *gw.Gateway) error {
@@ -80,7 +81,6 @@ func (m *GatewayReconcileManager) UpsertGateway(ctx context.Context, g *gw.Gatew
 
 	// TODO: do real namespace mapping
 	consulNamespace := ""
-
 	m.namespaceMap[utils.NamespacedName(g)] = consulNamespace
 
 	gateway := NewK8sGateway(g, K8sGatewayConfig{
@@ -89,10 +89,13 @@ func (m *GatewayReconcileManager) UpsertGateway(ctx context.Context, g *gw.Gatew
 		Client:          m.client,
 	})
 
+	// Calling validate outside of the upsert process allows us to re-resolve any
+	// external references and set the statuses accordingly. Since we actually
+	// have other object updates triggering reconciliation loops, this is necessary
+	// prior to dirty-checking on upsert.
 	if err := gateway.Validate(ctx); err != nil {
 		return err
 	}
-
 	return m.store.UpsertGateway(ctx, gateway)
 }
 
@@ -115,6 +118,10 @@ func (m *GatewayReconcileManager) upsertRoute(ctx context.Context, r Route) erro
 		Client:         m.client,
 		Consul:         m.consul,
 	})
+	// Calling validate outside of the upsert process allows us to re-resolve any
+	// external references and set the statuses accordingly. Since we actually
+	// have other object updates triggering reconciliation loops, this is necessary
+	// prior to dirty-checking on upsert.
 	if err := route.Validate(ctx); err != nil {
 		return err
 	}
@@ -130,12 +137,10 @@ func (m *GatewayReconcileManager) DeleteGateway(ctx context.Context, name types.
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
-	err := m.store.DeleteGateway(ctx, core.GatewayID{
+	if err := m.store.DeleteGateway(ctx, core.GatewayID{
 		Service:         name.Name,
 		ConsulNamespace: m.namespaceMap[name],
-	})
-
-	if err != nil {
+	}); err != nil {
 		return err
 	}
 

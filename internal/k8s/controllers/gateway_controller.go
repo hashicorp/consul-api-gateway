@@ -20,7 +20,6 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
-	"github.com/hashicorp/consul-api-gateway/internal/metrics"
 	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 	"github.com/hashicorp/go-hclog"
 )
@@ -99,25 +98,19 @@ func (r *GatewayReconciler) ensureDeployment(ctx context.Context, gc *gateway.Ga
 		return fmt.Errorf("failed to get gateway class config: %w", err)
 	}
 
-	if gcc == nil {
-		gcc = &apigwv1alpha1.GatewayClassConfig{}
-	}
-
 	deployment := gcc.DeploymentFor(gw, apigwv1alpha1.SDSConfig{
 		Host: r.SDSServerHost,
 		Port: r.SDSServerPort,
 	})
 
-	err = r.Client.CreateOrUpdateDeployment(ctx, deployment, func() error {
+	if err = r.Client.CreateOrUpdateDeployment(ctx, deployment, func() error {
 		return r.Client.SetControllerOwnership(gw, deployment)
-	})
-	if err != nil {
+	}); err != nil {
 		return fmt.Errorf("failed to create new gateway deployment: %w", err)
 	}
 
 	// Create service for the gateway
-	service := gcc.ServiceFor(gw)
-	if service != nil {
+	if service := gcc.ServiceFor(gw); service != nil {
 		err = r.Client.CreateOrUpdateService(ctx, service, func() error {
 			return r.Client.SetControllerOwnership(gw, service)
 		})
@@ -132,7 +125,6 @@ func (r *GatewayReconciler) ensureDeployment(ctx context.Context, gc *gateway.Ga
 		}
 	}
 
-	metrics.Registry.IncrCounter(metrics.K8sNewGatewayDeployments, 1)
 	return nil
 }
 
@@ -153,7 +145,7 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			handler.EnqueueRequestsFromMapFunc(podToGatewayRequest),
 			builder.WithPredicates(predicate),
 		).
-		Complete(r)
+		Complete(NewSyncRequeueingMiddleware(r))
 }
 
 func podToGatewayRequest(object client.Object) []reconcile.Request {

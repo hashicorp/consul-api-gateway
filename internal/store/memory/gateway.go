@@ -5,12 +5,13 @@ import (
 	"sync"
 
 	"github.com/hashicorp/consul-api-gateway/internal/core"
+	"github.com/hashicorp/consul-api-gateway/internal/store"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-multierror"
 )
 
 type gatewayState struct {
-	core.Gateway
+	store.Gateway
 
 	logger    hclog.Logger
 	adapter   core.SyncAdapter
@@ -21,7 +22,7 @@ type gatewayState struct {
 }
 
 // newGatewayState creates a bound gateway
-func newGatewayState(logger hclog.Logger, gateway core.Gateway, adapter core.SyncAdapter) *gatewayState {
+func newGatewayState(logger hclog.Logger, gateway store.Gateway, adapter core.SyncAdapter) *gatewayState {
 	id := gateway.ID()
 
 	secrets := make(map[string]struct{})
@@ -54,7 +55,7 @@ func (g *gatewayState) Remove(id string) {
 	}
 }
 
-func (g *gatewayState) TryBind(route core.Route) {
+func (g *gatewayState) TryBind(route store.Route) {
 	if g.ShouldBind(route) {
 		bound := false
 		var bindError error
@@ -69,7 +70,7 @@ func (g *gatewayState) TryBind(route core.Route) {
 				bound = true
 			}
 		}
-		if tracker, ok := route.(core.StatusTrackingRoute); ok {
+		if tracker, ok := route.(store.StatusTrackingRoute); ok {
 			if !bound {
 				tracker.OnBindFailed(bindError, g.Gateway)
 			} else {
@@ -79,12 +80,12 @@ func (g *gatewayState) TryBind(route core.Route) {
 	}
 }
 
-func (g *gatewayState) Compare(other core.Gateway) core.CompareResult {
+func (g *gatewayState) Compare(other store.Gateway) store.CompareResult {
 	if other == nil {
-		return core.CompareResultInvalid
+		return store.CompareResultInvalid
 	}
 	if g == nil {
-		return core.CompareResultNotEqual
+		return store.CompareResultNotEqual
 	}
 
 	return g.Gateway.Compare(other)

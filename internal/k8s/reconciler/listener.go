@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"sync/atomic"
 
-	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
+	"github.com/hashicorp/consul-api-gateway/internal/store"
 	"github.com/hashicorp/go-hclog"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -16,15 +16,13 @@ import (
 )
 
 var (
-	gatewayGroup = (*gw.Group)(&gw.GroupVersion.Group)
-
 	supportedProtocols = map[gw.ProtocolType][]gw.RouteGroupKind{
 		gw.HTTPProtocolType: {{
-			Group: gatewayGroup,
+			Group: (*gw.Group)(&gw.GroupVersion.Group),
 			Kind:  "HTTPRoute",
 		}},
 		gw.HTTPSProtocolType: {{
-			Group: gatewayGroup,
+			Group: (*gw.Group)(&gw.GroupVersion.Group),
 			Kind:  "HTTPRoute",
 		}},
 	}
@@ -47,7 +45,7 @@ type K8sListener struct {
 	supportedKinds []gw.RouteGroupKind
 }
 
-var _ core.RouteTrackingListener = &K8sListener{}
+var _ store.RouteTrackingListener = &K8sListener{}
 
 type K8sListenerConfig struct {
 	ConsulNamespace string
@@ -93,6 +91,11 @@ func (l *K8sListener) Validate(ctx context.Context) error {
 
 func (l *K8sListener) validateTLS(ctx context.Context) error {
 	if l.listener.TLS == nil {
+		if l.Config().TLS {
+			// we are using a protocol that requires TLS but has no TLS
+			// configured
+			l.status.Ready.Invalid = errors.New("tls configuration required for the given protocol")
+		}
 		return nil
 	}
 
@@ -200,7 +203,7 @@ func (l *K8sListener) resolveCertificateReference(ctx context.Context, ref gw.Se
 	}
 }
 
-func (l *K8sListener) Config() core.ListenerConfig {
+func (l *K8sListener) Config() store.ListenerConfig {
 	name := defaultListenerName
 	if l.listener.Name != "" {
 		name = string(l.listener.Name)
@@ -210,7 +213,7 @@ func (l *K8sListener) Config() core.ListenerConfig {
 		hostname = string(*l.listener.Hostname)
 	}
 	protocol, tls := utils.ProtocolToConsul(l.listener.Protocol)
-	return core.ListenerConfig{
+	return store.ListenerConfig{
 		Name:     name,
 		Hostname: hostname,
 		Port:     int(l.listener.Port),
@@ -224,7 +227,7 @@ func (l *K8sListener) Config() core.ListenerConfig {
 // on the gateway the return value is nil, if not,
 // an error specifying why the route cannot bind
 // is returned.
-func (l *K8sListener) CanBind(route core.Route) (bool, error) {
+func (l *K8sListener) CanBind(route store.Route) (bool, error) {
 	k8sRoute, ok := route.(*K8sRoute)
 	if !ok {
 		return false, nil
@@ -247,7 +250,7 @@ func (l *K8sListener) CanBind(route core.Route) (bool, error) {
 }
 
 func (l *K8sListener) canBind(ref gw.ParentRef, route *K8sRoute) (bool, error) {
-	if !l.status.Ready.HasError() {
+	if l.status.Ready.HasError() {
 		return false, nil
 	}
 
@@ -285,7 +288,7 @@ func (l *K8sListener) canBind(ref gw.ParentRef, route *K8sRoute) (bool, error) {
 	return false, nil
 }
 
-func (l *K8sListener) OnRouteAdded(_ core.Route) {
+func (l *K8sListener) OnRouteAdded(_ store.Route) {
 	atomic.AddInt32(&l.routeCount, 1)
 }
 

@@ -10,6 +10,7 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
+	"github.com/hashicorp/consul-api-gateway/internal/store"
 	"github.com/hashicorp/go-hclog"
 	corev1 "k8s.io/api/core/v1"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
@@ -27,7 +28,7 @@ type K8sGateway struct {
 	listeners map[string]*K8sListener
 }
 
-var _ core.StatusTrackingGateway = &K8sGateway{}
+var _ store.StatusTrackingGateway = &K8sGateway{}
 
 type K8sGatewayConfig struct {
 	ConsulNamespace string
@@ -127,9 +128,7 @@ func (g *K8sGateway) validateListenerConflicts() {
 func (g *K8sGateway) validatePods(ctx context.Context) error {
 	pod, err := g.client.PodWithLabels(ctx, utils.LabelsForGateway(g.gateway))
 	if err != nil {
-		if !errors.Is(err, gatewayclient.ErrPodNotCreated) {
-			return err
-		}
+		return err
 	}
 
 	g.validatePodConditions(pod)
@@ -199,8 +198,8 @@ func (g *K8sGateway) Meta() map[string]string {
 	}
 }
 
-func (g *K8sGateway) Listeners() []core.Listener {
-	listeners := []core.Listener{}
+func (g *K8sGateway) Listeners() []store.Listener {
+	listeners := []store.Listener{}
 
 	for _, listener := range g.listeners {
 		listeners = append(listeners, listener)
@@ -209,47 +208,53 @@ func (g *K8sGateway) Listeners() []core.Listener {
 	return listeners
 }
 
-func (g *K8sGateway) Compare(other core.Gateway) core.CompareResult {
+func (g *K8sGateway) Compare(other store.Gateway) store.CompareResult {
 	if other == nil {
-		return core.CompareResultInvalid
+		return store.CompareResultInvalid
 	}
 	if g == nil {
-		return core.CompareResultNotEqual
+		return store.CompareResultNotEqual
 	}
 
 	if otherGateway, ok := other.(*K8sGateway); ok {
 		if g.gateway.Generation > otherGateway.gateway.Generation {
-			return core.CompareResultNewer
+			return store.CompareResultNewer
 		}
 
-		if !reflect.DeepEqual(g.certificates(), otherGateway.certificates()) {
-			return core.CompareResultNotEqual
+		if !g.isEqual(otherGateway) {
+			return store.CompareResultNotEqual
 		}
-
-		// check the conditions for everything except the Ready status, which is a roll-up
-		// of everything else
-		if !listenerStatusesEqual(g.gateway.Status.Listeners, otherGateway.gateway.Status.Listeners) {
-			return core.CompareResultNotEqual
-		}
-		if !conditionEqual(g.status.Scheduled.Condition(g.gateway.Generation), otherGateway.status.Scheduled.Condition(g.gateway.Generation)) {
-			return core.CompareResultNotEqual
-		}
-		if g.podReady != otherGateway.podReady {
-			return core.CompareResultNotEqual
-		}
-		if !reflect.DeepEqual(g.addresses, otherGateway.addresses) {
-			return core.CompareResultNotEqual
-		}
-
-		if reflect.DeepEqual(g.gateway.Spec, otherGateway.gateway.Spec) {
-			return core.CompareResultEqual
-		}
-		return core.CompareResultNotEqual
+		return store.CompareResultEqual
 	}
-	return core.CompareResultInvalid
+	return store.CompareResultInvalid
 }
 
-func (g *K8sGateway) ShouldBind(route core.Route) bool {
+func (g *K8sGateway) isEqual(other *K8sGateway) bool {
+	if !reflect.DeepEqual(g.gateway.Spec, other.gateway.Spec) {
+		return false
+	}
+	if !gatewayStatusEqual(g.gateway.Status, other.gateway.Status) {
+		return false
+	}
+
+	// check other things that may affect the pending status updates
+	if !reflect.DeepEqual(g.certificates(), other.certificates()) {
+		return false
+	}
+	if !conditionEqual(g.status.Scheduled.Condition(g.gateway.Generation), other.status.Scheduled.Condition(g.gateway.Generation)) {
+		return false
+	}
+	if g.podReady != other.podReady {
+		return false
+	}
+	if !reflect.DeepEqual(g.addresses, other.addresses) {
+		return false
+	}
+
+	return true
+}
+
+func (g *K8sGateway) ShouldBind(route store.Route) bool {
 	k8sRoute, ok := route.(*K8sRoute)
 	if !ok {
 		return false

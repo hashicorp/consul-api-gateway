@@ -2,17 +2,13 @@ package controllers
 
 import (
 	"context"
-	"errors"
+	"time"
 
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 	"github.com/hashicorp/go-hclog"
-)
-
-var (
-	errGatewayClassConfigInUse = errors.New("gateway class config is still in use")
 )
 
 const (
@@ -55,7 +51,8 @@ func (r *GatewayClassConfigReconciler) Reconcile(ctx context.Context, req ctrl.R
 		}
 		if used {
 			logger.Trace("gateway class config still in use")
-			return ctrl.Result{}, errGatewayClassConfigInUse
+			// requeue as to not block the reconciliation loop
+			return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 		}
 		if _, err := r.Client.RemoveFinalizer(ctx, gcc, gatewayClassConfigFinalizer); err != nil {
 			logger.Error("error removing gateway class config finalizer", "error", err)
@@ -76,5 +73,5 @@ func (r *GatewayClassConfigReconciler) Reconcile(ctx context.Context, req ctrl.R
 func (r *GatewayClassConfigReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&apigwv1alpha1.GatewayClassConfig{}).
-		Complete(r)
+		Complete(NewSyncRequeueingMiddleware(r))
 }

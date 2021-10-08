@@ -1,4 +1,4 @@
-package utils
+package controllers
 
 import (
 	"errors"
@@ -12,11 +12,11 @@ import (
 func TestRescheduleSyncError(t *testing.T) {
 	inner := errors.New("test")
 
-	result, err := RescheduleSyncError(inner)
+	result, err := RescheduleSyncError(ctrl.Result{}, inner)
 	require.Error(t, err)
 	require.Equal(t, ctrl.Result{}, result)
 
-	result, err = RescheduleSyncError(core.NewSyncError(inner))
+	result, err = RescheduleSyncError(ctrl.Result{}, core.NewSyncError(inner))
 	require.NoError(t, err)
 	require.Equal(t, ctrl.Result{RequeueAfter: requeueAfter}, result)
 }

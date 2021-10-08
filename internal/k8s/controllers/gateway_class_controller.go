@@ -2,7 +2,7 @@ package controllers
 
 import (
 	"context"
-	"errors"
+	"time"
 
 	ctrl "sigs.k8s.io/controller-runtime"
 	gateway "sigs.k8s.io/gateway-api/apis/v1alpha2"
@@ -10,10 +10,6 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler"
 	"github.com/hashicorp/go-hclog"
-)
-
-var (
-	errGatewayClassInUse = errors.New("gateway class is still in use")
 )
 
 const (
@@ -64,8 +60,8 @@ func (r *GatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			return ctrl.Result{}, err
 		}
 		if used {
-			logger.Trace("gateway class still in use")
-			return ctrl.Result{}, errGatewayClassInUse
+			// requeue as to not block the reconciliation loop
+			return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 		}
 		// remove finalizer
 		if _, err := r.Client.RemoveFinalizer(ctx, gc, gatewayClassFinalizer); err != nil {
@@ -82,17 +78,10 @@ func (r *GatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, err
 	}
 	if updated {
-		// we return here since we've updated the finalizers, it'll enqueue another
-		// event
+		// since we've updated the finalizers, returning here will enqueue another event
 		return ctrl.Result{}, nil
 	}
-	// this validation is used for setting the gateway class accepted status
-	valid, err := r.Client.IsValidGatewayClass(ctx, gc)
-	if err != nil {
-		logger.Error("error validating gateway class", "error", err)
-		return ctrl.Result{}, err
-	}
-	if err := r.Manager.UpsertGatewayClass(ctx, gc, valid); err != nil {
+	if err := r.Manager.UpsertGatewayClass(ctx, gc); err != nil {
 		logger.Error("error upserting gateway class", "error", err)
 		return ctrl.Result{}, err
 	}
@@ -104,5 +93,5 @@ func (r *GatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request
 func (r *GatewayClassReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&gateway.GatewayClass{}).
-		Complete(r)
+		Complete(NewSyncRequeueingMiddleware(r))
 }
