@@ -42,18 +42,6 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return ctrl.Result{}, err
 	}
 
-	managed, err := r.Client.IsManagedRoute(ctx, route.Spec.CommonRouteSpec, route.Namespace, r.ControllerName)
-	if err != nil {
-		logger.Error("error validating gateway usage for route", "error", err)
-		return ctrl.Result{}, err
-	}
-	if !managed {
-		// we're not managing this route (potentially reference got removed on an update)
-		// ensure it's cleaned up
-		err = r.Manager.DeleteHTTPRoute(ctx, req.NamespacedName)
-		return ctrl.Result{}, err
-	}
-
 	// let the route get upserted so long as there's a single gateway we control
 	// that it's managed by -- the underlying reconciliation code will handle the
 	// validation of gateway attachment
@@ -65,5 +53,5 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&gateway.HTTPRoute{}).
-		Complete(NewSyncRequeueingMiddleware(r))
+		Complete(gatewayclient.NewRequeueingMiddleware(r.Log, r))
 }

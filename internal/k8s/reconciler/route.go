@@ -64,7 +64,7 @@ func NewK8sRoute(route Route, config K8sRouteConfig) *K8sRoute {
 
 func (r *K8sRoute) parentKeyForGateway(parent types.NamespacedName) (string, bool) {
 	for _, p := range r.Parents() {
-		gatewayName, isGateway := referencesGateway(r.GetNamespace(), p)
+		gatewayName, isGateway := utils.ReferencesGateway(r.GetNamespace(), p)
 		if isGateway && gatewayName == parent {
 			return asJSON(p), true
 		}

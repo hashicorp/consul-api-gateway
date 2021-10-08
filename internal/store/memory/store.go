@@ -81,17 +81,10 @@ func (s *Store) GetGateway(ctx context.Context, id core.GatewayID) (store.Gatewa
 func (s *Store) syncGateway(ctx context.Context, gateway *gatewayState) error {
 	if tracker, ok := gateway.Gateway.(store.StatusTrackingGateway); ok {
 		return tracker.TrackSync(ctx, func() (bool, error) {
-			didSync, err := gateway.Sync(ctx)
-			if err != nil {
-				return didSync, core.NewSyncError(err)
-			}
-			return didSync, nil
+			return gateway.Sync(ctx)
 		})
 	}
 	_, err := gateway.Sync(ctx)
-	if err != nil {
-		return core.NewSyncError(err)
-	}
 	return err
 }
 

@@ -58,5 +58,6 @@ func TestLabelsForGateway(t *testing.T) {
 		nameLabel:      "gateway",
 		namespaceLabel: "default",
 		ManagedLabel:   "true",
+		createdAtLabel: "-62135596800",
 	}, labels)
 }

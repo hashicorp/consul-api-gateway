@@ -73,5 +73,5 @@ func (r *GatewayClassConfigReconciler) Reconcile(ctx context.Context, req ctrl.R
 func (r *GatewayClassConfigReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&apigwv1alpha1.GatewayClassConfig{}).
-		Complete(NewSyncRequeueingMiddleware(r))
+		Complete(gatewayclient.NewRequeueingMiddleware(r.Log, r))
 }

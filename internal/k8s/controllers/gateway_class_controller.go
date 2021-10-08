@@ -93,5 +93,5 @@ func (r *GatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request
 func (r *GatewayClassReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&gateway.GatewayClass{}).
-		Complete(NewSyncRequeueingMiddleware(r))
+		Complete(gatewayclient.NewRequeueingMiddleware(r.Log, r))
 }

@@ -3,6 +3,8 @@ package utils
 import (
 	"fmt"
 
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	gateway "sigs.k8s.io/gateway-api/apis/v1alpha2"
 )
 
@@ -19,6 +21,14 @@ func LabelsForGateway(gw *gateway.Gateway) map[string]string {
 		namespaceLabel: gw.Namespace,
 		createdAtLabel: fmt.Sprintf("%d", gw.CreationTimestamp.Unix()),
 		ManagedLabel:   "true",
+	}
+}
+
+func GatewayByLabels(object client.Object) types.NamespacedName {
+	labels := object.GetLabels()
+	return types.NamespacedName{
+		Name:      labels[nameLabel],
+		Namespace: labels[namespaceLabel],
 	}
 }
 

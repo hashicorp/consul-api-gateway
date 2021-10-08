@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	gateway "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient/mocks"
 	reconcilerMocks "github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/mocks"
@@ -45,27 +44,6 @@ func TestHTTPRoute(t *testing.T) {
 		expectationCB: func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager) {
 			client.EXPECT().GetHTTPRoute(gomock.Any(), httpRouteName).Return(nil, nil)
 			reconciler.EXPECT().DeleteHTTPRoute(gomock.Any(), httpRouteName)
-		},
-	}, {
-		name: "managed-error",
-		err:  errExpected,
-		expectationCB: func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager) {
-			client.EXPECT().GetHTTPRoute(gomock.Any(), httpRouteName).Return(&gateway.HTTPRoute{}, nil)
-			client.EXPECT().IsManagedRoute(gomock.Any(), gomock.Any(), gomock.Any(), mockControllerName).Return(false, errExpected)
-		},
-	}, {
-		name: "not-managed",
-		expectationCB: func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager) {
-			client.EXPECT().GetHTTPRoute(gomock.Any(), httpRouteName).Return(&gateway.HTTPRoute{}, nil)
-			client.EXPECT().IsManagedRoute(gomock.Any(), gomock.Any(), gomock.Any(), mockControllerName).Return(false, nil)
-			reconciler.EXPECT().DeleteHTTPRoute(gomock.Any(), httpRouteName)
-		},
-	}, {
-		name: "managed",
-		expectationCB: func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager) {
-			client.EXPECT().GetHTTPRoute(gomock.Any(), httpRouteName).Return(&gateway.HTTPRoute{}, nil)
-			client.EXPECT().IsManagedRoute(gomock.Any(), gomock.Any(), gomock.Any(), mockControllerName).Return(true, nil)
-			reconciler.EXPECT().UpsertHTTPRoute(gomock.Any(), gomock.Any())
 		},
 	}} {
 		t.Run(test.name, func(t *testing.T) {

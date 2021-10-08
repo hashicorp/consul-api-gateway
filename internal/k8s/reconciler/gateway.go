@@ -2,6 +2,7 @@ package reconciler
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
@@ -11,6 +12,7 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	"github.com/hashicorp/consul-api-gateway/internal/store"
+	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 	"github.com/hashicorp/go-hclog"
 	corev1 "k8s.io/api/core/v1"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
@@ -21,6 +23,8 @@ type K8sGateway struct {
 	logger          hclog.Logger
 	client          gatewayclient.Client
 	gateway         *gw.Gateway
+	config          apigwv1alpha1.GatewayClassConfig
+	sdsConfig       apigwv1alpha1.SDSConfig
 
 	status    GatewayStatus
 	podReady  bool
@@ -32,6 +36,8 @@ var _ store.StatusTrackingGateway = &K8sGateway{}
 
 type K8sGatewayConfig struct {
 	ConsulNamespace string
+	SDSConfig       apigwv1alpha1.SDSConfig
+	Config          apigwv1alpha1.GatewayClassConfig
 	Logger          hclog.Logger
 	Client          gatewayclient.Client
 }
@@ -49,6 +55,8 @@ func NewK8sGateway(gateway *gw.Gateway, config K8sGatewayConfig) *K8sGateway {
 	}
 
 	return &K8sGateway{
+		config:          config.Config,
+		sdsConfig:       config.SDSConfig,
 		consulNamespace: config.ConsulNamespace,
 		logger:          gatewayLogger,
 		client:          config.Client,
@@ -77,6 +85,13 @@ func (g *K8sGateway) Validate(ctx context.Context) error {
 			return err
 		}
 	}
+
+	// we've done all but created our state tree, so kick off a deployment
+	// if one does not exist
+	if err := g.ensureDeploymentExists(ctx); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -265,7 +280,7 @@ func (g *K8sGateway) ShouldBind(route store.Route) bool {
 	}
 
 	for _, ref := range k8sRoute.CommonRouteSpec().ParentRefs {
-		if namespacedName, isGateway := referencesGateway(k8sRoute.GetNamespace(), ref); isGateway {
+		if namespacedName, isGateway := utils.ReferencesGateway(k8sRoute.GetNamespace(), ref); isGateway {
 			if utils.NamespacedName(g.gateway) == namespacedName {
 				return true
 			}
@@ -330,6 +345,48 @@ func (g *K8sGateway) TrackSync(ctx context.Context, sync func() (bool, error)) e
 			return err
 		}
 	}
+	return nil
+}
+
+func (g *K8sGateway) ensureDeploymentExists(ctx context.Context) error {
+	deployment, err := g.client.DeploymentForGateway(ctx, g.gateway)
+	if err != nil {
+		return err
+	}
+	// we only create a deployment/service a single time -- when the
+	// gateway is first created
+	if deployment != nil {
+		return nil
+	}
+
+	deployment = g.config.DeploymentFor(g.gateway, g.sdsConfig)
+	if g.logger.IsTrace() {
+		data, err := json.MarshalIndent(deployment, "", "  ")
+		if err != nil {
+			g.logger.Trace("creating gateway deployment", "deployment", string(data))
+		}
+	}
+	if err = g.client.CreateOrUpdateDeployment(ctx, deployment, func() error {
+		return g.client.SetControllerOwnership(g.gateway, deployment)
+	}); err != nil {
+		return fmt.Errorf("failed to create new gateway deployment: %w", err)
+	}
+
+	// Create service for the gateway
+	if service := g.config.ServiceFor(g.gateway); service != nil {
+		if g.logger.IsTrace() {
+			data, err := json.MarshalIndent(service, "", "  ")
+			if err != nil {
+				g.logger.Trace("creating gateway service", "service", string(data))
+			}
+		}
+		if err := g.client.CreateOrUpdateService(ctx, service, func() error {
+			return g.client.SetControllerOwnership(g.gateway, service)
+		}); err != nil {
+			return fmt.Errorf("failed to create gateway service: %w", err)
+		}
+	}
+
 	return nil
 }
 

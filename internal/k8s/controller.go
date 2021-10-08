@@ -140,15 +140,18 @@ func (k *Kubernetes) Start(ctx context.Context) error {
 	scheme := k.k8sManager.GetScheme()
 	apigwv1alpha1.RegisterTypes(scheme)
 
-	gwClient := gatewayclient.New(k.k8sManager.GetClient(), scheme)
+	gwClient := gatewayclient.New(k.k8sManager.GetClient(), scheme, ControllerName)
 
 	reconcileManager := reconciler.NewReconcileManager(reconciler.ManagerConfig{
 		ControllerName: ControllerName,
 		Client:         gwClient,
 		Consul:         k.consul,
-		Status:         k.k8sManager.GetClient().Status(),
-		Logger:         k.logger.Named("Reconciler"),
-		Store:          k.store,
+		SDSConfig: apigwv1alpha1.SDSConfig{
+			Host: k.sDSServerHost,
+			Port: k.sDSServerPort,
+		},
+		Logger: k.logger.Named("Reconciler"),
+		Store:  k.store,
 	})
 
 	err := (&controllers.GatewayClassConfigReconciler{
@@ -174,8 +177,6 @@ func (k *Kubernetes) Start(ctx context.Context) error {
 		Log:            k.logger.Named("Gateway"),
 		Manager:        reconcileManager,
 		ControllerName: ControllerName,
-		SDSServerHost:  k.sDSServerHost,
-		SDSServerPort:  k.sDSServerPort,
 	}).SetupWithManager(k.k8sManager)
 	if err != nil {
 		return fmt.Errorf("failed to create gateway controller: %w", err)

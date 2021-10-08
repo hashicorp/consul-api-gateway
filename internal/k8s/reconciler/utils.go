@@ -9,7 +9,6 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	klabels "k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/types"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
 )
 
@@ -17,25 +16,6 @@ const (
 	// NamespaceNameLabel represents that label added automatically to namespaces is newer Kubernetes clusters
 	NamespaceNameLabel = "kubernetes.io/metadata.name"
 )
-
-var (
-	gatewayGroup = gw.Group(gw.GroupName)
-	gatewayKind  = gw.Kind("Gateway")
-)
-
-func referencesGateway(namespace string, ref gw.ParentRef) (types.NamespacedName, bool) {
-	if ref.Group != nil && *ref.Group != gatewayGroup {
-		return types.NamespacedName{}, false
-	}
-	if ref.Kind != nil && *ref.Kind != gatewayKind {
-		return types.NamespacedName{}, false
-	}
-
-	if ref.Namespace != nil {
-		namespace = string(*ref.Namespace)
-	}
-	return types.NamespacedName{Name: ref.Name, Namespace: namespace}, true
-}
 
 func routeMatchesListener(listenerName gw.SectionName, sectionName *gw.SectionName) (bool, bool) {
 	if sectionName == nil {
