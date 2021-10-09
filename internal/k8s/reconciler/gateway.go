@@ -232,7 +232,7 @@ func (g *K8sGateway) Compare(other store.Gateway) store.CompareResult {
 	}
 
 	if otherGateway, ok := other.(*K8sGateway); ok {
-		if g.gateway.ResourceVersion > otherGateway.gateway.ResourceVersion {
+		if utils.ResourceVersionGreater(g.gateway.ResourceVersion, otherGateway.gateway.ResourceVersion) {
 			return store.CompareResultNewer
 		}
 

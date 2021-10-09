@@ -252,7 +252,7 @@ func (r *K8sRoute) Compare(other store.Route) store.CompareResult {
 	}
 
 	if otherRoute, ok := other.(*K8sRoute); ok {
-		if r.GetResourceVersion() > otherRoute.GetResourceVersion() {
+		if utils.ResourceVersionGreater(r.GetResourceVersion(), otherRoute.GetResourceVersion()) {
 			return store.CompareResultNewer
 		}
 

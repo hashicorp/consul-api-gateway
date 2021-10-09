@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 	"github.com/hashicorp/go-hclog"
 	"k8s.io/apimachinery/pkg/types"
@@ -49,7 +50,7 @@ func (g *K8sGatewayClasses) Upsert(ctx context.Context, class *K8sGatewayClass) 
 	defer g.mutex.Unlock()
 
 	if current, ok := g.gatewayClasses[class.class.Name]; ok {
-		if current.class.ResourceVersion > class.class.ResourceVersion {
+		if utils.ResourceVersionGreater(current.class.ResourceVersion, class.class.ResourceVersion) {
 			// we have an old gatewayclass update ignore
 			return nil
 		}
