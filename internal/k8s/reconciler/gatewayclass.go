@@ -49,7 +49,7 @@ func (g *K8sGatewayClasses) Upsert(ctx context.Context, class *K8sGatewayClass) 
 	defer g.mutex.Unlock()
 
 	if current, ok := g.gatewayClasses[class.class.Name]; ok {
-		if current.class.Generation > class.class.Generation {
+		if current.class.ResourceVersion > class.class.ResourceVersion {
 			// we have an old gatewayclass update ignore
 			return nil
 		}

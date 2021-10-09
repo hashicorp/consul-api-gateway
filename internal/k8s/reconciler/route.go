@@ -252,12 +252,11 @@ func (r *K8sRoute) Compare(other store.Route) store.CompareResult {
 	}
 
 	if otherRoute, ok := other.(*K8sRoute); ok {
-		if r.GetGeneration() > otherRoute.GetGeneration() {
+		if r.GetResourceVersion() > otherRoute.GetResourceVersion() {
 			return store.CompareResultNewer
 		}
 
 		if r.isEqual(otherRoute) {
-			r.logger.Trace("compared unequal routes", "references", reflect.DeepEqual(r.references, otherRoute.references), "errors", reflect.DeepEqual(r.resolutionErrors, otherRoute.resolutionErrors))
 			return store.CompareResultEqual
 		}
 		return store.CompareResultNotEqual

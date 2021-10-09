@@ -24,7 +24,16 @@ type Store struct {
 
 	gateways map[core.GatewayID]*gatewayState
 	routes   map[string]store.Route
-	mutex    sync.RWMutex
+
+	// This mutex acts as a stop-the-world type
+	// global mutex, as the store is a singleton
+	// what this means is that once a lock on the
+	// mutex is acquired, any mutable operations
+	// on the gateway interfaces wrapped by our
+	// state-building structures can happen
+	// concerns of thread-safety (unless they)
+	// spin up additional goroutines.
+	mutex sync.RWMutex
 
 	activeGateways int64
 }
@@ -122,6 +131,12 @@ func (s *Store) syncRouteStatuses(ctx context.Context) error {
 	return nil
 }
 
+// care needs to be taken here, we spin up multiple goroutines to handle
+// synchronization in parallel -- since we pass around some of the objects
+// from our internal state to callbacks in our interfaces, it means we *must not*
+// access any potentially references stored from previous callbacks in the
+// status updating callbacks in our interfaces -- otherwise proper locking
+// is needed.
 func (s *Store) sync(ctx context.Context, gateways ...*gatewayState) error {
 	var syncGroup multierror.Group
 
@@ -145,17 +160,6 @@ func (s *Store) sync(ctx context.Context, gateways ...*gatewayState) error {
 
 func (s *Store) Sync(ctx context.Context) error {
 	return s.sync(ctx)
-}
-
-func (s *Store) GetRoute(ctx context.Context, id string) (store.Route, error) {
-	s.mutex.RLock()
-	defer s.mutex.RUnlock()
-
-	route, found := s.routes[id]
-	if !found {
-		return nil, nil
-	}
-	return route, nil
 }
 
 func (s *Store) DeleteRoute(ctx context.Context, id string) error {
@@ -182,7 +186,7 @@ func (s *Store) UpsertRoute(ctx context.Context, route store.Route) error {
 		// we have an old or invalid route, ignore it
 		return nil
 	case store.CompareResultNotEqual:
-		s.logger.Trace("adding route", "id", id)
+		s.logger.Trace("detected route state change", "id", id)
 		s.routes[id] = route
 
 		// bind to gateways
@@ -212,13 +216,13 @@ func (s *Store) UpsertGateway(ctx context.Context, gateway store.Gateway) error 
 	id := gateway.ID()
 
 	current, found := s.gateways[id]
+
 	switch current.Compare(gateway) {
 	case store.CompareResultInvalid, store.CompareResultNewer:
 		// we have an invalid or old route, ignore it
 		return nil
 	case store.CompareResultNotEqual:
-		s.logger.Trace("adding gateway", "service", id.Service, "namespace", id.ConsulNamespace)
-
+		s.logger.Trace("detected gateway state change", "service", id.Service, "namespace", id.ConsulNamespace)
 		updated := newGatewayState(s.logger, gateway, s.adapter)
 
 		s.gateways[id] = updated

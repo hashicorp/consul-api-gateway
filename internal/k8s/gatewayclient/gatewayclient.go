@@ -134,7 +134,7 @@ func (g *gatewayClient) PodWithLabels(ctx context.Context, labels map[string]str
 func (g *gatewayClient) DeploymentForGateway(ctx context.Context, gw *gateway.Gateway) (*apps.Deployment, error) {
 	deployment := &apps.Deployment{}
 	key := types.NamespacedName{Name: gw.Name, Namespace: gw.Namespace}
-	if err := g.Get(ctx, key, deployment); err != nil {
+	if err := g.Client.Get(ctx, key, deployment); err != nil {
 		if k8serrors.IsNotFound(err) {
 			return nil, nil
 		}
@@ -145,7 +145,7 @@ func (g *gatewayClient) DeploymentForGateway(ctx context.Context, gw *gateway.Ga
 
 func (g *gatewayClient) GetGatewayClassConfig(ctx context.Context, key types.NamespacedName) (*apigwv1alpha1.GatewayClassConfig, error) {
 	gcc := &apigwv1alpha1.GatewayClassConfig{}
-	if err := g.Get(ctx, key, gcc); err != nil {
+	if err := g.Client.Get(ctx, key, gcc); err != nil {
 		if k8serrors.IsNotFound(err) {
 			return nil, nil
 		}
@@ -156,7 +156,7 @@ func (g *gatewayClient) GetGatewayClassConfig(ctx context.Context, key types.Nam
 
 func (g *gatewayClient) GetGatewayClass(ctx context.Context, key types.NamespacedName) (*gateway.GatewayClass, error) {
 	gc := &gateway.GatewayClass{}
-	if err := g.Get(ctx, key, gc); err != nil {
+	if err := g.Client.Get(ctx, key, gc); err != nil {
 		if k8serrors.IsNotFound(err) {
 			return nil, nil
 		}
@@ -167,7 +167,7 @@ func (g *gatewayClient) GetGatewayClass(ctx context.Context, key types.Namespace
 
 func (g *gatewayClient) GetGateway(ctx context.Context, key types.NamespacedName) (*gateway.Gateway, error) {
 	gw := &gateway.Gateway{}
-	if err := g.Get(ctx, key, gw); err != nil {
+	if err := g.Client.Get(ctx, key, gw); err != nil {
 		if k8serrors.IsNotFound(err) {
 			return nil, nil
 		}
@@ -178,7 +178,7 @@ func (g *gatewayClient) GetGateway(ctx context.Context, key types.NamespacedName
 
 func (g *gatewayClient) GetService(ctx context.Context, key types.NamespacedName) (*core.Service, error) {
 	svc := &core.Service{}
-	if err := g.Get(ctx, key, svc); err != nil {
+	if err := g.Client.Get(ctx, key, svc); err != nil {
 		if k8serrors.IsNotFound(err) {
 			return nil, nil
 		}
@@ -189,7 +189,7 @@ func (g *gatewayClient) GetService(ctx context.Context, key types.NamespacedName
 
 func (g *gatewayClient) GetSecret(ctx context.Context, key types.NamespacedName) (*core.Secret, error) {
 	secret := &core.Secret{}
-	if err := g.Get(ctx, key, secret); err != nil {
+	if err := g.Client.Get(ctx, key, secret); err != nil {
 		if k8serrors.IsNotFound(err) {
 			return nil, nil
 		}
@@ -200,7 +200,7 @@ func (g *gatewayClient) GetSecret(ctx context.Context, key types.NamespacedName)
 
 func (g *gatewayClient) GetHTTPRoute(ctx context.Context, key types.NamespacedName) (*gateway.HTTPRoute, error) {
 	route := &gateway.HTTPRoute{}
-	if err := g.Get(ctx, key, route); err != nil {
+	if err := g.Client.Get(ctx, key, route); err != nil {
 		if k8serrors.IsNotFound(err) {
 			return nil, nil
 		}

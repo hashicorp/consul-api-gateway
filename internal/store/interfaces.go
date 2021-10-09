@@ -92,10 +92,8 @@ type Route interface {
 type Store interface {
 	GatewayExists(ctx context.Context, id core.GatewayID) (bool, error)
 	CanFetchSecrets(ctx context.Context, id core.GatewayID, secrets []string) (bool, error)
-	GetGateway(ctx context.Context, id core.GatewayID) (Gateway, error)
 	DeleteGateway(ctx context.Context, id core.GatewayID) error
 	UpsertGateway(ctx context.Context, gateway Gateway) error
-	GetRoute(ctx context.Context, id string) (Route, error)
 	DeleteRoute(ctx context.Context, id string) error
 	UpsertRoute(ctx context.Context, route Route) error
 	Sync(ctx context.Context) error

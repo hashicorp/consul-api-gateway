@@ -2,7 +2,6 @@ package memory
 
 import (
 	"reflect"
-	"sync"
 
 	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul-api-gateway/internal/store"
@@ -28,8 +27,6 @@ type listenerState struct {
 	routes map[string]core.ResolvedRoute
 
 	needsSync bool
-
-	mutex sync.RWMutex
 }
 
 func newListenerState(logger hclog.Logger, gateway store.Gateway, listener store.Listener) *listenerState {
@@ -58,9 +55,6 @@ func newListenerState(logger hclog.Logger, gateway store.Gateway, listener store
 }
 
 func (l *listenerState) RemoveRoute(id string) {
-	l.mutex.Lock()
-	defer l.mutex.Unlock()
-
 	if _, found := l.routes[id]; !found {
 		return
 	}
@@ -74,9 +68,6 @@ func (l *listenerState) RemoveRoute(id string) {
 }
 
 func (l *listenerState) SetRoute(route store.Route) {
-	l.mutex.Lock()
-	defer l.mutex.Unlock()
-
 	l.logger.Trace("setting route on listener", "route", route.ID())
 	if resolved := route.Resolve(l.Listener); resolved != nil {
 		stored, found := l.routes[route.ID()]
@@ -97,16 +88,10 @@ func (l *listenerState) SetRoute(route store.Route) {
 }
 
 func (l *listenerState) ShouldSync() bool {
-	l.mutex.Lock()
-	defer l.mutex.Unlock()
-
 	return l.needsSync
 }
 
 func (l *listenerState) MarkSynced() {
-	l.mutex.Lock()
-	defer l.mutex.Unlock()
-
 	l.needsSync = false
 }
 

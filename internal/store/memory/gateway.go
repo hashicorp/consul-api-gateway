@@ -2,7 +2,6 @@ package memory
 
 import (
 	"context"
-	"sync"
 
 	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul-api-gateway/internal/store"
@@ -17,8 +16,6 @@ type gatewayState struct {
 	adapter   core.SyncAdapter
 	listeners map[string]*listenerState
 	secrets   map[string]struct{}
-
-	mutex sync.RWMutex
 }
 
 // newGatewayState creates a bound gateway
@@ -47,9 +44,6 @@ func newGatewayState(logger hclog.Logger, gateway store.Gateway, adapter core.Sy
 // Remove removes a route from the gateway's listeners if
 // it is bound to a listener
 func (g *gatewayState) Remove(id string) {
-	g.mutex.Lock()
-	defer g.mutex.Unlock()
-
 	for _, listener := range g.listeners {
 		listener.RemoveRoute(id)
 	}
@@ -92,9 +86,6 @@ func (g *gatewayState) Compare(other store.Gateway) store.CompareResult {
 }
 
 func (g *gatewayState) Sync(ctx context.Context) (bool, error) {
-	g.mutex.Lock()
-	defer g.mutex.Unlock()
-
 	didSync := false
 	for _, listener := range g.listeners {
 		if listener.ShouldSync() {

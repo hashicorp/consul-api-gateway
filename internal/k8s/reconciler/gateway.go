@@ -232,7 +232,7 @@ func (g *K8sGateway) Compare(other store.Gateway) store.CompareResult {
 	}
 
 	if otherGateway, ok := other.(*K8sGateway); ok {
-		if g.gateway.Generation > otherGateway.gateway.Generation {
+		if g.gateway.ResourceVersion > otherGateway.gateway.ResourceVersion {
 			return store.CompareResultNewer
 		}
 
@@ -340,6 +340,12 @@ func (g *K8sGateway) TrackSync(ctx context.Context, sync func() (bool, error)) e
 	status := g.Status()
 	if !gatewayStatusEqual(status, g.gateway.Status) {
 		g.gateway.Status = status
+		if g.logger.IsTrace() {
+			data, err := json.MarshalIndent(status, "", "  ")
+			if err == nil {
+				g.logger.Trace("setting gateway status", "status", string(data))
+			}
+		}
 		if err := g.client.UpdateStatus(ctx, g.gateway); err != nil {
 			// make sure we return an error immediately that's unwrapped
 			return err
