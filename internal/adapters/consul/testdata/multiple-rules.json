@@ -12,6 +12,13 @@
             "Type": 1,
             "Value": "/prefix-1"
           }
+        },
+        {
+          "Type": 1,
+          "Path": {
+            "Type": 1,
+            "Value": "/other-1"
+          }
         }
       ],
       "Filters": [

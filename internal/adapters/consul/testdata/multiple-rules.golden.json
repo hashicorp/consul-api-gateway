@@ -29,6 +29,29 @@
       {
         "Match": {
           "HTTP": {
+            "PathExact": "/other-1"
+          }
+        },
+        "Destination": {
+          "Service": "multiple-rules-0",
+          "RequestHeaders": {
+            "Add": {
+              "x-add": "2",
+              "x-add-too": "2"
+            },
+            "Set": {
+              "x-set": "1",
+              "x-set-too": "1"
+            },
+            "Remove": [
+              "x-remove"
+            ]
+          }
+        }
+      },
+      {
+        "Match": {
+          "HTTP": {
             "PathExact": "/prefix-2"
           }
         },
