@@ -96,8 +96,12 @@ func httpRouteDiscoveryChain(route core.HTTPRoute) (*api.ServiceRouterConfigEntr
 				if service.Weight == 0 {
 					continue
 				}
+
+				modifier := httpRouteFiltersToServiceRouteHeaderModifier(service.Filters)
+
 				split := api.ServiceSplit{
-					Weight: float32(service.Weight) / float32(totalWeight),
+					RequestHeaders: modifier,
+					Weight:         float32(service.Weight) / float32(totalWeight),
 				}
 				split.Service = service.Service.Service
 				splitter.Splits = append(splitter.Splits, split)
