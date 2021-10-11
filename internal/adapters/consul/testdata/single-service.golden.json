@@ -2,6 +2,7 @@
   "Router": {
     "Kind": "service-router",
     "Name": "single-service",
+    "Namespace": "k8s",
     "Routes": [
       {
         "Match": {

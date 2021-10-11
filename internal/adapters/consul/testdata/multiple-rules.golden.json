@@ -2,6 +2,7 @@
   "Router": {
     "Kind": "service-router",
     "Name": "multiple-rules",
+    "Namespace": "k8s",
     "Routes": [
       {
         "Match": {
@@ -11,6 +12,7 @@
         },
         "Destination": {
           "Service": "multiple-rules-0",
+          "Namespace": "k8s",
           "RequestHeaders": {
             "Add": {
               "x-add": "2",
@@ -34,6 +36,7 @@
         },
         "Destination": {
           "Service": "multiple-rules-0",
+          "Namespace": "k8s",
           "RequestHeaders": {
             "Add": {
               "x-add": "2",
@@ -57,6 +60,7 @@
         },
         "Destination": {
           "Service": "multiple-rules-1",
+          "Namespace": "k8s",
           "RequestHeaders": {
             "Add": {
               "x-add-2": "6",
@@ -80,10 +84,12 @@
     {
       "Kind": "service-splitter",
       "Name": "multiple-rules-0",
+      "Namespace": "k8s",
       "Splits": [
         {
           "Weight": 0.5,
           "Service": "service",
+          "Namespace": "namespace",
           "RequestHeaders": {
             "Add": {
               "x-add": "4"
@@ -99,6 +105,7 @@
         {
           "Weight": 0.5,
           "Service": "another-service",
+          "Namespace": "namespace",
           "RequestHeaders": {
             "Add": {
               "x-add": "4"
@@ -115,10 +122,12 @@
     {
       "Kind": "service-splitter",
       "Name": "multiple-rules-1",
+      "Namespace": "k8s",
       "Splits": [
         {
           "Weight": 0.5,
           "Service": "service",
+          "Namespace": "namespace",
           "RequestHeaders": {
             "Add": {
               "x-add-2": "7"
@@ -134,6 +143,7 @@
         {
           "Weight": 0.5,
           "Service": "another-service",
+          "Namespace": "namespace",
           "RequestHeaders": {
             "Add": {
               "x-add": "4"

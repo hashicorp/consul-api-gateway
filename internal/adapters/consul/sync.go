@@ -112,6 +112,7 @@ func httpRouteDiscoveryChain(route core.HTTPRoute) (*api.ServiceRouterConfigEntr
 					Weight:         float32(service.Weight) / float32(totalWeight),
 				}
 				split.Service = service.Service.Service
+				split.Namespace = service.Service.ConsulNamespace
 				splitter.Splits = append(splitter.Splits, split)
 			}
 			if len(splitter.Splits) > 0 {

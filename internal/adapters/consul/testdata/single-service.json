@@ -1,5 +1,6 @@
 {
   "Name": "single-service",
+  "Namespace": "k8s",
   "Hostnames": [
     "example.com"
   ],

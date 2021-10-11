@@ -1,5 +1,6 @@
 {
   "Name": "multiple-services",
+  "Namespace": "k8s",
   "Hostnames": [
     "example.com"
   ],

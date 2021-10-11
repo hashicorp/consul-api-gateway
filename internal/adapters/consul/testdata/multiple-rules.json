@@ -1,5 +1,6 @@
 {
   "Name": "multiple-rules",
+  "Namespace": "k8s",
   "Hostnames": [
     "example.com"
   ],
