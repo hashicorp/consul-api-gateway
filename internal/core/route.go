@@ -1,19 +1,19 @@
 package core
 
-type commonRoute struct {
-	meta      map[string]string
-	name      string
-	namespace string
+type CommonRoute struct {
+	Meta      map[string]string
+	Name      string
+	Namespace string
 }
 
-func (c commonRoute) Meta() map[string]string {
-	return c.meta
+func (c CommonRoute) GetMeta() map[string]string {
+	return c.Meta
 }
 
-func (c commonRoute) Name() string {
-	return c.name
+func (c CommonRoute) GetName() string {
+	return c.Name
 }
 
-func (c commonRoute) Namespace() string {
-	return c.namespace
+func (c CommonRoute) GetNamespace() string {
+	return c.Namespace
 }

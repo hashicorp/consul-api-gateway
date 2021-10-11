@@ -1,0 +1,70 @@
+{
+  "Router": {
+    "Kind": "service-router",
+    "Name": "multiple-services",
+    "Routes": [
+      {
+        "Match": {
+          "HTTP": {
+            "PathExact": "/prefix"
+          }
+        },
+        "Destination": {
+          "Service": "multiple-services-0",
+          "RequestHeaders": {
+            "Add": {
+              "x-add": "2",
+              "x-add-too": "2"
+            },
+            "Set": {
+              "x-set": "1",
+              "x-set-too": "1"
+            },
+            "Remove": [
+              "x-remove"
+            ]
+          }
+        }
+      }
+    ],
+    "CreateIndex": 0,
+    "ModifyIndex": 0
+  },
+  "Splitters": [
+    {
+      "Kind": "service-splitter",
+      "Name": "multiple-services-0",
+      "Splits": [
+        {
+          "Weight": 0.5,
+          "Service": "service",
+          "RequestHeaders": {
+            "Add": {
+              "x-add": "4"
+            },
+            "Set": {
+              "x-set": "3"
+            },
+            "Remove": [
+              "x-remove-a"
+            ]
+          }
+        },
+        {
+          "Weight": 0.5,
+          "Service": "another-service",
+          "RequestHeaders": {
+            "Add": {
+              "x-add": "4"
+            },
+            "Remove": [
+              "x-remove-b"
+            ]
+          }
+        }
+      ],
+      "CreateIndex": 0,
+      "ModifyIndex": 0
+    }
+  ]
+}

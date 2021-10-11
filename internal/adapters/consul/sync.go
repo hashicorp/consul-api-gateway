@@ -65,26 +65,32 @@ func (a *ConsulSyncAdapter) deleteConfigEntries(ctx context.Context, entries ...
 func httpRouteDiscoveryChain(route core.HTTPRoute) (*api.ServiceRouterConfigEntry, []*api.ServiceSplitterConfigEntry) {
 	router := &api.ServiceRouterConfigEntry{
 		Kind: api.ServiceRouter,
-		Name: route.Name(),
-		Meta: route.Meta(),
+		Name: route.GetName(),
+		Meta: route.GetMeta(),
 	}
 	var splitters []*api.ServiceSplitterConfigEntry
 
 	for idx, rule := range route.Rules {
+		modifier := httpRouteFiltersToServiceRouteHeaderModifier(rule.Filters)
+
 		var destination core.ResolvedService
 		if len(rule.Services) == 1 {
 			destination = rule.Services[0].Service
+			serviceModifier := httpRouteFiltersToServiceRouteHeaderModifier(rule.Services[0].Filters)
+			modifier.Add = mergeMaps(modifier.Add, serviceModifier.Add)
+			modifier.Set = mergeMaps(modifier.Set, serviceModifier.Set)
+			modifier.Remove = append(modifier.Remove, serviceModifier.Remove...)
 		} else {
 			// create a virtual service to split
 			destination = core.ResolvedService{
-				Service: fmt.Sprintf("%s-%d", route.Name(), idx),
+				Service: fmt.Sprintf("%s-%d", route.GetName(), idx),
 			}
 			splitter := &api.ServiceSplitterConfigEntry{
 				Kind:      api.ServiceSplitter,
 				Name:      destination.Service,
 				Namespace: destination.ConsulNamespace,
 				Splits:    []api.ServiceSplit{},
-				Meta:      route.Meta(),
+				Meta:      route.GetMeta(),
 			}
 
 			totalWeight := int32(0)
@@ -110,8 +116,6 @@ func httpRouteDiscoveryChain(route core.HTTPRoute) (*api.ServiceRouterConfigEntr
 				splitters = append(splitters, splitter)
 			}
 		}
-
-		modifier := httpRouteFiltersToServiceRouteHeaderModifier(rule.Filters)
 
 		// for each match rule a ServiceRoute is created for the service-router
 		// if there are no rules a single route with the destination is set
@@ -261,11 +265,11 @@ func httpServiceDefault(entry api.ConfigEntry, meta map[string]string) *api.Serv
 }
 
 func routeDiscoveryChain(route core.ResolvedRoute) (*api.IngressService, *api.ServiceRouterConfigEntry, *consul.ConfigEntryIndex, *consul.ConfigEntryIndex) {
-	meta := route.Meta()
+	meta := route.GetMeta()
 	splitters := consul.NewConfigEntryIndex(api.ServiceSplitter)
 	defaults := consul.NewConfigEntryIndex(api.ServiceDefaults)
 
-	switch route.Type() {
+	switch route.GetType() {
 	case core.ResolvedHTTPRouteType:
 		httpRoute := route.(core.HTTPRoute)
 		router, splits := httpRouteDiscoveryChain(httpRoute)
@@ -281,7 +285,7 @@ func routeDiscoveryChain(route core.ResolvedRoute) (*api.IngressService, *api.Se
 		return &api.IngressService{
 			Name:      router.Name,
 			Hosts:     httpRoute.Hostnames,
-			Namespace: httpRoute.Namespace(),
+			Namespace: httpRoute.GetNamespace(),
 		}, router, splitters, defaults
 	default:
 		return nil, nil, nil, nil
