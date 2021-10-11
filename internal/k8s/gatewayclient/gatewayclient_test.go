@@ -121,84 +121,6 @@ func TestGetGatewayClass(t *testing.T) {
 	require.NotNil(t, gatewayclass)
 }
 
-func TestGatewayClassConfigForGatewayClass(t *testing.T) {
-	t.Parallel()
-
-	gatewayclient := newTestClient(nil, &apigwv1alpha1.GatewayClassConfig{
-		ObjectMeta: meta.ObjectMeta{
-			Name: "gatewayclassconfig",
-		},
-	})
-
-	gatewayclassconfig, err := gatewayclient.GatewayClassConfigForGatewayClass(context.Background(), &gateway.GatewayClass{
-		Spec: gateway.GatewayClassSpec{
-			ParametersRef: &gateway.ParametersReference{
-				Group: apigwv1alpha1.Group,
-				Kind:  apigwv1alpha1.GatewayClassConfigKind,
-				Name:  "nogatewayclassconfig",
-			},
-		},
-	})
-	require.Error(t, err)
-	require.Nil(t, gatewayclassconfig)
-
-	// wrong type
-	gatewayclassconfig, err = gatewayclient.GatewayClassConfigForGatewayClass(context.Background(), &gateway.GatewayClass{
-		Spec: gateway.GatewayClassSpec{
-			ParametersRef: &gateway.ParametersReference{
-				Kind: gateway.Kind("something"),
-				Name: "gatewayclassconfig",
-			},
-		},
-	})
-	require.Error(t, err)
-	require.Nil(t, gatewayclassconfig)
-
-	// no ref
-	gatewayclassconfig, err = gatewayclient.GatewayClassConfigForGatewayClass(context.Background(), &gateway.GatewayClass{})
-	require.NoError(t, err)
-	require.Nil(t, gatewayclassconfig)
-
-	// resolved
-	gatewayclassconfig, err = gatewayclient.GatewayClassConfigForGatewayClass(context.Background(), &gateway.GatewayClass{
-		Spec: gateway.GatewayClassSpec{
-			ParametersRef: &gateway.ParametersReference{
-				Group: apigwv1alpha1.Group,
-				Kind:  apigwv1alpha1.GatewayClassConfigKind,
-				Name:  "gatewayclassconfig",
-			},
-		},
-	})
-	require.NoError(t, err)
-	require.NotNil(t, gatewayclassconfig)
-}
-
-func TestGatewayClassForGateway(t *testing.T) {
-	t.Parallel()
-
-	gatewayclient := newTestClient(nil, &gateway.GatewayClass{
-		ObjectMeta: meta.ObjectMeta{
-			Name: "gatewayclass",
-		},
-	})
-
-	gatewayclass, err := gatewayclient.GatewayClassForGateway(context.Background(), &gateway.Gateway{
-		Spec: gateway.GatewaySpec{
-			GatewayClassName: "nogatewayclass",
-		},
-	})
-	require.Error(t, err)
-	require.Nil(t, gatewayclass)
-
-	gatewayclass, err = gatewayclient.GatewayClassForGateway(context.Background(), &gateway.Gateway{
-		Spec: gateway.GatewaySpec{
-			GatewayClassName: "gatewayclass",
-		},
-	})
-	require.NoError(t, err)
-	require.NotNil(t, gatewayclass)
-}
-
 func TestDeploymentForGateway(t *testing.T) {
 	t.Parallel()
 
@@ -245,20 +167,16 @@ func TestEnsureFinalizer(t *testing.T) {
 			Name: "gatewayclass",
 		},
 	})
-	gatewayclass, err := gatewayclient.GatewayClassForGateway(context.Background(), &gateway.Gateway{
-		Spec: gateway.GatewaySpec{
-			GatewayClassName: "gatewayclass",
-		},
+	gatewayclass, err := gatewayclient.GetGatewayClass(context.Background(), types.NamespacedName{
+		Name: "gatewayclass",
 	})
 	require.NoError(t, err)
 	require.Len(t, gatewayclass.Finalizers, 0)
 
 	_, err = gatewayclient.EnsureFinalizer(context.Background(), gatewayclass, "finalizer")
 	require.NoError(t, err)
-	gatewayclass, err = gatewayclient.GatewayClassForGateway(context.Background(), &gateway.Gateway{
-		Spec: gateway.GatewaySpec{
-			GatewayClassName: "gatewayclass",
-		},
+	gatewayclass, err = gatewayclient.GetGatewayClass(context.Background(), types.NamespacedName{
+		Name: "gatewayclass",
 	})
 	require.NoError(t, err)
 	require.Len(t, gatewayclass.Finalizers, 1)
@@ -267,10 +185,8 @@ func TestEnsureFinalizer(t *testing.T) {
 	// make sure it only adds it once
 	_, err = gatewayclient.EnsureFinalizer(context.Background(), gatewayclass, "finalizer")
 	require.NoError(t, err)
-	gatewayclass, err = gatewayclient.GatewayClassForGateway(context.Background(), &gateway.Gateway{
-		Spec: gateway.GatewaySpec{
-			GatewayClassName: "gatewayclass",
-		},
+	gatewayclass, err = gatewayclient.GetGatewayClass(context.Background(), types.NamespacedName{
+		Name: "gatewayclass",
 	})
 	require.NoError(t, err)
 	require.Len(t, gatewayclass.Finalizers, 1)
@@ -286,20 +202,16 @@ func TestRemoveFinalizer(t *testing.T) {
 			Finalizers: []string{"finalizer", "other"},
 		},
 	})
-	gatewayclass, err := gatewayclient.GatewayClassForGateway(context.Background(), &gateway.Gateway{
-		Spec: gateway.GatewaySpec{
-			GatewayClassName: "gatewayclass",
-		},
+	gatewayclass, err := gatewayclient.GetGatewayClass(context.Background(), types.NamespacedName{
+		Name: "gatewayclass",
 	})
 	require.NoError(t, err)
 	require.Len(t, gatewayclass.Finalizers, 2)
 
 	_, err = gatewayclient.RemoveFinalizer(context.Background(), gatewayclass, "other")
 	require.NoError(t, err)
-	gatewayclass, err = gatewayclient.GatewayClassForGateway(context.Background(), &gateway.Gateway{
-		Spec: gateway.GatewaySpec{
-			GatewayClassName: "gatewayclass",
-		},
+	gatewayclass, err = gatewayclient.GetGatewayClass(context.Background(), types.NamespacedName{
+		Name: "gatewayclass",
 	})
 	require.NoError(t, err)
 	require.Len(t, gatewayclass.Finalizers, 1)
@@ -307,10 +219,8 @@ func TestRemoveFinalizer(t *testing.T) {
 
 	_, err = gatewayclient.RemoveFinalizer(context.Background(), gatewayclass, "finalizer")
 	require.NoError(t, err)
-	gatewayclass, err = gatewayclient.GatewayClassForGateway(context.Background(), &gateway.Gateway{
-		Spec: gateway.GatewaySpec{
-			GatewayClassName: "gatewayclass",
-		},
+	gatewayclass, err = gatewayclient.GetGatewayClass(context.Background(), types.NamespacedName{
+		Name: "gatewayclass",
 	})
 	require.NoError(t, err)
 	require.Len(t, gatewayclass.Finalizers, 0)
@@ -318,10 +228,8 @@ func TestRemoveFinalizer(t *testing.T) {
 	// make sure it handles non-existent finalizers
 	_, err = gatewayclient.RemoveFinalizer(context.Background(), gatewayclass, "nonexistent")
 	require.NoError(t, err)
-	gatewayclass, err = gatewayclient.GatewayClassForGateway(context.Background(), &gateway.Gateway{
-		Spec: gateway.GatewaySpec{
-			GatewayClassName: "gatewayclass",
-		},
+	gatewayclass, err = gatewayclient.GetGatewayClass(context.Background(), types.NamespacedName{
+		Name: "gatewayclass",
 	})
 	require.NoError(t, err)
 	require.Len(t, gatewayclass.Finalizers, 0)
@@ -390,68 +298,13 @@ func TestGatewayClassInUse(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, used)
 }
-
-func TestIsValidGatewayClass(t *testing.T) {
-	t.Parallel()
-
-	gatewayclient := newTestClient(nil, &apigwv1alpha1.GatewayClassConfig{
-		ObjectMeta: meta.ObjectMeta{
-			Name: "gatewayclassconfig",
-		},
-	})
-
-	// no configuration
-	valid, err := gatewayclient.IsValidGatewayClass(context.Background(), &gateway.GatewayClass{})
-	require.NoError(t, err)
-	require.True(t, valid)
-
-	// other param configuration
-	valid, err = gatewayclient.IsValidGatewayClass(context.Background(), &gateway.GatewayClass{
-		Spec: gateway.GatewayClassSpec{
-			ParametersRef: &gateway.ParametersReference{
-				Name: "map",
-				Kind: gateway.Kind("someotherkind"),
-			},
-		},
-	})
-	require.NoError(t, err)
-	require.False(t, valid)
-
-	// not found configuration
-	valid, err = gatewayclient.IsValidGatewayClass(context.Background(), &gateway.GatewayClass{
-		Spec: gateway.GatewayClassSpec{
-			ParametersRef: &gateway.ParametersReference{
-				Group: apigwv1alpha1.Group,
-				Kind:  apigwv1alpha1.GatewayClassConfigKind,
-				Name:  "nogatewayclassconfig",
-			},
-		},
-	})
-	require.NoError(t, err)
-	require.False(t, valid)
-
-	// found configuration
-	valid, err = gatewayclient.IsValidGatewayClass(context.Background(), &gateway.GatewayClass{
-		Spec: gateway.GatewayClassSpec{
-			ParametersRef: &gateway.ParametersReference{
-				Group: apigwv1alpha1.Group,
-				Kind:  apigwv1alpha1.GatewayClassConfigKind,
-				Name:  "gatewayclassconfig",
-			},
-		},
-	})
-	require.NoError(t, err)
-	require.True(t, valid)
-}
-
 func TestPodWithLabelsNoItems(t *testing.T) {
 	gatewayclient := newTestClient(nil)
 
 	pod, err := gatewayclient.PodWithLabels(context.Background(), map[string]string{
 		"label": "test",
 	})
-	require.Error(t, err)
-	require.Equal(t, ErrPodNotCreated, err)
+	require.NoError(t, err)
 	require.Nil(t, pod)
 }
 
@@ -502,95 +355,6 @@ func TestPodWithLabelsMultipleItems(t *testing.T) {
 	require.NotNil(t, pod)
 }
 
-func TestIsManagedRoute(t *testing.T) {
-	gatewayclient := newTestClient(nil, &gateway.GatewayClass{
-		ObjectMeta: meta.ObjectMeta{
-			Name: "gatewayclass",
-		},
-		Spec: gateway.GatewayClassSpec{
-			Controller: gateway.GatewayController("controller"),
-		},
-	}, &gateway.GatewayClass{
-		ObjectMeta: meta.ObjectMeta{
-			Name: "othergatewayclass",
-		},
-		Spec: gateway.GatewayClassSpec{
-			Controller: gateway.GatewayController("other"),
-		},
-	}, &gateway.Gateway{
-		ObjectMeta: meta.ObjectMeta{
-			Name:      "gateway",
-			Namespace: "namespace",
-		},
-		Spec: gateway.GatewaySpec{
-			GatewayClassName: "gatewayclass",
-		},
-	}, &gateway.Gateway{
-		ObjectMeta: meta.ObjectMeta{
-			Name:      "othergateway",
-			Namespace: "namespace",
-		},
-		Spec: gateway.GatewaySpec{
-			GatewayClassName: "othergatewayclass",
-		},
-	}, &gateway.Gateway{
-		ObjectMeta: meta.ObjectMeta{
-			Name:      "othergateway",
-			Namespace: "other",
-		},
-		Spec: gateway.GatewaySpec{
-			GatewayClassName: "nonexistent",
-		},
-	})
-
-	namespace := gateway.Namespace("namespace")
-	otherNamespace := gateway.Namespace("other")
-	managed, err := gatewayclient.IsManagedRoute(context.Background(), gateway.CommonRouteSpec{
-		ParentRefs: []gateway.ParentRef{{
-			Name:      "gateway",
-			Namespace: &namespace,
-		}},
-	}, "", "controller")
-	require.NoError(t, err)
-	require.True(t, managed)
-
-	managed, err = gatewayclient.IsManagedRoute(context.Background(), gateway.CommonRouteSpec{
-		ParentRefs: []gateway.ParentRef{{
-			Name:      "othergateway",
-			Namespace: &namespace,
-		}},
-	}, "", "controller")
-	require.NoError(t, err)
-	require.False(t, managed)
-
-	managed, err = gatewayclient.IsManagedRoute(context.Background(), gateway.CommonRouteSpec{
-		ParentRefs: []gateway.ParentRef{{
-			Name:      "gateway",
-			Namespace: &otherNamespace,
-		}},
-	}, "", "controller")
-	require.Error(t, err)
-	require.False(t, managed)
-
-	managed, err = gatewayclient.IsManagedRoute(context.Background(), gateway.CommonRouteSpec{
-		ParentRefs: []gateway.ParentRef{{
-			Name:      "othergateway",
-			Namespace: &otherNamespace,
-		}},
-	}, "", "controller")
-	require.Error(t, err)
-	require.False(t, managed)
-
-	// implicit namespace
-	managed, err = gatewayclient.IsManagedRoute(context.Background(), gateway.CommonRouteSpec{
-		ParentRefs: []gateway.ParentRef{{
-			Name: "gateway",
-		}},
-	}, "namespace", "controller")
-	require.NoError(t, err)
-	require.True(t, managed)
-}
-
 func newTestClient(list client.ObjectList, objects ...client.Object) Client {
 	scheme := runtime.NewScheme()
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
@@ -607,5 +371,5 @@ func newTestClient(list client.ObjectList, objects ...client.Object) Client {
 		builder = builder.WithObjects(objects...)
 	}
 
-	return New(builder.Build(), scheme)
+	return New(builder.Build(), scheme, "")
 }

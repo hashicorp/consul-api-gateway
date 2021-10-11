@@ -2,7 +2,6 @@ package controllers
 
 import (
 	"context"
-	"fmt"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -20,8 +19,6 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
-	"github.com/hashicorp/consul-api-gateway/internal/metrics"
-	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 	"github.com/hashicorp/go-hclog"
 )
 
@@ -31,8 +28,6 @@ import (
 type GatewayReconciler struct {
 	Client         gatewayclient.Client
 	Log            hclog.Logger
-	SDSServerHost  string
-	SDSServerPort  int
 	ControllerName string
 	Manager        reconciler.ReconcileManager
 }
@@ -68,72 +63,11 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, nil
 	}
 
-	gc, err := r.Client.GatewayClassForGateway(ctx, gw)
-	if err != nil {
-		logger.Error("failed to get gateway class", "error", err)
-		return ctrl.Result{}, err
-	}
-
-	if string(gc.Spec.Controller) != r.ControllerName {
-		// we don't manage this gateway
-		return ctrl.Result{}, nil
-	}
-
 	if err := r.Manager.UpsertGateway(ctx, gw); err != nil {
 		return ctrl.Result{}, err
 	}
 
-	// Check if the deployment already exists, if not create a new one
-	if err := r.ensureDeployment(ctx, gc, gw); err != nil {
-		logger.Error("failed to ensure gateway deployment exists", "error", err)
-		return ctrl.Result{}, err
-	}
-
 	return ctrl.Result{}, nil
-}
-
-func (r *GatewayReconciler) ensureDeployment(ctx context.Context, gc *gateway.GatewayClass, gw *gateway.Gateway) error {
-	// no deployment exists, create deployment for the gateway
-	gcc, err := r.Client.GatewayClassConfigForGatewayClass(ctx, gc)
-	if err != nil {
-		return fmt.Errorf("failed to get gateway class config: %w", err)
-	}
-
-	if gcc == nil {
-		gcc = &apigwv1alpha1.GatewayClassConfig{}
-	}
-
-	deployment := gcc.DeploymentFor(gw, apigwv1alpha1.SDSConfig{
-		Host: r.SDSServerHost,
-		Port: r.SDSServerPort,
-	})
-
-	err = r.Client.CreateOrUpdateDeployment(ctx, deployment, func() error {
-		return r.Client.SetControllerOwnership(gw, deployment)
-	})
-	if err != nil {
-		return fmt.Errorf("failed to create new gateway deployment: %w", err)
-	}
-
-	// Create service for the gateway
-	service := gcc.ServiceFor(gw)
-	if service != nil {
-		err = r.Client.CreateOrUpdateService(ctx, service, func() error {
-			return r.Client.SetControllerOwnership(gw, service)
-		})
-		if err != nil {
-			return fmt.Errorf("failed to create gateway service: %w", err)
-		}
-	} else {
-		// ensure that any existing service is deleted
-		err = r.Client.DeleteService(ctx, gcc.EmptyServiceFor(gw))
-		if err != nil {
-			return fmt.Errorf("failed to clean up gateway service: %w", err)
-		}
-	}
-
-	metrics.Registry.IncrCounter(metrics.K8sNewGatewayDeployments, 1)
-	return nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -153,7 +87,7 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			handler.EnqueueRequestsFromMapFunc(podToGatewayRequest),
 			builder.WithPredicates(predicate),
 		).
-		Complete(r)
+		Complete(gatewayclient.NewRequeueingMiddleware(r.Log, r))
 }
 
 func podToGatewayRequest(object client.Object) []reconcile.Request {

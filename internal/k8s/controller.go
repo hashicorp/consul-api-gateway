@@ -16,11 +16,11 @@ import (
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
 
-	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/controllers"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
+	"github.com/hashicorp/consul-api-gateway/internal/store"
 	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 )
 
@@ -49,7 +49,7 @@ type Kubernetes struct {
 	sDSServerPort int
 	k8sManager    ctrl.Manager
 	consul        *api.Client
-	store         core.Store
+	store         store.Store
 	logger        hclog.Logger
 }
 
@@ -129,7 +129,7 @@ func (k *Kubernetes) SetConsul(consul *api.Client) {
 	k.consul = consul
 }
 
-func (k *Kubernetes) SetStore(store core.Store) {
+func (k *Kubernetes) SetStore(store store.Store) {
 	k.store = store
 }
 
@@ -140,16 +140,18 @@ func (k *Kubernetes) Start(ctx context.Context) error {
 	scheme := k.k8sManager.GetScheme()
 	apigwv1alpha1.RegisterTypes(scheme)
 
-	gwClient := gatewayclient.New(k.k8sManager.GetClient(), scheme)
+	gwClient := gatewayclient.New(k.k8sManager.GetClient(), scheme, ControllerName)
 
 	reconcileManager := reconciler.NewReconcileManager(reconciler.ManagerConfig{
 		ControllerName: ControllerName,
 		Client:         gwClient,
 		Consul:         k.consul,
-		Tracker:        reconciler.NewStatusTracker(),
-		Status:         k.k8sManager.GetClient().Status(),
-		Logger:         k.logger.Named("Reconciler"),
-		Store:          k.store,
+		SDSConfig: apigwv1alpha1.SDSConfig{
+			Host: k.sDSServerHost,
+			Port: k.sDSServerPort,
+		},
+		Logger: k.logger.Named("Reconciler"),
+		Store:  k.store,
 	})
 
 	err := (&controllers.GatewayClassConfigReconciler{
@@ -175,8 +177,6 @@ func (k *Kubernetes) Start(ctx context.Context) error {
 		Log:            k.logger.Named("Gateway"),
 		Manager:        reconcileManager,
 		ControllerName: ControllerName,
-		SDSServerHost:  k.sDSServerHost,
-		SDSServerPort:  k.sDSServerPort,
 	}).SetupWithManager(k.k8sManager)
 	if err != nil {
 		return fmt.Errorf("failed to create gateway controller: %w", err)

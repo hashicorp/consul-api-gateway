@@ -2,11 +2,9 @@ package reconciler
 
 import (
 	"context"
-	"fmt"
 	"sync"
 
 	"k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	"github.com/hashicorp/consul/api"
@@ -15,12 +13,14 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
+	"github.com/hashicorp/consul-api-gateway/internal/store"
+	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 )
 
 //go:generate mockgen -source ./manager.go -destination ./mocks/manager.go -package mocks ReconcileManager
 
 type ReconcileManager interface {
-	UpsertGatewayClass(ctx context.Context, gc *gw.GatewayClass, validParameters bool) error
+	UpsertGatewayClass(ctx context.Context, gc *gw.GatewayClass) error
 	UpsertGateway(ctx context.Context, g *gw.Gateway) error
 	UpsertHTTPRoute(ctx context.Context, r Route) error
 	UpsertTCPRoute(ctx context.Context, r Route) error
@@ -39,9 +39,9 @@ type GatewayReconcileManager struct {
 	logger         hclog.Logger
 	client         gatewayclient.Client
 	consul         *api.Client
-	tracker        GatewayStatusTracker
+	sdsConfig      apigwv1alpha1.SDSConfig
 
-	store          core.Store
+	store          store.Store
 	gatewayClasses *K8sGatewayClasses
 
 	namespaceMap map[types.NamespacedName]string
@@ -55,9 +55,8 @@ type ManagerConfig struct {
 	ControllerName string
 	Client         gatewayclient.Client
 	Consul         *api.Client
-	Status         client.StatusWriter
-	Store          core.Store
-	Tracker        GatewayStatusTracker
+	SDSConfig      apigwv1alpha1.SDSConfig
+	Store          store.Store
 	Logger         hclog.Logger
 }
 
@@ -67,58 +66,114 @@ func NewReconcileManager(config ManagerConfig) *GatewayReconcileManager {
 		logger:         config.Logger,
 		client:         config.Client,
 		consul:         config.Consul,
-		tracker:        config.Tracker,
+		sdsConfig:      config.SDSConfig,
 		gatewayClasses: NewK8sGatewayClasses(config.Logger.Named("gatewayclasses"), config.Client),
 		namespaceMap:   make(map[types.NamespacedName]string),
 		store:          config.Store,
 	}
 }
 
-func (m *GatewayReconcileManager) UpsertGatewayClass(ctx context.Context, gc *gw.GatewayClass, validParameters bool) error {
-	return m.gatewayClasses.Upsert(ctx, gc, validParameters)
+func (m *GatewayReconcileManager) UpsertGatewayClass(ctx context.Context, gc *gw.GatewayClass) error {
+	class := NewK8sGatewayClass(gc, K8sGatewayClassConfig{
+		Logger: m.logger,
+		Client: m.client,
+	})
+
+	if err := class.Validate(ctx); err != nil {
+		return err
+	}
+
+	return m.gatewayClasses.Upsert(ctx, class)
 }
 
 func (m *GatewayReconcileManager) UpsertGateway(ctx context.Context, g *gw.Gateway) error {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
+	var err error
+
+	// first check our cache to see if we have a known configuration
+	config, managed := m.gatewayClasses.GetConfig(g.Spec.GatewayClassName)
+	if !managed {
+		// next check to see if we have an existing deployment, if we do, we manage the gateway
+		// and can just use an empty config since we won't re-deploy
+		// just in case the
+		managed, err = m.client.HasManagedDeployment(ctx, g)
+		if err != nil {
+			return err
+		}
+		if !managed {
+			// finally, see if we can run through all of the relationships and retrieve the config
+			config, managed, err = m.client.GetConfigForGatewayClassName(ctx, g.Spec.GatewayClassName)
+			if err != nil {
+				return err
+			}
+			if !managed {
+				// we don't own the gateway
+				return nil
+			}
+		}
+	}
+
 	// TODO: do real namespace mapping
 	consulNamespace := ""
-
 	m.namespaceMap[utils.NamespacedName(g)] = consulNamespace
-
-	return m.store.UpsertGateway(ctx, NewK8sGateway(g, K8sGatewayConfig{
+	gateway := NewK8sGateway(g, K8sGatewayConfig{
 		ConsulNamespace: consulNamespace,
 		Logger:          m.logger,
 		Client:          m.client,
-		Tracker:         m.tracker,
-	}))
+		SDSConfig:       m.sdsConfig,
+		Config:          config,
+	})
+
+	// Calling validate outside of the upsert process allows us to re-resolve any
+	// external references and set the statuses accordingly. Since we actually
+	// have other object updates triggering reconciliation loops, this is necessary
+	// prior to dirty-checking on upsert.
+	if err := gateway.Validate(ctx); err != nil {
+		return err
+	}
+
+	return m.store.UpsertGateway(ctx, gateway)
 }
 
 func (m *GatewayReconcileManager) UpsertHTTPRoute(ctx context.Context, r Route) error {
-	return m.upsertRoute(ctx, r)
+	return m.upsertRoute(ctx, r, HTTPRouteID(utils.NamespacedName(r)))
 }
 
 func (m *GatewayReconcileManager) UpsertTCPRoute(ctx context.Context, r Route) error {
-	return m.upsertRoute(ctx, r)
+	return m.upsertRoute(ctx, r, TCPRouteID(utils.NamespacedName(r)))
 }
 
 func (m *GatewayReconcileManager) UpsertTLSRoute(ctx context.Context, r Route) error {
-	return m.upsertRoute(ctx, r)
+	return m.upsertRoute(ctx, r, TLSRouteID(utils.NamespacedName(r)))
 }
 
-func (m *GatewayReconcileManager) upsertRoute(ctx context.Context, r Route) error {
+func (m *GatewayReconcileManager) upsertRoute(ctx context.Context, r Route, id string) error {
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+
 	route := NewK8sRoute(r, K8sRouteConfig{
 		ControllerName: m.controllerName,
 		Logger:         m.logger,
 		Client:         m.client,
 		Consul:         m.consul,
 	})
-	if err := route.ResolveReferences(ctx); err != nil {
-		if err := route.SyncStatus(ctx); err != nil {
-			return fmt.Errorf("error updating route status: %w", err)
-		}
-		return fmt.Errorf("error resolving route references: %w", err)
+
+	managed, err := m.deleteUnmanagedRoute(ctx, route, id)
+	if err != nil {
+		return err
+	}
+	if !managed {
+		return nil
+	}
+
+	// Calling validate outside of the upsert process allows us to re-resolve any
+	// external references and set the statuses accordingly. Since we actually
+	// have other object updates triggering reconciliation loops, this is necessary
+	// prior to dirty-checking on upsert.
+	if err := route.Validate(ctx); err != nil {
+		return err
 	}
 	return m.store.UpsertRoute(ctx, route)
 }
@@ -132,16 +187,13 @@ func (m *GatewayReconcileManager) DeleteGateway(ctx context.Context, name types.
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
-	err := m.store.DeleteGateway(ctx, core.GatewayID{
+	if err := m.store.DeleteGateway(ctx, core.GatewayID{
 		Service:         name.Name,
 		ConsulNamespace: m.namespaceMap[name],
-	})
-
-	if err != nil {
+	}); err != nil {
 		return err
 	}
 
-	m.tracker.DeleteStatus(name)
 	delete(m.namespaceMap, name)
 
 	return nil
@@ -157,4 +209,39 @@ func (m *GatewayReconcileManager) DeleteTLSRoute(ctx context.Context, name types
 
 func (m *GatewayReconcileManager) DeleteTCPRoute(ctx context.Context, name types.NamespacedName) error {
 	return m.store.DeleteRoute(ctx, TCPRouteID(name))
+}
+
+func (m *GatewayReconcileManager) deleteUnmanagedRoute(ctx context.Context, route *K8sRoute, id string) (bool, error) {
+	// check our cache first
+	managed := m.managedByCachedGatewaysForRoute(route.GetNamespace(), route.Parents())
+	if !managed {
+		var err error
+		// we might not yet have the gateway in our cache, check remotely
+		if managed, err = m.client.IsManagedRoute(ctx, route.GetNamespace(), route.Parents()); err != nil {
+			return false, err
+		}
+	}
+
+	if !managed {
+		// we're not managing this route (potentially reference got removed on an update)
+		// ensure it's cleaned up
+		if err := m.store.DeleteRoute(ctx, id); err != nil {
+			return false, err
+		}
+		return false, nil
+	}
+
+	return true, nil
+}
+
+func (m *GatewayReconcileManager) managedByCachedGatewaysForRoute(namespace string, parents []gw.ParentRef) bool {
+	for _, parent := range parents {
+		name, isGateway := utils.ReferencesGateway(namespace, parent)
+		if isGateway {
+			if _, found := m.namespaceMap[name]; found {
+				return true
+			}
+		}
+	}
+	return false
 }

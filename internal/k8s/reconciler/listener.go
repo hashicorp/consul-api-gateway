@@ -4,10 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync/atomic"
 
-	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
+	"github.com/hashicorp/consul-api-gateway/internal/store"
 	"github.com/hashicorp/go-hclog"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -15,18 +16,20 @@ import (
 )
 
 var (
-	ErrInvalidGatewayListener    = errors.New("invalid gateway listener")
-	ErrTLSPassthroughUnsupported = errors.New("tls passthrough unsupported")
-	ErrInvalidTLSConfiguration   = errors.New("invalid tls configuration")
-	ErrInvalidTLSCertReference   = errors.New("invalid tls certificate reference")
-	ErrCannotBindListener        = errors.New("cannot bind listener")
+	supportedProtocols = map[gw.ProtocolType][]gw.RouteGroupKind{
+		gw.HTTPProtocolType: {{
+			Group: (*gw.Group)(&gw.GroupVersion.Group),
+			Kind:  "HTTPRoute",
+		}},
+		gw.HTTPSProtocolType: {{
+			Group: (*gw.Group)(&gw.GroupVersion.Group),
+			Kind:  "HTTPRoute",
+		}},
+	}
 )
 
 const (
 	defaultListenerName = "default"
-
-	ConditionReasonUnableToBind  = "UnableToBindGateway"
-	ConditionReasonRouteAdmitted = "RouteAdmitted"
 )
 
 type K8sListener struct {
@@ -35,9 +38,14 @@ type K8sListener struct {
 	gateway         *gw.Gateway
 	listener        gw.Listener
 	client          gatewayclient.Client
+
+	status         ListenerStatus
+	routeCount     int32
+	certificates   []string
+	supportedKinds []gw.RouteGroupKind
 }
 
-var _ core.Listener = &K8sListener{}
+var _ store.RouteTrackingListener = &K8sListener{}
 
 type K8sListenerConfig struct {
 	ConsulNamespace string
@@ -61,29 +69,107 @@ func (l *K8sListener) ID() string {
 	return string(l.listener.Name)
 }
 
-func (l *K8sListener) Logger() hclog.Logger {
-	return l.logger
+func (l *K8sListener) Certificates() []string {
+	return l.certificates
 }
 
-func (l *K8sListener) Certificates(ctx context.Context) ([]string, error) {
+func (l *K8sListener) Validate(ctx context.Context) error {
+	l.validateUnsupported()
+	l.validateProtocols()
+
+	if err := l.validateTLS(ctx); err != nil {
+		return err
+	}
+
+	if l.status.Ready.Invalid == nil && !l.status.Valid() {
+		// set the listener as invalid if any other statuses are not valid
+		l.status.Ready.Invalid = errors.New("listener is in an invalid state")
+	}
+
+	return nil
+}
+
+func (l *K8sListener) validateTLS(ctx context.Context) error {
 	if l.listener.TLS == nil {
-		return nil, ErrInvalidTLSConfiguration
+		if l.Config().TLS {
+			// we are using a protocol that requires TLS but has no TLS
+			// configured
+			l.status.Ready.Invalid = errors.New("tls configuration required for the given protocol")
+		}
+		return nil
 	}
 
 	if l.listener.TLS.Mode != nil && *l.listener.TLS.Mode == gw.TLSModePassthrough {
-		return nil, ErrTLSPassthroughUnsupported
+		l.status.Ready.Invalid = errors.New("tls passthrough not supported")
+		return nil
 	}
 
 	if l.listener.TLS.CertificateRef == nil {
-		return nil, ErrInvalidTLSCertReference
+		l.status.ResolvedRefs.InvalidCertificateRef = errors.New("certificate reference must be set")
+		return nil
 	}
 
 	ref := *l.listener.TLS.CertificateRef
 	resource, err := l.resolveCertificateReference(ctx, ref)
 	if err != nil {
-		return nil, err
+		var certificateErr CertificateResolutionError
+		if !errors.As(err, &certificateErr) {
+			return err
+		}
+		l.status.ResolvedRefs.InvalidCertificateRef = certificateErr
+	} else {
+		l.certificates = []string{resource}
 	}
-	return []string{resource}, nil
+
+	return nil
+}
+
+func (l *K8sListener) validateUnsupported() {
+	// seems weird that we're looking at gateway fields for listener status
+	// but that's the weirdness of the spec
+	if len(l.gateway.Spec.Addresses) > 0 {
+		// we dnn't support address binding
+		l.status.Detached.UnsupportedAddress = errors.New("specified addresses are not supported")
+	}
+}
+
+func (l *K8sListener) validateProtocols() {
+	supportedKinds, found := supportedProtocols[l.listener.Protocol]
+	if !found {
+		l.status.Detached.UnsupportedProtocol = fmt.Errorf("unsupported protocol: %s", l.listener.Protocol)
+	}
+	l.supportedKinds = supportedKinds
+	if l.listener.AllowedRoutes != nil {
+		remainderKinds := kindsNotInSet(l.listener.AllowedRoutes.Kinds, supportedKinds)
+		if len(remainderKinds) != 0 {
+			l.status.ResolvedRefs.InvalidRouteKinds = fmt.Errorf("listener has unsupported kinds: %v", remainderKinds)
+		}
+	}
+}
+
+func kindsNotInSet(set, parent []gw.RouteGroupKind) []gw.RouteGroupKind {
+	kinds := []gw.RouteGroupKind{}
+	for _, kind := range set {
+		if !isKindInSet(kind, parent) {
+			kinds = append(kinds, kind)
+		}
+	}
+	return kinds
+}
+
+func isKindInSet(value gw.RouteGroupKind, set []gw.RouteGroupKind) bool {
+	for _, kind := range set {
+		groupsMatch := false
+		if value.Group == nil && kind.Group == nil {
+			groupsMatch = true
+		} else if value.Group != nil && kind.Group != nil && *value.Group == *kind.Group {
+			groupsMatch = true
+		}
+		if groupsMatch && value.Kind == kind.Kind {
+			return true
+		}
+	}
+	return false
 }
 
 func (l *K8sListener) resolveCertificateReference(ctx context.Context, ref gw.SecretObjectReference) (string, error) {
@@ -108,16 +194,16 @@ func (l *K8sListener) resolveCertificateReference(ctx context.Context, ref gw.Se
 			return "", fmt.Errorf("error fetching secret: %w", err)
 		}
 		if cert == nil {
-			return "", fmt.Errorf("certificate not found: %w", ErrInvalidTLSCertReference)
+			return "", NewCertificateResolutionErrorNotFound("certificate not found")
 		}
 		return utils.NewK8sSecret(namespace, ref.Name).String(), nil
 	// add more supported types here
 	default:
-		return "", ErrInvalidTLSCertReference
+		return "", NewCertificateResolutionErrorUnsupported(fmt.Sprintf("unsupported certificate type - group: %s, kind: %s", group, kind))
 	}
 }
 
-func (l *K8sListener) Config() core.ListenerConfig {
+func (l *K8sListener) Config() store.ListenerConfig {
 	name := defaultListenerName
 	if l.listener.Name != "" {
 		name = string(l.listener.Name)
@@ -127,7 +213,7 @@ func (l *K8sListener) Config() core.ListenerConfig {
 		hostname = string(*l.listener.Hostname)
 	}
 	protocol, tls := utils.ProtocolToConsul(l.listener.Protocol)
-	return core.ListenerConfig{
+	return store.ListenerConfig{
 		Name:     name,
 		Hostname: hostname,
 		Port:     int(l.listener.Port),
@@ -141,14 +227,14 @@ func (l *K8sListener) Config() core.ListenerConfig {
 // on the gateway the return value is nil, if not,
 // an error specifying why the route cannot bind
 // is returned.
-func (l *K8sListener) CanBind(route core.Route) (bool, error) {
+func (l *K8sListener) CanBind(route store.Route) (bool, error) {
 	k8sRoute, ok := route.(*K8sRoute)
 	if !ok {
 		return false, nil
 	}
 
 	for _, ref := range k8sRoute.CommonRouteSpec().ParentRefs {
-		if namespacedName, isGateway := referencesGateway(k8sRoute.GetNamespace(), ref); isGateway {
+		if namespacedName, isGateway := utils.ReferencesGateway(k8sRoute.GetNamespace(), ref); isGateway {
 			if utils.NamespacedName(l.gateway) == namespacedName {
 				canBind, err := l.canBind(ref, k8sRoute)
 				if err != nil {
@@ -164,13 +250,17 @@ func (l *K8sListener) CanBind(route core.Route) (bool, error) {
 }
 
 func (l *K8sListener) canBind(ref gw.ParentRef, route *K8sRoute) (bool, error) {
+	if l.status.Ready.HasError() {
+		return false, nil
+	}
+
 	// must is only true if there's a ref with a specific listener name
 	// meaning if we must attach, but cannot, it's an error
 	allowed, must := routeMatchesListener(l.listener.Name, ref.SectionName)
 	if allowed {
 		if !routeKindIsAllowedForListener(l.listener.AllowedRoutes, route) {
 			if must {
-				return false, fmt.Errorf("route kind not allowed for listener: %w", ErrCannotBindListener)
+				return false, NewBindErrorRouteKind("route kind not allowed for listener")
 			}
 			return false, nil
 		}
@@ -180,14 +270,14 @@ func (l *K8sListener) canBind(ref gw.ParentRef, route *K8sRoute) (bool, error) {
 		}
 		if !allowed {
 			if must {
-				return false, fmt.Errorf("route not allowed because of listener namespace policy: %w", ErrCannotBindListener)
+				return false, NewBindErrorListenerNamespacePolicy("route not allowed because of listener namespace policy")
 			}
 			return false, nil
 		}
 
 		if !route.MatchesHostname(l.listener.Hostname) {
 			if must {
-				return false, fmt.Errorf("route does not match listener hostname: %w", ErrCannotBindListener)
+				return false, NewBindErrorHostnameMismatch("route does not match listener hostname")
 			}
 			return false, nil
 		}
@@ -196,4 +286,21 @@ func (l *K8sListener) canBind(ref gw.ParentRef, route *K8sRoute) (bool, error) {
 	}
 
 	return false, nil
+}
+
+func (l *K8sListener) OnRouteAdded(_ store.Route) {
+	atomic.AddInt32(&l.routeCount, 1)
+}
+
+func (l *K8sListener) OnRouteRemoved(_ string) {
+	atomic.AddInt32(&l.routeCount, -1)
+}
+
+func (l *K8sListener) Status() gw.ListenerStatus {
+	return gw.ListenerStatus{
+		Name:           l.listener.Name,
+		SupportedKinds: l.supportedKinds,
+		AttachedRoutes: atomic.LoadInt32(&l.routeCount),
+		Conditions:     l.status.Conditions(l.gateway.Generation),
+	}
 }

@@ -122,21 +122,6 @@ func (mr *MockClientMockRecorder) EnsureFinalizer(ctx, object, finalizer interfa
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnsureFinalizer", reflect.TypeOf((*MockClient)(nil).EnsureFinalizer), ctx, object, finalizer)
 }
 
-// GatewayClassConfigForGatewayClass mocks base method.
-func (m *MockClient) GatewayClassConfigForGatewayClass(ctx context.Context, gc *v1alpha2.GatewayClass) (*v1alpha1.GatewayClassConfig, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GatewayClassConfigForGatewayClass", ctx, gc)
-	ret0, _ := ret[0].(*v1alpha1.GatewayClassConfig)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GatewayClassConfigForGatewayClass indicates an expected call of GatewayClassConfigForGatewayClass.
-func (mr *MockClientMockRecorder) GatewayClassConfigForGatewayClass(ctx, gc interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GatewayClassConfigForGatewayClass", reflect.TypeOf((*MockClient)(nil).GatewayClassConfigForGatewayClass), ctx, gc)
-}
-
 // GatewayClassConfigInUse mocks base method.
 func (m *MockClient) GatewayClassConfigInUse(ctx context.Context, gcc *v1alpha1.GatewayClassConfig) (bool, error) {
 	m.ctrl.T.Helper()
@@ -152,21 +137,6 @@ func (mr *MockClientMockRecorder) GatewayClassConfigInUse(ctx, gcc interface{}) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GatewayClassConfigInUse", reflect.TypeOf((*MockClient)(nil).GatewayClassConfigInUse), ctx, gcc)
 }
 
-// GatewayClassForGateway mocks base method.
-func (m *MockClient) GatewayClassForGateway(ctx context.Context, gw *v1alpha2.Gateway) (*v1alpha2.GatewayClass, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GatewayClassForGateway", ctx, gw)
-	ret0, _ := ret[0].(*v1alpha2.GatewayClass)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GatewayClassForGateway indicates an expected call of GatewayClassForGateway.
-func (mr *MockClientMockRecorder) GatewayClassForGateway(ctx, gw interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GatewayClassForGateway", reflect.TypeOf((*MockClient)(nil).GatewayClassForGateway), ctx, gw)
-}
-
 // GatewayClassInUse mocks base method.
 func (m *MockClient) GatewayClassInUse(ctx context.Context, gc *v1alpha2.GatewayClass) (bool, error) {
 	m.ctrl.T.Helper()
@@ -180,6 +150,22 @@ func (m *MockClient) GatewayClassInUse(ctx context.Context, gc *v1alpha2.Gateway
 func (mr *MockClientMockRecorder) GatewayClassInUse(ctx, gc interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GatewayClassInUse", reflect.TypeOf((*MockClient)(nil).GatewayClassInUse), ctx, gc)
+}
+
+// GetConfigForGatewayClassName mocks base method.
+func (m *MockClient) GetConfigForGatewayClassName(ctx context.Context, name string) (v1alpha1.GatewayClassConfig, bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetConfigForGatewayClassName", ctx, name)
+	ret0, _ := ret[0].(v1alpha1.GatewayClassConfig)
+	ret1, _ := ret[1].(bool)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// GetConfigForGatewayClassName indicates an expected call of GetConfigForGatewayClassName.
+func (mr *MockClientMockRecorder) GetConfigForGatewayClassName(ctx, name interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetConfigForGatewayClassName", reflect.TypeOf((*MockClient)(nil).GetConfigForGatewayClassName), ctx, name)
 }
 
 // GetGateway mocks base method.
@@ -272,34 +258,34 @@ func (mr *MockClientMockRecorder) GetService(ctx, key interface{}) *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetService", reflect.TypeOf((*MockClient)(nil).GetService), ctx, key)
 }
 
-// IsManagedRoute mocks base method.
-func (m *MockClient) IsManagedRoute(ctx context.Context, spec v1alpha2.CommonRouteSpec, routeNamespace, controllerName string) (bool, error) {
+// HasManagedDeployment mocks base method.
+func (m *MockClient) HasManagedDeployment(ctx context.Context, gw *v1alpha2.Gateway) (bool, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "IsManagedRoute", ctx, spec, routeNamespace, controllerName)
+	ret := m.ctrl.Call(m, "HasManagedDeployment", ctx, gw)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// HasManagedDeployment indicates an expected call of HasManagedDeployment.
+func (mr *MockClientMockRecorder) HasManagedDeployment(ctx, gw interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasManagedDeployment", reflect.TypeOf((*MockClient)(nil).HasManagedDeployment), ctx, gw)
+}
+
+// IsManagedRoute mocks base method.
+func (m *MockClient) IsManagedRoute(ctx context.Context, namespace string, parents []v1alpha2.ParentRef) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IsManagedRoute", ctx, namespace, parents)
 	ret0, _ := ret[0].(bool)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // IsManagedRoute indicates an expected call of IsManagedRoute.
-func (mr *MockClientMockRecorder) IsManagedRoute(ctx, spec, routeNamespace, controllerName interface{}) *gomock.Call {
+func (mr *MockClientMockRecorder) IsManagedRoute(ctx, namespace, parents interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsManagedRoute", reflect.TypeOf((*MockClient)(nil).IsManagedRoute), ctx, spec, routeNamespace, controllerName)
-}
-
-// IsValidGatewayClass mocks base method.
-func (m *MockClient) IsValidGatewayClass(ctx context.Context, gc *v1alpha2.GatewayClass) (bool, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "IsValidGatewayClass", ctx, gc)
-	ret0, _ := ret[0].(bool)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// IsValidGatewayClass indicates an expected call of IsValidGatewayClass.
-func (mr *MockClientMockRecorder) IsValidGatewayClass(ctx, gc interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsValidGatewayClass", reflect.TypeOf((*MockClient)(nil).IsValidGatewayClass), ctx, gc)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsManagedRoute", reflect.TypeOf((*MockClient)(nil).IsManagedRoute), ctx, namespace, parents)
 }
 
 // PodWithLabels mocks base method.

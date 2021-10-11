@@ -1,0 +1,4 @@
+- name: CertificateResolution
+  types: ["NotFound","Unsupported"]
+- name: Bind
+  types: ["RouteKind","ListenerNamespacePolicy","HostnameMismatch"]

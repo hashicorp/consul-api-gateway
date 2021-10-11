@@ -1,0 +1,260 @@
+- kind: GatewayClass
+  description:
+    Defines the observed state of a GatewayClass.
+  types:
+    - name: Accepted
+      description: >
+        This condition indicates whether the GatewayClass has been accepted by
+        the controller requested in the spec.controller field.
+
+        This condition defaults to Unknown, and MUST be set by a controller when
+        it sees a GatewayClass using its controller string. The status of this
+        condition MUST be set to True if the controller will support provisioning
+        Gateways using this class. Otherwise, this status MUST be set to False.
+        If the status is set to False, the controller SHOULD set a Message and
+        Reason as an explanation.
+      base:
+        description: >
+          This reason is used with the “Accepted” condition when the condition is true.
+      errors:
+        - name: InvalidParameters
+          description: >
+            This reason is used with the “Accepted” condition when the GatewayClass was
+            not accepted because the parametersRef field was invalid, with more detail
+            in the message.
+        - name: Waiting
+          description: >
+            This reason is used with the “Accepted” condition when the requested controller
+            has not yet made a decision about whether to admit the GatewayClass. It is the
+            default Reason on a new GatewayClass.
+- kind: Gateway
+  description:
+    Defines the observed state of a Gateway.
+  types:
+    - name: Ready
+      description: >
+        This condition is true when the Gateway is expected to be able to serve traffic.
+        Note that this does not indicate that the Gateway configuration is current or even
+        complete (e.g. the controller may still not have reconciled the latest version,
+        or some parts of the configuration could be missing).
+
+        If both the “ListenersNotValid” and “ListenersNotReady” reasons are true,
+        the Gateway controller should prefer the “ListenersNotValid” reason.
+      base:
+        description: >
+          This reason is used with the “Ready” condition when the condition is true.
+      errors:
+        - name: "ListenersNotValid"
+          description: >
+            This reason is used with the “Ready” condition when one or more Listeners have an
+            invalid or unsupported configuration and cannot be configured on the Gateway.
+        - name: "ListenersNotReady"
+          description: >
+            This reason is used with the “Ready” condition when one or more Listeners are
+            not ready to serve traffic.
+        - name: "AddressNotAssigned"
+          description: >
+            This reason is used with the “Ready” condition when none of the requested addresses
+            have been assigned to the Gateway. This reason can be used to express a range of
+            circumstances, including (but not limited to) IPAM address exhaustion, invalid
+            or unsupported address requests, or a named address not being found.
+    - name: Scheduled
+      description: >
+        This condition is true when the controller managing the Gateway has scheduled the Gateway
+        to the underlying network infrastructure.
+      base:
+        description: >
+          This reason is used with the “Scheduled” condition when the condition is true.
+      errors:
+        - name: "NotReconciled"
+          description: >
+            This reason is used with the “Scheduled” condition when no controller has reconciled the Gateway.
+        - name: "PodFailed"
+          support: custom
+          description: >
+            This reason is used when the underlying pod on the gateway has failed.
+        - name: "Unknown"
+          support: custom
+          description: >
+            This reason is used when the underlying pod has an unhandled pod status.
+        - name: "NoResources"
+          description: >
+            This reason is used with the “Scheduled” condition when the Gateway is not scheduled because
+            insufficient infrastructure resources are available.
+    - name: InSync
+      description: >
+        This condition is true when the Gateway has successfully synced externally.
+      base:
+        description: >
+          This reason is used with the “InSync” condition when the condition is true.
+      errors:
+        - name: "SyncError"
+          description: >
+            This reason is used with the "InSync" condition when there has been an error encountered synchronizing
+            the Gateway.
+- kind: Route
+  description:
+    The status associated with a Route with respect to a given parent.
+  types:
+    - name: Accepted
+      ignore: true
+      description: >
+        This condition indicates whether the route has been accepted or rejected by a Gateway, and why.
+      base:
+        name: Accepted
+        message: Route accepted.
+        support: custom
+        description: >
+          This reason is used with the "Accepted" condition when the condition is True.
+      errors:
+        - name: "InvalidRouteKind"
+          support: custom
+          description: >
+            This reason is used when a Route is rejected from binding to a Listener
+            because it does not match a Listener's allowed route kinds.
+        - name: "ListenerNamespacePolicy"
+          support: custom
+          description: >
+            This reason is used when a Route is rejected from binding to a Gateway
+            because it does not match a Listener's namespace attachment policy.
+        - name: "ListenerHostnameMismatch"
+          support: custom
+          description: >
+            This reason is used when a Route is rejected from binding to a Listener
+            becasue it does not match a Listener's hostname.
+        - name: "BindError"
+          support: custom
+          description: >
+            This reason is used when there is a generic binding error for a Route.
+    - name: ResolvedRefs
+      description: >
+        This condition indicates whether the controller was able to resolve all the object references for the Route.
+      base:
+        support: custom
+        description: >
+          This reason is used with the "ResolvedRefs" condition when the condition is True.
+      errors:
+        - name: "Errors"
+          support: custom
+          description: >
+            This reason is used when multiple resolution errors occur of varying types. See the condition message
+            for more details.
+        - name: "ServiceNotFound"
+          support: custom
+          description: >
+            This reason is used when a Route references Kubernetes services that the controller
+            cannot resolve.
+        - name: "ConsulServiceNotFound"
+          support: custom
+          description: >
+            This reason is used when a Route references services that the controller
+            cannot resolve as services inside of Consul.
+- kind: Listener
+  description: >
+    The status associated with a Listener.
+  validation: true
+  types:
+    - name: Conflicted
+      description: >
+        This condition indicates that the controller was unable to resolve
+        conflicting specification requirements for this Listener. If a Listener
+        is conflicted, its network port should not be configured on any
+        network elements.
+      required: true
+      invert: true
+      base:
+        name: NoConflicts
+        description: >
+          This reason is used with the “Conflicted” condition when the condition is False.
+      errors:
+        - name: HostnameConflict
+          description: >
+            This reason is used with the “Conflicted” condition when the Listener conflicts
+            with hostnames in other Listeners. For example, this reason would be used when
+            multiple Listeners on the same port use example.com in the hostname field.
+        - name: ProtocolConflict
+          description: >
+            This reason is used with the “Conflicted” condition when multiple Listeners are
+            specified with the same Listener port number, but have conflicting protocol specifications.
+        - name: RouteConflict
+          description: >
+            This reason is used with the “Conflicted” condition when the route resources selected
+            for this Listener conflict with other specified properties of the Listener (e.g. Protocol).
+            For example, a Listener that specifies “UDP” as the protocol but a route selector that
+            resolves “TCPRoute” objects.
+    - name: Detached
+      description: >
+        This condition indicates that, even though the listener is syntactically and semantically
+        valid, the controller is not able to configure it on the underlying Gateway infrastructure.
+
+        A Listener is specified as a logical requirement, but needs to be configured on a network
+        endpoint (i.e. address and port) by a controller. The controller may be unable to attach
+        the Listener if it specifies an unsupported requirement, or prerequisite resources are not available.
+      required: true
+      invert: true
+      base:
+        name: Attached
+        description: >
+          This reason is used with the “Detached” condition when the condition is False.
+      errors: 
+        - name: PortUnavailable
+          description: >
+            This reason is used with the “Detached” condition when the Listener requests
+            a port that cannot be used on the Gateway. This reason could be used in a number
+            of instances, including:
+
+            - The port is already in use.
+
+            - The port is not supported by the implementation.
+        - name: UnsupportedExtension
+          description: >
+            This reason is used with the “Detached” condition when the controller detects that an
+            implementation-specific Listener extension is being requested, but is not able to support
+            the extension.
+        - name: UnsupportedProtocol
+          description: >
+            This reason is used with the “Detached” condition when the Listener could not be attached
+            to be Gateway because its protocol type is not supported.
+        - name: UnsupportedAddress
+          description: >
+            This reason is used with the “Detached” condition when the Listener could not be attached
+            to the Gateway because the requested address is not supported. This reason could be used
+            in a number of instances, including:
+
+            - The address is already in use.
+
+            - The type of address is not supported by the implementation.
+    - name: Ready
+      description: >
+        This condition indicates whether the Listener has been configured on the Gateway.
+      base:
+        description: >
+          This reason is used with the “Ready” condition when the condition is true.
+      errors: 
+        - name: Invalid
+          description: >
+            This reason is used with the “Ready” condition when the Listener is syntactically or semantically invalid.
+        - name: Pending
+          description: >
+            This reason is used with the “Ready” condition when the Listener is not yet not online and ready to accept
+            client traffic.
+    - name: ResolvedRefs
+      description: >
+        This condition indicates whether the controller was able to resolve all the object references for the Listener.
+      base:
+        description: >
+          This reason is used with the “ResolvedRefs” condition when the condition is true.
+      required: true
+      errors: 
+        - name: InvalidCertificateRef
+          description: >
+            This reason is used with the “ResolvedRefs” condition when the Listener has a TLS configuration with at least
+            one TLS CertificateRef that is invalid or cannot be resolved.
+        - name: InvalidRouteKinds
+          description: >
+            This reason is used with the “ResolvedRefs” condition when an invalid or unsupported Route kind is specified by the Listener.
+        - name: RefNotPermitted
+          description: >
+            This reason is used with the “ResolvedRefs” condition when one of the Listener’s Routes has a BackendRef
+            to an object in another namespace, where the object in the other namespace does not have a ReferencePolicy
+            explicitly allowing the reference.

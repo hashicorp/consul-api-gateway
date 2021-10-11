@@ -1,6 +1,7 @@
 metadata:
   creationTimestamp: null
   labels:
+    api-gateway.consul.hashicorp.com/created: "-62135596800"
     api-gateway.consul.hashicorp.com/managed: "true"
     api-gateway.consul.hashicorp.com/name: test-clusterip
     api-gateway.consul.hashicorp.com/namespace: ""
@@ -16,6 +17,7 @@ spec:
     protocol: TCP
     targetPort: 0
   selector:
+    api-gateway.consul.hashicorp.com/created: "-62135596800"
     api-gateway.consul.hashicorp.com/managed: "true"
     api-gateway.consul.hashicorp.com/name: test-clusterip
     api-gateway.consul.hashicorp.com/namespace: ""

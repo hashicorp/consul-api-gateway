@@ -1,6 +1,7 @@
 metadata:
   creationTimestamp: null
   labels:
+    api-gateway.consul.hashicorp.com/created: "-62135596800"
     api-gateway.consul.hashicorp.com/managed: "true"
     api-gateway.consul.hashicorp.com/name: tls-cert-test
     api-gateway.consul.hashicorp.com/namespace: ""
@@ -8,6 +9,7 @@ metadata:
 spec:
   selector:
     matchLabels:
+      api-gateway.consul.hashicorp.com/created: "-62135596800"
       api-gateway.consul.hashicorp.com/managed: "true"
       api-gateway.consul.hashicorp.com/name: tls-cert-test
       api-gateway.consul.hashicorp.com/namespace: ""
@@ -16,6 +18,7 @@ spec:
     metadata:
       creationTimestamp: null
       labels:
+        api-gateway.consul.hashicorp.com/created: "-62135596800"
         api-gateway.consul.hashicorp.com/managed: "true"
         api-gateway.consul.hashicorp.com/name: tls-cert-test
         api-gateway.consul.hashicorp.com/namespace: ""

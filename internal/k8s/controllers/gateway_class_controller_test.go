@@ -3,11 +3,13 @@ package controllers
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	gateway "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
@@ -73,8 +75,8 @@ func TestGatewayClass(t *testing.T) {
 			client.EXPECT().GatewayClassInUse(gomock.Any(), gomock.Any()).Return(false, errExpected)
 		},
 	}, {
-		name: "deleting-in-use",
-		err:  errGatewayClassInUse,
+		name:   "deleting-in-use",
+		result: ctrl.Result{RequeueAfter: 10 * time.Second},
 		expectationCB: func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager) {
 			now := meta.Now()
 			client.EXPECT().GetGatewayClass(gomock.Any(), className).Return(&gateway.GatewayClass{
@@ -140,42 +142,6 @@ func TestGatewayClass(t *testing.T) {
 			client.EXPECT().EnsureFinalizer(gomock.Any(), gomock.Any(), gatewayClassFinalizer).Return(true, nil)
 		},
 	}, {
-		name: "create-validation-error",
-		err:  errExpected,
-		expectationCB: func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager) {
-			client.EXPECT().GetGatewayClass(gomock.Any(), className).Return(&gateway.GatewayClass{
-				Spec: gateway.GatewayClassSpec{
-					Controller: gateway.GatewayController(mockControllerName),
-				},
-			}, nil)
-			client.EXPECT().EnsureFinalizer(gomock.Any(), gomock.Any(), gatewayClassFinalizer).Return(false, nil)
-			client.EXPECT().IsValidGatewayClass(gomock.Any(), gomock.Any()).Return(false, errExpected)
-		},
-	}, {
-		name: "create-validation-true",
-		expectationCB: func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager) {
-			client.EXPECT().GetGatewayClass(gomock.Any(), className).Return(&gateway.GatewayClass{
-				Spec: gateway.GatewayClassSpec{
-					Controller: gateway.GatewayController(mockControllerName),
-				},
-			}, nil)
-			client.EXPECT().EnsureFinalizer(gomock.Any(), gomock.Any(), gatewayClassFinalizer).Return(false, nil)
-			client.EXPECT().IsValidGatewayClass(gomock.Any(), gomock.Any()).Return(true, nil)
-			reconciler.EXPECT().UpsertGatewayClass(gomock.Any(), gomock.Any(), true)
-		},
-	}, {
-		name: "create-validation-false",
-		expectationCB: func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager) {
-			client.EXPECT().GetGatewayClass(gomock.Any(), className).Return(&gateway.GatewayClass{
-				Spec: gateway.GatewayClassSpec{
-					Controller: gateway.GatewayController(mockControllerName),
-				},
-			}, nil)
-			client.EXPECT().EnsureFinalizer(gomock.Any(), gomock.Any(), gatewayClassFinalizer).Return(false, nil)
-			client.EXPECT().IsValidGatewayClass(gomock.Any(), gomock.Any()).Return(false, nil)
-			reconciler.EXPECT().UpsertGatewayClass(gomock.Any(), gomock.Any(), false)
-		},
-	}, {
 		name: "create-upsert-error",
 		err:  errExpected,
 		expectationCB: func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager) {
@@ -185,8 +151,7 @@ func TestGatewayClass(t *testing.T) {
 				},
 			}, nil)
 			client.EXPECT().EnsureFinalizer(gomock.Any(), gomock.Any(), gatewayClassFinalizer).Return(false, nil)
-			client.EXPECT().IsValidGatewayClass(gomock.Any(), gomock.Any()).Return(true, nil)
-			reconciler.EXPECT().UpsertGatewayClass(gomock.Any(), gomock.Any(), true).Return(errExpected)
+			reconciler.EXPECT().UpsertGatewayClass(gomock.Any(), gomock.Any()).Return(errExpected)
 		},
 	}} {
 		t.Run(test.name, func(t *testing.T) {
