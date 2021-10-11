@@ -64,9 +64,10 @@ func (a *ConsulSyncAdapter) deleteConfigEntries(ctx context.Context, entries ...
 // more service-splitter config entries. A prefix can be given to prefix all config entry names with.
 func httpRouteDiscoveryChain(route core.HTTPRoute) (*api.ServiceRouterConfigEntry, []*api.ServiceSplitterConfigEntry) {
 	router := &api.ServiceRouterConfigEntry{
-		Kind: api.ServiceRouter,
-		Name: route.GetName(),
-		Meta: route.GetMeta(),
+		Kind:      api.ServiceRouter,
+		Name:      route.GetName(),
+		Meta:      route.GetMeta(),
+		Namespace: route.GetNamespace(),
 	}
 	var splitters []*api.ServiceSplitterConfigEntry
 
@@ -83,7 +84,8 @@ func httpRouteDiscoveryChain(route core.HTTPRoute) (*api.ServiceRouterConfigEntr
 		} else {
 			// create a virtual service to split
 			destination = core.ResolvedService{
-				Service: fmt.Sprintf("%s-%d", route.GetName(), idx),
+				Service:         fmt.Sprintf("%s-%d", route.GetName(), idx),
+				ConsulNamespace: route.GetNamespace(),
 			}
 			splitter := &api.ServiceSplitterConfigEntry{
 				Kind:      api.ServiceSplitter,
