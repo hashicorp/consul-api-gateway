@@ -107,13 +107,16 @@ func httpRouteDiscoveryChain(route core.HTTPRoute) (*api.ServiceRouterConfigEntr
 			}
 		}
 
+		modifier := httpRouteFiltersToServiceRouteHeaderModifier(rule.Filters)
+
 		// for each match rule a ServiceRoute is created for the service-router
 		// if there are no rules a single route with the destination is set
 		if len(rule.Matches) == 0 {
 			router.Routes = append(router.Routes, api.ServiceRoute{
 				Destination: &api.ServiceRouteDestination{
-					Service:   destination.Service,
-					Namespace: destination.ConsulNamespace,
+					Service:        destination.Service,
+					RequestHeaders: modifier,
+					Namespace:      destination.ConsulNamespace,
 				},
 			})
 		}
@@ -121,14 +124,41 @@ func httpRouteDiscoveryChain(route core.HTTPRoute) (*api.ServiceRouterConfigEntr
 			router.Routes = append(router.Routes, api.ServiceRoute{
 				Match: &api.ServiceRouteMatch{HTTP: httpRouteMatchToServiceRouteHTTPMatch(match)},
 				Destination: &api.ServiceRouteDestination{
-					Service:   destination.Service,
-					Namespace: destination.ConsulNamespace,
+					Service:        destination.Service,
+					RequestHeaders: modifier,
+					Namespace:      destination.ConsulNamespace,
 				},
 			})
 		}
 	}
 
 	return router, splitters
+}
+
+func httpRouteFiltersToServiceRouteHeaderModifier(filters []core.HTTPFilter) *api.HTTPHeaderModifiers {
+	modifier := &api.HTTPHeaderModifiers{
+		Add: make(map[string]string),
+		Set: make(map[string]string),
+	}
+	for _, filter := range filters {
+		switch filter.Type {
+		case core.HTTPHeaderFilterType:
+			// If we have multiple filters specified, then we can potentially clobber
+			// "Add" and "Set" here -- as far as K8S gateway spec is concerned, this
+			// is all implmentation-specific behavior and undefined by the spec.
+			modifier.Add = mergeMaps(modifier.Add, filter.Header.Add)
+			modifier.Set = mergeMaps(modifier.Set, filter.Header.Set)
+			modifier.Remove = append(modifier.Remove, filter.Header.Remove...)
+		}
+	}
+	return modifier
+}
+
+func mergeMaps(a, b map[string]string) map[string]string {
+	for k, v := range b {
+		a[k] = v
+	}
+	return a
 }
 
 func httpRouteMatchToServiceRouteHTTPMatch(match core.HTTPMatch) *api.ServiceRouteHTTPMatch {
