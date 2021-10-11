@@ -6,14 +6,12 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
-	apps "k8s.io/api/apps/v1"
 	core "k8s.io/api/core/v1"
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	gateway "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
-	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient/mocks"
 	reconcilerMocks "github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/mocks"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
@@ -70,8 +68,7 @@ func TestGateway(t *testing.T) {
 		name: "deleted",
 		expectationCB: func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager, tracker *reconcilerMocks.MockGatewayStatusTracker) {
 			client.EXPECT().GetGateway(gomock.Any(), gatewayName).Return(nil, nil)
-			reconciler.EXPECT().DeleteGateway(gatewayName)
-			tracker.EXPECT().DeleteStatus(gatewayName)
+			reconciler.EXPECT().DeleteGateway(gomock.Any(), gatewayName)
 		},
 	}, {
 		name: "gateway-class-error",
@@ -91,32 +88,6 @@ func TestGateway(t *testing.T) {
 			}, nil)
 		},
 	}, {
-		name: "deployment-exists-error",
-		err:  errExpected,
-		expectationCB: func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager, tracker *reconcilerMocks.MockGatewayStatusTracker) {
-			client.EXPECT().GetGateway(gomock.Any(), gatewayName).Return(&gateway.Gateway{}, nil)
-			client.EXPECT().GatewayClassForGateway(gomock.Any(), gomock.Any()).Return(&gateway.GatewayClass{
-				Spec: gateway.GatewayClassSpec{
-					Controller: gateway.GatewayController(mockControllerName),
-				},
-			}, nil)
-			reconciler.EXPECT().UpsertGateway(gomock.Any())
-			client.EXPECT().DeploymentForGateway(gomock.Any(), gomock.Any()).Return(nil, errExpected)
-		},
-	}, {
-		name: "deployment-exists-no-pod",
-		expectationCB: func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager, tracker *reconcilerMocks.MockGatewayStatusTracker) {
-			client.EXPECT().GetGateway(gomock.Any(), gatewayName).Return(&gateway.Gateway{}, nil)
-			client.EXPECT().GatewayClassForGateway(gomock.Any(), gomock.Any()).Return(&gateway.GatewayClass{
-				Spec: gateway.GatewayClassSpec{
-					Controller: gateway.GatewayController(mockControllerName),
-				},
-			}, nil)
-			reconciler.EXPECT().UpsertGateway(gomock.Any())
-			client.EXPECT().DeploymentForGateway(gomock.Any(), gomock.Any()).Return(&apps.Deployment{}, nil)
-			client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(nil, gatewayclient.ErrPodNotCreated)
-		},
-	}, {
 		name: "deployment-class-config-error",
 		err:  errExpected,
 		expectationCB: func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager, tracker *reconcilerMocks.MockGatewayStatusTracker) {
@@ -126,24 +97,8 @@ func TestGateway(t *testing.T) {
 					Controller: gateway.GatewayController(mockControllerName),
 				},
 			}, nil)
-			reconciler.EXPECT().UpsertGateway(gomock.Any())
-			client.EXPECT().DeploymentForGateway(gomock.Any(), gomock.Any()).Return(nil, nil)
+			reconciler.EXPECT().UpsertGateway(gomock.Any(), gomock.Any())
 			client.EXPECT().GatewayClassConfigForGatewayClass(gomock.Any(), gomock.Any()).Return(nil, errExpected)
-		},
-	}, {
-		name: "deployment-controller-ownership-error",
-		err:  errExpected,
-		expectationCB: func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager, tracker *reconcilerMocks.MockGatewayStatusTracker) {
-			client.EXPECT().GetGateway(gomock.Any(), gatewayName).Return(&gateway.Gateway{}, nil)
-			client.EXPECT().GatewayClassForGateway(gomock.Any(), gomock.Any()).Return(&gateway.GatewayClass{
-				Spec: gateway.GatewayClassSpec{
-					Controller: gateway.GatewayController(mockControllerName),
-				},
-			}, nil)
-			reconciler.EXPECT().UpsertGateway(gomock.Any())
-			client.EXPECT().DeploymentForGateway(gomock.Any(), gomock.Any()).Return(nil, nil)
-			client.EXPECT().GatewayClassConfigForGatewayClass(gomock.Any(), gomock.Any()).Return(&apigwv1alpha1.GatewayClassConfig{}, nil)
-			client.EXPECT().SetControllerOwnership(gomock.Any(), gomock.Any()).Return(errExpected)
 		},
 	}, {
 		name: "deployment-creation-error",
@@ -155,33 +110,24 @@ func TestGateway(t *testing.T) {
 					Controller: gateway.GatewayController(mockControllerName),
 				},
 			}, nil)
-			reconciler.EXPECT().UpsertGateway(gomock.Any())
-			client.EXPECT().DeploymentForGateway(gomock.Any(), gomock.Any()).Return(nil, nil)
+			reconciler.EXPECT().UpsertGateway(gomock.Any(), gomock.Any())
 			client.EXPECT().GatewayClassConfigForGatewayClass(gomock.Any(), gomock.Any()).Return(&apigwv1alpha1.GatewayClassConfig{}, nil)
-			client.EXPECT().SetControllerOwnership(gomock.Any(), gomock.Any()).Return(nil)
-			client.EXPECT().CreateDeployment(gomock.Any(), gomock.Any()).Return(errExpected)
+			client.EXPECT().CreateOrUpdateDeployment(gomock.Any(), gomock.Any(), gomock.Any()).Return(errExpected)
 		},
 	}, {
-		name: "service-controller-ownership-error",
+		name: "service-deletion-error",
 		err:  errExpected,
 		expectationCB: func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager, tracker *reconcilerMocks.MockGatewayStatusTracker) {
-			loadBalancerType := core.ServiceTypeLoadBalancer
 			client.EXPECT().GetGateway(gomock.Any(), gatewayName).Return(&gateway.Gateway{}, nil)
 			client.EXPECT().GatewayClassForGateway(gomock.Any(), gomock.Any()).Return(&gateway.GatewayClass{
 				Spec: gateway.GatewayClassSpec{
 					Controller: gateway.GatewayController(mockControllerName),
 				},
 			}, nil)
-			reconciler.EXPECT().UpsertGateway(gomock.Any())
-			client.EXPECT().DeploymentForGateway(gomock.Any(), gomock.Any()).Return(nil, nil)
-			client.EXPECT().GatewayClassConfigForGatewayClass(gomock.Any(), gomock.Any()).Return(&apigwv1alpha1.GatewayClassConfig{
-				Spec: apigwv1alpha1.GatewayClassConfigSpec{
-					ServiceType: &loadBalancerType,
-				},
-			}, nil)
-			client.EXPECT().SetControllerOwnership(gomock.Any(), gomock.Any()).Return(nil)
-			client.EXPECT().CreateDeployment(gomock.Any(), gomock.Any()).Return(nil)
-			client.EXPECT().SetControllerOwnership(gomock.Any(), gomock.Any()).Return(errExpected)
+			reconciler.EXPECT().UpsertGateway(gomock.Any(), gomock.Any())
+			client.EXPECT().GatewayClassConfigForGatewayClass(gomock.Any(), gomock.Any()).Return(&apigwv1alpha1.GatewayClassConfig{}, nil)
+			client.EXPECT().CreateOrUpdateDeployment(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+			client.EXPECT().DeleteService(gomock.Any(), gomock.Any()).Return(errExpected)
 		},
 	}, {
 		name: "service-creation-error",
@@ -194,69 +140,14 @@ func TestGateway(t *testing.T) {
 					Controller: gateway.GatewayController(mockControllerName),
 				},
 			}, nil)
-			reconciler.EXPECT().UpsertGateway(gomock.Any())
-			client.EXPECT().DeploymentForGateway(gomock.Any(), gomock.Any()).Return(nil, nil)
+			reconciler.EXPECT().UpsertGateway(gomock.Any(), gomock.Any())
 			client.EXPECT().GatewayClassConfigForGatewayClass(gomock.Any(), gomock.Any()).Return(&apigwv1alpha1.GatewayClassConfig{
 				Spec: apigwv1alpha1.GatewayClassConfigSpec{
 					ServiceType: &loadBalancerType,
 				},
 			}, nil)
-			client.EXPECT().SetControllerOwnership(gomock.Any(), gomock.Any()).Return(nil)
-			client.EXPECT().CreateDeployment(gomock.Any(), gomock.Any()).Return(nil)
-			client.EXPECT().SetControllerOwnership(gomock.Any(), gomock.Any()).Return(nil)
-			client.EXPECT().CreateService(gomock.Any(), gomock.Any()).Return(errExpected)
-		},
-	}, {
-		name: "pod-error",
-		err:  errExpected,
-		expectationCB: func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager, tracker *reconcilerMocks.MockGatewayStatusTracker) {
-			client.EXPECT().GetGateway(gomock.Any(), gatewayName).Return(&gateway.Gateway{}, nil)
-			client.EXPECT().GatewayClassForGateway(gomock.Any(), gomock.Any()).Return(&gateway.GatewayClass{
-				Spec: gateway.GatewayClassSpec{
-					Controller: gateway.GatewayController(mockControllerName),
-				},
-			}, nil)
-			reconciler.EXPECT().UpsertGateway(gomock.Any())
-			client.EXPECT().DeploymentForGateway(gomock.Any(), gomock.Any()).Return(nil, nil)
-			client.EXPECT().GatewayClassConfigForGatewayClass(gomock.Any(), gomock.Any()).Return(&apigwv1alpha1.GatewayClassConfig{}, nil)
-			client.EXPECT().SetControllerOwnership(gomock.Any(), gomock.Any()).Return(nil)
-			client.EXPECT().CreateDeployment(gomock.Any(), gomock.Any()).Return(nil)
-			client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(nil, errExpected)
-		},
-	}, {
-		name: "pod-conditions-updated",
-		expectationCB: func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager, tracker *reconcilerMocks.MockGatewayStatusTracker) {
-			client.EXPECT().GetGateway(gomock.Any(), gatewayName).Return(&gateway.Gateway{}, nil)
-			client.EXPECT().GatewayClassForGateway(gomock.Any(), gomock.Any()).Return(&gateway.GatewayClass{
-				Spec: gateway.GatewayClassSpec{
-					Controller: gateway.GatewayController(mockControllerName),
-				},
-			}, nil)
-			reconciler.EXPECT().UpsertGateway(gomock.Any())
-			client.EXPECT().DeploymentForGateway(gomock.Any(), gomock.Any()).Return(nil, nil)
-			client.EXPECT().GatewayClassConfigForGatewayClass(gomock.Any(), gomock.Any()).Return(&apigwv1alpha1.GatewayClassConfig{}, nil)
-			client.EXPECT().SetControllerOwnership(gomock.Any(), gomock.Any()).Return(nil)
-			client.EXPECT().CreateDeployment(gomock.Any(), gomock.Any()).Return(nil)
-			client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(&core.Pod{}, nil)
-			tracker.EXPECT().UpdateStatus(gatewayName, gomock.Any(), gomock.Any(), gomock.Any())
-		},
-	}, {
-		name: "pod-conditions-update-error",
-		err:  errExpected,
-		expectationCB: func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager, tracker *reconcilerMocks.MockGatewayStatusTracker) {
-			client.EXPECT().GetGateway(gomock.Any(), gatewayName).Return(&gateway.Gateway{}, nil)
-			client.EXPECT().GatewayClassForGateway(gomock.Any(), gomock.Any()).Return(&gateway.GatewayClass{
-				Spec: gateway.GatewayClassSpec{
-					Controller: gateway.GatewayController(mockControllerName),
-				},
-			}, nil)
-			reconciler.EXPECT().UpsertGateway(gomock.Any())
-			client.EXPECT().DeploymentForGateway(gomock.Any(), gomock.Any()).Return(nil, nil)
-			client.EXPECT().GatewayClassConfigForGatewayClass(gomock.Any(), gomock.Any()).Return(&apigwv1alpha1.GatewayClassConfig{}, nil)
-			client.EXPECT().SetControllerOwnership(gomock.Any(), gomock.Any()).Return(nil)
-			client.EXPECT().CreateDeployment(gomock.Any(), gomock.Any()).Return(nil)
-			client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(&core.Pod{}, nil)
-			tracker.EXPECT().UpdateStatus(gatewayName, gomock.Any(), gomock.Any(), gomock.Any()).Return(errExpected)
+			client.EXPECT().CreateOrUpdateDeployment(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+			client.EXPECT().CreateOrUpdateService(gomock.Any(), gomock.Any(), gomock.Any()).Return(errExpected)
 		},
 	}} {
 		t.Run(test.name, func(t *testing.T) {
@@ -275,7 +166,6 @@ func TestGateway(t *testing.T) {
 				Log:            hclog.NewNullLogger(),
 				ControllerName: mockControllerName,
 				Manager:        reconciler,
-				Tracker:        tracker,
 				SDSServerHost:  "host",
 				SDSServerPort:  1,
 			}

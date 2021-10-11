@@ -2,7 +2,6 @@ package controllers
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -35,7 +34,6 @@ type GatewayReconciler struct {
 	SDSServerHost  string
 	SDSServerPort  int
 	ControllerName string
-	Tracker        reconciler.GatewayStatusTracker
 	Manager        reconciler.ReconcileManager
 }
 
@@ -64,8 +62,9 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		// If the gateway object has been deleted (and we get an IsNotFound
 		// error), we need to clean up the cached resources. Owned objects
 		// get deleted automatically
-		r.Manager.DeleteGateway(req.NamespacedName)
-		r.Tracker.DeleteStatus(req.NamespacedName)
+		if err := r.Manager.DeleteGateway(ctx, req.NamespacedName); err != nil {
+			return ctrl.Result{}, err
+		}
 		return ctrl.Result{}, nil
 	}
 
@@ -80,7 +79,9 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, nil
 	}
 
-	r.Manager.UpsertGateway(gw)
+	if err := r.Manager.UpsertGateway(ctx, gw); err != nil {
+		return ctrl.Result{}, err
+	}
 
 	// Check if the deployment already exists, if not create a new one
 	if err := r.ensureDeployment(ctx, gc, gw); err != nil {
@@ -88,43 +89,10 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, err
 	}
 
-	// update status based on pod
-	pod, err := r.Client.PodWithLabels(ctx, utils.LabelsForGateway(gw))
-	if err != nil {
-		if errors.Is(err, gatewayclient.ErrPodNotCreated) {
-			// the pod hasn't been created yet, just no-op since we'll
-			// eventually get the event from our Watch
-			logger.Trace("gateway deployment pod not yet created")
-			return ctrl.Result{}, nil
-		}
-		logger.Error("failed to get gateway deployment pod", "error", err)
-		return ctrl.Result{}, err
-	}
-	conditions := utils.MapGatewayConditionsFromPod(pod)
-	err = r.Tracker.UpdateStatus(req.NamespacedName, pod, conditions, func() error {
-		logger.Trace("gateway deployment pod status updated", "conditions", conditions)
-		gw.Status.Conditions = conditions
-		return r.Client.UpdateStatus(ctx, gw)
-	})
-	if err != nil {
-		logger.Error("failed to update gateway status", "error", err)
-		return ctrl.Result{}, err
-	}
-
 	return ctrl.Result{}, nil
 }
 
 func (r *GatewayReconciler) ensureDeployment(ctx context.Context, gc *gateway.GatewayClass, gw *gateway.Gateway) error {
-	deployment, err := r.Client.DeploymentForGateway(ctx, gw)
-	if err != nil {
-		return fmt.Errorf("failed to get deployment: %w", err)
-	}
-
-	if deployment != nil {
-		// we found a deployment, no-op
-		return nil
-	}
-
 	// no deployment exists, create deployment for the gateway
 	gcc, err := r.Client.GatewayClassConfigForGatewayClass(ctx, gc)
 	if err != nil {
@@ -135,30 +103,32 @@ func (r *GatewayReconciler) ensureDeployment(ctx context.Context, gc *gateway.Ga
 		gcc = &apigwv1alpha1.GatewayClassConfig{}
 	}
 
-	deployment = gcc.DeploymentFor(gw, apigwv1alpha1.SDSConfig{
+	deployment := gcc.DeploymentFor(gw, apigwv1alpha1.SDSConfig{
 		Host: r.SDSServerHost,
 		Port: r.SDSServerPort,
 	})
-	// Create service for the gateway
-	service := gcc.ServiceFor(gw)
 
-	// Set Gateway instance as the owner and controller
-	if err := r.Client.SetControllerOwnership(gw, deployment); err != nil {
-		return fmt.Errorf("failed to initialize gateway deployment: %w", err)
-	}
-	err = r.Client.CreateDeployment(ctx, deployment)
+	err = r.Client.CreateOrUpdateDeployment(ctx, deployment, func() error {
+		return r.Client.SetControllerOwnership(gw, deployment)
+	})
 	if err != nil {
 		return fmt.Errorf("failed to create new gateway deployment: %w", err)
 	}
 
+	// Create service for the gateway
+	service := gcc.ServiceFor(gw)
 	if service != nil {
-		// Set Service instance as the owner and controller
-		if err := r.Client.SetControllerOwnership(gw, service); err != nil {
-			return fmt.Errorf("failed to initialize gateway service: %w", err)
-		}
-		err = r.Client.CreateService(ctx, service)
+		err = r.Client.CreateOrUpdateService(ctx, service, func() error {
+			return r.Client.SetControllerOwnership(gw, service)
+		})
 		if err != nil {
 			return fmt.Errorf("failed to create gateway service: %w", err)
+		}
+	} else {
+		// ensure that any existing service is deleted
+		err = r.Client.DeleteService(ctx, gcc.EmptyServiceFor(gw))
+		if err != nil {
+			return fmt.Errorf("failed to clean up gateway service: %w", err)
 		}
 	}
 

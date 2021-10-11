@@ -35,6 +35,9 @@ nodes:
   - containerPort: 443
     hostPort: 443
     protocol: TCP
+  - containerPort: 8501
+    hostPort: 8501
+    protocol: TCP
   - containerPort: 8502
     hostPort: 8502
     protocol: TCP
@@ -160,9 +163,6 @@ server:
         "default_policy": "allow",
         "enable_token_persistence": true
       },
-      "ports": {
-        "grpc": 8502
-      },
       "connect": {
         "enabled": true
       }
@@ -183,8 +183,6 @@ ui:
       "nginx.ingress.kubernetes.io/ssl-passthrough": "true"
 EOF
   echo "Waiting for consul to stabilize"
-  kubectl patch statefulset consul-server --type='json' -p='[{"op": "add", "path": "/spec/template/spec/containers/0/ports/-", "value": {"containerPort": 8502, "protocol": "TCP", "name": "grpc"}}]'
-  kubectl patch svc consul-server --type='json' -p='[{"op": "add", "path": "/spec/ports/-", "value": {"port": 8502, "targetPort": 8502, "protocol": "TCP", "name": "grpc"}}]'
   sleep 10
   kubectl wait --for=condition=ready pod --selector=app=consul,component=server,release=consul --timeout=90s
   echo "Consul is now accessible at https://localhost"
@@ -266,7 +264,7 @@ main() {
     export CONSUL_HTTP_TOKEN=$(cat token)
     go build
     ./consul-api-gateway server \
-      -ca-secret consul-ca-cert -consul-address https://localhost \
+      -ca-secret consul-ca-cert -consul-address https://localhost:8501 \
       -sds-server-host host.docker.internal -sds-server-port 9090 \
       -metrics-port 9091 -pprof-port 9092 -log-level trace
     echo "To re-run the server run './scripts/develop -s'"

@@ -37,7 +37,7 @@ func (p *podStatus) isUpdate(conditions []meta.Condition) bool {
 // based on the status of an underlying deployed pod.
 type GatewayStatusTracker interface {
 	// UpdateStatus should call the given callback if a pod status has been updated.
-	UpdateStatus(name types.NamespacedName, pod *core.Pod, conditions []meta.Condition, cb func() error) error
+	UpdateStatus(name types.NamespacedName, pod *core.Pod, conditions []meta.Condition, force bool, cb func() error) error
 	// DeleteStatus cleans up the status tracking for the given gateway
 	DeleteStatus(name types.NamespacedName)
 }
@@ -57,9 +57,17 @@ func NewStatusTracker() *StatusTracker {
 // it does this so that it internally holds a synchronized mutex in order for
 // updates to be consistent with the state of its internal cache. Any errors
 // returned come from the callback.
-func (p *StatusTracker) UpdateStatus(name types.NamespacedName, pod *core.Pod, conditions []meta.Condition, cb func() error) error {
+func (p *StatusTracker) UpdateStatus(name types.NamespacedName, pod *core.Pod, conditions []meta.Condition, force bool, cb func() error) error {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
+
+	if pod == nil {
+		// we have no pod, don't cache anything
+		if force {
+			return cb()
+		}
+		return nil
+	}
 
 	status, found := p.statuses[name]
 	if !found {
@@ -77,7 +85,6 @@ func (p *StatusTracker) UpdateStatus(name types.NamespacedName, pod *core.Pod, c
 		// we have an old pod that's checking in, just ignore it
 		return nil
 	}
-	// we only care about the current generation of pod updates or higher
 	isCurrentGeneration := pod.Generation >= status.generation
 	newerPod := pod.CreationTimestamp.After(status.createdAt.Time)
 	if newerPod || (isCurrentGeneration && status.isUpdate(conditions)) {
@@ -88,6 +95,8 @@ func (p *StatusTracker) UpdateStatus(name types.NamespacedName, pod *core.Pod, c
 		status.generation = pod.Generation
 		status.conditions = conditions
 		return nil
+	} else if force {
+		return cb()
 	}
 	// we have no update, just no-op
 	return nil

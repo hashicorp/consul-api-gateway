@@ -9,13 +9,12 @@ import (
 	reflect "reflect"
 
 	gomock "github.com/golang/mock/gomock"
+	v1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 	v1 "k8s.io/api/apps/v1"
 	v10 "k8s.io/api/core/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	client "sigs.k8s.io/controller-runtime/pkg/client"
 	v1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
-
-	v1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 )
 
 // MockClient is a mock of Client interface.
@@ -41,32 +40,56 @@ func (m *MockClient) EXPECT() *MockClientMockRecorder {
 	return m.recorder
 }
 
-// CreateDeployment mocks base method.
-func (m *MockClient) CreateDeployment(ctx context.Context, deployment *v1.Deployment) error {
+// CreateOrUpdateDeployment mocks base method.
+func (m *MockClient) CreateOrUpdateDeployment(ctx context.Context, deployment *v1.Deployment, mutators ...func() error) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateDeployment", ctx, deployment)
+	varargs := []interface{}{ctx, deployment}
+	for _, a := range mutators {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "CreateOrUpdateDeployment", varargs...)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// CreateDeployment indicates an expected call of CreateDeployment.
-func (mr *MockClientMockRecorder) CreateDeployment(ctx, deployment interface{}) *gomock.Call {
+// CreateOrUpdateDeployment indicates an expected call of CreateOrUpdateDeployment.
+func (mr *MockClientMockRecorder) CreateOrUpdateDeployment(ctx, deployment interface{}, mutators ...interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateDeployment", reflect.TypeOf((*MockClient)(nil).CreateDeployment), ctx, deployment)
+	varargs := append([]interface{}{ctx, deployment}, mutators...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateOrUpdateDeployment", reflect.TypeOf((*MockClient)(nil).CreateOrUpdateDeployment), varargs...)
 }
 
-// CreateService mocks base method.
-func (m *MockClient) CreateService(ctx context.Context, service *v10.Service) error {
+// CreateOrUpdateService mocks base method.
+func (m *MockClient) CreateOrUpdateService(ctx context.Context, service *v10.Service, mutators ...func() error) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateService", ctx, service)
+	varargs := []interface{}{ctx, service}
+	for _, a := range mutators {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "CreateOrUpdateService", varargs...)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// CreateService indicates an expected call of CreateService.
-func (mr *MockClientMockRecorder) CreateService(ctx, service interface{}) *gomock.Call {
+// CreateOrUpdateService indicates an expected call of CreateOrUpdateService.
+func (mr *MockClientMockRecorder) CreateOrUpdateService(ctx, service interface{}, mutators ...interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateService", reflect.TypeOf((*MockClient)(nil).CreateService), ctx, service)
+	varargs := append([]interface{}{ctx, service}, mutators...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateOrUpdateService", reflect.TypeOf((*MockClient)(nil).CreateOrUpdateService), varargs...)
+}
+
+// DeleteService mocks base method.
+func (m *MockClient) DeleteService(ctx context.Context, service *v10.Service) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteService", ctx, service)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteService indicates an expected call of DeleteService.
+func (mr *MockClientMockRecorder) DeleteService(ctx, service interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteService", reflect.TypeOf((*MockClient)(nil).DeleteService), ctx, service)
 }
 
 // DeploymentForGateway mocks base method.
@@ -217,6 +240,36 @@ func (m *MockClient) GetHTTPRoute(ctx context.Context, key types.NamespacedName)
 func (mr *MockClientMockRecorder) GetHTTPRoute(ctx, key interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHTTPRoute", reflect.TypeOf((*MockClient)(nil).GetHTTPRoute), ctx, key)
+}
+
+// GetSecret mocks base method.
+func (m *MockClient) GetSecret(ctx context.Context, key types.NamespacedName) (*v10.Secret, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetSecret", ctx, key)
+	ret0, _ := ret[0].(*v10.Secret)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetSecret indicates an expected call of GetSecret.
+func (mr *MockClientMockRecorder) GetSecret(ctx, key interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSecret", reflect.TypeOf((*MockClient)(nil).GetSecret), ctx, key)
+}
+
+// GetService mocks base method.
+func (m *MockClient) GetService(ctx context.Context, key types.NamespacedName) (*v10.Service, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetService", ctx, key)
+	ret0, _ := ret[0].(*v10.Service)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetService indicates an expected call of GetService.
+func (mr *MockClientMockRecorder) GetService(ctx, key interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetService", reflect.TypeOf((*MockClient)(nil).GetService), ctx, key)
 }
 
 // IsManagedRoute mocks base method.
