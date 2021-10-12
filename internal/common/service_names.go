@@ -48,7 +48,7 @@ func (i *ServiceNameIndex) Diff(other *ServiceNameIndex) (added []api.CompoundSe
 }
 
 func (i *ServiceNameIndex) All() []api.CompoundServiceName {
-	result := make([]api.CompoundServiceName, len(i.idx))
+	var result []api.CompoundServiceName
 	for name := range i.idx {
 		result = append(result, name)
 	}

@@ -17,26 +17,29 @@ import (
 )
 
 type syncState struct {
-	routers   *consul.ConfigEntryIndex
-	splitters *consul.ConfigEntryIndex
-	defaults  *consul.ConfigEntryIndex
+	routers    *consul.ConfigEntryIndex
+	splitters  *consul.ConfigEntryIndex
+	defaults   *consul.ConfigEntryIndex
+	intentions *consul.IntentionsReconciler
 }
 
 type ConsulSyncAdapter struct {
 	logger hclog.Logger
 	consul *api.Client
 
-	sync  map[core.GatewayID]syncState
-	mutex sync.Mutex
+	sync       map[core.GatewayID]syncState
+	intentions map[core.GatewayID]*consul.IntentionsReconciler
+	mutex      sync.Mutex
 }
 
 var _ core.SyncAdapter = &ConsulSyncAdapter{}
 
-func NewConsulSyncAdapter(logger hclog.Logger, consul *api.Client) *ConsulSyncAdapter {
+func NewConsulSyncAdapter(logger hclog.Logger, consulClient *api.Client) *ConsulSyncAdapter {
 	return &ConsulSyncAdapter{
-		logger: logger,
-		consul: consul,
-		sync:   make(map[core.GatewayID]syncState),
+		logger:     logger,
+		consul:     consulClient,
+		sync:       make(map[core.GatewayID]syncState),
+		intentions: make(map[core.GatewayID]*consul.IntentionsReconciler),
 	}
 }
 
@@ -430,6 +433,19 @@ func (a *ConsulSyncAdapter) setEntriesForGateway(gateway core.ResolvedGateway, r
 	}
 }
 
+func (a *ConsulSyncAdapter) syncIntentionsForGateway(gateway core.GatewayID) {
+	if a.intentions[gateway] == nil {
+		a.intentions[gateway] = consul.NewIntentionsReconciler(a.consul, gateway, a.logger)
+	}
+}
+
+func (a *ConsulSyncAdapter) stopIntentionSyncForGateway(gw core.GatewayID) {
+	if ir, ok := a.intentions[gw]; ok {
+		ir.Stop()
+		delete(a.intentions, gw)
+	}
+}
+
 func (a *ConsulSyncAdapter) Clear(ctx context.Context, id core.GatewayID) error {
 	a.mutex.Lock()
 	defer a.mutex.Unlock()
@@ -479,8 +495,8 @@ func (a *ConsulSyncAdapter) Clear(ctx context.Context, id core.GatewayID) error 
 		return fmt.Errorf("error removing ingress config entry: %w", err)
 	}
 
+	a.stopIntentionSyncForGateway(id)
 	delete(a.sync, id)
-
 	return nil
 }
 
@@ -555,6 +571,7 @@ func (a *ConsulSyncAdapter) Sync(ctx context.Context, gateway core.ResolvedGatew
 	}
 
 	a.setEntriesForGateway(gateway, computedRouters, computedSplitters, computedDefaults)
+	a.syncIntentionsForGateway(gateway.ID)
 
 	return nil
 }

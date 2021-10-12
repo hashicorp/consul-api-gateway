@@ -1,7 +1,6 @@
-package reconciler
+package consul
 
 import (
-	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -9,6 +8,7 @@ import (
 	"github.com/cenkalti/backoff"
 
 	"github.com/hashicorp/consul-api-gateway/internal/common"
+	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
 )
@@ -35,9 +35,9 @@ type consulConfigEntries interface {
 type IntentionsReconciler struct {
 	consulDisco    consulDiscoveryChains
 	consulConfig   consulConfigEntries
-	serviceName    api.CompoundServiceName
-	ctx            context.Context
+	serviceName    core.GatewayID
 	discoChainChan <-chan *api.CompiledDiscoveryChain
+	stopCh         chan struct{}
 
 	targetIndex      *common.ServiceNameIndex
 	targetTombstones *common.ServiceNameIndex
@@ -45,25 +45,33 @@ type IntentionsReconciler struct {
 	logger hclog.Logger
 }
 
-func NewIntentionsReconciler(ctx context.Context, consul *api.Client, igw api.CompoundServiceName, logger hclog.Logger) *IntentionsReconciler {
-	r := &IntentionsReconciler{
-		consulDisco:      consul.DiscoveryChain(),
-		consulConfig:     consul.ConfigEntries(),
-		serviceName:      igw,
-		ctx:              ctx,
+func NewIntentionsReconciler(consul *api.Client, id core.GatewayID, logger hclog.Logger) *IntentionsReconciler {
+	r := newIntentionsReconciler(consul.DiscoveryChain(), consul.ConfigEntries(), id, logger)
+	r.discoChainChan = r.watchDiscoveryChain()
+	go r.reconcileLoop()
+	return r
+}
+
+func newIntentionsReconciler(disco consulDiscoveryChains, config consulConfigEntries, id core.GatewayID, logger hclog.Logger) *IntentionsReconciler {
+	return &IntentionsReconciler{
+		consulDisco:      disco,
+		consulConfig:     config,
+		serviceName:      id,
+		stopCh:           make(chan struct{}),
 		targetIndex:      common.NewServiceNameIndex(),
 		targetTombstones: common.NewServiceNameIndex(),
 		logger:           logger,
 	}
-	go r.reconcileLoop()
-	return r
+}
+func (r *IntentionsReconciler) Stop() {
+	close(r.stopCh)
 }
 
 // sourceIntention builds the api gateway source rule for updating intentions
 func (r *IntentionsReconciler) sourceIntention() *api.SourceIntention {
 	return &api.SourceIntention{
-		Name:        r.serviceName.Name,
-		Namespace:   r.serviceName.Namespace,
+		Name:        r.serviceName.Service,
+		Namespace:   r.serviceName.ConsulNamespace,
 		Action:      api.IntentionActionAllow,
 		Description: fmt.Sprintf("Allow traffic from Consul API Gateway. reconciled by controller at %s", time.Now().Format(time.RFC3339)),
 	}
@@ -73,11 +81,10 @@ func (r *IntentionsReconciler) sourceIntention() *api.SourceIntention {
 // If the background blocking query completes, the chain is sent over the discoChainChan and is handled by the loop.
 // A ticker fires every 60s to do sync of any intentions that failed to sync during an update
 func (r *IntentionsReconciler) reconcileLoop() {
-	r.watchDiscoveryChain()
 	timer := time.NewTicker(intentionSyncInterval)
 	for {
 		select {
-		case <-r.ctx.Done():
+		case <-r.stopCh:
 			return
 		case chain := <-r.discoChainChan:
 			r.handleChain(chain)
@@ -107,7 +114,7 @@ func (r *IntentionsReconciler) syncIntentions() {
 func (r *IntentionsReconciler) handleChain(chain *api.CompiledDiscoveryChain) {
 	newTargetIndex := common.NewServiceNameIndex()
 	for _, target := range chain.Targets {
-		newTargetIndex.Add(api.CompoundServiceName{Name: target.Service, Namespace: target.Namespace})
+		newTargetIndex.Add(api.CompoundServiceName{Name: target.Name, Namespace: target.Namespace})
 	}
 
 	added, removed := r.targetIndex.Diff(newTargetIndex)
@@ -131,12 +138,12 @@ func (r *IntentionsReconciler) handleChain(chain *api.CompiledDiscoveryChain) {
 }
 
 // watchDiscoveryChain uses blocking queries to poll for changes in the services discovery chain
-func (r *IntentionsReconciler) watchDiscoveryChain() {
+func (r *IntentionsReconciler) watchDiscoveryChain() <-chan *api.CompiledDiscoveryChain {
 	results := make(chan *api.CompiledDiscoveryChain)
 	go func() {
 		var index uint64
 		for {
-			resp, meta, err := r.consulDisco.Get(r.serviceName.Name, nil, &api.QueryOptions{WaitIndex: index, Namespace: r.serviceName.Namespace})
+			resp, meta, err := r.consulDisco.Get(r.serviceName.Service, nil, &api.QueryOptions{WaitIndex: index, Namespace: r.serviceName.ConsulNamespace})
 			if err != nil {
 				r.logger.Warn("blocking query for gateway discovery chain failed", "error", err)
 				continue
@@ -147,14 +154,14 @@ func (r *IntentionsReconciler) watchDiscoveryChain() {
 				index = meta.LastIndex
 			}
 			select {
-			case <-r.ctx.Done():
+			case <-r.stopCh:
 				close(results)
 				return
 			case results <- resp.Chain:
 			}
 		}
 	}()
-	r.discoChainChan = results
+	return results
 }
 
 func (r *IntentionsReconciler) updateIntentionSources(name api.CompoundServiceName, toAdd, toRemove *api.SourceIntention) error {
