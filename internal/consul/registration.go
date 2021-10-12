@@ -2,7 +2,9 @@ package consul
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/cenkalti/backoff"
@@ -28,21 +30,27 @@ type ServiceRegistry struct {
 	namespace string
 	host      string
 
-	tries           uint64
-	backoffInterval time.Duration
+	stop                   chan struct{}
+	stopped                chan struct{}
+	tries                  uint64
+	backoffInterval        time.Duration
+	reregistrationInterval time.Duration
 }
 
 // NewServiceRegistry creates a new service registry instance
 func NewServiceRegistry(logger hclog.Logger, consul *api.Client, service, namespace, host string) *ServiceRegistry {
 	return &ServiceRegistry{
-		logger:          logger,
-		consul:          consul,
-		id:              uuid.New().String(),
-		name:            service,
-		namespace:       namespace,
-		host:            host,
-		tries:           defaultMaxAttempts,
-		backoffInterval: defaultBackoffInterval,
+		logger:                 logger,
+		consul:                 consul,
+		id:                     uuid.New().String(),
+		name:                   service,
+		namespace:              namespace,
+		host:                   host,
+		tries:                  defaultMaxAttempts,
+		backoffInterval:        defaultBackoffInterval,
+		reregistrationInterval: 30 * time.Second,
+		stop:                   make(chan struct{}),
+		stopped:                make(chan struct{}),
 	}
 }
 
@@ -54,6 +62,46 @@ func (s *ServiceRegistry) WithTries(tries uint64) *ServiceRegistry {
 
 // Register registers a service with Consul.
 func (s *ServiceRegistry) Register(ctx context.Context) error {
+	if err := s.retryRegistration(ctx); err != nil {
+		return err
+	}
+	go func() {
+		defer close(s.stopped)
+
+		for {
+			select {
+			case <-time.After(s.reregistrationInterval):
+				s.ensureRegistration(ctx)
+			case <-s.stop:
+				return
+			}
+		}
+	}()
+
+	return nil
+}
+
+func (s *ServiceRegistry) ensureRegistration(ctx context.Context) {
+	_, _, err := s.consul.Agent().Service(s.id, &api.QueryOptions{
+		Namespace: s.namespace,
+	})
+	if err == nil {
+		return
+	}
+
+	var statusError *api.StatusError
+	if errors.As(err, &statusError) {
+		if statusError.Code == http.StatusNotFound {
+			if err := s.retryRegistration(ctx); err != nil {
+				s.logger.Error("error registering service", "error", err)
+				return
+			}
+		}
+	}
+	s.logger.Error("error fetching service", "error", err)
+}
+
+func (s *ServiceRegistry) retryRegistration(ctx context.Context) error {
 	return backoff.Retry(func() error {
 		err := s.register(ctx)
 		if err != nil {
@@ -85,6 +133,9 @@ func (s *ServiceRegistry) register(ctx context.Context) error {
 
 // Deregister de-registers a service from Consul.
 func (s *ServiceRegistry) Deregister(ctx context.Context) error {
+	close(s.stop)
+	<-s.stopped
+
 	return backoff.Retry(func() error {
 		err := s.deregister(ctx)
 		if err != nil {
