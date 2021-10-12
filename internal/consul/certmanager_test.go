@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -28,39 +29,14 @@ func TestManage(t *testing.T) {
 		name         string
 		leafFailures uint64
 		rootFailures uint64
-		maxRetries   uint64
-		fail         bool
 	}{{
 		name: "test-basic",
 	}, {
 		name:         "test-leaf-retries",
-		leafFailures: 3,
-		maxRetries:   3,
+		leafFailures: 1,
 	}, {
 		name:         "test-root-retries",
-		rootFailures: 3,
-		maxRetries:   3,
-	}, {
-		name:         "test-mix-retries",
-		leafFailures: 2,
 		rootFailures: 1,
-		maxRetries:   3,
-	}, {
-		name:         "test-leaf-retry-failures",
-		leafFailures: 3,
-		maxRetries:   2,
-		fail:         true,
-	}, {
-		name:         "test-root-retry-failures",
-		rootFailures: 3,
-		maxRetries:   2,
-		fail:         true,
-	}, {
-		name:         "test-mix-retry-failures",
-		leafFailures: 2,
-		rootFailures: 3,
-		maxRetries:   2,
-		fail:         true,
 	}} {
 		t.Run(test.name, func(t *testing.T) {
 			directory, err := os.MkdirTemp("", gwTesting.RandomString())
@@ -72,10 +48,8 @@ func TestManage(t *testing.T) {
 
 			options := DefaultCertManagerOptions()
 			options.Directory = directory
-			options.Tries = test.maxRetries
 
 			manager := NewCertManager(hclog.NewNullLogger(), server.consul, service, options)
-			manager.backoffInterval = 0
 
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
@@ -89,7 +63,7 @@ func TestManage(t *testing.T) {
 
 			finished := make(chan struct{})
 			go func() {
-				ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+				ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
 				defer cancel()
 
 				if err := manager.WaitForWrite(ctx); err != nil {
@@ -101,10 +75,6 @@ func TestManage(t *testing.T) {
 
 			select {
 			case err := <-managerErr:
-				if test.fail {
-					require.Error(t, err)
-					return
-				}
 				require.NoError(t, err)
 			case <-finished:
 			}
@@ -138,17 +108,16 @@ func TestManage_Refresh(t *testing.T) {
 
 	options := DefaultCertManagerOptions()
 	manager := NewCertManager(hclog.NewNullLogger(), server.consul, service, options)
-	manager.backoffInterval = 0
 
 	writes := int32(0)
-	manager.writeCerts = func(root *api.CARoot, client *api.LeafCert) error {
+	manager.writeCerts = func() error {
 		numWrites := atomic.AddInt32(&writes, 1)
 		if numWrites == 3 {
+			require.Equal(t, server.fakeRootCertPEM, string(manager.ca))
+			require.Equal(t, server.fakeClientCert, string(manager.certificate))
+			require.Equal(t, server.fakeClientPrivateKey, string(manager.privateKey))
 			close(manager.initializeSignal)
 		}
-		require.Equal(t, server.fakeRootCertPEM, root.RootCertPEM)
-		require.Equal(t, server.fakeClientCert, client.CertPEM)
-		require.Equal(t, server.fakeClientPrivateKey, client.PrivateKeyPEM)
 		return nil
 	}
 
@@ -201,6 +170,13 @@ func runCertServer(t *testing.T, leafFailures, rootFailures uint64, service stri
 	t.Helper()
 
 	ca, _, clientCert := gwTesting.DefaultCertificates()
+	expiredCert, err := gwTesting.GenerateSignedCertificate(gwTesting.GenerateCertificateOptions{
+		CA:          ca,
+		ServiceName: "client",
+		Expiration:  time.Now().Add(-10 * time.Minute),
+	})
+	require.NoError(t, err)
+
 	server := &certServer{
 		fakeRootCertPEM:      string(ca.CertBytes),
 		fakeClientCert:       string(clientCert.CertBytes),
@@ -211,12 +187,21 @@ func runCertServer(t *testing.T, leafFailures, rootFailures uint64, service stri
 	consulServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		leafPath := fmt.Sprintf("/v1/agent/connect/ca/leaf/%s", service)
 		rootPath := "/v1/agent/connect/ca/roots"
-		if r != nil && r.URL.Path == leafPath && r.Method == "GET" {
+		meta := map[string]string{
+			"X-Consul-Index": "1",
+		}
+
+		if r != nil && strings.HasPrefix(r.URL.Path, leafPath) && r.Method == "GET" {
 			var expiration string
+			clientCert := server.fakeClientCert
+			clientPrivateKey := server.fakeClientPrivateKey
 			if expirations == 0 {
-				expiration = time.Now().Add(10 * time.Minute).Format(time.RFC3339)
+				meta["X-Consul-Index"] = "2"
+				expiration = time.Now().Add(-10 * time.Minute).Format(time.RFC3339)
 			} else {
 				expiration = time.Now().Format(time.RFC3339)
+				clientCert = string(expiredCert.CertBytes)
+				clientPrivateKey = string(expiredCert.PrivateKeyBytes)
 				expirations--
 			}
 			if leafFailures > 0 {
@@ -225,16 +210,19 @@ func runCertServer(t *testing.T, leafFailures, rootFailures uint64, service stri
 				return
 			}
 			leafCert, err := json.Marshal(map[string]interface{}{
-				"CertPEM":       server.fakeClientCert,
-				"PrivateKeyPEM": server.fakeClientPrivateKey,
+				"CertPEM":       clientCert,
+				"PrivateKeyPEM": clientPrivateKey,
 				"ValidBefore":   expiration,
 			})
+			for k, v := range meta {
+				w.Header().Add(k, v)
+			}
 			require.NoError(t, err)
 			_, err = w.Write([]byte(leafCert))
 			require.NoError(t, err)
 			return
 		}
-		if r != nil && r.URL.Path == rootPath && r.Method == "GET" {
+		if r != nil && strings.HasPrefix(r.URL.Path, rootPath) && r.Method == "GET" {
 			if rootFailures > 0 {
 				rootFailures--
 				w.WriteHeader(http.StatusInternalServerError)
@@ -247,6 +235,9 @@ func runCertServer(t *testing.T, leafFailures, rootFailures uint64, service stri
 				}},
 			})
 			require.NoError(t, err)
+			for k, v := range meta {
+				w.Header().Add(k, v)
+			}
 			_, err = w.Write([]byte(rootCert))
 			require.NoError(t, err)
 			return

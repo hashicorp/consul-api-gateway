@@ -93,6 +93,7 @@ type GenerateCertificateOptions struct {
 	SPIFFEHostOverride string
 	SPIFFEPathOverride string
 	ExtraSANs          []string
+	Expiration         time.Time
 }
 
 // GenerateSignedCertificate generates a certificate with the given options
@@ -110,6 +111,10 @@ func GenerateSignedCertificate(options GenerateCertificateOptions) (*Certificate
 	if options.CA != nil {
 		spiffe = getSVIDServiceURI(options.CA.spiffe, options.SPIFFEHostOverride, options.SPIFFEPathOverride, options.ServiceName)
 	}
+	expiration := options.Expiration
+	if expiration.IsZero() {
+		expiration = time.Now().AddDate(10, 0, 0)
+	}
 	cert := &x509.Certificate{
 		SerialNumber: big.NewInt(1),
 		URIs:         []*url.URL{spiffe},
@@ -125,7 +130,7 @@ func GenerateSignedCertificate(options GenerateCertificateOptions) (*Certificate
 		IsCA:                  options.IsCA,
 		IPAddresses:           []net.IP{net.IPv4(127, 0, 0, 1), net.IPv6loopback},
 		NotBefore:             time.Now().Add(-10 * time.Minute),
-		NotAfter:              time.Now().AddDate(10, 0, 0),
+		NotAfter:              expiration,
 		SubjectKeyId:          []byte{1, 2, 3, 4, 6},
 		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
 		KeyUsage:              usage,
