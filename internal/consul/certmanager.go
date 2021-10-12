@@ -5,8 +5,10 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/pem"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path"
 	"sync"
@@ -113,6 +115,7 @@ type CertManager struct {
 	privateKey          []byte
 	tlsCertificate      *tls.Certificate
 	rootCertificatePool *x509.CertPool
+	spiffeURL           *url.URL
 
 	// watches
 	rootWatch *watch.Plan
@@ -158,6 +161,18 @@ func (c *CertManager) handleRootWatch(blockParam watch.BlockingParamVal, raw int
 	for _, root := range v.Roots {
 		roots.AppendCertsFromPEM([]byte(root.RootCertPEM))
 		if root.Active {
+			block, _ := pem.Decode([]byte(root.RootCertPEM))
+			caCert, err := x509.ParseCertificate(block.Bytes)
+			if err != nil {
+				c.logger.Error("failed to parse root certificate")
+				return
+			}
+			for _, uri := range caCert.URIs {
+				if uri.Scheme == "spiffe" {
+					c.spiffeURL = uri
+					break
+				}
+			}
 			c.ca = []byte(root.RootCertPEM)
 		}
 	}
@@ -282,6 +297,13 @@ func (c *CertManager) RootPool() *x509.CertPool {
 	defer c.lock.RUnlock()
 
 	return c.rootCertificatePool
+}
+
+func (c *CertManager) SPIFFE() *url.URL {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+
+	return c.spiffeURL
 }
 
 // Certificate returns the current leaf cert

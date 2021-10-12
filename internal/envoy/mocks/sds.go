@@ -6,6 +6,8 @@ package mocks
 
 import (
 	tls "crypto/tls"
+	x509 "crypto/x509"
+	url "net/url"
 	reflect "reflect"
 
 	gomock "github.com/golang/mock/gomock"
@@ -34,18 +36,32 @@ func (m *MockCertificateFetcher) EXPECT() *MockCertificateFetcherMockRecorder {
 	return m.recorder
 }
 
-// RootCA mocks base method.
-func (m *MockCertificateFetcher) RootCA() []byte {
+// RootPool mocks base method.
+func (m *MockCertificateFetcher) RootPool() *x509.CertPool {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RootCA")
-	ret0, _ := ret[0].([]byte)
+	ret := m.ctrl.Call(m, "RootPool")
+	ret0, _ := ret[0].(*x509.CertPool)
 	return ret0
 }
 
-// RootCA indicates an expected call of RootCA.
-func (mr *MockCertificateFetcherMockRecorder) RootCA() *gomock.Call {
+// RootPool indicates an expected call of RootPool.
+func (mr *MockCertificateFetcherMockRecorder) RootPool() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RootCA", reflect.TypeOf((*MockCertificateFetcher)(nil).RootCA))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RootPool", reflect.TypeOf((*MockCertificateFetcher)(nil).RootPool))
+}
+
+// SPIFFE mocks base method.
+func (m *MockCertificateFetcher) SPIFFE() *url.URL {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SPIFFE")
+	ret0, _ := ret[0].(*url.URL)
+	return ret0
+}
+
+// SPIFFE indicates an expected call of SPIFFE.
+func (mr *MockCertificateFetcherMockRecorder) SPIFFE() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SPIFFE", reflect.TypeOf((*MockCertificateFetcher)(nil).SPIFFE))
 }
 
 // TLSCertificate mocks base method.

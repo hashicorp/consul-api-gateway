@@ -63,9 +63,9 @@ type GatewaySecretRegistry interface {
 // and sets the client identidy on the request context. If no
 // spiffe information is detected, or if the service is unknown,
 // the request is rejected.
-func SPIFFEStreamMiddleware(logger hclog.Logger, spiffeCA *url.URL, registry GatewaySecretRegistry) grpc.StreamServerInterceptor {
+func SPIFFEStreamMiddleware(logger hclog.Logger, fetcher CertificateFetcher, registry GatewaySecretRegistry) grpc.StreamServerInterceptor {
 	return func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
-		if info, ok := verifySPIFFE(ss.Context(), logger, spiffeCA, registry); ok {
+		if info, ok := verifySPIFFE(ss.Context(), logger, fetcher.SPIFFE(), registry); ok {
 			return handler(srv, wrapStream(ss, info))
 		}
 		return status.Errorf(codes.Unauthenticated, "unable to authenticate request")

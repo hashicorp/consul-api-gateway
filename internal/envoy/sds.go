@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/pem"
 	"errors"
 	"fmt"
 	"net"
@@ -41,7 +40,8 @@ var logOnce sync.Once
 // CertificateFetcher is used to fetch the CA and server certificate
 // that the server should use for TLS
 type CertificateFetcher interface {
-	RootCA() []byte
+	SPIFFE() *url.URL
+	RootPool() *x509.CertPool
 	TLSCertificate() *tls.Certificate
 }
 
@@ -77,36 +77,27 @@ func (s *SDSServer) Run(ctx context.Context) error {
 		grpclog.SetLoggerV2(grpcint.NewHCLogLogger(s.logger))
 	})
 
-	ca := s.fetcher.RootCA()
-	block, _ := pem.Decode(ca)
-	caCert, err := x509.ParseCertificate(block.Bytes)
-	if err != nil {
-		return fmt.Errorf("failed to add server CA's certificate: %w", err)
-	}
-	certPool := x509.NewCertPool()
-	certPool.AddCert(caCert)
-
-	var spiffeRootCA *url.URL
-	for _, uri := range caCert.URIs {
-		if uri.Scheme == "spiffe" {
-			spiffeRootCA = uri
-			break
-		}
-	}
-	if spiffeRootCA == nil {
-		return errors.New("root CA must have spiffe URI")
-	}
-
 	opts := []grpc.ServerOption{
 		grpc.MaxConcurrentStreams(2048),
 		grpc.Creds(credentials.NewTLS(&tls.Config{
-			GetCertificate: func(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
-				return s.fetcher.TLSCertificate(), nil
+			GetConfigForClient: func(hello *tls.ClientHelloInfo) (*tls.Config, error) {
+				certificate := s.fetcher.TLSCertificate()
+				if certificate == nil {
+					return nil, errors.New("unable to get server certificate")
+				}
+				pool := s.fetcher.RootPool()
+				if pool == nil {
+					return nil, errors.New("unable to get CA pool")
+				}
+				return &tls.Config{
+					Certificates: []tls.Certificate{*certificate},
+					ClientCAs:    pool,
+					ClientAuth:   tls.RequireAndVerifyClientCert,
+				}, nil
 			},
-			ClientCAs:  certPool,
 			ClientAuth: tls.RequireAndVerifyClientCert,
 		})),
-		grpc.StreamInterceptor(SPIFFEStreamMiddleware(s.logger, spiffeRootCA, s.gatewayRegistry)),
+		grpc.StreamInterceptor(SPIFFEStreamMiddleware(s.logger, s.fetcher, s.gatewayRegistry)),
 	}
 	s.server = grpc.NewServer(opts...)
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/pem"
 	"errors"
 	"os"
 	"path"
@@ -239,7 +240,16 @@ func runTestServer(t *testing.T, ca []byte, registryFn func(*gomock.Controller) 
 	connectionAddress := "unix://" + serverAddress
 	fetcher := mocks.NewMockCertificateFetcher(ctrl)
 	secretClient := mocks.NewMockSecretClient(ctrl)
-	fetcher.EXPECT().RootCA().Return(ca)
+
+	block, _ := pem.Decode(ca)
+	caCert, err := x509.ParseCertificate(block.Bytes)
+	require.NoError(t, err)
+	certPool := x509.NewCertPool()
+	certPool.AddCert(caCert)
+	spiffe := caCert.URIs[0]
+
+	fetcher.EXPECT().SPIFFE().AnyTimes().Return(spiffe)
+	fetcher.EXPECT().RootPool().AnyTimes().Return(certPool)
 	secretClient.EXPECT().FetchSecret(gomock.Any(), "test").AnyTimes().Return(&envoyTLS.Secret{
 		Name: "test",
 	}, time.Now(), nil)
