@@ -28,13 +28,13 @@ jobs:
       uses: actions/cache@v2
       with:
         path: ${{ steps.go-cache-paths.outputs.go-build-cache }}
-        key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}
+        key: ${{ runner.os }}-go-build-path-${{ hashFiles('**/go.sum') }}
 
     - name: Go Mod Cache
       uses: actions/cache@v2
       with:
         path: ${{ steps.go-cache-paths.outputs.go-mod-cache }}
-        key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}
+        key: ${{ runner.os }}-go-mod-path-${{ hashFiles('**/go.sum') }}
 
     - name: Test
       run: |
