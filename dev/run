@@ -81,7 +81,7 @@ buildAPIGateway() {
 
 buildDocker() {
   echo "Building local docker container"
-  docker build . -t consul-api-gateway:1 2>&1 > /dev/null
+  docker build . -f Dockerfile.local -t consul-api-gateway:1 2>&1 > /dev/null
 }
 
 loadDockerImage() {
