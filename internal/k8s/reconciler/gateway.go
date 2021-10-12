@@ -208,6 +208,7 @@ func (g *K8sGateway) ID() core.GatewayID {
 func (g *K8sGateway) Meta() map[string]string {
 	return map[string]string{
 		"managed_by":                               "consul-api-gateway",
+		"external-source":                          "consul-api-gateway",
 		"consul-api-gateway/k8s/Gateway.Name":      g.gateway.Name,
 		"consul-api-gateway/k8s/Gateway.Namespace": g.gateway.Namespace,
 	}
