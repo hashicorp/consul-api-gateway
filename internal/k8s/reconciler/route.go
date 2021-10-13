@@ -12,7 +12,6 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/service"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	"github.com/hashicorp/consul-api-gateway/internal/store"
-	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
@@ -32,7 +31,7 @@ type K8sRoute struct {
 	controllerName string
 	logger         hclog.Logger
 	client         gatewayclient.Client
-	consul         *api.Client
+	resolver       service.BackendResolver
 
 	references       service.RouteRuleReferenceMap
 	resolutionErrors *service.ResolutionErrors
@@ -46,7 +45,7 @@ type K8sRouteConfig struct {
 	ControllerName string
 	Logger         hclog.Logger
 	Client         gatewayclient.Client
-	Consul         *api.Client
+	Resolver       service.BackendResolver
 }
 
 func NewK8sRoute(route Route, config K8sRouteConfig) *K8sRoute {
@@ -55,7 +54,7 @@ func NewK8sRoute(route Route, config K8sRouteConfig) *K8sRoute {
 		controllerName:   config.ControllerName,
 		logger:           config.Logger.Named("route").With("name", route.GetName()),
 		client:           config.Client,
-		consul:           config.Consul,
+		resolver:         config.Resolver,
 		references:       service.RouteRuleReferenceMap{},
 		resolutionErrors: service.NewResolutionErrors(),
 		parentStatuses:   make(map[string]*RouteStatus),
@@ -225,6 +224,7 @@ func (r *K8sRoute) OnGatewayRemoved(gateway store.Gateway) {
 
 func (r *K8sRoute) SyncStatus(ctx context.Context) error {
 	if r.NeedsStatusUpdate() {
+		status := r.routeStatus()
 		r.SetStatus(r.MergedStatus())
 
 		if r.logger.IsTrace() {
@@ -234,6 +234,8 @@ func (r *K8sRoute) SyncStatus(ctx context.Context) error {
 			}
 		}
 		if err := r.client.UpdateStatus(ctx, r.Route); err != nil {
+			// reset the status so we sync again on a retry
+			r.SetStatus(status)
 			return fmt.Errorf("error updating route status: %w", err)
 		}
 	}
@@ -332,14 +334,12 @@ func (r *K8sRoute) Parents() []gw.ParentRef {
 }
 
 func (r *K8sRoute) Validate(ctx context.Context) error {
-	resolver := service.NewBackendResolver(r.GetNamespace(), r.client, r.consul)
-
 	switch route := r.Route.(type) {
 	case *gw.HTTPRoute:
 		for _, rule := range route.Spec.Rules {
 			routeRule := service.NewRouteRule(&rule)
 			for _, ref := range rule.BackendRefs {
-				reference, err := resolver.Resolve(ctx, ref.BackendObjectReference)
+				reference, err := r.resolver.Resolve(ctx, ref.BackendObjectReference)
 				if err != nil {
 					var resolutionError service.ResolutionError
 					if !errors.As(err, &resolutionError) {
@@ -352,8 +352,6 @@ func (r *K8sRoute) Validate(ctx context.Context) error {
 				r.references.Add(routeRule, *reference)
 			}
 		}
-	default:
-		return nil
 	}
 
 	return nil

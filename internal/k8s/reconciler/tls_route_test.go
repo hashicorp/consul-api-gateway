@@ -8,5 +8,7 @@ import (
 )
 
 func TestTLSRouteID(t *testing.T) {
+	t.Parallel()
+
 	require.Equal(t, "tls-namespace/name", TLSRouteID(types.NamespacedName{Namespace: "namespace", Name: "name"}))
 }

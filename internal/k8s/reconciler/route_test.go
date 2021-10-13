@@ -1,9 +1,17 @@
 package reconciler
 
 import (
+	"context"
 	"errors"
+	"io"
 	"testing"
 
+	"github.com/golang/mock/gomock"
+	clientMocks "github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient/mocks"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/service"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/service/mocks"
+	"github.com/hashicorp/consul-api-gateway/internal/store"
+	storeMocks "github.com/hashicorp/consul-api-gateway/internal/store/mocks"
 	"github.com/hashicorp/go-hclog"
 	"github.com/stretchr/testify/require"
 	core "k8s.io/api/core/v1"
@@ -12,6 +20,8 @@ import (
 )
 
 func TestRouteID(t *testing.T) {
+	t.Parallel()
+
 	config := K8sRouteConfig{
 		Logger: hclog.NewNullLogger(),
 	}
@@ -39,6 +49,8 @@ func TestRouteID(t *testing.T) {
 }
 
 func TestRouteCommonRouteSpec(t *testing.T) {
+	t.Parallel()
+
 	config := K8sRouteConfig{
 		Logger: hclog.NewNullLogger(),
 	}
@@ -73,6 +85,8 @@ func TestRouteCommonRouteSpec(t *testing.T) {
 }
 
 func TestRouteFilterParentStatuses(t *testing.T) {
+	t.Parallel()
+
 	route := NewK8sRoute(&gw.HTTPRoute{
 		Spec: gw.HTTPRouteSpec{
 			CommonRouteSpec: gw.CommonRouteSpec{
@@ -125,6 +139,8 @@ func TestRouteFilterParentStatuses(t *testing.T) {
 }
 
 func TestRouteMergedStatusAndBinding(t *testing.T) {
+	t.Parallel()
+
 	gateway := NewK8sGateway(&gw.Gateway{
 		ObjectMeta: meta.ObjectMeta{
 			Name: "expected",
@@ -268,6 +284,8 @@ func TestRouteMergedStatusAndBinding(t *testing.T) {
 }
 
 func TestRouteNeedsStatusUpdate(t *testing.T) {
+	t.Parallel()
+
 	route := NewK8sRoute(&gw.TCPRoute{
 		Spec: gw.TCPRouteSpec{
 			CommonRouteSpec: gw.CommonRouteSpec{
@@ -322,6 +340,8 @@ func TestRouteNeedsStatusUpdate(t *testing.T) {
 }
 
 func TestRouteSetStatus(t *testing.T) {
+	t.Parallel()
+
 	config := K8sRouteConfig{
 		Logger: hclog.NewNullLogger(),
 	}
@@ -364,6 +384,8 @@ func TestRouteSetStatus(t *testing.T) {
 }
 
 func TestRouteParents(t *testing.T) {
+	t.Parallel()
+
 	config := K8sRouteConfig{
 		Logger: hclog.NewNullLogger(),
 	}
@@ -390,6 +412,8 @@ func TestRouteParents(t *testing.T) {
 }
 
 func TestRouteMatchesHostname(t *testing.T) {
+	t.Parallel()
+
 	hostname := gw.Hostname("domain.test")
 
 	require.True(t, NewK8sRoute(&gw.HTTPRoute{
@@ -415,8 +439,233 @@ func TestRouteMatchesHostname(t *testing.T) {
 	}).MatchesHostname(&hostname))
 }
 
-func TestRouteIsValid(t *testing.T) {
+func TestRouteValidate(t *testing.T) {
+	t.Parallel()
+
+	require.NoError(t, NewK8sRoute(&core.Pod{}, K8sRouteConfig{
+		Logger: hclog.NewNullLogger(),
+	}).Validate(context.Background()))
+
 	require.True(t, NewK8sRoute(&gw.HTTPRoute{}, K8sRouteConfig{
 		Logger: hclog.NewNullLogger(),
 	}).IsValid())
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	resolver := mocks.NewMockBackendResolver(ctrl)
+
+	reference := gw.BackendObjectReference{
+		Name: "expected",
+	}
+	resolved := &service.ResolvedReference{
+		Type:      service.ConsulServiceReference,
+		Reference: &service.BackendReference{},
+	}
+
+	resolver.EXPECT().Resolve(gomock.Any(), reference).Return(resolved, nil)
+
+	route := NewK8sRoute(&gw.HTTPRoute{
+		Spec: gw.HTTPRouteSpec{
+			Rules: []gw.HTTPRouteRule{{
+				BackendRefs: []gw.HTTPBackendRef{{
+					BackendRef: gw.BackendRef{
+						BackendObjectReference: reference,
+					},
+				}},
+			}},
+		},
+	}, K8sRouteConfig{
+		Logger:   hclog.NewNullLogger(),
+		Resolver: resolver,
+	})
+	require.NoError(t, route.Validate(context.Background()))
+	require.True(t, route.IsValid())
+
+	expected := errors.New("expected")
+	resolver.EXPECT().Resolve(gomock.Any(), reference).Return(nil, expected)
+	require.Equal(t, expected, route.Validate(context.Background()))
+
+	resolver.EXPECT().Resolve(gomock.Any(), reference).Return(nil, service.NewK8sResolutionError("error"))
+	require.NoError(t, route.Validate(context.Background()))
+	require.False(t, route.IsValid())
+}
+
+func TestRouteResolve(t *testing.T) {
+	t.Parallel()
+
+	gateway := &gw.Gateway{
+		ObjectMeta: meta.ObjectMeta{
+			Name: "expected",
+		},
+	}
+	listener := gw.Listener{}
+
+	require.Nil(t, NewK8sRoute(&gw.HTTPRoute{}, K8sRouteConfig{
+		Logger: hclog.NewNullLogger(),
+	}).Resolve(nil))
+
+	require.Nil(t, NewK8sRoute(&core.Pod{}, K8sRouteConfig{
+		Logger: hclog.NewNullLogger(),
+	}).Resolve(NewK8sListener(gateway, listener, K8sListenerConfig{
+		Logger: hclog.NewNullLogger(),
+	})))
+
+	require.NotNil(t, NewK8sRoute(&gw.HTTPRoute{}, K8sRouteConfig{
+		Logger: hclog.NewNullLogger(),
+	}).Resolve(NewK8sListener(gateway, listener, K8sListenerConfig{
+		Logger: hclog.NewNullLogger(),
+	})))
+}
+
+func TestRouteCompare(t *testing.T) {
+	t.Parallel()
+
+	// invalid route comparison
+	route := NewK8sRoute(&core.Pod{}, K8sRouteConfig{
+		Logger: hclog.NewNullLogger(),
+	})
+	other := NewK8sRoute(&core.Pod{}, K8sRouteConfig{
+		Logger: hclog.NewNullLogger(),
+	})
+
+	require.Equal(t, store.CompareResultNotEqual, route.Compare(route))
+	require.Equal(t, store.CompareResultInvalid, route.Compare(nil))
+	route = nil
+	require.Equal(t, store.CompareResultNotEqual, route.Compare(other))
+
+	// http route comparison
+	route = NewK8sRoute(&gw.HTTPRoute{}, K8sRouteConfig{
+		Logger: hclog.NewNullLogger(),
+	})
+	other = NewK8sRoute(&gw.HTTPRoute{}, K8sRouteConfig{
+		Logger: hclog.NewNullLogger(),
+	})
+	require.Equal(t, store.CompareResultEqual, route.Compare(other))
+	other.resolutionErrors.Add(service.NewConsulResolutionError("error"))
+	require.Equal(t, store.CompareResultNotEqual, route.Compare(other))
+	route = NewK8sRoute(&gw.HTTPRoute{
+		ObjectMeta: meta.ObjectMeta{
+			ResourceVersion: "1",
+		},
+	}, K8sRouteConfig{
+		Logger: hclog.NewNullLogger(),
+	})
+	require.Equal(t, store.CompareResultNewer, route.Compare(other))
+
+	route = NewK8sRoute(&gw.HTTPRoute{}, K8sRouteConfig{
+		Logger: hclog.NewNullLogger(),
+	})
+	other = NewK8sRoute(&gw.TCPRoute{}, K8sRouteConfig{
+		Logger: hclog.NewNullLogger(),
+	})
+	require.Equal(t, store.CompareResultNotEqual, route.Compare(other))
+
+	// tcp route comparison
+	route = NewK8sRoute(&gw.TCPRoute{}, K8sRouteConfig{
+		Logger: hclog.NewNullLogger(),
+	})
+	other = NewK8sRoute(&gw.TCPRoute{}, K8sRouteConfig{
+		Logger: hclog.NewNullLogger(),
+	})
+	require.Equal(t, store.CompareResultEqual, route.Compare(other))
+	other = NewK8sRoute(&gw.HTTPRoute{}, K8sRouteConfig{
+		Logger: hclog.NewNullLogger(),
+	})
+	require.Equal(t, store.CompareResultNotEqual, route.Compare(other))
+
+	// tls route comparison
+	route = NewK8sRoute(&gw.TLSRoute{}, K8sRouteConfig{
+		Logger: hclog.NewNullLogger(),
+	})
+	other = NewK8sRoute(&gw.TLSRoute{}, K8sRouteConfig{
+		Logger: hclog.NewNullLogger(),
+	})
+	require.Equal(t, store.CompareResultEqual, route.Compare(other))
+	other = NewK8sRoute(&gw.HTTPRoute{}, K8sRouteConfig{
+		Logger: hclog.NewNullLogger(),
+	})
+	require.Equal(t, store.CompareResultNotEqual, route.Compare(other))
+
+	// udp route comparison
+	route = NewK8sRoute(&gw.UDPRoute{}, K8sRouteConfig{
+		Logger: hclog.NewNullLogger(),
+	})
+	other = NewK8sRoute(&gw.UDPRoute{}, K8sRouteConfig{
+		Logger: hclog.NewNullLogger(),
+	})
+	require.Equal(t, store.CompareResultEqual, route.Compare(other))
+	other = NewK8sRoute(&gw.HTTPRoute{}, K8sRouteConfig{
+		Logger: hclog.NewNullLogger(),
+	})
+	require.Equal(t, store.CompareResultNotEqual, route.Compare(other))
+
+	// mismatched types
+	require.Equal(t, store.CompareResultInvalid, route.Compare(storeMocks.NewMockRoute(nil)))
+}
+
+func TestRouteSyncStatus(t *testing.T) {
+	t.Parallel()
+
+	gateway := NewK8sGateway(&gw.Gateway{
+		ObjectMeta: meta.ObjectMeta{
+			Name: "expected",
+		},
+	}, K8sGatewayConfig{
+		Logger: hclog.NewNullLogger(),
+	})
+	inner := &gw.TLSRoute{
+		Spec: gw.TLSRouteSpec{
+			CommonRouteSpec: gw.CommonRouteSpec{
+				ParentRefs: []gw.ParentRef{{
+					Name: "expected",
+				}, {
+					Name: "other",
+				}},
+			},
+		},
+		Status: gw.TLSRouteStatus{
+			RouteStatus: gw.RouteStatus{
+				Parents: []gw.RouteParentStatus{{
+					ParentRef: gw.ParentRef{
+						Name: "expected",
+					},
+					Controller: "expected",
+				}, {
+					ParentRef: gw.ParentRef{
+						Name: "expected",
+					},
+					Controller: "other",
+				}, {
+					ParentRef: gw.ParentRef{
+						Name: "other",
+					},
+					Controller: "other",
+				}},
+			},
+		},
+	}
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	client := clientMocks.NewMockClient(ctrl)
+
+	logger := hclog.New(&hclog.LoggerOptions{
+		Output: io.Discard,
+	})
+	logger.SetLevel(hclog.Trace)
+	route := NewK8sRoute(inner, K8sRouteConfig{
+		ControllerName: "expected",
+		Logger:         logger,
+		Client:         client,
+	})
+	route.OnBound(gateway)
+
+	expected := errors.New("expected")
+	client.EXPECT().UpdateStatus(gomock.Any(), inner).Return(expected)
+	require.True(t, errors.Is(route.SyncStatus(context.Background()), expected))
+
+	client.EXPECT().UpdateStatus(gomock.Any(), inner)
+	require.NoError(t, route.SyncStatus(context.Background()))
+
+	// sync again, no status update called
+	require.NoError(t, route.SyncStatus(context.Background()))
 }

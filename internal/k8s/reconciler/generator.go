@@ -177,8 +177,9 @@ import (
 {{ range $error := $ }}
 
 func Test{{ $error.Name }}ErrorType(t *testing.T) {
-	expected := "expected"
+	t.Parallel()
 
+	expected := "expected"
 
 	{{ range $value := $error.Types -}}
 	require.Equal(t, expected, New{{ $error.Name }}Error{{ $value }}(expected).Error())
@@ -199,6 +200,8 @@ import (
 
 {{ range $status := $ }}{{ range $conditionType := $status.Types -}}
 func Test{{ $status.Kind }}{{ $conditionType.Name }}Status(t *testing.T) {
+	t.Parallel()
+
 	var status {{ $status.Kind }}{{ $conditionType.Name }}Status
 
 	expected := errors.New("expected")
@@ -218,6 +221,8 @@ func Test{{ $status.Kind }}{{ $conditionType.Name }}Status(t *testing.T) {
 {{end}}
 
 func Test{{ $status.Kind }}Status(t *testing.T) {
+	t.Parallel()
+
 	status := {{ $status.Kind }}Status{}
 	conditions := status.Conditions(0)
 

@@ -10,6 +10,8 @@ import (
 )
 
 func TestGatewayClassAcceptedStatus(t *testing.T) {
+	t.Parallel()
+
 	var status GatewayClassAcceptedStatus
 
 	expected := errors.New("expected")
@@ -31,6 +33,8 @@ func TestGatewayClassAcceptedStatus(t *testing.T) {
 }
 
 func TestGatewayClassStatus(t *testing.T) {
+	t.Parallel()
+
 	status := GatewayClassStatus{}
 	conditions := status.Conditions(0)
 
@@ -44,6 +48,8 @@ func TestGatewayClassStatus(t *testing.T) {
 }
 
 func TestGatewayReadyStatus(t *testing.T) {
+	t.Parallel()
+
 	var status GatewayReadyStatus
 
 	expected := errors.New("expected")
@@ -70,6 +76,8 @@ func TestGatewayReadyStatus(t *testing.T) {
 }
 
 func TestGatewayScheduledStatus(t *testing.T) {
+	t.Parallel()
+
 	var status GatewayScheduledStatus
 
 	expected := errors.New("expected")
@@ -101,6 +109,8 @@ func TestGatewayScheduledStatus(t *testing.T) {
 }
 
 func TestGatewayInSyncStatus(t *testing.T) {
+	t.Parallel()
+
 	var status GatewayInSyncStatus
 
 	expected := errors.New("expected")
@@ -117,6 +127,8 @@ func TestGatewayInSyncStatus(t *testing.T) {
 }
 
 func TestGatewayStatus(t *testing.T) {
+	t.Parallel()
+
 	status := GatewayStatus{}
 	conditions := status.Conditions(0)
 
@@ -140,6 +152,8 @@ func TestGatewayStatus(t *testing.T) {
 }
 
 func TestRouteAcceptedStatus(t *testing.T) {
+	t.Parallel()
+
 	var status RouteAcceptedStatus
 
 	expected := errors.New("expected")
@@ -167,6 +181,8 @@ func TestRouteAcceptedStatus(t *testing.T) {
 }
 
 func TestRouteResolvedRefsStatus(t *testing.T) {
+	t.Parallel()
+
 	var status RouteResolvedRefsStatus
 
 	expected := errors.New("expected")
@@ -193,6 +209,8 @@ func TestRouteResolvedRefsStatus(t *testing.T) {
 }
 
 func TestRouteStatus(t *testing.T) {
+	t.Parallel()
+
 	status := RouteStatus{}
 	conditions := status.Conditions(0)
 
@@ -211,6 +229,8 @@ func TestRouteStatus(t *testing.T) {
 }
 
 func TestListenerConflictedStatus(t *testing.T) {
+	t.Parallel()
+
 	var status ListenerConflictedStatus
 
 	expected := errors.New("expected")
@@ -237,6 +257,8 @@ func TestListenerConflictedStatus(t *testing.T) {
 }
 
 func TestListenerDetachedStatus(t *testing.T) {
+	t.Parallel()
+
 	var status ListenerDetachedStatus
 
 	expected := errors.New("expected")
@@ -268,6 +290,8 @@ func TestListenerDetachedStatus(t *testing.T) {
 }
 
 func TestListenerReadyStatus(t *testing.T) {
+	t.Parallel()
+
 	var status ListenerReadyStatus
 
 	expected := errors.New("expected")
@@ -289,6 +313,8 @@ func TestListenerReadyStatus(t *testing.T) {
 }
 
 func TestListenerResolvedRefsStatus(t *testing.T) {
+	t.Parallel()
+
 	var status ListenerResolvedRefsStatus
 
 	expected := errors.New("expected")
@@ -315,6 +341,8 @@ func TestListenerResolvedRefsStatus(t *testing.T) {
 }
 
 func TestListenerStatus(t *testing.T) {
+	t.Parallel()
+
 	status := ListenerStatus{}
 	conditions := status.Conditions(0)
 

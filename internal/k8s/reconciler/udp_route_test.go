@@ -8,5 +8,7 @@ import (
 )
 
 func TestUDPRouteID(t *testing.T) {
+	t.Parallel()
+
 	require.Equal(t, "udp-namespace/name", UDPRouteID(types.NamespacedName{Namespace: "namespace", Name: "name"}))
 }

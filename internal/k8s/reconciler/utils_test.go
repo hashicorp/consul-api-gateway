@@ -7,6 +7,8 @@ import (
 )
 
 func TestHostnamesMatch(t *testing.T) {
+	t.Parallel()
+
 	require.True(t, hostnamesMatch("*", "*"))
 	require.True(t, hostnamesMatch("", "*"))
 	require.True(t, hostnamesMatch("*", ""))

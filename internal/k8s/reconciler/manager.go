@@ -12,6 +12,7 @@ import (
 
 	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/service"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	"github.com/hashicorp/consul-api-gateway/internal/store"
 	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
@@ -157,7 +158,7 @@ func (m *GatewayReconcileManager) upsertRoute(ctx context.Context, r Route, id s
 		ControllerName: m.controllerName,
 		Logger:         m.logger,
 		Client:         m.client,
-		Consul:         m.consul,
+		Resolver:       service.NewBackendResolver(r.GetNamespace(), m.client, m.consul),
 	})
 
 	managed, err := m.deleteUnmanagedRoute(ctx, route, id)

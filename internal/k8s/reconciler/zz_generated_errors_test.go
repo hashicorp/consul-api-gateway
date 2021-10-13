@@ -9,6 +9,8 @@ import (
 )
 
 func TestCertificateResolutionErrorType(t *testing.T) {
+	t.Parallel()
+
 	expected := "expected"
 
 	require.Equal(t, expected, NewCertificateResolutionErrorNotFound(expected).Error())
@@ -18,6 +20,8 @@ func TestCertificateResolutionErrorType(t *testing.T) {
 }
 
 func TestBindErrorType(t *testing.T) {
+	t.Parallel()
+
 	expected := "expected"
 
 	require.Equal(t, expected, NewBindErrorRouteKind(expected).Error())
