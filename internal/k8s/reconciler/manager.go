@@ -98,7 +98,6 @@ func (m *GatewayReconcileManager) UpsertGateway(ctx context.Context, g *gw.Gatew
 	if !managed {
 		// next check to see if we have an existing deployment, if we do, we manage the gateway
 		// and can just use an empty config since we won't re-deploy
-		// just in case the
 		managed, err = m.client.HasManagedDeployment(ctx, g)
 		if err != nil {
 			return err
