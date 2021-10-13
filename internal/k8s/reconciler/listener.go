@@ -258,7 +258,7 @@ func (l *K8sListener) canBind(ref gw.ParentRef, route *K8sRoute) (bool, error) {
 	// meaning if we must attach, but cannot, it's an error
 	allowed, must := routeMatchesListener(l.listener.Name, ref.SectionName)
 	if allowed {
-		if !routeKindIsAllowedForListener(l.listener.AllowedRoutes, route) {
+		if !routeKindIsAllowedForListener(l.supportedKinds, route) {
 			if must {
 				return false, NewBindErrorRouteKind("route kind not allowed for listener")
 			}

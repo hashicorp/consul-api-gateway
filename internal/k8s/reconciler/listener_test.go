@@ -8,10 +8,12 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient/mocks"
 	"github.com/hashicorp/consul-api-gateway/internal/store"
+	storeMocks "github.com/hashicorp/consul-api-gateway/internal/store/mocks"
 	"github.com/hashicorp/go-hclog"
 	"github.com/stretchr/testify/require"
 	core "k8s.io/api/core/v1"
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
 )
 
@@ -238,11 +240,314 @@ func TestRouteAddedCallbacks(t *testing.T) {
 	require.Equal(t, int32(0), listener.routeCount)
 }
 
-func TestRouteStatusConditions(t *testing.T) {
+func TestListenerStatusConditions(t *testing.T) {
 	t.Parallel()
 
 	listener := NewK8sListener(&gw.Gateway{}, gw.Listener{}, K8sListenerConfig{
 		Logger: hclog.NewNullLogger(),
 	})
 	require.Len(t, listener.Status().Conditions, 4)
+}
+
+func TestListenerCanBind(t *testing.T) {
+	t.Parallel()
+
+	// alternative type
+	listener := NewK8sListener(&gw.Gateway{}, gw.Listener{}, K8sListenerConfig{
+		Logger: hclog.NewNullLogger(),
+	})
+	canBind, err := listener.CanBind(storeMocks.NewMockRoute(nil))
+	require.NoError(t, err)
+	require.False(t, canBind)
+
+	// no match
+	listener = NewK8sListener(&gw.Gateway{}, gw.Listener{}, K8sListenerConfig{
+		Logger: hclog.NewNullLogger(),
+	})
+	canBind, err = listener.CanBind(NewK8sRoute(&gw.HTTPRoute{}, K8sRouteConfig{
+		Logger: hclog.NewNullLogger(),
+	}))
+	require.NoError(t, err)
+	require.False(t, canBind)
+
+	// match
+	listener = NewK8sListener(&gw.Gateway{
+		ObjectMeta: meta.ObjectMeta{
+			Name: "gateway",
+		},
+	}, gw.Listener{}, K8sListenerConfig{
+		Logger: hclog.NewNullLogger(),
+	})
+	canBind, err = listener.CanBind(NewK8sRoute(&gw.HTTPRoute{
+		Spec: gw.HTTPRouteSpec{
+			CommonRouteSpec: gw.CommonRouteSpec{
+				ParentRefs: []gw.ParentRef{{
+					Name: "gateway",
+				}},
+			},
+		},
+	}, K8sRouteConfig{
+		Logger: hclog.NewNullLogger(),
+	}))
+	require.NoError(t, err)
+	require.True(t, canBind)
+
+	// not ready
+	listener = NewK8sListener(&gw.Gateway{
+		ObjectMeta: meta.ObjectMeta{
+			Name: "gateway",
+		},
+	}, gw.Listener{}, K8sListenerConfig{
+		Logger: hclog.NewNullLogger(),
+	})
+	listener.status.Ready.Invalid = errors.New("invalid")
+	canBind, err = listener.CanBind(NewK8sRoute(&gw.HTTPRoute{
+		Spec: gw.HTTPRouteSpec{
+			CommonRouteSpec: gw.CommonRouteSpec{
+				ParentRefs: []gw.ParentRef{{
+					Name: "gateway",
+				}},
+			},
+		},
+	}, K8sRouteConfig{
+		Logger: hclog.NewNullLogger(),
+	}))
+	require.NoError(t, err)
+	require.False(t, canBind)
+
+	// bad route kind
+	routeMeta := meta.TypeMeta{}
+	routeMeta.SetGroupVersionKind(schema.GroupVersionKind{
+		Group:   gw.GroupVersion.Group,
+		Version: gw.GroupVersion.Version,
+		Kind:    "UDPRoute",
+	})
+
+	listener = NewK8sListener(&gw.Gateway{
+		ObjectMeta: meta.ObjectMeta{
+			Name: "gateway",
+		},
+	}, gw.Listener{
+		Protocol: gw.HTTPProtocolType,
+	}, K8sListenerConfig{
+		Logger: hclog.NewNullLogger(),
+	})
+	require.NoError(t, listener.Validate(context.Background()))
+	canBind, err = listener.CanBind(NewK8sRoute(&gw.UDPRoute{
+		TypeMeta: routeMeta,
+		Spec: gw.UDPRouteSpec{
+			CommonRouteSpec: gw.CommonRouteSpec{
+				ParentRefs: []gw.ParentRef{{
+					Name: "gateway",
+				}},
+			},
+		},
+	}, K8sRouteConfig{
+		Logger: hclog.NewNullLogger(),
+	}))
+	require.NoError(t, err)
+	require.False(t, canBind)
+
+	name := gw.SectionName("listener")
+	listener = NewK8sListener(&gw.Gateway{
+		ObjectMeta: meta.ObjectMeta{
+			Name: "gateway",
+		},
+	}, gw.Listener{
+		Name:     name,
+		Protocol: gw.HTTPProtocolType,
+	}, K8sListenerConfig{
+		Logger: hclog.NewNullLogger(),
+	})
+	listener.supportedKinds = supportedProtocols[gw.HTTPProtocolType]
+	_, err = listener.CanBind(NewK8sRoute(&gw.UDPRoute{
+		TypeMeta: routeMeta,
+		Spec: gw.UDPRouteSpec{
+			CommonRouteSpec: gw.CommonRouteSpec{
+				ParentRefs: []gw.ParentRef{{
+					Name:        "gateway",
+					SectionName: &name,
+				}},
+			},
+		},
+	}, K8sRouteConfig{
+		Logger: hclog.NewNullLogger(),
+	}))
+	require.Error(t, err)
+
+	// allowed namespaces
+	same := gw.NamespacesFromSame
+	other := gw.Namespace("other")
+	routeMeta.SetGroupVersionKind(schema.GroupVersionKind{
+		Group:   gw.GroupVersion.Group,
+		Version: gw.GroupVersion.Version,
+		Kind:    "HTTPRoute",
+	})
+	listener = NewK8sListener(&gw.Gateway{
+		ObjectMeta: meta.ObjectMeta{
+			Name:      "gateway",
+			Namespace: "other",
+		},
+	}, gw.Listener{
+		Name:     name,
+		Protocol: gw.HTTPProtocolType,
+		AllowedRoutes: &gw.AllowedRoutes{
+			Namespaces: &gw.RouteNamespaces{
+				From: &same,
+			},
+		},
+	}, K8sListenerConfig{
+		Logger: hclog.NewNullLogger(),
+	})
+	listener.supportedKinds = supportedProtocols[gw.HTTPProtocolType]
+	_, err = listener.CanBind(NewK8sRoute(&gw.HTTPRoute{
+		TypeMeta: routeMeta,
+		Spec: gw.HTTPRouteSpec{
+			CommonRouteSpec: gw.CommonRouteSpec{
+				ParentRefs: []gw.ParentRef{{
+					Name:        "gateway",
+					Namespace:   &other,
+					SectionName: &name,
+				}},
+			},
+		},
+	}, K8sRouteConfig{
+		Logger: hclog.NewNullLogger(),
+	}))
+	require.Error(t, err)
+	canBind, err = listener.CanBind(NewK8sRoute(&gw.HTTPRoute{
+		TypeMeta: routeMeta,
+		Spec: gw.HTTPRouteSpec{
+			CommonRouteSpec: gw.CommonRouteSpec{
+				ParentRefs: []gw.ParentRef{{
+					Name:      "gateway",
+					Namespace: &other,
+				}},
+			},
+		},
+	}, K8sRouteConfig{
+		Logger: hclog.NewNullLogger(),
+	}))
+	require.NoError(t, err)
+	require.False(t, canBind)
+
+	selector := gw.NamespacesFromSelector
+	listener = NewK8sListener(&gw.Gateway{
+		ObjectMeta: meta.ObjectMeta{
+			Name:      "gateway",
+			Namespace: "other",
+		},
+	}, gw.Listener{
+		Name:     name,
+		Protocol: gw.HTTPProtocolType,
+		AllowedRoutes: &gw.AllowedRoutes{
+			Namespaces: &gw.RouteNamespaces{
+				From: &selector,
+				Selector: &meta.LabelSelector{
+					MatchExpressions: []meta.LabelSelectorRequirement{{
+						Key:      "test",
+						Operator: meta.LabelSelectorOperator("invalid"),
+					}},
+				},
+			},
+		},
+	}, K8sListenerConfig{
+		Logger: hclog.NewNullLogger(),
+	})
+	listener.supportedKinds = supportedProtocols[gw.HTTPProtocolType]
+	_, err = listener.CanBind(NewK8sRoute(&gw.HTTPRoute{
+		TypeMeta: routeMeta,
+		Spec: gw.HTTPRouteSpec{
+			CommonRouteSpec: gw.CommonRouteSpec{
+				ParentRefs: []gw.ParentRef{{
+					Name:        "gateway",
+					Namespace:   &other,
+					SectionName: &name,
+				}},
+			},
+		},
+	}, K8sRouteConfig{
+		Logger: hclog.NewNullLogger(),
+	}))
+	require.Error(t, err)
+	_, err = listener.CanBind(NewK8sRoute(&gw.HTTPRoute{
+		TypeMeta: routeMeta,
+		Spec: gw.HTTPRouteSpec{
+			CommonRouteSpec: gw.CommonRouteSpec{
+				ParentRefs: []gw.ParentRef{{
+					Name:      "gateway",
+					Namespace: &other,
+				}},
+			},
+		},
+	}, K8sRouteConfig{
+		Logger: hclog.NewNullLogger(),
+	}))
+	require.Error(t, err)
+
+	// hostname
+
+	hostname := gw.Hostname("hostname")
+	listener = NewK8sListener(&gw.Gateway{
+		ObjectMeta: meta.ObjectMeta{
+			Name: "gateway",
+		},
+	}, gw.Listener{
+		Name:     name,
+		Hostname: &hostname,
+		Protocol: gw.HTTPProtocolType,
+	}, K8sListenerConfig{
+		Logger: hclog.NewNullLogger(),
+	})
+	listener.supportedKinds = supportedProtocols[gw.HTTPProtocolType]
+	_, err = listener.CanBind(NewK8sRoute(&gw.HTTPRoute{
+		TypeMeta: routeMeta,
+		Spec: gw.HTTPRouteSpec{
+			CommonRouteSpec: gw.CommonRouteSpec{
+				ParentRefs: []gw.ParentRef{{
+					Name:        "gateway",
+					SectionName: &name,
+				}},
+			},
+			Hostnames: []gw.Hostname{"other"},
+		},
+	}, K8sRouteConfig{
+		Logger: hclog.NewNullLogger(),
+	}))
+	require.Error(t, err)
+
+	canBind, err = listener.CanBind(NewK8sRoute(&gw.HTTPRoute{
+		TypeMeta: routeMeta,
+		Spec: gw.HTTPRouteSpec{
+			CommonRouteSpec: gw.CommonRouteSpec{
+				ParentRefs: []gw.ParentRef{{
+					Name: "gateway",
+				}},
+			},
+			Hostnames: []gw.Hostname{"other"},
+		},
+	}, K8sRouteConfig{
+		Logger: hclog.NewNullLogger(),
+	}))
+	require.NoError(t, err)
+	require.False(t, canBind)
+
+	// basic name match
+	otherName := gw.SectionName("other")
+	canBind, err = listener.CanBind(NewK8sRoute(&gw.HTTPRoute{
+		TypeMeta: routeMeta,
+		Spec: gw.HTTPRouteSpec{
+			CommonRouteSpec: gw.CommonRouteSpec{
+				ParentRefs: []gw.ParentRef{{
+					Name:        "gateway",
+					SectionName: &otherName,
+				}},
+			},
+			Hostnames: []gw.Hostname{"other"},
+		},
+	}, K8sRouteConfig{
+		Logger: hclog.NewNullLogger(),
+	}))
+	require.NoError(t, err)
+	require.False(t, canBind)
 }

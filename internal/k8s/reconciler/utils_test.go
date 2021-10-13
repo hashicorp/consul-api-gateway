@@ -58,32 +58,24 @@ func TestHostnamesMatch(t *testing.T) {
 func TestRouteKindIsAllowedForListener(t *testing.T) {
 	t.Parallel()
 
-	require.True(t, routeKindIsAllowedForListener(nil, NewK8sRoute(&gw.HTTPRoute{}, K8sRouteConfig{
-		Logger: hclog.NewNullLogger(),
-	})))
-
 	routeMeta := meta.TypeMeta{}
 	routeMeta.SetGroupVersionKind(schema.GroupVersionKind{
 		Group:   gw.GroupVersion.Group,
 		Version: gw.GroupVersion.Version,
 		Kind:    "HTTPRoute",
 	})
-	require.True(t, routeKindIsAllowedForListener(&gw.AllowedRoutes{
-		Kinds: []gw.RouteGroupKind{{
-			Group: (*gw.Group)(&gw.GroupVersion.Group),
-			Kind:  "HTTPRoute",
-		}},
-	}, NewK8sRoute(&gw.HTTPRoute{
+	require.True(t, routeKindIsAllowedForListener([]gw.RouteGroupKind{{
+		Group: (*gw.Group)(&gw.GroupVersion.Group),
+		Kind:  "HTTPRoute",
+	}}, NewK8sRoute(&gw.HTTPRoute{
 		TypeMeta: routeMeta,
 	}, K8sRouteConfig{
 		Logger: hclog.NewNullLogger(),
 	})))
-	require.False(t, routeKindIsAllowedForListener(&gw.AllowedRoutes{
-		Kinds: []gw.RouteGroupKind{{
-			Group: (*gw.Group)(&gw.GroupVersion.Group),
-			Kind:  "TCPRoute",
-		}},
-	}, NewK8sRoute(&gw.HTTPRoute{
+	require.False(t, routeKindIsAllowedForListener([]gw.RouteGroupKind{{
+		Group: (*gw.Group)(&gw.GroupVersion.Group),
+		Kind:  "TCPRoute",
+	}}, NewK8sRoute(&gw.HTTPRoute{
 		TypeMeta: routeMeta,
 	}, K8sRouteConfig{
 		Logger: hclog.NewNullLogger(),
