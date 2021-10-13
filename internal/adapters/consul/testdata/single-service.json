@@ -1,0 +1,61 @@
+{
+  "Name": "single-service",
+  "Namespace": "k8s",
+  "Hostnames": [
+    "example.com"
+  ],
+  "Rules": [
+    {
+      "Matches": [
+        {
+          "Type": 1,
+          "Path": {
+            "Type": 1,
+            "Value": "/prefix"
+          }
+        }
+      ],
+      "Filters": [
+        {
+          "Type": 0,
+          "Header": {
+            "Set": {
+              "x-set": "1"
+            },
+            "Add": {
+              "x-add": "2"
+            },
+            "Remove": [
+              "x-remove"
+            ]
+          }
+        }
+      ],
+      "Services": [
+        {
+          "Service": {
+            "ConsulNamespace": "namespace",
+            "Service": "service"
+          },
+          "Weight": 1,
+          "Filters": [
+            {
+              "Type": 0,
+              "Header": {
+                "Set": {
+                  "x-set": "3"
+                },
+                "Add": {
+                  "x-add": "4"
+                },
+                "Remove": [
+                  "x-remove-too"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

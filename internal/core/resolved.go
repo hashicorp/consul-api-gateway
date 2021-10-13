@@ -15,10 +15,10 @@ const (
 )
 
 type ResolvedRoute interface {
-	Type() ResolvedRouteType
-	Meta() map[string]string
-	Name() string
-	Namespace() string
+	GetType() ResolvedRouteType
+	GetMeta() map[string]string
+	GetName() string
+	GetNamespace() string
 }
 
 type ResolvedListener struct {
