@@ -151,9 +151,9 @@ func (r *K8sRoute) ParentStatuses() []gw.RouteParentStatus {
 func (r *K8sRoute) FilterParentStatuses() []gw.RouteParentStatus {
 	filtered := []gw.RouteParentStatus{}
 	for _, status := range r.routeStatus().Parents {
-		id := asJSON(status.ParentRef)
-		if _, found := r.parentStatuses[id]; !found {
+		if status.Controller != gw.GatewayController(r.controllerName) {
 			filtered = append(filtered, status)
+			continue
 		}
 	}
 	return filtered
@@ -218,9 +218,7 @@ func (r *K8sRoute) OnGatewayRemoved(gateway store.Gateway) {
 	if ok {
 		id, found := r.parentKeyForGateway(utils.NamespacedName(k8sGateway.gateway))
 		if found {
-			status := r.parentStatuses[id]
-			// clear any set accepted states
-			status.Accepted = RouteAcceptedStatus{}
+			delete(r.parentStatuses, id)
 		}
 	}
 }
