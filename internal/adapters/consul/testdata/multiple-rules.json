@@ -1,0 +1,182 @@
+{
+  "Name": "multiple-rules",
+  "Namespace": "k8s",
+  "Hostnames": [
+    "example.com"
+  ],
+  "Rules": [
+    {
+      "Matches": [
+        {
+          "Type": 1,
+          "Path": {
+            "Type": 1,
+            "Value": "/prefix-1"
+          }
+        },
+        {
+          "Type": 1,
+          "Path": {
+            "Type": 1,
+            "Value": "/other-1"
+          }
+        }
+      ],
+      "Filters": [
+        {
+          "Type": 0,
+          "Header": {
+            "Set": {
+              "x-set": "1"
+            },
+            "Add": {
+              "x-add": "2"
+            },
+            "Remove": [
+              "x-remove"
+            ]
+          }
+        },
+        {
+          "Type": 0,
+          "Header": {
+            "Set": {
+              "x-set-too": "1"
+            },
+            "Add": {
+              "x-add-too": "2"
+            }
+          }
+        }
+      ],
+      "Services": [
+        {
+          "Service": {
+            "ConsulNamespace": "namespace",
+            "Service": "service"
+          },
+          "Weight": 1,
+          "Filters": [
+            {
+              "Type": 0,
+              "Header": {
+                "Set": {
+                  "x-set": "3"
+                },
+                "Add": {
+                  "x-add": "4"
+                },
+                "Remove": [
+                  "x-remove-a"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "Service": {
+            "ConsulNamespace": "namespace",
+            "Service": "another-service"
+          },
+          "Weight": 1,
+          "Filters": [
+            {
+              "Type": 0,
+              "Header": {
+                "Add": {
+                  "x-add": "4"
+                },
+                "Remove": [
+                  "x-remove-b"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "Matches": [
+        {
+          "Type": 1,
+          "Path": {
+            "Type": 1,
+            "Value": "/prefix-2"
+          }
+        }
+      ],
+      "Filters": [
+        {
+          "Type": 0,
+          "Header": {
+            "Set": {
+              "x-set-2": "5"
+            },
+            "Add": {
+              "x-add-2": "6"
+            },
+            "Remove": [
+              "x-remove-2"
+            ]
+          }
+        },
+        {
+          "Type": 0,
+          "Header": {
+            "Set": {
+              "x-set-2-too": "7"
+            },
+            "Add": {
+              "x-add-2-too": "8"
+            }
+          }
+        }
+      ],
+      "Services": [
+        {
+          "Service": {
+            "ConsulNamespace": "namespace",
+            "Service": "service"
+          },
+          "Weight": 1,
+          "Filters": [
+            {
+              "Type": 0,
+              "Header": {
+                "Set": {
+                  "x-set-2": "6"
+                },
+                "Add": {
+                  "x-add-2": "7"
+                },
+                "Remove": [
+                  "x-remove-a"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "Service": {
+            "ConsulNamespace": "namespace",
+            "Service": "another-service"
+          },
+          "Weight": 1,
+          "Filters": [
+            {
+              "Type": 0,
+              "Header": {
+                "Add": {
+                  "x-add": "4"
+                },
+                "Remove": [
+                  "x-remove-b"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
