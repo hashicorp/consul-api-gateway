@@ -19,7 +19,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/yaml"
 )
 
-//go:generate sh -c "go run generator.go && go fmt zz_generated_status.go zz_generated_status_test.go zz_generated_errors.go"
+//go:generate sh -c "go run generator.go && go fmt zz_generated_status.go zz_generated_status_test.go zz_generated_errors.go zz_generated_errors_test.go"
 
 type customError struct {
 	Name  string
@@ -113,6 +113,7 @@ func init() {
 	}
 
 	errorGenerator = template.Must(template.New("errors").Parse(errorTemplate))
+	errorTestGenerator = template.Must(template.New("errorTests").Parse(errorTestsTemplate))
 	statusGenerator = template.Must(template.New("statuses").Funcs(template.FuncMap{
 		"writeComment": writeComment,
 		"required":     required,
@@ -124,6 +125,7 @@ func init() {
 
 var (
 	errorGenerator      *template.Template
+	errorTestGenerator  *template.Template
 	statusGenerator     *template.Template
 	statusTestGenerator *template.Template
 	statuses            []status
@@ -161,6 +163,27 @@ func (r {{ $error.Name }}Error) Error() string {
 func (r {{ $error.Name }}Error) Kind() {{ $error.Name }}ErrorType {
 	return r.errorType
 }	
+{{end}}
+`
+	errorTestsTemplate = `package reconciler
+
+// GENERATED from errors.yaml, DO NOT EDIT DIRECTLY
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/require"
+)
+{{ range $error := $ }}
+
+func Test{{ $error.Name }}ErrorType(t *testing.T) {
+	expected := "expected"
+
+
+	{{ range $value := $error.Types -}}
+	require.Equal(t, expected, New{{ $error.Name }}Error{{ $value }}(expected).Error())
+	require.Equal(t, {{ $error.Name }}ErrorType{{ $value }}, New{{ $error.Name }}Error{{ $value }}(expected).Kind())
+{{end}}}
 {{end}}
 `
 	statusTestsTemplate = `package reconciler
@@ -207,8 +230,8 @@ func Test{{ $status.Kind }}Status(t *testing.T) {
 	require.Equal(t, conditionType, conditions[{{ $index }}].Type)
 	require.Equal(t, reason, conditions[{{ $index }}].Reason)
 	{{end}}
+	{{- if $status.Validation }}
 
-	{{ if $status.Validation }}
 	require.True(t, status.Valid())
 
 	validationError := errors.New("error")
@@ -393,6 +416,15 @@ func main() {
 		panic(err)
 	}
 	if err := os.WriteFile("zz_generated_errors.go", buffer.Bytes(), 0644); err != nil {
+		panic(err)
+	}
+
+	buffer.Reset()
+
+	if err := errorTestGenerator.Execute(&buffer, errors); err != nil {
+		panic(err)
+	}
+	if err := os.WriteFile("zz_generated_errors_test.go", buffer.Bytes(), 0644); err != nil {
 		panic(err)
 	}
 }

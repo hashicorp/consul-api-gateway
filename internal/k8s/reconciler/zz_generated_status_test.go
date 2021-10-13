@@ -41,7 +41,6 @@ func TestGatewayClassStatus(t *testing.T) {
 	reason = GatewayClassConditionReasonAccepted
 	require.Equal(t, conditionType, conditions[0].Type)
 	require.Equal(t, reason, conditions[0].Reason)
-
 }
 
 func TestGatewayReadyStatus(t *testing.T) {
@@ -138,7 +137,6 @@ func TestGatewayStatus(t *testing.T) {
 	reason = GatewayConditionReasonInSync
 	require.Equal(t, conditionType, conditions[2].Type)
 	require.Equal(t, reason, conditions[2].Reason)
-
 }
 
 func TestRouteAcceptedStatus(t *testing.T) {
@@ -210,7 +208,6 @@ func TestRouteStatus(t *testing.T) {
 	reason = RouteConditionReasonResolvedRefs
 	require.Equal(t, conditionType, conditions[1].Type)
 	require.Equal(t, reason, conditions[1].Reason)
-
 }
 
 func TestListenerConflictedStatus(t *testing.T) {
