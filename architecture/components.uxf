@@ -1,0 +1,39 @@
+<diagram program="umletino" version="14.4.0-SNAPSHOT"><zoom_level>10</zoom_level><help_text>Space for diagram notes</help_text><element><id>UMLGeneric</id><coordinates><x>180</x><y>278</y><w>200</w><h>270</h></coordinates><panel_attributes>symbol=component
+Source</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLGeneric</id><coordinates><x>570</x><y>278</y><w>200</w><h>270</h></coordinates><panel_attributes>symbol=component
+Store
+</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLGeneric</id><coordinates><x>950</x><y>278</y><w>200</w><h>270</h></coordinates><panel_attributes>symbol=component
+SyncAdapter</panel_attributes><additional_attributes></additional_attributes></element><element><id>Relation</id><coordinates><x>370</x><y>398</y><w>220</w><h>80</h></coordinates><panel_attributes>lt=-&gt;
+
+store.Gateway
+store.Listener
+store.Route</panel_attributes><additional_attributes>10;20;200;20</additional_attributes></element><element><id>Relation</id><coordinates><x>540</x><y>488</y><w>130</w><h>30</h></coordinates><panel_attributes>lt=()-
+m1=DeleteGateway
+m1pos=5,-8</panel_attributes><additional_attributes>10;10;30;10</additional_attributes></element><element><id>Relation</id><coordinates><x>540</x><y>518</y><w>130</w><h>30</h></coordinates><panel_attributes>lt=()-
+m1=UpsertGateway
+m1pos=5,-8</panel_attributes><additional_attributes>10;10;30;10</additional_attributes></element><element><id>Relation</id><coordinates><x>540</x><y>458</y><w>120</w><h>30</h></coordinates><panel_attributes>lt=()-
+m1=UpsertRoute
+m1pos=5,-8</panel_attributes><additional_attributes>10;10;30;10</additional_attributes></element><element><id>Relation</id><coordinates><x>540</x><y>428</y><w>120</w><h>30</h></coordinates><panel_attributes>lt=()-
+m1=DeleteRoute
+m1pos=5,-8</panel_attributes><additional_attributes>10;10;30;10</additional_attributes></element><element><id>Relation</id><coordinates><x>730</x><y>388</y><w>80</w><h>30</h></coordinates><panel_attributes>lt=()-
+m1=Sync
+m1pos=-5,-8</panel_attributes><additional_attributes>60;10;40;10</additional_attributes></element><element><id>Relation</id><coordinates><x>760</x><y>398</y><w>210</w><h>50</h></coordinates><panel_attributes>lt=-&gt;
+
+core.ResolvedGateway</panel_attributes><additional_attributes>10;20;190;20</additional_attributes></element><element><id>Relation</id><coordinates><x>920</x><y>388</y><w>80</w><h>30</h></coordinates><panel_attributes>lt=()-
+m1=Sync
+m1pos=5,-8</panel_attributes><additional_attributes>10;10;30;10</additional_attributes></element><element><id>UMLGeneric</id><coordinates><x>460</x><y>640</y><w>420</w><h>110</h></coordinates><panel_attributes>symbol=component
+SDS Server</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLGeneric</id><coordinates><x>210</x><y>320</y><w>140</w><h>30</h></coordinates><panel_attributes>Kubernetes Controller</panel_attributes><additional_attributes></additional_attributes></element><element><id>Relation</id><coordinates><x>400</x><y>140</y><w>280</w><h>520</h></coordinates><panel_attributes>lt=-&gt;</panel_attributes><additional_attributes>260;500;260;440;10;440;10;10;50;10</additional_attributes></element><element><id>Relation</id><coordinates><x>680</x><y>510</y><w>140</w><h>150</h></coordinates><panel_attributes>lt=-&gt;
+core.GatewayID</panel_attributes><additional_attributes>10;130;10;80;120;80;120;10;90;10</additional_attributes></element><element><id>Relation</id><coordinates><x>680</x><y>488</y><w>130</w><h>30</h></coordinates><panel_attributes>lt=()-
+m1=GatewayExists
+m1pos=-5,-8</panel_attributes><additional_attributes>110;10;90;10</additional_attributes></element><element><id>Relation</id><coordinates><x>920</x><y>358</y><w>80</w><h>30</h></coordinates><panel_attributes>lt=()-
+m1=Clear
+m1pos=5,-8</panel_attributes><additional_attributes>10;10;30;10</additional_attributes></element><element><id>Relation</id><coordinates><x>670</x><y>458</y><w>140</w><h>30</h></coordinates><panel_attributes>lt=()-
+m1=CanFetchSecrets
+m1pos=-5,-8</panel_attributes><additional_attributes>120;10;100;10</additional_attributes></element><element><id>UMLGeneric</id><coordinates><x>450</x><y>70</y><w>430</w><h>100</h></coordinates><panel_attributes>symbol=component
+Fetcher</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLGeneric</id><coordinates><x>600</x><y>320</y><w>140</w><h>30</h></coordinates><panel_attributes>Memory Store</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLGeneric</id><coordinates><x>980</x><y>320</y><w>140</w><h>30</h></coordinates><panel_attributes>Consul Sync Adapter</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLGeneric</id><coordinates><x>680</x><y>110</y><w>160</w><h>30</h></coordinates><panel_attributes>Kubernetes Secret Fetcher</panel_attributes><additional_attributes></additional_attributes></element><element><id>Relation</id><coordinates><x>420</x><y>118</y><w>110</w><h>30</h></coordinates><panel_attributes>lt=()-
+m1=FetchSecret
+m1pos=5,-8</panel_attributes><additional_attributes>10;10;30;10</additional_attributes></element><element><id>UMLGeneric</id><coordinates><x>570</x><y>831</y><w>200</w><h>60</h></coordinates><panel_attributes>symbol=component
+Gateway Deployment</panel_attributes><additional_attributes></additional_attributes></element><element><id>Relation</id><coordinates><x>660</x><y>740</y><w>30</w><h>110</h></coordinates><panel_attributes>lt=&lt;-&gt;</panel_attributes><additional_attributes>10;10;10;90</additional_attributes></element><element><id>UMLPackage</id><coordinates><x>60</x><y>30</y><w>1150</w><h>750</h></coordinates><panel_attributes>Server</panel_attributes><additional_attributes></additional_attributes></element><element><id>Relation</id><coordinates><x>0</x><y>400</y><w>200</w><h>40</h></coordinates><panel_attributes>lt=.&gt;
+      Configuration</panel_attributes><additional_attributes>10;20;180;20</additional_attributes></element><element><id>Relation</id><coordinates><x>1140</x><y>410</y><w>150</w><h>30</h></coordinates><panel_attributes>lt=.&gt;</panel_attributes><additional_attributes>10;10;130;10</additional_attributes></element><element><id>UMLGeneric</id><coordinates><x>1270</x><y>390</y><w>200</w><h>60</h></coordinates><panel_attributes>symbol=component
+xDS Server</panel_attributes><additional_attributes></additional_attributes></element><element><id>Relation</id><coordinates><x>760</x><y>440</y><w>620</w><h>450</h></coordinates><panel_attributes>lt=&lt;-&gt;</panel_attributes><additional_attributes>600;10;600;430;10;430</additional_attributes></element><element><id>Relation</id><coordinates><x>270</x><y>340</y><w>320</w><h>540</h></coordinates><panel_attributes>lt=.&gt;
+&lt;&lt;creates&gt;&gt;</panel_attributes><additional_attributes>10;10;10;520;300;520</additional_attributes></element><element><id>Relation</id><coordinates><x>740</x><y>0</y><w>30</w><h>90</h></coordinates><panel_attributes>lt=.&gt;
+</panel_attributes><additional_attributes>10;70;10;10</additional_attributes></element></diagram>
