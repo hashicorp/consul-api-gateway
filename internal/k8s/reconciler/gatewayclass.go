@@ -114,6 +114,8 @@ func (c *K8sGatewayClass) Validate(ctx context.Context) error {
 			return nil
 		}
 		c.config = *found
+		// clear out any accepted errors
+		c.status.Accepted = GatewayClassAcceptedStatus{}
 	}
 
 	return nil

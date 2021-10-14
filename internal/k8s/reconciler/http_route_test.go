@@ -135,7 +135,7 @@ func TestConvertHTTPRoute(t *testing.T) {
 			],
 			"Filters": [
 				{
-					"Type": 0,
+					"Type": 1,
 					"Header": {
 						"Set": null,
 						"Add": null,
