@@ -314,16 +314,20 @@ func TestListenerCanBind(t *testing.T) {
 	}))
 	require.NoError(t, err)
 	require.False(t, canBind)
+}
 
-	// bad route kind
+func TestListenerCanBind_RouteKind(t *testing.T) {
+	t.Parallel()
+
 	routeMeta := meta.TypeMeta{}
 	routeMeta.SetGroupVersionKind(schema.GroupVersionKind{
 		Group:   gw.GroupVersion.Group,
 		Version: gw.GroupVersion.Version,
 		Kind:    "UDPRoute",
 	})
+	name := gw.SectionName("listener")
 
-	listener = NewK8sListener(&gw.Gateway{
+	listener := NewK8sListener(&gw.Gateway{
 		ObjectMeta: meta.ObjectMeta{
 			Name: "gateway",
 		},
@@ -333,7 +337,7 @@ func TestListenerCanBind(t *testing.T) {
 		Logger: hclog.NewNullLogger(),
 	})
 	require.NoError(t, listener.Validate(context.Background()))
-	canBind, err = listener.CanBind(NewK8sRoute(&gw.UDPRoute{
+	canBind, err := listener.CanBind(NewK8sRoute(&gw.UDPRoute{
 		TypeMeta: routeMeta,
 		Spec: gw.UDPRouteSpec{
 			CommonRouteSpec: gw.CommonRouteSpec{
@@ -348,7 +352,6 @@ func TestListenerCanBind(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, canBind)
 
-	name := gw.SectionName("listener")
 	listener = NewK8sListener(&gw.Gateway{
 		ObjectMeta: meta.ObjectMeta{
 			Name: "gateway",
@@ -374,16 +377,23 @@ func TestListenerCanBind(t *testing.T) {
 		Logger: hclog.NewNullLogger(),
 	}))
 	require.Error(t, err)
+}
 
-	// allowed namespaces
+func TestListenerCanBind_AllowedNamespaces(t *testing.T) {
+	t.Parallel()
+
+	name := gw.SectionName("listener")
 	same := gw.NamespacesFromSame
+	selector := gw.NamespacesFromSelector
 	other := gw.Namespace("other")
+	routeMeta := meta.TypeMeta{}
 	routeMeta.SetGroupVersionKind(schema.GroupVersionKind{
 		Group:   gw.GroupVersion.Group,
 		Version: gw.GroupVersion.Version,
 		Kind:    "HTTPRoute",
 	})
-	listener = NewK8sListener(&gw.Gateway{
+
+	listener := NewK8sListener(&gw.Gateway{
 		ObjectMeta: meta.ObjectMeta{
 			Name:      "gateway",
 			Namespace: "other",
@@ -400,7 +410,7 @@ func TestListenerCanBind(t *testing.T) {
 		Logger: hclog.NewNullLogger(),
 	})
 	listener.supportedKinds = supportedProtocols[gw.HTTPProtocolType]
-	_, err = listener.CanBind(NewK8sRoute(&gw.HTTPRoute{
+	_, err := listener.CanBind(NewK8sRoute(&gw.HTTPRoute{
 		TypeMeta: routeMeta,
 		Spec: gw.HTTPRouteSpec{
 			CommonRouteSpec: gw.CommonRouteSpec{
@@ -415,7 +425,7 @@ func TestListenerCanBind(t *testing.T) {
 		Logger: hclog.NewNullLogger(),
 	}))
 	require.Error(t, err)
-	canBind, err = listener.CanBind(NewK8sRoute(&gw.HTTPRoute{
+	canBind, err := listener.CanBind(NewK8sRoute(&gw.HTTPRoute{
 		TypeMeta: routeMeta,
 		Spec: gw.HTTPRouteSpec{
 			CommonRouteSpec: gw.CommonRouteSpec{
@@ -431,7 +441,6 @@ func TestListenerCanBind(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, canBind)
 
-	selector := gw.NamespacesFromSelector
 	listener = NewK8sListener(&gw.Gateway{
 		ObjectMeta: meta.ObjectMeta{
 			Name:      "gateway",
@@ -484,11 +493,20 @@ func TestListenerCanBind(t *testing.T) {
 		Logger: hclog.NewNullLogger(),
 	}))
 	require.Error(t, err)
+}
 
-	// hostname
+func TestListenerCanBind_HostnameMatch(t *testing.T) {
+	t.Parallel()
 
+	routeMeta := meta.TypeMeta{}
+	routeMeta.SetGroupVersionKind(schema.GroupVersionKind{
+		Group:   gw.GroupVersion.Group,
+		Version: gw.GroupVersion.Version,
+		Kind:    "HTTPRoute",
+	})
+	name := gw.SectionName("listener")
 	hostname := gw.Hostname("hostname")
-	listener = NewK8sListener(&gw.Gateway{
+	listener := NewK8sListener(&gw.Gateway{
 		ObjectMeta: meta.ObjectMeta{
 			Name: "gateway",
 		},
@@ -500,7 +518,7 @@ func TestListenerCanBind(t *testing.T) {
 		Logger: hclog.NewNullLogger(),
 	})
 	listener.supportedKinds = supportedProtocols[gw.HTTPProtocolType]
-	_, err = listener.CanBind(NewK8sRoute(&gw.HTTPRoute{
+	_, err := listener.CanBind(NewK8sRoute(&gw.HTTPRoute{
 		TypeMeta: routeMeta,
 		Spec: gw.HTTPRouteSpec{
 			CommonRouteSpec: gw.CommonRouteSpec{
@@ -516,7 +534,7 @@ func TestListenerCanBind(t *testing.T) {
 	}))
 	require.Error(t, err)
 
-	canBind, err = listener.CanBind(NewK8sRoute(&gw.HTTPRoute{
+	canBind, err := listener.CanBind(NewK8sRoute(&gw.HTTPRoute{
 		TypeMeta: routeMeta,
 		Spec: gw.HTTPRouteSpec{
 			CommonRouteSpec: gw.CommonRouteSpec{
@@ -531,11 +549,24 @@ func TestListenerCanBind(t *testing.T) {
 	}))
 	require.NoError(t, err)
 	require.False(t, canBind)
+}
 
-	// basic name match
+func TestListenerCanBind_NameMatch(t *testing.T) {
+	t.Parallel()
+
+	name := gw.SectionName("listener")
 	otherName := gw.SectionName("other")
-	canBind, err = listener.CanBind(NewK8sRoute(&gw.HTTPRoute{
-		TypeMeta: routeMeta,
+	listener := NewK8sListener(&gw.Gateway{
+		ObjectMeta: meta.ObjectMeta{
+			Name: "gateway",
+		},
+	}, gw.Listener{
+		Name:     name,
+		Protocol: gw.HTTPProtocolType,
+	}, K8sListenerConfig{
+		Logger: hclog.NewNullLogger(),
+	})
+	canBind, err := listener.CanBind(NewK8sRoute(&gw.HTTPRoute{
 		Spec: gw.HTTPRouteSpec{
 			CommonRouteSpec: gw.CommonRouteSpec{
 				ParentRefs: []gw.ParentRef{{
