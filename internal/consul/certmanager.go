@@ -4,17 +4,18 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"crypto/x509"
+	"encoding/pem"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path"
 	"sync"
 	"text/template"
-	"time"
-
-	"github.com/cenkalti/backoff"
 
 	"github.com/hashicorp/consul/api"
+	"github.com/hashicorp/consul/api/watch"
 	"github.com/hashicorp/go-hclog"
 
 	"github.com/hashicorp/consul-api-gateway/internal/common"
@@ -30,10 +31,6 @@ const (
 
 	defaultSDSAddress = "localhost"
 	defaultSDSPort    = 9090
-
-	// if we're within certExpirationBuffer of a certificate
-	// expiring, request a new one
-	certExpirationBuffer = 10 * time.Minute
 )
 
 var (
@@ -78,7 +75,6 @@ func init() {
 // CertManagerOptions contains the optional configuration used to initialize a CertManager.
 type CertManagerOptions struct {
 	Directory  string
-	Tries      uint64
 	SDSAddress string
 	SDSPort    int
 }
@@ -86,7 +82,6 @@ type CertManagerOptions struct {
 // DefaultCertManagerOptions returns the default options for a CertManager instance.
 func DefaultCertManagerOptions() *CertManagerOptions {
 	return &CertManagerOptions{
-		Tries:      defaultMaxAttempts,
 		SDSAddress: defaultSDSAddress,
 		SDSPort:    defaultSDSPort,
 	}
@@ -94,7 +89,7 @@ func DefaultCertManagerOptions() *CertManagerOptions {
 
 // certWriter acts as the function used for persisting certificates
 // for a CertManager instance
-type certWriter func(root *api.CARoot, client *api.LeafCert) error
+type certWriter func() error
 
 // CertManager handles Consul leaf certificate management and certificate rotation.
 // Once a leaf certificate has expired, it generates a new certificate and writes
@@ -109,19 +104,22 @@ type CertManager struct {
 	sdsAddress      string
 	sdsPort         int
 
-	tries           uint64
-	backoffInterval time.Duration
-
 	lock sync.RWMutex
 
-	isInitialized    bool
+	signalled        bool
 	initializeSignal chan struct{}
 
 	// cached values
-	ca             []byte
-	certificate    []byte
-	privateKey     []byte
-	tlsCertificate *tls.Certificate
+	ca                  []byte
+	certificate         []byte
+	privateKey          []byte
+	tlsCertificate      *tls.Certificate
+	rootCertificatePool *x509.CertPool
+	spiffeURL           *url.URL
+
+	// watches
+	rootWatch *watch.Plan
+	leafWatch *watch.Plan
 
 	// this can be overwritten to check retry logic in testing
 	writeCerts certWriter
@@ -140,12 +138,83 @@ func NewCertManager(logger hclog.Logger, consul *api.Client, service string, opt
 		service:          service,
 		configDirectory:  options.Directory,
 		directory:        options.Directory,
-		tries:            options.Tries,
-		backoffInterval:  defaultBackoffInterval,
 		initializeSignal: make(chan struct{}),
 	}
 	manager.writeCerts = manager.persist
 	return manager
+}
+
+func (c *CertManager) handleRootWatch(blockParam watch.BlockingParamVal, raw interface{}) {
+	if raw == nil {
+		return
+	}
+	v, ok := raw.(*api.CARootList)
+	if !ok || v == nil {
+		c.logger.Error("got invalid response from root watch")
+		return
+	}
+
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	roots := x509.NewCertPool()
+	for _, root := range v.Roots {
+		roots.AppendCertsFromPEM([]byte(root.RootCertPEM))
+		if root.Active {
+			block, _ := pem.Decode([]byte(root.RootCertPEM))
+			caCert, err := x509.ParseCertificate(block.Bytes)
+			if err != nil {
+				c.logger.Error("failed to parse root certificate")
+				return
+			}
+			for _, uri := range caCert.URIs {
+				if uri.Scheme == "spiffe" {
+					c.spiffeURL = uri
+					break
+				}
+			}
+			c.ca = []byte(root.RootCertPEM)
+		}
+	}
+
+	c.rootCertificatePool = roots
+
+	if err := c.writeCerts(); err != nil {
+		c.logger.Error("error persisting root certificates")
+		return
+	}
+}
+
+func (c *CertManager) handleLeafWatch(blockParam watch.BlockingParamVal, raw interface{}) {
+	if raw == nil {
+		return // ignore
+	}
+	v, ok := raw.(*api.LeafCert)
+	if !ok || v == nil {
+		c.logger.Error("got invalid response from leaf watch")
+		return
+	}
+
+	// Got new leaf, update the tls.Configs
+	cert, err := tls.X509KeyPair([]byte(v.CertPEM), []byte(v.PrivateKeyPEM))
+	if err != nil {
+		c.logger.Error("failed to parse new leaf cert", "error", err)
+		return
+	}
+
+	metrics.Registry.IncrCounter(metrics.ConsulLeafCertificateFetches, 1)
+
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	c.certificate = []byte(v.CertPEM)
+	c.privateKey = []byte(v.PrivateKeyPEM)
+	c.tlsCertificate = &cert
+
+	if err := c.writeCerts(); err != nil {
+		c.logger.Error("error persisting leaf certificates")
+		return
+	}
 }
 
 // Manage is the main run loop of the manager and should be run in a go routine.
@@ -153,97 +222,72 @@ func NewCertManager(logger hclog.Logger, consul *api.Client, service string, opt
 // stop and return. If it receives an unexpected error the loop exits.
 func (c *CertManager) Manage(ctx context.Context) error {
 	c.logger.Trace("running cert manager")
-	for {
-		var root *api.CARoot
-		var clientCert *api.LeafCert
-		var err error
 
-		err = backoff.Retry(func() error {
-			root, clientCert, err = c.getCerts(ctx)
-			if err != nil {
-				c.logger.Error("error requesting certificates", "error", err)
-				return err
-			}
-			metrics.Registry.IncrCounter(metrics.ConsulLeafCertificateFetches, 1)
-
-			c.logger.Trace("persisting certificates")
-			err = c.writeCerts(root, clientCert)
-			if err != nil {
-				c.logger.Error("error persisting certificates", "error", err)
-			}
-			return err
-		}, backoff.WithContext(backoff.WithMaxRetries(backoff.NewConstantBackOff(c.backoffInterval), c.tries), ctx))
-		if err != nil {
-			if errors.Is(err, context.Canceled) {
-				// we intentionally canceled the context, just return
-				return nil
-			}
-			return err
-		}
-
-		expiresIn := time.Until(clientCert.ValidBefore.Add(-certExpirationBuffer))
-		select {
-		case <-time.After(expiresIn):
-			// loop
-		case <-ctx.Done():
-			return nil
-		}
+	rootWatch, err := watch.Parse(map[string]interface{}{
+		"type": "connect_roots",
+	})
+	if err != nil {
+		return err
 	}
+	c.rootWatch = rootWatch
+	c.rootWatch.HybridHandler = c.handleRootWatch
+
+	leafWatch, err := watch.Parse(map[string]interface{}{
+		"type":    "connect_leaf",
+		"service": c.service,
+	})
+	if err != nil {
+		return err
+	}
+	c.leafWatch = leafWatch
+	c.leafWatch.HybridHandler = c.handleLeafWatch
+
+	go c.rootWatch.RunWithClientAndHclog(c.consul, c.logger)
+	go c.leafWatch.RunWithClientAndHclog(c.consul, c.logger)
+
+	<-ctx.Done()
+	c.rootWatch.Stop()
+	c.leafWatch.Stop()
+
+	return nil
 }
 
-func (c *CertManager) getCerts(ctx context.Context) (*api.CARoot, *api.LeafCert, error) {
-	options := &api.QueryOptions{}
-	clientCert, _, err := c.consul.Agent().ConnectCALeaf(c.service, options.WithContext(ctx))
-	if err != nil {
-		return nil, nil, fmt.Errorf("error generating client leaf certificate: %w", err)
-	}
-	roots, _, err := c.consul.Agent().ConnectCARoots(options.WithContext(ctx))
-	if err != nil {
-		return nil, nil, fmt.Errorf("error retrieving root CA: %w", err)
-	}
-	for _, root := range roots.Roots {
-		if root.Active {
-			return root, clientCert, nil
-		}
-	}
-	return nil, nil, errors.New("root CA not found")
-}
-
-func (c *CertManager) persist(root *api.CARoot, client *api.LeafCert) error {
+// only call persist when the mutex lock is held
+func (c *CertManager) persist() error {
 	rootCAFile := path.Join(c.directory, RootCAFile)
 	clientCertFile := path.Join(c.directory, ClientCertFile)
 	clientPrivateKeyFile := path.Join(c.directory, ClientPrivateKeyFile)
 
-	c.lock.Lock()
-	defer c.lock.Unlock()
-
 	if c.directory != "" {
-		if err := os.WriteFile(rootCAFile, []byte(root.RootCertPEM), 0600); err != nil {
-			return fmt.Errorf("error writing root CA fiile: %w", err)
+		if c.ca != nil {
+			if err := os.WriteFile(rootCAFile, c.ca, 0600); err != nil {
+				return fmt.Errorf("error writing root CA fiile: %w", err)
+			}
 		}
-		if err := os.WriteFile(clientCertFile, []byte(client.CertPEM), 0600); err != nil {
-			return fmt.Errorf("error writing client cert fiile: %w", err)
+		if c.certificate != nil {
+			if err := os.WriteFile(clientCertFile, c.certificate, 0600); err != nil {
+				return fmt.Errorf("error writing client cert fiile: %w", err)
+			}
 		}
-		if err := os.WriteFile(clientPrivateKeyFile, []byte(client.PrivateKeyPEM), 0600); err != nil {
-			return fmt.Errorf("error writing client private key fiile: %w", err)
+		if c.privateKey != nil {
+			if err := os.WriteFile(clientPrivateKeyFile, c.privateKey, 0600); err != nil {
+				return fmt.Errorf("error writing client private key fiile: %w", err)
+			}
 		}
 	}
 
-	tlsCertificate, err := tls.X509KeyPair([]byte(client.CertPEM), []byte(client.PrivateKeyPEM))
-	if err != nil {
-		return fmt.Errorf("error parsing client certificate: %w", err)
-	}
-	c.tlsCertificate = &tlsCertificate
-	c.ca = []byte(root.RootCertPEM)
-	c.certificate = []byte(client.CertPEM)
-	c.privateKey = []byte(client.PrivateKeyPEM)
-
-	if !c.isInitialized {
-		close(c.initializeSignal)
-		c.isInitialized = true
-	}
+	c.signal()
 
 	return nil
+}
+
+func (c *CertManager) signal() {
+	isInitialized := c.ca != nil && c.certificate != nil && c.privateKey != nil
+
+	if !c.signalled && isInitialized {
+		close(c.initializeSignal)
+		c.signalled = true
+	}
 }
 
 // RootCA returns the current CA cert
@@ -252,6 +296,21 @@ func (c *CertManager) RootCA() []byte {
 	defer c.lock.RUnlock()
 
 	return c.ca
+}
+
+// RootPool returns the certificate pool for the connect root CA
+func (c *CertManager) RootPool() *x509.CertPool {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+
+	return c.rootCertificatePool
+}
+
+func (c *CertManager) SPIFFE() *url.URL {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+
+	return c.spiffeURL
 }
 
 // Certificate returns the current leaf cert
