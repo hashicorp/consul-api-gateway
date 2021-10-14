@@ -106,7 +106,7 @@ type CertManager struct {
 
 	lock sync.RWMutex
 
-	isInitialized    bool
+	signalled        bool
 	initializeSignal chan struct{}
 
 	// cached values
@@ -246,6 +246,9 @@ func (c *CertManager) Manage(ctx context.Context) error {
 	go c.leafWatch.RunWithClientAndHclog(c.consul, c.logger)
 
 	<-ctx.Done()
+	c.rootWatch.Stop()
+	c.leafWatch.Stop()
+
 	return nil
 }
 
@@ -273,14 +276,18 @@ func (c *CertManager) persist() error {
 		}
 	}
 
-	isInitialized := c.ca != nil && c.certificate != nil && c.privateKey != nil
-
-	if !c.isInitialized && isInitialized {
-		close(c.initializeSignal)
-		c.isInitialized = true
-	}
+	c.signal()
 
 	return nil
+}
+
+func (c *CertManager) signal() {
+	isInitialized := c.ca != nil && c.certificate != nil && c.privateKey != nil
+
+	if !c.signalled && isInitialized {
+		close(c.initializeSignal)
+		c.signalled = true
+	}
 }
 
 // RootCA returns the current CA cert
