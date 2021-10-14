@@ -62,6 +62,8 @@ func TestRegister(t *testing.T) {
 				require.Error(t, err)
 				return
 			}
+			defer registry.Deregister(context.Background())
+
 			require.NoError(t, err)
 			require.Equal(t, id, registry.ID())
 			require.Equal(t, id, server.lastRegistrationRequest.ID)
@@ -73,6 +75,7 @@ func TestRegister(t *testing.T) {
 		})
 	}
 }
+
 func TestDeregister(t *testing.T) {
 	t.Parallel()
 
@@ -106,7 +109,6 @@ func TestDeregister(t *testing.T) {
 			registry := NewServiceRegistry(hclog.NewNullLogger(), server.consul, service, "", "").WithTries(maxAttempts)
 			registry.backoffInterval = 0
 			registry.id = id
-
 			err := registry.Deregister(context.Background())
 			if test.fail {
 				require.Error(t, err)
