@@ -21,6 +21,8 @@ const (
 )
 
 // ServiceRegistry handles the logic for registering a consul-api-gateway service in Consul.
+// Note that the registry is *not* thread safe and should only ever call Register/Deregister
+// from a single managing goroutine.
 type ServiceRegistry struct {
 	consul *api.Client
 	logger hclog.Logger
