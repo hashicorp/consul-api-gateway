@@ -30,8 +30,7 @@ type ServiceRegistry struct {
 	namespace string
 	host      string
 
-	stop                   chan struct{}
-	stopped                chan struct{}
+	cancel                 context.CancelFunc
 	tries                  uint64
 	backoffInterval        time.Duration
 	reregistrationInterval time.Duration
@@ -49,8 +48,6 @@ func NewServiceRegistry(logger hclog.Logger, consul *api.Client, service, namesp
 		tries:                  defaultMaxAttempts,
 		backoffInterval:        defaultBackoffInterval,
 		reregistrationInterval: 30 * time.Second,
-		stop:                   make(chan struct{}),
-		stopped:                make(chan struct{}),
 	}
 }
 
@@ -62,17 +59,22 @@ func (s *ServiceRegistry) WithTries(tries uint64) *ServiceRegistry {
 
 // Register registers a service with Consul.
 func (s *ServiceRegistry) Register(ctx context.Context) error {
+	if s.cancel != nil {
+		return nil
+	}
+
 	if err := s.retryRegistration(ctx); err != nil {
 		return err
 	}
-	go func() {
-		defer close(s.stopped)
+	childCtx, cancel := context.WithCancel(ctx)
+	s.cancel = cancel
 
+	go func() {
 		for {
 			select {
 			case <-time.After(s.reregistrationInterval):
-				s.ensureRegistration(ctx)
-			case <-s.stop:
+				s.ensureRegistration(childCtx)
+			case <-childCtx.Done():
 				return
 			}
 		}
@@ -133,8 +135,10 @@ func (s *ServiceRegistry) register(ctx context.Context) error {
 
 // Deregister de-registers a service from Consul.
 func (s *ServiceRegistry) Deregister(ctx context.Context) error {
-	close(s.stop)
-	<-s.stopped
+	if s.cancel != nil {
+		s.cancel()
+		s.cancel = nil
+	}
 
 	return backoff.Retry(func() error {
 		err := s.deregister(ctx)

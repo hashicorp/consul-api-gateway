@@ -109,11 +109,6 @@ func TestDeregister(t *testing.T) {
 			registry := NewServiceRegistry(hclog.NewNullLogger(), server.consul, service, "", "").WithTries(maxAttempts)
 			registry.backoffInterval = 0
 			registry.id = id
-			go func() {
-				defer close(registry.stopped)
-				<-registry.stop
-			}()
-
 			err := registry.Deregister(context.Background())
 			if test.fail {
 				require.Error(t, err)
