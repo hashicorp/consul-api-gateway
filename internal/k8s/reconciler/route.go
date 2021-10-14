@@ -306,7 +306,6 @@ func (r *K8sRoute) Resolve(listener store.Listener) *core.ResolvedRoute {
 	switch route := r.Route.(type) {
 	case *gw.HTTPRoute:
 		return convertHTTPRoute(namespace, hostname, prefix, map[string]string{
-			"managed_by":                                 "consul-api-gateway",
 			"external-source":                            "consul-api-gateway",
 			"consul-api-gateway/k8s/Gateway.Name":        k8sListener.gateway.Name,
 			"consul-api-gateway/k8s/Gateway.Namespace":   k8sListener.gateway.Namespace,
