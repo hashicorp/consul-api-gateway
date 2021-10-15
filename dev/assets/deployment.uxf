@@ -1,0 +1,49 @@
+<diagram program="umletino" version="14.4.0-SNAPSHOT"><zoom_level>10</zoom_level><help_text>Space for diagram notes</help_text><element><id>UMLGeneric</id><coordinates><x>90</x><y>408</y><w>370</w><h>210</h></coordinates><panel_attributes>symbol=component
+Deployment</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLGeneric</id><coordinates><x>90</x><y>178</y><w>370</w><h>200</h></coordinates><panel_attributes>symbol=component
+Server</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLGeneric</id><coordinates><x>600</x><y>298</y><w>240</w><h>130</h></coordinates><panel_attributes>symbol=component
+xDS</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLFrame</id><coordinates><x>50</x><y>138</y><w>450</w><h>500</h></coordinates><panel_attributes>API Gateway
+--
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+-.
+</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLState</id><coordinates><x>100</x><y>328</y><w>130</w><h>40</h></coordinates><panel_attributes>Certificate Manager</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLState</id><coordinates><x>100</x><y>568</y><w>130</w><h>40</h></coordinates><panel_attributes>Certificate Manager</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLState</id><coordinates><x>100</x><y>518</y><w>130</w><h>40</h></coordinates><panel_attributes>Service Registry</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLState</id><coordinates><x>320</x><y>508</y><w>130</w><h>40</h></coordinates><panel_attributes>Envoy</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLState</id><coordinates><x>320</x><y>258</y><w>130</w><h>40</h></coordinates><panel_attributes>SDS</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLGeneric</id><coordinates><x>570</x><y>488</y><w>140</w><h>90</h></coordinates><panel_attributes>symbol=component
+Catalog</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLFrame</id><coordinates><x>540</x><y>258</y><w>350</w><h>360</h></coordinates><panel_attributes>Consul
+--
+
+
+
+
+
+
+
+
+
+
+
+-.
+</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLGeneric</id><coordinates><x>720</x><y>488</y><w>140</w><h>90</h></coordinates><panel_attributes>symbol=component
+Connect</panel_attributes><additional_attributes></additional_attributes></element><element><id>Relation</id><coordinates><x>0</x><y>358</y><w>790</w><h>420</h></coordinates><panel_attributes>lt=&lt;.&gt;
+m2=Leaf &amp; Root CA Watch
+m2pos=-200,148</panel_attributes><additional_attributes>150;10;150;110;10;110;10;400;770;400;770;220</additional_attributes></element><element><id>Relation</id><coordinates><x>220</x><y>528</y><w>440</w><h>160</h></coordinates><panel_attributes>lt=&lt;.&gt;
+m2=Ensure Registration
+m2pos=-200,55</panel_attributes><additional_attributes>10;10;50;10;50;140;420;140;420;50</additional_attributes></element><element><id>Relation</id><coordinates><x>150</x><y>568</y><w>670</w><h>160</h></coordinates><panel_attributes>lt=&lt;.&gt;
+Leaf &amp; Root CA Watch</panel_attributes><additional_attributes>10;40;10;140;650;140;650;10</additional_attributes></element><element><id>Relation</id><coordinates><x>160</x><y>268</y><w>180</w><h>80</h></coordinates><panel_attributes>lt=&lt;.
+TLSCertificate
+RootPool</panel_attributes><additional_attributes>10;60;10;10;160;10</additional_attributes></element><element><id>Relation</id><coordinates><x>220</x><y>538</y><w>170</w><h>70</h></coordinates><panel_attributes>lt=.&gt;
+RenderSDSConfig</panel_attributes><additional_attributes>10;50;150;50;150;10</additional_attributes></element><element><id>Relation</id><coordinates><x>370</x><y>288</y><w>60</w><h>240</h></coordinates><panel_attributes>lt=&lt;-&gt;
+r1=mTLS
+r2=mTLS</panel_attributes><additional_attributes>10;10;10;220</additional_attributes></element><element><id>Relation</id><coordinates><x>440</x><y>338</y><w>180</w><h>210</h></coordinates><panel_attributes>lt=&lt;-&gt;
+r2=TLS</panel_attributes><additional_attributes>10;190;80;190;80;20;160;20</additional_attributes></element></diagram>

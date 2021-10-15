@@ -1,9 +1,13 @@
-# Quick Start
+# Getting Started
+
+[Table of Contents](./README.md)
+
+## Quick Start (Mac)
 
 Install Docker for Mac. Execute the following:
 
 ```bash
-brew install kubectl kind helm consul jq go
+brew install kubectl kustomize kind helm consul jq go
 ./scripts/develop
 ```
 
@@ -137,8 +141,7 @@ EOF
 Make sure that the echo container is routable:
 
 ```bash
-# update this when we figure out SSL and hostname stuff
-curl localhost:8443
+curl https://localhost:8443 -k
 ```
 
 Clean up the gateway you just created:
