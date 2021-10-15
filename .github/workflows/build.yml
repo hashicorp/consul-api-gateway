@@ -60,7 +60,6 @@ jobs:
       TOKEN: ${{ secrets.ELEVATED_GITHUB_TOKEN }}
       GOOS: ${{ matrix.goos }}
       GOARCH: ${{ matrix.goarch }}
-      DOCKER_CLI_EXPERIMENTAL: enabled
 
     steps:
       - uses: actions/checkout@v2
