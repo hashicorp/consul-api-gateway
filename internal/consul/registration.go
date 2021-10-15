@@ -121,6 +121,9 @@ func (s *ServiceRegistry) register(ctx context.Context) error {
 		ID:      s.id,
 		Name:    s.name,
 		Address: s.host,
+		Meta: map[string]string{
+			"external-source": "consul-api-gateway",
+		},
 		Checks: api.AgentServiceChecks{{
 			Name:                           fmt.Sprintf("%s - Ready", serviceCheckName),
 			TCP:                            fmt.Sprintf("%s:%d", s.host, 20000),
