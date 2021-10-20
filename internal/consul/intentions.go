@@ -1,6 +1,7 @@
 package consul
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -15,8 +16,13 @@ import (
 
 //go:generate mockgen -source ./intentions.go -destination ./mocks/intentions.go -package mocks consulDiscoveryChains,consulConfigEntries
 
+const (
+	updateIntentionsMaxRetries = 3
+)
+
 var (
-	intentionSyncInterval = 60 * time.Second
+	intentionSyncInterval         = 60 * time.Second
+	updateIntentionsRetryInterval = time.Second
 )
 
 type consulDiscoveryChains interface {
@@ -37,7 +43,8 @@ type IntentionsReconciler struct {
 	consulConfig   consulConfigEntries
 	serviceName    core.GatewayID
 	discoChainChan <-chan *api.CompiledDiscoveryChain
-	stopCh         chan struct{}
+	ctx            context.Context
+	stop           context.CancelFunc
 
 	targetIndex      *common.ServiceNameIndex
 	targetTombstones *common.ServiceNameIndex
@@ -53,18 +60,21 @@ func NewIntentionsReconciler(consul *api.Client, id core.GatewayID, logger hclog
 }
 
 func newIntentionsReconciler(disco consulDiscoveryChains, config consulConfigEntries, id core.GatewayID, logger hclog.Logger) *IntentionsReconciler {
+	ctx, cancel := context.WithCancel(context.Background())
 	return &IntentionsReconciler{
 		consulDisco:      disco,
 		consulConfig:     config,
 		serviceName:      id,
-		stopCh:           make(chan struct{}),
 		targetIndex:      common.NewServiceNameIndex(),
 		targetTombstones: common.NewServiceNameIndex(),
+		ctx:              ctx,
+		stop:             cancel,
 		logger:           logger,
 	}
 }
+
 func (r *IntentionsReconciler) Stop() {
-	close(r.stopCh)
+	r.stop()
 }
 
 // sourceIntention builds the api gateway source rule for updating intentions
@@ -84,7 +94,7 @@ func (r *IntentionsReconciler) reconcileLoop() {
 	timer := time.NewTicker(intentionSyncInterval)
 	for {
 		select {
-		case <-r.stopCh:
+		case <-r.ctx.Done():
 			return
 		case chain := <-r.discoChainChan:
 			r.handleChain(chain)
@@ -141,21 +151,30 @@ func (r *IntentionsReconciler) handleChain(chain *api.CompiledDiscoveryChain) {
 func (r *IntentionsReconciler) watchDiscoveryChain() <-chan *api.CompiledDiscoveryChain {
 	results := make(chan *api.CompiledDiscoveryChain)
 	go func() {
+		defer close(results)
 		var index uint64
 		for {
-			resp, meta, err := r.consulDisco.Get(r.serviceName.Service, nil, &api.QueryOptions{WaitIndex: index, Namespace: r.serviceName.ConsulNamespace})
+			opts := &api.QueryOptions{WaitIndex: index, Namespace: r.serviceName.ConsulNamespace}
+			resp, meta, err := r.consulDisco.Get(r.serviceName.Service, nil, opts.WithContext(r.ctx))
 			if err != nil {
 				r.logger.Warn("blocking query for gateway discovery chain failed", "error", err)
+				select {
+				case <-r.ctx.Done():
+					return
+				case <-time.After(time.Second):
+					// avoid hot looping on error
+				}
 				continue
 			}
+
 			if meta.LastIndex < index {
 				index = 0
 			} else {
 				index = meta.LastIndex
 			}
+
 			select {
-			case <-r.stopCh:
-				close(results)
+			case <-r.ctx.Done():
 				return
 			case results <- resp.Chain:
 			}
@@ -228,7 +247,7 @@ func (r *IntentionsReconciler) updateIntentionSources(name api.CompoundServiceNa
 			return fmt.Errorf("CAS operation failed")
 		}
 		return nil
-	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(time.Second), 3))
+	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(updateIntentionsRetryInterval), updateIntentionsMaxRetries))
 }
 
 func (r *IntentionsReconciler) getOrInitIntention(name api.CompoundServiceName) (intention *api.ServiceIntentionsConfigEntry, idx uint64, err error) {

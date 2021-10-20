@@ -22,14 +22,6 @@ func testIntentionsReconciler(t *testing.T, disco consulDiscoveryChains, config 
 	}, testutil.Logger(t))
 }
 
-func mockCompiledDiscoChain(name, namespace string) *api.CompiledDiscoveryChain {
-	return &api.CompiledDiscoveryChain{
-		ServiceName: name,
-		Namespace:   namespace,
-		Targets:     map[string]*api.DiscoveryTarget{},
-	}
-}
-
 func TestIntentionsReconciler_sourceIntention(t *testing.T) {
 	r := testIntentionsReconciler(t, nil, nil)
 	i := r.sourceIntention()
