@@ -16,6 +16,8 @@ import (
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
 )
 
+//go:generate mockgen -source ./resolver.go -destination ./mocks/resolver.go -package mocks BackendResolver
+
 type ResolvedReferenceType int
 
 type ServiceResolutionErrorType int
@@ -174,21 +176,25 @@ func (r *ResolvedReference) Item() client.Object {
 	return r.object
 }
 
-type BackendResolver struct {
+type BackendResolver interface {
+	Resolve(ctx context.Context, ref gw.BackendObjectReference) (*ResolvedReference, error)
+}
+
+type backendResolver struct {
 	namespace string
 	client    gatewayclient.Client
 	consul    *api.Client
 }
 
-func NewBackendResolver(namespace string, client gatewayclient.Client, consul *api.Client) *BackendResolver {
-	return &BackendResolver{
+func NewBackendResolver(namespace string, client gatewayclient.Client, consul *api.Client) BackendResolver {
+	return &backendResolver{
 		namespace: namespace,
 		client:    client,
 		consul:    consul,
 	}
 }
 
-func (r *BackendResolver) Resolve(ctx context.Context, ref gw.BackendObjectReference) (*ResolvedReference, error) {
+func (r *backendResolver) Resolve(ctx context.Context, ref gw.BackendObjectReference) (*ResolvedReference, error) {
 	group := corev1.GroupName
 	kind := "Service"
 	namespace := r.namespace
@@ -214,7 +220,7 @@ func (r *BackendResolver) Resolve(ctx context.Context, ref gw.BackendObjectRefer
 	}
 }
 
-func (r *BackendResolver) consulServiceForK8SService(ctx context.Context, namespacedName types.NamespacedName) (*ResolvedReference, error) {
+func (r *backendResolver) consulServiceForK8SService(ctx context.Context, namespacedName types.NamespacedName) (*ResolvedReference, error) {
 	var err error
 	var resolved *ResolvedReference
 

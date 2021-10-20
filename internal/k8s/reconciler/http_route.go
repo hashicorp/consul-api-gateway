@@ -176,7 +176,7 @@ func convertHTTPRouteFilters(routeFilters []gw.HTTPRouteFilter) []core.HTTPFilte
 				statusCode = *filter.RequestRedirect.StatusCode
 			}
 			filters = append(filters, core.HTTPFilter{
-				Type: core.HTTPHeaderFilterType,
+				Type: core.HTTPRedirectFilterType,
 				Redirect: core.HTTPRedirectFilter{
 					Scheme:   scheme,
 					Hostname: hostname,
