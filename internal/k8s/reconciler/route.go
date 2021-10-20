@@ -139,9 +139,9 @@ func (r *K8sRoute) ParentStatuses() []gw.RouteParentStatus {
 	statuses := []gw.RouteParentStatus{}
 	for ref, status := range r.parentStatuses {
 		statuses = append(statuses, gw.RouteParentStatus{
-			ParentRef:  parseParent(ref),
-			Controller: gw.GatewayController(r.controllerName),
-			Conditions: status.Conditions(r.GetGeneration()),
+			ParentRef:      parseParent(ref),
+			ControllerName: gw.GatewayController(r.controllerName),
+			Conditions:     status.Conditions(r.GetGeneration()),
 		})
 	}
 	return statuses
@@ -150,7 +150,7 @@ func (r *K8sRoute) ParentStatuses() []gw.RouteParentStatus {
 func (r *K8sRoute) FilterParentStatuses() []gw.RouteParentStatus {
 	filtered := []gw.RouteParentStatus{}
 	for _, status := range r.routeStatus().Parents {
-		if status.Controller != gw.GatewayController(r.controllerName) {
+		if status.ControllerName != gw.GatewayController(r.controllerName) {
 			filtered = append(filtered, status)
 			continue
 		}

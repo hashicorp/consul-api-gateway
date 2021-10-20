@@ -210,7 +210,7 @@ func listenerStatusesEqual(a, b []gw.ListenerStatus) bool {
 }
 
 func parentStatusEqual(a, b gw.RouteParentStatus) bool {
-	if a.Controller != b.Controller {
+	if a.ControllerName != b.ControllerName {
 		return false
 	}
 	if asJSON(a.ParentRef) != asJSON(b.ParentRef) {

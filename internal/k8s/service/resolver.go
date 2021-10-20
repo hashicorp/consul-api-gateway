@@ -207,7 +207,7 @@ func (r *backendResolver) Resolve(ctx context.Context, ref gw.BackendObjectRefer
 	if ref.Namespace != nil {
 		namespace = string(*ref.Namespace)
 	}
-	namespacedName := types.NamespacedName{Name: ref.Name, Namespace: namespace}
+	namespacedName := types.NamespacedName{Name: string(ref.Name), Namespace: namespace}
 
 	switch {
 	case group == corev1.GroupName && kind == "Service":

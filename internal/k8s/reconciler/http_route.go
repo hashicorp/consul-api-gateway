@@ -160,8 +160,8 @@ func convertHTTPRouteFilters(routeFilters []gw.HTTPRouteFilter) []core.HTTPFilte
 			})
 		case gw.HTTPRouteFilterRequestRedirect:
 			scheme := ""
-			if filter.RequestRedirect.Protocol != nil {
-				scheme = *filter.RequestRedirect.Protocol
+			if filter.RequestRedirect.Scheme != nil {
+				scheme = *filter.RequestRedirect.Scheme
 			}
 			hostname := ""
 			if filter.RequestRedirect.Hostname != nil {

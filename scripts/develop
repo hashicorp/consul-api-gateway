@@ -49,7 +49,7 @@ EOF
 
 installGatewayCRDs() {
   echo "Installing Gateway CRDs"
-  kubectl kustomize "github.com/kubernetes-sigs/gateway-api/config/crd?ref=v0.4.0-rc1" | kubectl apply -f -  2>&1 > /dev/null
+  kubectl kustomize "github.com/kubernetes-sigs/gateway-api/config/crd?ref=v0.4.0" | kubectl apply -f -  2>&1 > /dev/null
 }
 
 createServiceAccountForRBAC() {
