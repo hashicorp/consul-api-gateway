@@ -55,7 +55,7 @@ func TestGatewayClass(t *testing.T) {
 		expectationCB: func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager) {
 			client.EXPECT().GetGatewayClass(gomock.Any(), className).Return(&gateway.GatewayClass{
 				Spec: gateway.GatewayClassSpec{
-					Controller: gateway.GatewayController("other"),
+					ControllerName: gateway.GatewayController("other"),
 				},
 			}, nil)
 		},
@@ -69,7 +69,7 @@ func TestGatewayClass(t *testing.T) {
 					DeletionTimestamp: &now,
 				},
 				Spec: gateway.GatewayClassSpec{
-					Controller: gateway.GatewayController(mockControllerName),
+					ControllerName: gateway.GatewayController(mockControllerName),
 				},
 			}, nil)
 			client.EXPECT().GatewayClassInUse(gomock.Any(), gomock.Any()).Return(false, errExpected)
@@ -84,7 +84,7 @@ func TestGatewayClass(t *testing.T) {
 					DeletionTimestamp: &now,
 				},
 				Spec: gateway.GatewayClassSpec{
-					Controller: gateway.GatewayController(mockControllerName),
+					ControllerName: gateway.GatewayController(mockControllerName),
 				},
 			}, nil)
 			client.EXPECT().GatewayClassInUse(gomock.Any(), gomock.Any()).Return(true, nil)
@@ -99,7 +99,7 @@ func TestGatewayClass(t *testing.T) {
 					DeletionTimestamp: &now,
 				},
 				Spec: gateway.GatewayClassSpec{
-					Controller: gateway.GatewayController(mockControllerName),
+					ControllerName: gateway.GatewayController(mockControllerName),
 				},
 			}, nil)
 			client.EXPECT().GatewayClassInUse(gomock.Any(), gomock.Any()).Return(false, nil)
@@ -114,7 +114,7 @@ func TestGatewayClass(t *testing.T) {
 					DeletionTimestamp: &now,
 				},
 				Spec: gateway.GatewayClassSpec{
-					Controller: gateway.GatewayController(mockControllerName),
+					ControllerName: gateway.GatewayController(mockControllerName),
 				},
 			}, nil)
 			client.EXPECT().GatewayClassInUse(gomock.Any(), gomock.Any()).Return(false, nil)
@@ -126,7 +126,7 @@ func TestGatewayClass(t *testing.T) {
 		expectationCB: func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager) {
 			client.EXPECT().GetGatewayClass(gomock.Any(), className).Return(&gateway.GatewayClass{
 				Spec: gateway.GatewayClassSpec{
-					Controller: gateway.GatewayController(mockControllerName),
+					ControllerName: gateway.GatewayController(mockControllerName),
 				},
 			}, nil)
 			client.EXPECT().EnsureFinalizer(gomock.Any(), gomock.Any(), gatewayClassFinalizer).Return(false, errExpected)
@@ -136,7 +136,7 @@ func TestGatewayClass(t *testing.T) {
 		expectationCB: func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager) {
 			client.EXPECT().GetGatewayClass(gomock.Any(), className).Return(&gateway.GatewayClass{
 				Spec: gateway.GatewayClassSpec{
-					Controller: gateway.GatewayController(mockControllerName),
+					ControllerName: gateway.GatewayController(mockControllerName),
 				},
 			}, nil)
 			client.EXPECT().EnsureFinalizer(gomock.Any(), gomock.Any(), gatewayClassFinalizer).Return(true, nil)
@@ -147,7 +147,7 @@ func TestGatewayClass(t *testing.T) {
 		expectationCB: func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager) {
 			client.EXPECT().GetGatewayClass(gomock.Any(), className).Return(&gateway.GatewayClass{
 				Spec: gateway.GatewayClassSpec{
-					Controller: gateway.GatewayController(mockControllerName),
+					ControllerName: gateway.GatewayController(mockControllerName),
 				},
 			}, nil)
 			client.EXPECT().EnsureFinalizer(gomock.Any(), gomock.Any(), gatewayClassFinalizer).Return(false, nil)

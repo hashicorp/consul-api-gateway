@@ -21,5 +21,5 @@ func ReferencesGateway(namespace string, ref gw.ParentRef) (types.NamespacedName
 	if ref.Namespace != nil {
 		namespace = string(*ref.Namespace)
 	}
-	return types.NamespacedName{Name: ref.Name, Namespace: namespace}, true
+	return types.NamespacedName{Name: string(ref.Name), Namespace: namespace}, true
 }

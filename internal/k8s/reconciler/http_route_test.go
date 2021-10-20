@@ -62,8 +62,8 @@ func TestConvertHTTPRoute(t *testing.T) {
 					}},
 					Filters: []gw.HTTPRouteFilter{{
 						Type: gw.HTTPRouteFilterRequestRedirect,
-						RequestRedirect: &gw.HTTPRequestRedirect{
-							Protocol:   &protocol,
+						RequestRedirect: &gw.HTTPRequestRedirectFilter{
+							Scheme:     &protocol,
 							Hostname:   &hostname,
 							Port:       &port,
 							StatusCode: &statusCode,

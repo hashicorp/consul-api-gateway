@@ -103,17 +103,17 @@ func TestRouteFilterParentStatuses(t *testing.T) {
 					ParentRef: gw.ParentRef{
 						Name: "expected",
 					},
-					Controller: "expected",
+					ControllerName: "expected",
 				}, {
 					ParentRef: gw.ParentRef{
 						Name: "expected",
 					},
-					Controller: "other",
+					ControllerName: "other",
 				}, {
 					ParentRef: gw.ParentRef{
 						Name: "other",
 					},
-					Controller: "other",
+					ControllerName: "other",
 				}},
 			},
 		},
@@ -132,10 +132,10 @@ func TestRouteFilterParentStatuses(t *testing.T) {
 
 	statuses := route.FilterParentStatuses()
 	require.Len(t, statuses, 2)
-	require.Equal(t, "expected", statuses[0].ParentRef.Name)
-	require.Equal(t, "other", string(statuses[0].Controller))
-	require.Equal(t, "other", statuses[1].ParentRef.Name)
-	require.Equal(t, "other", string(statuses[1].Controller))
+	require.Equal(t, "expected", string(statuses[0].ParentRef.Name))
+	require.Equal(t, "other", string(statuses[0].ControllerName))
+	require.Equal(t, "other", string(statuses[1].ParentRef.Name))
+	require.Equal(t, "other", string(statuses[1].ControllerName))
 }
 
 func TestRouteMergedStatusAndBinding(t *testing.T) {
@@ -164,17 +164,17 @@ func TestRouteMergedStatusAndBinding(t *testing.T) {
 					ParentRef: gw.ParentRef{
 						Name: "expected",
 					},
-					Controller: "expected",
+					ControllerName: "expected",
 				}, {
 					ParentRef: gw.ParentRef{
 						Name: "expected",
 					},
-					Controller: "other",
+					ControllerName: "other",
 				}, {
 					ParentRef: gw.ParentRef{
 						Name: "other",
 					},
-					Controller: "other",
+					ControllerName: "other",
 				}},
 			},
 		},
@@ -188,21 +188,21 @@ func TestRouteMergedStatusAndBinding(t *testing.T) {
 
 	statuses := route.MergedStatus().Parents
 	require.Len(t, statuses, 3)
-	require.Equal(t, "expected", statuses[0].ParentRef.Name)
-	require.Equal(t, "expected", string(statuses[0].Controller))
+	require.Equal(t, "expected", string(statuses[0].ParentRef.Name))
+	require.Equal(t, "expected", string(statuses[0].ControllerName))
 	require.Len(t, statuses[0].Conditions, 2)
 	require.Equal(t, "Route accepted.", statuses[0].Conditions[0].Message)
-	require.Equal(t, "expected", statuses[1].ParentRef.Name)
-	require.Equal(t, "other", string(statuses[1].Controller))
-	require.Equal(t, "other", statuses[2].ParentRef.Name)
-	require.Equal(t, "other", string(statuses[2].Controller))
+	require.Equal(t, "expected", string(statuses[1].ParentRef.Name))
+	require.Equal(t, "other", string(statuses[1].ControllerName))
+	require.Equal(t, "other", string(statuses[2].ParentRef.Name))
+	require.Equal(t, "other", string(statuses[2].ControllerName))
 
 	route.OnBindFailed(errors.New("expected"), gateway)
 
 	statuses = route.MergedStatus().Parents
 	require.Len(t, statuses, 3)
-	require.Equal(t, "expected", statuses[0].ParentRef.Name)
-	require.Equal(t, "expected", string(statuses[0].Controller))
+	require.Equal(t, "expected", string(statuses[0].ParentRef.Name))
+	require.Equal(t, "expected", string(statuses[0].ControllerName))
 	require.Equal(t, "expected", statuses[0].Conditions[0].Message)
 	require.Equal(t, RouteConditionReasonBindError, statuses[0].Conditions[0].Reason)
 
@@ -210,8 +210,8 @@ func TestRouteMergedStatusAndBinding(t *testing.T) {
 
 	statuses = route.MergedStatus().Parents
 	require.Len(t, statuses, 3)
-	require.Equal(t, "expected", statuses[0].ParentRef.Name)
-	require.Equal(t, "expected", string(statuses[0].Controller))
+	require.Equal(t, "expected", string(statuses[0].ParentRef.Name))
+	require.Equal(t, "expected", string(statuses[0].ControllerName))
 	require.Equal(t, "expected", statuses[0].Conditions[0].Message)
 	require.Equal(t, RouteConditionReasonListenerHostnameMismatch, statuses[0].Conditions[0].Reason)
 
@@ -219,8 +219,8 @@ func TestRouteMergedStatusAndBinding(t *testing.T) {
 
 	statuses = route.MergedStatus().Parents
 	require.Len(t, statuses, 3)
-	require.Equal(t, "expected", statuses[0].ParentRef.Name)
-	require.Equal(t, "expected", string(statuses[0].Controller))
+	require.Equal(t, "expected", string(statuses[0].ParentRef.Name))
+	require.Equal(t, "expected", string(statuses[0].ControllerName))
 	require.Equal(t, "expected", statuses[0].Conditions[0].Message)
 	require.Equal(t, RouteConditionReasonListenerNamespacePolicy, statuses[0].Conditions[0].Reason)
 
@@ -228,8 +228,8 @@ func TestRouteMergedStatusAndBinding(t *testing.T) {
 
 	statuses = route.MergedStatus().Parents
 	require.Len(t, statuses, 3)
-	require.Equal(t, "expected", statuses[0].ParentRef.Name)
-	require.Equal(t, "expected", string(statuses[0].Controller))
+	require.Equal(t, "expected", string(statuses[0].ParentRef.Name))
+	require.Equal(t, "expected", string(statuses[0].ControllerName))
 	require.Equal(t, "expected", statuses[0].Conditions[0].Message)
 	require.Equal(t, RouteConditionReasonInvalidRouteKind, statuses[0].Conditions[0].Reason)
 
@@ -237,18 +237,18 @@ func TestRouteMergedStatusAndBinding(t *testing.T) {
 
 	statuses = route.MergedStatus().Parents
 	require.Len(t, statuses, 3)
-	require.Equal(t, "expected", statuses[0].ParentRef.Name)
-	require.Equal(t, "expected", string(statuses[0].Controller))
+	require.Equal(t, "expected", string(statuses[0].ParentRef.Name))
+	require.Equal(t, "expected", string(statuses[0].ControllerName))
 	require.Equal(t, "Route accepted.", statuses[0].Conditions[0].Message)
 
 	route.OnGatewayRemoved(gateway)
 
 	statuses = route.MergedStatus().Parents
 	require.Len(t, statuses, 2)
-	require.Equal(t, "expected", statuses[0].ParentRef.Name)
-	require.Equal(t, "other", string(statuses[0].Controller))
-	require.Equal(t, "other", statuses[1].ParentRef.Name)
-	require.Equal(t, "other", string(statuses[1].Controller))
+	require.Equal(t, "expected", string(statuses[0].ParentRef.Name))
+	require.Equal(t, "other", string(statuses[0].ControllerName))
+	require.Equal(t, "other", string(statuses[1].ParentRef.Name))
+	require.Equal(t, "other", string(statuses[1].ControllerName))
 
 	// check creating a status on bind failure when it's not there
 	route = NewK8sRoute(inner, K8sRouteConfig{
@@ -260,8 +260,8 @@ func TestRouteMergedStatusAndBinding(t *testing.T) {
 
 	statuses = route.MergedStatus().Parents
 	require.Len(t, statuses, 3)
-	require.Equal(t, "expected", statuses[0].ParentRef.Name)
-	require.Equal(t, "expected", string(statuses[0].Controller))
+	require.Equal(t, "expected", string(statuses[0].ParentRef.Name))
+	require.Equal(t, "expected", string(statuses[0].ControllerName))
 	require.Equal(t, "expected", statuses[0].Conditions[0].Message)
 	require.Equal(t, RouteConditionReasonBindError, statuses[0].Conditions[0].Reason)
 
@@ -302,17 +302,17 @@ func TestRouteNeedsStatusUpdate(t *testing.T) {
 					ParentRef: gw.ParentRef{
 						Name: "expected",
 					},
-					Controller: "expected",
+					ControllerName: "expected",
 				}, {
 					ParentRef: gw.ParentRef{
 						Name: "expected",
 					},
-					Controller: "other",
+					ControllerName: "other",
 				}, {
 					ParentRef: gw.ParentRef{
 						Name: "other",
 					},
-					Controller: "other",
+					ControllerName: "other",
 				}},
 			},
 		},
@@ -629,17 +629,17 @@ func TestRouteSyncStatus(t *testing.T) {
 					ParentRef: gw.ParentRef{
 						Name: "expected",
 					},
-					Controller: "expected",
+					ControllerName: "expected",
 				}, {
 					ParentRef: gw.ParentRef{
 						Name: "expected",
 					},
-					Controller: "other",
+					ControllerName: "other",
 				}, {
 					ParentRef: gw.ParentRef{
 						Name: "other",
 					},
-					Controller: "other",
+					ControllerName: "other",
 				}},
 			},
 		},

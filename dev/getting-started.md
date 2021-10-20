@@ -36,7 +36,7 @@ kind: GatewayClass
 metadata:
   name: test-gateway-class
 spec:
-  controller: "hashicorp.com/consul-api-gateway-controller"
+  controllerName: "hashicorp.com/consul-api-gateway-controller"
   parametersRef:
     group: api-gateway.consul.hashicorp.com
     kind: GatewayClassConfig
@@ -57,8 +57,8 @@ spec:
       namespaces:
         from: Same
     tls:
-      certificateRef:
-        name: consul-server-cert
+      certificateRefs:
+        - name: consul-server-cert
 ---
 apiVersion: consul.hashicorp.com/v1alpha1
 kind: ServiceDefaults

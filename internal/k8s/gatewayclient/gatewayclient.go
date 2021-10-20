@@ -102,7 +102,7 @@ func (g *gatewayClient) GatewayClassInUse(ctx context.Context, gc *gateway.Gatew
 		return false, NewK8sError(err)
 	}
 	for _, g := range list.Items {
-		if g.Spec.GatewayClassName == gc.Name {
+		if string(g.Spec.GatewayClassName) == gc.Name {
 			return true, nil
 		}
 	}
@@ -307,7 +307,7 @@ func (g *gatewayClient) GetConfigForGatewayClassName(ctx context.Context, name s
 	if err != nil {
 		return apigwv1alpha1.GatewayClassConfig{}, false, NewK8sError(err)
 	}
-	if class.Spec.Controller != gateway.GatewayController(g.controllerName) {
+	if class.Spec.ControllerName != gateway.GatewayController(g.controllerName) {
 		// we're not owned by this controller, so pretend we don't exist
 		return apigwv1alpha1.GatewayClassConfig{}, false, NewK8sError(err)
 	}

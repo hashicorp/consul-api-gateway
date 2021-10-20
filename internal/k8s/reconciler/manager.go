@@ -93,8 +93,10 @@ func (m *GatewayReconcileManager) UpsertGateway(ctx context.Context, g *gw.Gatew
 
 	var err error
 
+	gatewayClassName := string(g.Spec.GatewayClassName)
+
 	// first check our cache to see if we have a known configuration
-	config, managed := m.gatewayClasses.GetConfig(g.Spec.GatewayClassName)
+	config, managed := m.gatewayClasses.GetConfig(gatewayClassName)
 	if !managed {
 		// next check to see if we have an existing deployment, if we do, we manage the gateway
 		// and can just use an empty config since we won't re-deploy
@@ -104,7 +106,7 @@ func (m *GatewayReconcileManager) UpsertGateway(ctx context.Context, g *gw.Gatew
 		}
 		if !managed {
 			// finally, see if we can run through all of the relationships and retrieve the config
-			config, managed, err = m.client.GetConfigForGatewayClassName(ctx, g.Spec.GatewayClassName)
+			config, managed, err = m.client.GetConfigForGatewayClassName(ctx, gatewayClassName)
 			if err != nil {
 				return err
 			}
