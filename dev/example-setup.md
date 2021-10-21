@@ -219,6 +219,6 @@ curl https://$DNS_HOSTNAME
 
 ```bash
 kubectl delete dnsendpoint gateway
-doctl registry delete gateway
 doctl kubernetes cluster delete gateway-controller-cluster
+doctl registry delete gateway
 ```
