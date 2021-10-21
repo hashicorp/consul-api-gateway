@@ -101,11 +101,8 @@ kubectl kustomize demo-deployment/install --reorder=none | kubectl apply -f -
 ## Install third-party dependencies
 
 ```bash
-# Cert-Manager
 helm repo add jetstack https://charts.jetstack.io
 helm install cert-manager jetstack/cert-manager --version v1.5.3 --set installCRDs=true
-# External DNS CRDs
-kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/external-dns/65a69275b1f76fa01b56a708d0514ae49edf30fd/docs/contributing/crd-source/crd-manifest.yaml
 ```
 
 ## Set up example deployment kustomizations
@@ -128,6 +125,9 @@ patches:
   patch: |-
     - op: replace
       path: /spec/listeners/0/hostname
+      value: $DNS_HOSTNAME
+    - op: replace
+      path: /metadata/annotations/external-dns.alpha.kubernetes.io~1hostname
       value: $DNS_HOSTNAME
 - target:
     group: apps
@@ -175,27 +175,6 @@ EOF
 kubectl kustomize demo-deployment/example --reorder=none | kubectl apply -f -
 ```
 
-## Create external DNS entry
-
-When the load balancer service has an external ip, then run.
-
-```bash
-export LB_IP=$(kubectl get svc example-gateway -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-cat <<EOF | kubectl apply -f -
-apiVersion: externaldns.k8s.io/v1alpha1
-kind: DNSEndpoint
-metadata:
-  name: gateway
-spec:
-  endpoints:
-  - dnsName: $DNS_HOSTNAME
-    recordTTL: 180
-    recordType: A
-    targets:
-    - $LB_IP
-EOF
-```
-
 ## Test
 
 Once DNS has propagated
@@ -208,7 +187,6 @@ curl https://$DNS_HOSTNAME
 
 ```bash
 export LB_IP=$(kubectl get svc example-gateway -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-kubectl delete dnsendpoint gateway
 doctl kubernetes cluster delete demo-cluster
 doctl registry delete gateway
 doctl compute load-balancer delete $(doctl compute load-balancer list -o json | jq -r ".[] | select(.ip == \"$LB_IP\") | .id")

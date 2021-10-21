@@ -81,6 +81,15 @@ spec:
                     - https
                     type: string
                 type: object
+              copyAnnotations:
+                description: Annotation Information to copy to services or deployments
+                properties:
+                  service:
+                    description: List of annotations to copy to the gateway service.
+                    items:
+                      type: string
+                    type: array
+                type: object
               image:
                 description: Configuration information about the images to use
                 properties:
