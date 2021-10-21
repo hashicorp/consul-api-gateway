@@ -180,6 +180,9 @@ func (c *GatewayClassConfig) DeploymentFor(gw *gateway.Gateway, sds SDSConfig) *
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: labels,
+					Annotations: map[string]string{
+						"consul.hashicorp.com/connect-inject": "false",
+					},
 				},
 				Spec: c.podSpecFor(gw, sds),
 			},

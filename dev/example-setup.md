@@ -22,7 +22,7 @@ doctl kubernetes cluster create gateway-controller-cluster --node-pool "name=wor
 ## Set up gateway crds
 
 ```bash
-kubectl kustomize "github.com/kubernetes-sigs/gateway-api/config/crd?ref=v0.4.0" | kubectl apply -f -
+kubectl apply -k "github.com/kubernetes-sigs/gateway-api/config/crd?ref=v0.4.0"
 ```
 
 ## Set up Consul
