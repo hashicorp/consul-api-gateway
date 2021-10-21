@@ -19,12 +19,6 @@ doctl auth init -t $DIGITALOCEAN_TOKEN
 doctl kubernetes cluster create demo-cluster --node-pool "name=worker-pool;size=s-2vcpu-2gb;count=1"
 ```
 
-## Set up gateway crds
-
-```bash
-kubectl apply -k "github.com/kubernetes-sigs/gateway-api/config/crd?ref=v0.4.0"
-```
-
 ## Set up Consul
 
 ```bash
@@ -97,7 +91,7 @@ EOF
 ## Set up gateway controller
 
 ```bash
-kubectl apply -f config/crd/bases/api-gateway.consul.hashicorp.com_gatewayclassconfigs.yaml
+kubectl apply -k config/crd
 # For PRE PUBLIC RELEASE ONLY
 kubectl apply -k tmp
 # kubectl apply -k config
