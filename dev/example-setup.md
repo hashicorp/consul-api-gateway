@@ -16,7 +16,7 @@ export DIGITALOCEAN_TOKEN=...
 
 ```bash
 doctl auth init -t $DIGITALOCEAN_TOKEN
-doctl kubernetes cluster create gateway-controller-cluster --node-pool "name=worker-pool;size=s-2vcpu-2gb;count=1"
+doctl kubernetes cluster create demo-cluster --node-pool "name=worker-pool;size=s-2vcpu-2gb;count=1"
 ```
 
 ## Set up gateway crds
@@ -28,7 +28,7 @@ kubectl apply -k "github.com/kubernetes-sigs/gateway-api/config/crd?ref=v0.4.0"
 ## Set up Consul
 
 ```bash
-cat <<EOF | helm install consul hashicorp/consul --version 0.33.0 -f -
+cat <<EOF | helm install consul hashicorp/consul --version 0.35.0 -f -
 global:
   name: consul
   image: "hashicorpdev/consul:581357c32"
@@ -47,7 +47,7 @@ EOF
 
 ```bash
 doctl registry create gateway
-doctl kubernetes cluster registry add gateway-controller-cluster
+doctl kubernetes cluster registry add demo-cluster
 doctl registry login gateway
 doctl registry kubernetes-manifest | kubectl apply -f -
 kubectl patch serviceaccount default -p '{"imagePullSecrets": [{"name": "registry-gateway"}]}'
@@ -119,6 +119,7 @@ kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/external-dns/
 ## Set up example deployment kustomizations
 
 ```bash
+mkdir -p tmp
 cat <<EOF > tmp/kustomization.yaml 
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
@@ -219,6 +220,8 @@ curl https://$DNS_HOSTNAME
 
 ```bash
 kubectl delete dnsendpoint gateway
-doctl kubernetes cluster delete gateway-controller-cluster
+doctl kubernetes cluster delete demo-cluster
 doctl registry delete gateway
+echo "Make sure you delete your provisioned load balancer"
+doctl compute load-balancer delete $(doctl compute load-balancer list -o json | jq -r ".[] | select(.ip == \"$LB_IP\") | .id")
 ```
