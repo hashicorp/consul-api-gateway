@@ -1,0 +1,37 @@
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cloudflare-api-token-secret
+type: Opaque
+stringData:
+  api-token: CLOUDFLARE_API_TOKEN
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: prod-issuer
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      name: account-key-prod
+    email: CLOUDFLARE_EMAIL
+    solvers:
+    - dns01:
+        cloudflare:
+          email: CLOUDFLARE_EMAIL
+          apiTokenSecretRef:
+            name: cloudflare-api-token-secret
+            key: api-token
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: gateway
+spec:
+  secretName: gateway-production-certificate
+  issuerRef:
+    name: prod-issuer
+  dnsNames:
+  - DNS_HOSTNAME
