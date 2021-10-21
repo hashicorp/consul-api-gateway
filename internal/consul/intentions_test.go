@@ -1,6 +1,7 @@
 package consul
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -41,7 +42,7 @@ func TestIntentionsReconciler_syncIntentions(t *testing.T) {
 		r := testIntentionsReconciler(t, nil, config)
 
 		config.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
-		r.syncIntentions()
+		require.NoError(st, r.syncIntentions())
 	})
 	t.Run("single target", func(st *testing.T) {
 		ctrl := gomock.NewController(t)
@@ -56,8 +57,8 @@ func TestIntentionsReconciler_syncIntentions(t *testing.T) {
 			Name: "foo",
 		}, &api.QueryMeta{LastIndex: 1}, nil).Times(1)
 		config.EXPECT().CAS(gomock.Any(), gomock.Any(), gomock.Nil()).Return(true, nil, nil).Times(1)
-		r.syncIntentions()
-		require.Len(t, r.targetIndex.All(), 1)
+		require.NoError(st, r.syncIntentions())
+		require.Len(st, r.targetIndex.All(), 1)
 	})
 	t.Run("single target, already exists", func(st *testing.T) {
 		ctrl := gomock.NewController(t)
@@ -73,8 +74,8 @@ func TestIntentionsReconciler_syncIntentions(t *testing.T) {
 			Sources: []*api.SourceIntention{r.sourceIntention()},
 		}, &api.QueryMeta{LastIndex: 1}, nil).Times(1)
 		config.EXPECT().CAS(gomock.Any(), gomock.Any(), gomock.Nil()).Return(true, nil, nil).Times(0)
-		r.syncIntentions()
-		require.Len(t, r.targetIndex.All(), 1)
+		require.NoError(st, r.syncIntentions())
+		require.Len(st, r.targetIndex.All(), 1)
 	})
 	t.Run("single tombstone", func(st *testing.T) {
 		ctrl := gomock.NewController(t)
@@ -90,8 +91,8 @@ func TestIntentionsReconciler_syncIntentions(t *testing.T) {
 			Sources: []*api.SourceIntention{r.sourceIntention()},
 		}, &api.QueryMeta{LastIndex: 1}, nil).Times(1)
 		config.EXPECT().Delete(api.ServiceIntentions, "foo", gomock.Any()).Return(nil, nil).Times(1)
-		r.syncIntentions()
-		require.Len(t, r.targetTombstones.All(), 0)
+		require.NoError(st, r.syncIntentions())
+		require.Len(st, r.targetTombstones.All(), 0)
 	})
 }
 
@@ -150,4 +151,56 @@ func TestIntentionsReconciler_watchDiscoveryChain(t *testing.T) {
 	val, ok := <-ch
 	require.False(ok)
 	require.Nil(val)
+}
+
+func TestIntentionsReconciler_handleChain(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	config := mocks.NewMockconsulConfigEntries(ctrl)
+	t1Get_1 := config.EXPECT().Get(api.ServiceIntentions, "t1", gomock.Any()).Return(&api.ServiceIntentionsConfigEntry{
+		Name: "t1",
+		Sources: []*api.SourceIntention{
+			{
+				Name:   "foo",
+				Action: api.IntentionActionAllow,
+			},
+		},
+	}, &api.QueryMeta{LastIndex: 1}, nil)
+	config.EXPECT().Get(api.ServiceIntentions, "t1", gomock.Any()).Return(&api.ServiceIntentionsConfigEntry{
+		Name: "t1",
+		Sources: []*api.SourceIntention{
+			{
+				Name:   "foo",
+				Action: api.IntentionActionAllow,
+			},
+			{
+				Name:      "name1",
+				Namespace: "namespace1",
+				Action:    api.IntentionActionAllow,
+			},
+		},
+	}, &api.QueryMeta{LastIndex: 2}, nil).After(t1Get_1)
+
+	config.EXPECT().Get(api.ServiceIntentions, "t2", gomock.Any()).Return(nil, nil, errors.New("Unexpected response code: 404"))
+	config.EXPECT().CAS(gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil, nil).Times(3)
+	r := testIntentionsReconciler(t, nil, config)
+
+	mkChain := func(names ...string) *api.CompiledDiscoveryChain {
+		chain := &api.CompiledDiscoveryChain{Targets: map[string]*api.DiscoveryTarget{}}
+		for _, name := range names {
+			chain.Targets[name] = &api.DiscoveryTarget{Name: name}
+		}
+		return chain
+	}
+
+	require.Len(t, r.targetIndex.All(), 0)
+	r.handleChain(mkChain())
+	require.Len(t, r.targetIndex.All(), 0)
+	r.handleChain(mkChain("t1"))
+	require.Len(t, r.targetIndex.All(), 1)
+	require.Len(t, r.targetTombstones.All(), 0)
+	r.handleChain(mkChain("t2"))
+	require.Len(t, r.targetIndex.All(), 1)
+	require.Len(t, r.targetTombstones.All(), 0)
 }

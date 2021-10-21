@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/cenkalti/backoff"
@@ -12,6 +13,7 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
+	"github.com/hashicorp/go-multierror"
 )
 
 //go:generate mockgen -source ./intentions.go -destination ./mocks/intentions.go -package mocks consulDiscoveryChains,consulConfigEntries
@@ -25,10 +27,12 @@ var (
 	updateIntentionsRetryInterval = time.Second
 )
 
+// consulDiscoveryChains matches the Consul api DiscoveryChain client
 type consulDiscoveryChains interface {
 	Get(name string, opts *api.DiscoveryChainOptions, qopts *api.QueryOptions) (*api.DiscoveryChainResponse, *api.QueryMeta, error)
 }
 
+// consulConfigEntries matches the Consul api ConfigEntries client
 type consulConfigEntries interface {
 	CAS(entry api.ConfigEntry, index uint64, w *api.WriteOptions) (bool, *api.WriteMeta, error)
 	Delete(kind string, name string, w *api.WriteOptions) (*api.WriteMeta, error)
@@ -46,6 +50,11 @@ type IntentionsReconciler struct {
 	ctx            context.Context
 	stop           context.CancelFunc
 
+	initialDiscoChainWaitCh chan struct{}
+	initialDiscoChainOnce   sync.Once
+
+	forceSyncChan chan (chan error)
+
 	targetIndex      *common.ServiceNameIndex
 	targetTombstones *common.ServiceNameIndex
 
@@ -62,19 +71,48 @@ func NewIntentionsReconciler(consul *api.Client, id core.GatewayID, logger hclog
 func newIntentionsReconciler(disco consulDiscoveryChains, config consulConfigEntries, id core.GatewayID, logger hclog.Logger) *IntentionsReconciler {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &IntentionsReconciler{
-		consulDisco:      disco,
-		consulConfig:     config,
-		serviceName:      id,
-		targetIndex:      common.NewServiceNameIndex(),
-		targetTombstones: common.NewServiceNameIndex(),
-		ctx:              ctx,
-		stop:             cancel,
-		logger:           logger,
+		consulDisco:             disco,
+		consulConfig:            config,
+		serviceName:             id,
+		targetIndex:             common.NewServiceNameIndex(),
+		targetTombstones:        common.NewServiceNameIndex(),
+		ctx:                     ctx,
+		stop:                    cancel,
+		initialDiscoChainWaitCh: make(chan struct{}),
+		forceSyncChan:           make(chan (chan error)),
+		logger:                  logger,
 	}
 }
 
 func (r *IntentionsReconciler) Stop() {
 	r.stop()
+}
+
+// Reconcile forces a synchronous reconcile, returning any errors that occurred as a result
+func (r *IntentionsReconciler) Reconcile() error {
+	// wait for the initial query of the service's compiled discovery chain to complete
+	select {
+	case <-r.initialDiscoChainWaitCh:
+	case <-r.ctx.Done():
+		return r.ctx.Err()
+	}
+
+	// create an error channel to return the result from intention synchronization
+	errCh := make(chan error)
+	defer close(errCh)
+	select {
+	case r.forceSyncChan <- errCh:
+	case <-r.ctx.Done():
+		return r.ctx.Err()
+	}
+
+	// wait for synchronization to complete and return the result
+	select {
+	case err := <-errCh:
+		return err
+	case <-r.ctx.Done():
+		return r.ctx.Err()
+	}
 }
 
 // sourceIntention builds the api gateway source rule for updating intentions
@@ -89,35 +127,59 @@ func (r *IntentionsReconciler) sourceIntention() *api.SourceIntention {
 
 // reconcileLoop runs until the struct context is cancelled, handling of the discovery chain is fired under 2 conditions.
 // If the background blocking query completes, the chain is sent over the discoChainChan and is handled by the loop.
-// A ticker fires every 60s to do sync of any intentions that failed to sync during an update
+// A ticker fires every 60s to do sync of any intentions that failed to sync during an update.
+// forceSyncChan is used to forcibly signal a reconciliation and sends an error chan which the result is send to
 func (r *IntentionsReconciler) reconcileLoop() {
-	timer := time.NewTicker(intentionSyncInterval)
+	ticker := time.NewTicker(intentionSyncInterval)
+	defer ticker.Stop()
 	for {
 		select {
+		// return if the reconciler has been stopped
 		case <-r.ctx.Done():
 			return
+
+		// process changes to the compiled discovery chain
 		case chain := <-r.discoChainChan:
+			r.initialDiscoChainOnce.Do(func() {
+				close(r.initialDiscoChainWaitCh)
+			})
 			r.handleChain(chain)
-		case <-timer.C:
-			r.syncIntentions()
+
+		// periodically synchronize the intentions
+		case <-ticker.C:
+			if err := r.syncIntentions(); err != nil {
+				r.logger.Warn("one or more errors occurred during intention sync, some intentions may not have been updated", "error", err)
+			}
+
+		// handle calls to Reconcile which sends an error chan over the forceSyncChan
+		case errCh := <-r.forceSyncChan:
+			select {
+			case errCh <- r.syncIntentions():
+				// reset the ticker for full synchronization
+				ticker.Reset(intentionSyncInterval)
+			case <-r.ctx.Done():
+				return
+			}
 		}
 	}
 }
 
-func (r *IntentionsReconciler) syncIntentions() {
+func (r *IntentionsReconciler) syncIntentions() error {
+	mErr := &multierror.Error{}
 	for _, target := range r.targetIndex.All() {
 		if err := r.updateIntentionSources(target, r.sourceIntention(), nil); err != nil {
-			r.logger.Error("failed to update intention with added gateway source", "name", target.Name, "namespace", target.Namespace, "error", err)
+			mErr = multierror.Append(mErr, fmt.Errorf("failed to update intention with added gateway source: %w", err))
 		}
 	}
 
 	for _, target := range r.targetTombstones.All() {
 		if err := r.updateIntentionSources(target, nil, r.sourceIntention()); err != nil {
-			r.logger.Error("failed to update intention with added gateway source", "name", target.Name, "namespace", target.Namespace, "error", err)
+			mErr = multierror.Append(mErr, fmt.Errorf("failed to update intention with removed gateway source: %w", err))
 			continue
 		}
 		r.targetTombstones.Remove(target)
 	}
+	return mErr.ErrorOrNil()
 }
 
 // handleChain computes the added and removed targets from the last change and applies intention changes
@@ -193,7 +255,7 @@ func (r *IntentionsReconciler) updateIntentionSources(name api.CompoundServiceNa
 			return err
 		}
 
-		// changed tracks if any modifications have been made to the intentionnn
+		// changed tracks if any modifications have been made to the intention
 		var changed bool
 
 		if toAdd != nil {
@@ -229,7 +291,11 @@ func (r *IntentionsReconciler) updateIntentionSources(name api.CompoundServiceNa
 			return nil
 		}
 
-		// if the intention now has no sources it can be deleted
+		// if the intention now has no sources it can be deleted.
+		// there is a race here where the intention could have been modified between the time it was read, potentially
+		// removing the intention when it in fact still had Sources.
+		// this issue tracks Consul's support for CAS for delete operations which would remove this race:
+		// https://github.com/hashicorp/consul/issues/11372
 		if len(intention.Sources) == 0 {
 			_, err := r.consulConfig.Delete(api.ServiceIntentions, intention.Name, &api.WriteOptions{Namespace: intention.Namespace})
 			if err != nil {
