@@ -22,6 +22,7 @@ doctl kubernetes cluster create demo-cluster --node-pool "name=worker-pool;size=
 ## Set up Consul
 
 ```bash
+helm repo add hashicorp https://helm.releases.hashicorp.com
 cat <<EOF | helm install consul hashicorp/consul --version 0.35.0 -f -
 global:
   name: consul
@@ -53,13 +54,13 @@ docker push registry.digitalocean.com/gateway/controller:1
 ## (PRE PUBLIC RELEASE ONLY) Set up installation kustomizations
 
 ```bash
-mkdir -p tmp
-cat <<EOF > tmp/kustomization.yaml 
+mkdir -p demo-deployment/install
+cat <<EOF > demo-deployment/install/kustomization.yaml 
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 resources:
-- ../config
+- ../../config
 
 images:
 - name: hashicorp/consul-api-gateway
@@ -91,35 +92,32 @@ EOF
 ## Set up gateway controller
 
 ```bash
-kubectl apply -k config/crd
+kubectl kustomize config/crd --reorder=none | kubectl apply -f -
 # For PRE PUBLIC RELEASE ONLY
-kubectl apply -k tmp
-# kubectl apply -k config
+kubectl kustomize demo-deployment/install --reorder=none | kubectl apply -f -
+# kubectl apply -k config --reorder=none | kubectl apply -f
 ```
 
-## Install cert manager through helm
+## Install third-party dependencies
 
 ```bash
+# Cert-Manager
 helm repo add jetstack https://charts.jetstack.io
 helm install cert-manager jetstack/cert-manager --version v1.5.3 --set installCRDs=true
-```
-
-## Install external dns CRDs
-
-```bash
+# External DNS CRDs
 kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/external-dns/65a69275b1f76fa01b56a708d0514ae49edf30fd/docs/contributing/crd-source/crd-manifest.yaml
 ```
 
 ## Set up example deployment kustomizations
 
 ```bash
-mkdir -p tmp
-cat <<EOF > tmp/kustomization.yaml 
+mkdir -p demo-deployment/example
+cat <<EOF > demo-deployment/example/kustomization.yaml 
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 resources:
-- ../config/example
+- ../../config/example
 
 patches:
 - target:
@@ -173,12 +171,8 @@ patches:
       path: /spec/dnsNames/0
       value: $DNS_HOSTNAME
 EOF
-```
 
-## Create gateway resources
-
-```bash
-kubectl apply -k tmp
+kubectl kustomize demo-deployment/example --reorder=none | kubectl apply -f -
 ```
 
 ## Create external DNS entry
@@ -213,9 +207,9 @@ curl https://$DNS_HOSTNAME
 ## Clean up resources
 
 ```bash
+export LB_IP=$(kubectl get svc example-gateway -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
 kubectl delete dnsendpoint gateway
 doctl kubernetes cluster delete demo-cluster
 doctl registry delete gateway
-echo "Make sure you delete your provisioned load balancer"
 doctl compute load-balancer delete $(doctl compute load-balancer list -o json | jq -r ".[] | select(.ip == \"$LB_IP\") | .id")
 ```
