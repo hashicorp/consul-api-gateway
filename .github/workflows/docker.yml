@@ -1,0 +1,72 @@
+name: docker
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["main"]
+
+jobs: 
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        goos: ["linux"]
+        goarch: ["amd64"]
+        go: ["1.16"]
+      fail-fast: true
+
+    name: Go ${{ matrix.go }} ${{ matrix.goos }} ${{ matrix.goarch }} build
+    env:
+      GOPRIVATE: 'github.com/hashicorp/*'
+      TOKEN: ${{ secrets.ELEVATED_GITHUB_TOKEN }}
+      GOOS: ${{ matrix.goos }}
+      GOARCH: ${{ matrix.goarch }}
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Setup go
+        uses: actions/setup-go@v2
+        with:
+          go-version: ${{ matrix.go }}
+         
+      - name: Setup Git
+        run: git config --global url."https://${{ secrets.ELEVATED_GITHUB_TOKEN }}:@github.com/".insteadOf "https://github.com"
+       
+      - name: Build
+        run: |
+          mkdir dist
+          go build -o dist/
+
+  build-docker:
+    name: Docker ${{ matrix.arch }} build
+    needs:
+      - build
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: ["amd64"]
+    env:
+      repo: ${{github.event.repository.name}}
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v1
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.ELEVATED_GITHUB_TOKEN }}
+      - name: Docker Buld And Push (Alpha)
+        uses: docker/build-push-action@v2
+        with:
+          build-args: |
+            PRODUCT_VERSION=${{ env.version }}
+            PRODUCT_REVISION=${{ github.sha }}
+            BIN_NAME=consul-api-gateway
+          target: default
+          context: .
+          platforms: linux/${{matrix.arch}}
+          push: true
+          tags: |
+            ghcr.io/hashicorp/consul-api-gateway/alpha:latest
+            ghcr.io/hashicorp/consul-api-gateway/alpha:${{ github.sha }}

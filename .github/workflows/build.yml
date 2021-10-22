@@ -2,11 +2,7 @@ name: build
 
 on:
   push:
-    # Sequence of patterns matched against refs/heads
     branches:    
-      # Push events on main branch
-      - main
-      # Push events to branches matching refs/heads/release/**
       - 'release/**'
 
 env:
@@ -75,7 +71,6 @@ jobs:
         run: |
           mkdir dist out
           go build -o dist/
-          curl -o dist/EULA.txt https://eula.hashicorp.com/EULA.txt
           zip -r -j out/${{ env.PKG_NAME }}_${{ needs.get-product-version.outputs.product-version }}_${{ matrix.goos }}_${{ matrix.goarch }}.zip dist/
       - uses: actions/upload-artifact@v2
         with:
