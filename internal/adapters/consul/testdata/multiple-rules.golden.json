@@ -87,7 +87,7 @@
       "Namespace": "k8s",
       "Splits": [
         {
-          "Weight": 0.5,
+          "Weight": 50,
           "Service": "service",
           "Namespace": "namespace",
           "RequestHeaders": {
@@ -103,7 +103,7 @@
           }
         },
         {
-          "Weight": 0.5,
+          "Weight": 50,
           "Service": "another-service",
           "Namespace": "namespace",
           "RequestHeaders": {
@@ -125,7 +125,7 @@
       "Namespace": "k8s",
       "Splits": [
         {
-          "Weight": 0.5,
+          "Weight": 50,
           "Service": "service",
           "Namespace": "namespace",
           "RequestHeaders": {
@@ -141,7 +141,7 @@
           }
         },
         {
-          "Weight": 0.5,
+          "Weight": 50,
           "Service": "another-service",
           "Namespace": "namespace",
           "RequestHeaders": {
