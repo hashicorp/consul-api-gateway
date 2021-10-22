@@ -1,7 +1,6 @@
 name: docker
 
 on:
-  workflow_dispatch: {}
   push:
     branches: ["main"]
 
@@ -26,24 +25,15 @@ jobs:
         uses: actions/setup-go@v2
         with:
           go-version: ${{ matrix.go }}
+      - name: get product version
+        id: get-product-version
+        run: |
+          make version
+          echo "::set-output name=product-version::$(make version)"
       - name: Build
         run: |
-          mkdir dist
-          go build -o dist/
-
-  build-docker:
-    name: Docker ${{ matrix.arch }} build
-    needs:
-      - build
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        arch: ["amd64"]
-    env:
-      repo: ${{github.event.repository.name}}
-
-    steps:
-      - uses: actions/checkout@v2
+          mkdir -p dist/linux/${{ matrix.goarch }}
+          go build -o dist/linux/${{ matrix.goarch }}
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v1
         with:
@@ -59,7 +49,7 @@ jobs:
             BIN_NAME=consul-api-gateway
           target: default
           context: .
-          platforms: linux/${{matrix.arch}}
+          platforms: linux/${{ matrix.goarch }}
           push: true
           tags: |
             ghcr.io/hashicorp/consul-api-gateway/alpha:latest
