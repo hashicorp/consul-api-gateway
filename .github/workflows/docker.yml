@@ -52,5 +52,5 @@ jobs:
           platforms: linux/${{ matrix.goarch }}
           push: true
           tags: |
-            ghcr.io/hashicorp/consul-api-gateway/alpha:latest
-            ghcr.io/hashicorp/consul-api-gateway/alpha:${{ github.sha }}
+            ghcr.io/hashicorp/consul-api-gateway-snapshot:latest
+            ghcr.io/hashicorp/consul-api-gateway-snapshot:${{ github.sha }}
