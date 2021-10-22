@@ -17,8 +17,6 @@ jobs:
 
     name: Go ${{ matrix.go }} ${{ matrix.goos }} ${{ matrix.goarch }} build
     env:
-      GOPRIVATE: 'github.com/hashicorp/*'
-      TOKEN: ${{ secrets.ELEVATED_GITHUB_TOKEN }}
       GOOS: ${{ matrix.goos }}
       GOARCH: ${{ matrix.goarch }}
 
@@ -28,10 +26,6 @@ jobs:
         uses: actions/setup-go@v2
         with:
           go-version: ${{ matrix.go }}
-         
-      - name: Setup Git
-        run: git config --global url."https://${{ secrets.ELEVATED_GITHUB_TOKEN }}:@github.com/".insteadOf "https://github.com"
-       
       - name: Build
         run: |
           mkdir dist
@@ -55,7 +49,7 @@ jobs:
         with:
           registry: ghcr.io
           username: hashicorp
-          password: ${{ secrets.ELEVATED_GITHUB_TOKEN }}
+          password: ${{ secrets.GITHUB_TOKEN }}
       - name: Docker Buld And Push (Alpha)
         uses: docker/build-push-action@v2
         with:
