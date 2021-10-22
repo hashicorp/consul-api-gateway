@@ -54,7 +54,7 @@ jobs:
         uses: docker/login-action@v1
         with:
           registry: ghcr.io
-          username: ${{ github.repository_owner }}
+          username: hashicorp
           password: ${{ secrets.ELEVATED_GITHUB_TOKEN }}
       - name: Docker Buld And Push (Alpha)
         uses: docker/build-push-action@v2
