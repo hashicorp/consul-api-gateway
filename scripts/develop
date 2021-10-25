@@ -2,7 +2,7 @@
 
 enableHelmRepo() {
   echo "Enabling Hashicorp Helm repo"
-  helm repo add hashicorp https://helm.releases.hashicorp.com 2>&1 > /dev/null
+  (helm repo add hashicorp https://helm.releases.hashicorp.com && helm repo update) 2>&1 > /dev/null
 }
 
 destroyCluster() {
