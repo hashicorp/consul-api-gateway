@@ -4,10 +4,17 @@
 
 ## Quick Start (Mac)
 
-Install Docker for Mac. Execute the following:
+This setup assumes using [Homebrew](https://brew.sh/) as a package manager and the [official HashiCorp tap](https://github.com/hashicorp/homebrew-tap).
 
 ```bash
-brew install kubectl kustomize kind helm consul jq go
+brew tap hashicorp/tap
+brew cask install docker
+brew install go jq kubectl kustomize kind helm hashicorp/tap/consul
+```
+
+Open Docker for Mac, go to Preferences, enable the Kubernetes single-node cluster and wait for it to start. Clone this repo, navigate into the directory, then run:
+
+```bash
 ./scripts/develop
 ```
 
