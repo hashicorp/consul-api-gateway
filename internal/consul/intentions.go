@@ -10,7 +10,6 @@ import (
 	"github.com/cenkalti/backoff"
 
 	"github.com/hashicorp/consul-api-gateway/internal/common"
-	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-multierror"
@@ -23,7 +22,10 @@ const (
 )
 
 var (
-	intentionSyncInterval         = 60 * time.Second
+	// intentionSyncInterval is the time between periodic intention syncs, intention syncs may happen more often as
+	// a result of discovery chain updates for example.
+	intentionSyncInterval = 60 * time.Second
+	// updateIntentionsRetryInterval is the interval between attempts to update intention config entries if the update fails
 	updateIntentionsRetryInterval = time.Second
 )
 
@@ -43,38 +45,65 @@ type consulConfigEntries interface {
 // traffic from the api gateway to target services. Changes are detected by watching the service's computed discovery
 // chain and iterating through the included targets.
 type IntentionsReconciler struct {
-	consulDisco    consulDiscoveryChains
-	consulConfig   consulConfigEntries
-	serviceName    core.GatewayID
-	discoChainChan <-chan *api.CompiledDiscoveryChain
-	ctx            context.Context
-	stop           context.CancelFunc
+	// consulDisco and consulConfig are the Consul client interfaces, mocked out for testing
+	consulDisco  consulDiscoveryChains
+	consulConfig consulConfigEntries
+	// service name of the ingress gateway
+	gatewayName api.CompoundServiceName
 
+	// chainWatchersMutex syncs calls to chainWatchers map
+	chainWatchersMutex sync.Mutex
+	// each api.IngressService of the ingress gateway must have their discovery chain watched to add an intention
+	// to each target. chainWatchers is a map of api.IngressService name to a struct that handles watching of the
+	// service's compile discovery chain
+	chainWatchers map[api.CompoundServiceName]*discoChainWatcher
+	// results from each discoChainWatcher is sent to discoChainChan
+	discoChainChan chan *discoChainWatchResult
+	// ingressServiceIndex is the flattened list of service names of all api.IngressService in the ingress gateway
+	ingressServiceIndex *common.ServiceNameIndex
+
+	// ctx is the parent context passed to watchers and is used in the main reconcile loop
+	ctx context.Context
+	// stop can be called the cancelled ctx and stop the main reconcile loop
+	stop context.CancelFunc
+
+	// initialDiscoChainWaitCh is closed when the first discovery chain is resolved and unblocks calls to Reconcile
 	initialDiscoChainWaitCh chan struct{}
-	initialDiscoChainOnce   sync.Once
+	// initialDiscoChainOnce ensures that initialDiscoChainWaitCh is only closed once
+	initialDiscoChainOnce sync.Once
 
+	// forceSyncChan is used to trigger a blocking intention sync. An error chan is sent and can be blocked on for
+	// the result to the intention sync.
 	forceSyncChan chan (chan error)
 
-	targetIndex      *common.ServiceNameIndex
+	// targetIndex tracks the targets that need to have intentions added and the references to them.
+	// if a target is removed during reconciliation it is only added to targetTombstones if no other
+	// IngresService's discovery chain referenced it.
+	targetIndex *intentionTargetReferenceIndex
+	// targetTombstones is the set of services which need to have an intention source removed
 	targetTombstones *common.ServiceNameIndex
 
 	logger hclog.Logger
 }
 
-func NewIntentionsReconciler(consul *api.Client, id core.GatewayID, logger hclog.Logger) *IntentionsReconciler {
-	r := newIntentionsReconciler(consul.DiscoveryChain(), consul.ConfigEntries(), id, logger)
-	r.discoChainChan = r.watchDiscoveryChain()
+func NewIntentionsReconciler(consul *api.Client, ingress *api.IngressGatewayConfigEntry, logger hclog.Logger) *IntentionsReconciler {
+	name := api.CompoundServiceName{Name: ingress.Name, Namespace: ingress.Namespace}
+	r := newIntentionsReconciler(consul.DiscoveryChain(), consul.ConfigEntries(), name, logger)
+	r.updateChainWatchers(ingress)
 	go r.reconcileLoop()
 	return r
 }
 
-func newIntentionsReconciler(disco consulDiscoveryChains, config consulConfigEntries, id core.GatewayID, logger hclog.Logger) *IntentionsReconciler {
+func newIntentionsReconciler(disco consulDiscoveryChains, config consulConfigEntries, name api.CompoundServiceName, logger hclog.Logger) *IntentionsReconciler {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &IntentionsReconciler{
 		consulDisco:             disco,
 		consulConfig:            config,
-		serviceName:             id,
-		targetIndex:             common.NewServiceNameIndex(),
+		gatewayName:             name,
+		chainWatchers:           map[api.CompoundServiceName]*discoChainWatcher{},
+		discoChainChan:          make(chan *discoChainWatchResult),
+		ingressServiceIndex:     common.NewServiceNameIndex(),
+		targetIndex:             &intentionTargetReferenceIndex{refs: map[api.CompoundServiceName]*common.ServiceNameIndex{}},
 		targetTombstones:        common.NewServiceNameIndex(),
 		ctx:                     ctx,
 		stop:                    cancel,
@@ -86,6 +115,10 @@ func newIntentionsReconciler(disco consulDiscoveryChains, config consulConfigEnt
 
 func (r *IntentionsReconciler) Stop() {
 	r.stop()
+}
+
+func (r *IntentionsReconciler) SetIngressServices(igw *api.IngressGatewayConfigEntry) {
+	r.updateChainWatchers(igw)
 }
 
 // Reconcile forces a synchronous reconcile, returning any errors that occurred as a result
@@ -118,17 +151,23 @@ func (r *IntentionsReconciler) Reconcile() error {
 // sourceIntention builds the api gateway source rule for updating intentions
 func (r *IntentionsReconciler) sourceIntention() *api.SourceIntention {
 	return &api.SourceIntention{
-		Name:        r.serviceName.Service,
-		Namespace:   r.serviceName.ConsulNamespace,
+		Name:        r.gatewayName.Name,
+		Namespace:   r.gatewayName.Namespace,
 		Action:      api.IntentionActionAllow,
 		Description: fmt.Sprintf("Allow traffic from Consul API Gateway. reconciled by controller at %s", time.Now().Format(time.RFC3339)),
 	}
 }
 
-// reconcileLoop runs until the struct context is cancelled, handling of the discovery chain is fired under 2 conditions.
-// If the background blocking query completes, the chain is sent over the discoChainChan and is handled by the loop.
-// A ticker fires every 60s to do sync of any intentions that failed to sync during an update.
-// forceSyncChan is used to forcibly signal a reconciliation and sends an error chan which the result is send to
+// reconcileLoop runs until the struct context is cancelled, and is the main loop handling all intention reconciliation.
+// Intentions can be reconciled if any one of three conditions are triggered:
+//   1. Reconcile is called sending an error channel through the forceSyncChan. This will immediately attempt to sync
+//      intentions and return the error through the received error channel, blocking until the error is handled or the
+//      reconciler is stopped.
+//   2. A discoChainWatcher sends a discoChainWatchResult which will compute and added or removed discovery chain
+//      targets and synchronize intentions.
+//   3. The intentionSyncInterval is met, triggering the a ticker to fire and synchronize intentions.
+//
+// The loop stops and returns if the struct context is cancelled.
 func (r *IntentionsReconciler) reconcileLoop() {
 	ticker := time.NewTicker(intentionSyncInterval)
 	defer ticker.Stop()
@@ -138,35 +177,76 @@ func (r *IntentionsReconciler) reconcileLoop() {
 		case <-r.ctx.Done():
 			return
 
-		// process changes to the compiled discovery chain
-		case chain := <-r.discoChainChan:
-			r.initialDiscoChainOnce.Do(func() {
-				close(r.initialDiscoChainWaitCh)
-			})
-			r.handleChain(chain)
-
-		// periodically synchronize the intentions
-		case <-ticker.C:
-			if err := r.syncIntentions(); err != nil {
-				r.logger.Warn("one or more errors occurred during intention sync, some intentions may not have been updated", "error", err)
-			}
-
 		// handle calls to Reconcile which sends an error chan over the forceSyncChan
 		case errCh := <-r.forceSyncChan:
 			select {
 			case errCh <- r.syncIntentions():
 				// reset the ticker for full synchronization
 				ticker.Reset(intentionSyncInterval)
+				continue
 			case <-r.ctx.Done():
 				return
 			}
+
+		// remaining cases do not return or continue the loop which results in
+		// r.syncIntentions being called
+
+		// process changes to the compiled discovery chain
+		case chain := <-r.discoChainChan:
+			r.initialDiscoChainOnce.Do(func() {
+				close(r.initialDiscoChainWaitCh)
+			})
+			r.handleChainResult(chain)
+
+		// periodically synchronize the intentions
+		case <-ticker.C:
+		}
+
+		if err := r.syncIntentions(); err != nil {
+			r.logger.Warn("one or more errors occurred during intention sync, some intentions may not have been updated", "error", err)
 		}
 	}
 }
 
+// updateChainWatchers is called when a change in the ingress gateway occurs to ensure
+// each IngressService has a watcher running to handle updates in their discovery chain
+func (r *IntentionsReconciler) updateChainWatchers(igw *api.IngressGatewayConfigEntry) {
+	r.chainWatchersMutex.Lock()
+	newIdx := ingressToServiceIndex(igw)
+	added, removed := r.ingressServiceIndex.Diff(newIdx)
+	for _, service := range removed {
+		if watcher, ok := r.chainWatchers[service]; ok {
+			watcher.Cancel()
+			delete(r.chainWatchers, service)
+		}
+	}
+
+	for _, service := range added {
+		if _, ok := r.chainWatchers[service]; !ok {
+			r.chainWatchers[service] = newDiscoChainWatcher(r.ctx, service, r.discoChainChan, r.consulDisco, r.logger)
+		}
+	}
+
+	r.ingressServiceIndex = newIdx
+	r.chainWatchersMutex.Unlock()
+}
+
+func ingressToServiceIndex(igw *api.IngressGatewayConfigEntry) *common.ServiceNameIndex {
+	idx := common.NewServiceNameIndex()
+	for _, lis := range igw.Listeners {
+		for _, service := range lis.Services {
+			idx.Add(api.CompoundServiceName{
+				Name:      service.Name,
+				Namespace: service.Namespace,
+			})
+		}
+	}
+	return idx
+}
+
 func (r *IntentionsReconciler) syncIntentions() error {
 	mErr := &multierror.Error{}
-	for _, target := range r.targetIndex.All() {
+	for _, target := range r.targetIndex.all() {
 		if err := r.updateIntentionSources(target, r.sourceIntention(), nil); err != nil {
 			mErr = multierror.Append(mErr, fmt.Errorf("failed to update intention with added gateway source: %w", err))
 		}
@@ -182,70 +262,25 @@ func (r *IntentionsReconciler) syncIntentions() error {
 	return mErr.ErrorOrNil()
 }
 
-// handleChain computes the added and removed targets from the last change and applies intention changes
-func (r *IntentionsReconciler) handleChain(chain *api.CompiledDiscoveryChain) {
-	newTargetIndex := common.NewServiceNameIndex()
-	for _, target := range chain.Targets {
-		newTargetIndex.Add(api.CompoundServiceName{Name: target.Name, Namespace: target.Namespace})
-	}
-
-	added, removed := r.targetIndex.Diff(newTargetIndex)
-
-	for _, target := range added {
-		if err := r.updateIntentionSources(target, r.sourceIntention(), nil); err != nil {
-			r.logger.Error("failed to update intention with added gateway source", "name", target.Name, "namespace", target.Namespace, "error", err)
-		}
-		// should no longer be in tombstones
+// handleChain computes the added and removed targets from the last change
+func (r *IntentionsReconciler) handleChainResult(result *discoChainWatchResult) {
+	for _, target := range result.added {
+		r.targetIndex.addRef(target, result.name)
 		r.targetTombstones.Remove(target)
 	}
 
-	for _, target := range removed {
-		if err := r.updateIntentionSources(target, nil, r.sourceIntention()); err != nil {
-			r.logger.Error("failed to update intention with added gateway source", "name", target.Name, "namespace", target.Namespace, "error", err)
+	for _, target := range result.removed {
+		r.targetIndex.delRef(target, result.name)
+		if len(r.targetIndex.listRefs(target)) == 0 {
 			r.targetTombstones.Add(target)
 		}
 	}
-
-	r.targetIndex = newTargetIndex
-}
-
-// watchDiscoveryChain uses blocking queries to poll for changes in the services discovery chain
-func (r *IntentionsReconciler) watchDiscoveryChain() <-chan *api.CompiledDiscoveryChain {
-	results := make(chan *api.CompiledDiscoveryChain)
-	go func() {
-		defer close(results)
-		var index uint64
-		for {
-			opts := &api.QueryOptions{WaitIndex: index, Namespace: r.serviceName.ConsulNamespace}
-			resp, meta, err := r.consulDisco.Get(r.serviceName.Service, nil, opts.WithContext(r.ctx))
-			if err != nil {
-				r.logger.Warn("blocking query for gateway discovery chain failed", "error", err)
-				select {
-				case <-r.ctx.Done():
-					return
-				case <-time.After(time.Second):
-					// avoid hot looping on error
-				}
-				continue
-			}
-
-			if meta.LastIndex < index {
-				index = 0
-			} else {
-				index = meta.LastIndex
-			}
-
-			select {
-			case <-r.ctx.Done():
-				return
-			case results <- resp.Chain:
-			}
-		}
-	}()
-	return results
 }
 
 func (r *IntentionsReconciler) updateIntentionSources(name api.CompoundServiceName, toAdd, toRemove *api.SourceIntention) error {
+	if name.Namespace == api.IntentionDefaultNamespace {
+		name.Namespace = ""
+	}
 	if toAdd == nil && toRemove == nil {
 		return nil
 	}
@@ -332,4 +367,48 @@ func (r *IntentionsReconciler) getOrInitIntention(name api.CompoundServiceName) 
 	}
 
 	return nil, 0, err
+}
+
+// intentionTargetReferenceIndex tracks target service names and references to them.
+// this is used to reference count service targets accross multiple discovery chains and ensure
+// intentions are only removed when they have no references to them.
+type intentionTargetReferenceIndex struct {
+	refs map[api.CompoundServiceName]*common.ServiceNameIndex
+}
+
+// addRef adds a target to the index and tracks the reference from the source service
+func (i *intentionTargetReferenceIndex) addRef(target, source api.CompoundServiceName) {
+	if _, ok := i.refs[target]; !ok {
+		i.refs[target] = common.NewServiceNameIndex()
+	}
+	i.refs[target].Add(source)
+}
+
+// delRef removes a target references from the index for the given source. If source was the final reference to
+// the given target, the target is removed from the index.
+func (i *intentionTargetReferenceIndex) delRef(target, source api.CompoundServiceName) {
+	if _, ok := i.refs[target]; ok {
+		i.refs[target].Remove(source)
+		if len(i.refs[target].All()) == 0 {
+			delete(i.refs, target)
+		}
+	}
+}
+
+// listRefs returns a slice of the referring sources for the given target
+func (i *intentionTargetReferenceIndex) listRefs(target api.CompoundServiceName) []api.CompoundServiceName {
+	var result []api.CompoundServiceName
+	if _, ok := i.refs[target]; ok {
+		result = i.refs[target].All()
+	}
+	return result
+}
+
+// all returns a slice of all target service in the index
+func (i *intentionTargetReferenceIndex) all() []api.CompoundServiceName {
+	var results []api.CompoundServiceName
+	for name := range i.refs {
+		results = append(results, name)
+	}
+	return results
 }

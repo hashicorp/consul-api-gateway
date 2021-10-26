@@ -433,9 +433,11 @@ func (a *ConsulSyncAdapter) setEntriesForGateway(gateway core.ResolvedGateway, r
 	}
 }
 
-func (a *ConsulSyncAdapter) syncIntentionsForGateway(gateway core.GatewayID) error {
+func (a *ConsulSyncAdapter) syncIntentionsForGateway(gateway core.GatewayID, ingress *api.IngressGatewayConfigEntry) error {
 	if a.intentions[gateway] == nil {
-		a.intentions[gateway] = consul.NewIntentionsReconciler(a.consul, gateway, a.logger)
+		a.intentions[gateway] = consul.NewIntentionsReconciler(a.consul, ingress, a.logger)
+	} else {
+		a.intentions[gateway].SetIngressServices(ingress)
 	}
 	return a.intentions[gateway].Reconcile()
 }
@@ -572,7 +574,7 @@ func (a *ConsulSyncAdapter) Sync(ctx context.Context, gateway core.ResolvedGatew
 	}
 
 	a.setEntriesForGateway(gateway, computedRouters, computedSplitters, computedDefaults)
-	if err := a.syncIntentionsForGateway(gateway.ID); err != nil {
+	if err := a.syncIntentionsForGateway(gateway.ID, ingress); err != nil {
 		return fmt.Errorf("error syncing service intention config entries: %w", err)
 	}
 

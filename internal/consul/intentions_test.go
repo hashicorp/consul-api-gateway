@@ -2,25 +2,46 @@ package consul
 
 import (
 	"errors"
+	"fmt"
 	"testing"
-	"time"
 
+	"github.com/cenkalti/backoff"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/hashicorp/consul-api-gateway/internal/consul/mocks"
-	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/consul/sdk/testutil"
 )
 
 var testCompiledDC = &api.CompiledDiscoveryChain{}
 
+type configEntryMatcher struct {
+	Kind      string
+	Name      string
+	Namespace string
+}
+
+func matchConfigEntry(kind, namespace, name string) gomock.Matcher {
+	return &configEntryMatcher{Kind: kind, Name: name, Namespace: namespace}
+}
+
+func (m *configEntryMatcher) Matches(arg interface{}) bool {
+	entry, ok := arg.(api.ConfigEntry)
+	if !ok {
+		fmt.Println("BAD type")
+		return false
+	}
+
+	return m.Kind == entry.GetKind() && m.Name == entry.GetName() && m.Namespace == entry.GetNamespace()
+}
+
+func (m *configEntryMatcher) String() string {
+	return fmt.Sprintf("{Kind: %q, Name: %q, Namespace: %q}", m.Kind, m.Name, m.Namespace)
+}
+
 func testIntentionsReconciler(t *testing.T, disco consulDiscoveryChains, config consulConfigEntries) *IntentionsReconciler {
-	return newIntentionsReconciler(disco, config, core.GatewayID{
-		ConsulNamespace: "namespace1",
-		Service:         "name1",
-	}, testutil.Logger(t))
+	return newIntentionsReconciler(disco, config, api.CompoundServiceName{Name: "name1", Namespace: "namespace1"}, testutil.Logger(t))
 }
 
 func TestIntentionsReconciler_sourceIntention(t *testing.T) {
@@ -51,14 +72,14 @@ func TestIntentionsReconciler_syncIntentions(t *testing.T) {
 		config := mocks.NewMockconsulConfigEntries(ctrl)
 		r := testIntentionsReconciler(t, nil, config)
 
-		r.targetIndex.Add(api.CompoundServiceName{Name: "foo"})
+		r.targetIndex.addRef(api.CompoundServiceName{Name: "foo"}, api.CompoundServiceName{Name: "source1"})
 		config.EXPECT().Get(gomock.Eq(api.ServiceIntentions), gomock.Eq("foo"), gomock.Any()).Return(&api.ServiceIntentionsConfigEntry{
 			Kind: api.ServiceIntentions,
 			Name: "foo",
 		}, &api.QueryMeta{LastIndex: 1}, nil).Times(1)
 		config.EXPECT().CAS(gomock.Any(), gomock.Any(), gomock.Nil()).Return(true, nil, nil).Times(1)
 		require.NoError(st, r.syncIntentions())
-		require.Len(st, r.targetIndex.All(), 1)
+		require.Len(st, r.targetIndex.all(), 1)
 	})
 	t.Run("single target, already exists", func(st *testing.T) {
 		ctrl := gomock.NewController(t)
@@ -67,7 +88,7 @@ func TestIntentionsReconciler_syncIntentions(t *testing.T) {
 		config := mocks.NewMockconsulConfigEntries(ctrl)
 		r := testIntentionsReconciler(t, nil, config)
 
-		r.targetIndex.Add(api.CompoundServiceName{Name: "foo"})
+		r.targetIndex.addRef(api.CompoundServiceName{Name: "foo"}, api.CompoundServiceName{Name: "source1"})
 		config.EXPECT().Get(gomock.Eq(api.ServiceIntentions), gomock.Eq("foo"), gomock.Any()).Return(&api.ServiceIntentionsConfigEntry{
 			Kind:    api.ServiceIntentions,
 			Name:    "foo",
@@ -75,7 +96,7 @@ func TestIntentionsReconciler_syncIntentions(t *testing.T) {
 		}, &api.QueryMeta{LastIndex: 1}, nil).Times(1)
 		config.EXPECT().CAS(gomock.Any(), gomock.Any(), gomock.Nil()).Return(true, nil, nil).Times(0)
 		require.NoError(st, r.syncIntentions())
-		require.Len(st, r.targetIndex.All(), 1)
+		require.Len(st, r.targetIndex.all(), 1)
 	})
 	t.Run("single tombstone", func(st *testing.T) {
 		ctrl := gomock.NewController(t)
@@ -96,6 +117,7 @@ func TestIntentionsReconciler_syncIntentions(t *testing.T) {
 	})
 }
 
+/*
 func TestIntentionsReconciler_watchDiscoveryChain(t *testing.T) {
 	require := require.New(t)
 	consulSrv, err := testutil.NewTestServerConfigT(t, func(c *testutil.TestServerConfig) {
@@ -109,7 +131,7 @@ func TestIntentionsReconciler_watchDiscoveryChain(t *testing.T) {
 	c, err := api.NewClient(cfg)
 	require.NoError(err)
 	r := testIntentionsReconciler(t, c.DiscoveryChain(), c.ConfigEntries())
-	r.serviceName.ConsulNamespace = ""
+	r.gatewayName.Namespace = ""
 
 	err = c.Agent().ServiceRegister(&api.AgentServiceRegistration{
 		Name:    "upstream1",
@@ -120,7 +142,7 @@ func TestIntentionsReconciler_watchDiscoveryChain(t *testing.T) {
 
 	ok, _, err := c.ConfigEntries().Set(&api.IngressGatewayConfigEntry{
 		Kind: api.IngressGateway,
-		Name: r.serviceName.Service,
+		Name: r.gatewayName.Name,
 		TLS:  api.GatewayTLSConfig{},
 		Listeners: []api.IngressListener{
 			{
@@ -151,56 +173,160 @@ func TestIntentionsReconciler_watchDiscoveryChain(t *testing.T) {
 	val, ok := <-ch
 	require.False(ok)
 	require.Nil(val)
-}
+}*/
 
-func TestIntentionsReconciler_handleChain(t *testing.T) {
+func TestIntentionsReconciler_handleChainResults(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
+	// skip backoff for testing
+	updateIntentionsRetryInterval = backoff.Stop
 
-	config := mocks.NewMockconsulConfigEntries(ctrl)
-	t1Get_1 := config.EXPECT().Get(api.ServiceIntentions, "t1", gomock.Any()).Return(&api.ServiceIntentionsConfigEntry{
-		Name: "t1",
-		Sources: []*api.SourceIntention{
-			{
-				Name:   "foo",
-				Action: api.IntentionActionAllow,
-			},
-		},
-	}, &api.QueryMeta{LastIndex: 1}, nil)
-	config.EXPECT().Get(api.ServiceIntentions, "t1", gomock.Any()).Return(&api.ServiceIntentionsConfigEntry{
-		Name: "t1",
-		Sources: []*api.SourceIntention{
-			{
-				Name:   "foo",
-				Action: api.IntentionActionAllow,
-			},
-			{
-				Name:      "name1",
-				Namespace: "namespace1",
-				Action:    api.IntentionActionAllow,
-			},
-		},
-	}, &api.QueryMeta{LastIndex: 2}, nil).After(t1Get_1)
-
-	config.EXPECT().Get(api.ServiceIntentions, "t2", gomock.Any()).Return(nil, nil, errors.New("Unexpected response code: 404"))
-	config.EXPECT().CAS(gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil, nil).Times(3)
-	r := testIntentionsReconciler(t, nil, config)
-
-	mkChain := func(names ...string) *api.CompiledDiscoveryChain {
-		chain := &api.CompiledDiscoveryChain{Targets: map[string]*api.DiscoveryTarget{}}
-		for _, name := range names {
-			chain.Targets[name] = &api.DiscoveryTarget{Name: name}
+	mkChain := func(name string, added, removed []string) *discoChainWatchResult {
+		result := &discoChainWatchResult{
+			name:    api.CompoundServiceName{Name: name},
+			added:   make([]api.CompoundServiceName, len(added)),
+			removed: make([]api.CompoundServiceName, len(removed)),
 		}
-		return chain
+		for i, n := range added {
+			result.added[i] = api.CompoundServiceName{Name: n}
+		}
+		for i, n := range removed {
+			result.removed[i] = api.CompoundServiceName{Name: n}
+		}
+		return result
 	}
 
-	require.Len(t, r.targetIndex.All(), 0)
-	r.handleChain(mkChain())
-	require.Len(t, r.targetIndex.All(), 0)
-	r.handleChain(mkChain("t1"))
-	require.Len(t, r.targetIndex.All(), 1)
+	config := mocks.NewMockconsulConfigEntries(ctrl)
+	r := testIntentionsReconciler(t, nil, config)
+	require.Len(t, r.targetIndex.all(), 0)
+	r.handleChainResult(mkChain("router", []string{}, []string{}))
+	require.Len(t, r.targetIndex.all(), 0)
+
+	gomock.InOrder(
+		config.EXPECT().Get(api.ServiceIntentions, "t1", gomock.Any()).Return(&api.ServiceIntentionsConfigEntry{
+			Kind: api.ServiceIntentions,
+			Name: "t1",
+			Sources: []*api.SourceIntention{
+				{
+					Name:   "foo",
+					Action: api.IntentionActionAllow,
+				},
+			},
+		}, &api.QueryMeta{LastIndex: 1}, nil),
+		config.EXPECT().CAS(matchConfigEntry(api.ServiceIntentions, "", "t1"), gomock.Any(), gomock.Any()).Return(true, nil, nil),
+	)
+	r.handleChainResult(mkChain("router", []string{"t1"}, []string{}))
+	require.NoError(t, r.syncIntentions())
+	require.Len(t, r.targetIndex.all(), 1)
 	require.Len(t, r.targetTombstones.All(), 0)
-	r.handleChain(mkChain("t2"))
-	require.Len(t, r.targetIndex.All(), 1)
+
+	config = mocks.NewMockconsulConfigEntries(ctrl)
+	r.consulConfig = config
+	gomock.InOrder(
+		config.EXPECT().Get(api.ServiceIntentions, "t2", gomock.Any()).Return(nil, nil, errors.New("Unexpected response code: 404")),
+		config.EXPECT().CAS(matchConfigEntry(api.ServiceIntentions, "", "t2"), gomock.Any(), gomock.Any()).Return(true, nil, nil),
+		config.EXPECT().Get(api.ServiceIntentions, "t1", gomock.Any()).Return(&api.ServiceIntentionsConfigEntry{
+			Kind: api.ServiceIntentions,
+			Name: "t1",
+			Sources: []*api.SourceIntention{
+				{
+					Name:      "name1",
+					Namespace: "namespace1",
+					Action:    api.IntentionActionAllow,
+				},
+			},
+		}, &api.QueryMeta{LastIndex: 1}, nil),
+		config.EXPECT().Delete(api.ServiceIntentions, "t1", gomock.Any()).Return(nil, errors.New("mock")),
+	)
+	r.handleChainResult(mkChain("router", []string{"t2"}, []string{"t1"}))
+	require.Error(t, r.syncIntentions())
+	require.Len(t, r.targetIndex.all(), 1)
+	require.Len(t, r.targetTombstones.All(), 1)
+
+	config = mocks.NewMockconsulConfigEntries(ctrl)
+	r.consulConfig = config
+	gomock.InOrder(
+		config.EXPECT().Get(api.ServiceIntentions, "t1", gomock.Any()).Return(nil, nil, errors.New("Unexpected response code: 404")),
+		config.EXPECT().CAS(matchConfigEntry(api.ServiceIntentions, "", "t1"), gomock.Any(), gomock.Any()).Return(false, nil, nil),
+		config.EXPECT().Get(api.ServiceIntentions, "t2", gomock.Any()).Return(&api.ServiceIntentionsConfigEntry{
+			Kind: api.ServiceIntentions,
+			Name: "t1",
+			Sources: []*api.SourceIntention{
+				{
+					Name:      "name1",
+					Namespace: "namespace1",
+					Action:    api.IntentionActionAllow,
+				},
+			},
+		}, &api.QueryMeta{LastIndex: 1}, nil),
+		config.EXPECT().Delete(api.ServiceIntentions, "t1", gomock.Any()).Return(nil, nil),
+	)
+	r.handleChainResult(mkChain("router", []string{"t1"}, []string{"t2"}))
+	require.Error(t, r.syncIntentions())
+	require.Len(t, r.targetIndex.all(), 1)
 	require.Len(t, r.targetTombstones.All(), 0)
+}
+
+func TestIntentionsReconciler_Reconcile(t *testing.T) {
+	require := require.New(t)
+	consulSrv, err := testutil.NewTestServerConfigT(t, func(c *testutil.TestServerConfig) {
+		c.Connect = map[string]interface{}{"enabled": true}
+	})
+	require.NoError(err)
+	defer consulSrv.Stop()
+	consulSrv.WaitForLeader(t)
+	cfg := api.DefaultConfig()
+	cfg.Address = consulSrv.HTTPAddr
+	c, err := api.NewClient(cfg)
+	require.NoError(err)
+	igw := &api.IngressGatewayConfigEntry{
+		Kind: api.IngressGateway,
+		Name: "name1",
+		TLS:  api.GatewayTLSConfig{},
+		Listeners: []api.IngressListener{
+			{
+				Port:     7777,
+				Protocol: "tcp",
+				Services: []api.IngressService{
+					{
+						Name: "upstream1",
+					},
+				},
+			},
+		},
+	}
+	r := NewIntentionsReconciler(c, igw, testutil.Logger(t))
+	require.NoError(r.Reconcile())
+
+	err = c.Agent().ServiceRegister(&api.AgentServiceRegistration{
+		Name:    "upstream1",
+		Port:    9999,
+		Address: "127.0.0.1",
+		Connect: &api.AgentServiceConnect{
+			SidecarService: &api.AgentServiceRegistration{},
+		},
+	})
+	require.NoError(err)
+
+	ok, _, err := c.ConfigEntries().Set(igw, nil)
+	require.True(ok)
+	require.NoError(err)
+	err = c.Agent().ServiceRegister(&api.AgentServiceRegistration{
+		Kind:    api.ServiceKindIngressGateway,
+		Name:    r.gatewayName.Name,
+		Port:    9998,
+		Address: "127.0.0.1",
+	})
+	require.NoError(err)
+	require.NoError(r.Reconcile())
+
+	entry, _, err := c.ConfigEntries().Get(api.ServiceIntentions, "upstream1", nil)
+	require.NoError(err)
+	intention, ok := entry.(*api.ServiceIntentionsConfigEntry)
+	require.True(ok)
+	require.NotNil(intention)
+	require.Len(intention.Sources, 1)
+	require.Equal("name1", intention.Sources[0].Name)
+	require.Equal(api.IntentionActionAllow, intention.Sources[0].Action)
+	r.Stop()
 }
