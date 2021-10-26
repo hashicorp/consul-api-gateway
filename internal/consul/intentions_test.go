@@ -117,64 +117,6 @@ func TestIntentionsReconciler_syncIntentions(t *testing.T) {
 	})
 }
 
-/*
-func TestIntentionsReconciler_watchDiscoveryChain(t *testing.T) {
-	require := require.New(t)
-	consulSrv, err := testutil.NewTestServerConfigT(t, func(c *testutil.TestServerConfig) {
-
-	})
-	require.NoError(err)
-	defer consulSrv.Stop()
-	consulSrv.WaitForLeader(t)
-	cfg := api.DefaultConfig()
-	cfg.Address = consulSrv.HTTPAddr
-	c, err := api.NewClient(cfg)
-	require.NoError(err)
-	r := testIntentionsReconciler(t, c.DiscoveryChain(), c.ConfigEntries())
-	r.gatewayName.Namespace = ""
-
-	err = c.Agent().ServiceRegister(&api.AgentServiceRegistration{
-		Name:    "upstream1",
-		Port:    9999,
-		Address: "127.0.0.1",
-	})
-	require.NoError(err)
-
-	ok, _, err := c.ConfigEntries().Set(&api.IngressGatewayConfigEntry{
-		Kind: api.IngressGateway,
-		Name: r.gatewayName.Name,
-		TLS:  api.GatewayTLSConfig{},
-		Listeners: []api.IngressListener{
-			{
-				Port:     7777,
-				Protocol: "tcp",
-				Services: []api.IngressService{
-					{
-						Name: "upstream1",
-					},
-				},
-			},
-		},
-	}, nil)
-	require.True(ok)
-	require.NoError(err)
-
-	ch := r.watchDiscoveryChain()
-	var chain *api.CompiledDiscoveryChain
-	require.Eventually(func() bool {
-		var ok bool
-		chain, ok = <-ch
-		return ok
-	}, 5*time.Second, 500*time.Millisecond)
-
-	require.Equal(r.serviceName.Service, chain.ServiceName)
-	require.Len(chain.Targets, 1)
-	r.Stop()
-	val, ok := <-ch
-	require.False(ok)
-	require.Nil(val)
-}*/
-
 func TestIntentionsReconciler_handleChainResults(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -274,7 +216,7 @@ func TestIntentionsReconciler_Reconcile(t *testing.T) {
 	})
 	require.NoError(err)
 	defer consulSrv.Stop()
-	consulSrv.WaitForLeader(t)
+	consulSrv.WaitForServiceIntentions(t)
 	cfg := api.DefaultConfig()
 	cfg.Address = consulSrv.HTTPAddr
 	c, err := api.NewClient(cfg)
