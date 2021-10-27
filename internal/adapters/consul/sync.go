@@ -107,9 +107,10 @@ func httpRouteDiscoveryChain(route core.HTTPRoute) (*api.ServiceRouterConfigEntr
 
 				modifier := httpRouteFiltersToServiceRouteHeaderModifier(service.Filters)
 
+				weightPercentage := float32(service.Weight) / float32(totalWeight)
 				split := api.ServiceSplit{
 					RequestHeaders: modifier,
-					Weight:         float32(service.Weight) / float32(totalWeight),
+					Weight:         weightPercentage * 100,
 				}
 				split.Service = service.Service.Service
 				split.Namespace = service.Service.ConsulNamespace
