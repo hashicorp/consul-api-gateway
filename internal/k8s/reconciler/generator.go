@@ -19,7 +19,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/yaml"
 )
 
-//go:generate sh -c "go run generator.go && go fmt zz_generated_status.go zz_generated_errors.go"
+//go:generate sh -c "go run generator.go && go fmt zz_generated_status.go zz_generated_status_test.go zz_generated_errors.go zz_generated_errors_test.go"
 
 type customError struct {
 	Name  string
@@ -113,17 +113,23 @@ func init() {
 	}
 
 	errorGenerator = template.Must(template.New("errors").Parse(errorTemplate))
+	errorTestGenerator = template.Must(template.New("errorTests").Parse(errorTestsTemplate))
 	statusGenerator = template.Must(template.New("statuses").Funcs(template.FuncMap{
 		"writeComment": writeComment,
 		"required":     required,
 	}).Parse(statusTemplate))
+	statusTestGenerator = template.Must(template.New("statusTests").Funcs(template.FuncMap{
+		"required": required,
+	}).Parse(statusTestsTemplate))
 }
 
 var (
-	errorGenerator  *template.Template
-	statusGenerator *template.Template
-	statuses        []status
-	errors          []customError
+	errorGenerator      *template.Template
+	errorTestGenerator  *template.Template
+	statusGenerator     *template.Template
+	statusTestGenerator *template.Template
+	statuses            []status
+	errors              []customError
 )
 
 const (
@@ -159,7 +165,91 @@ func (r {{ $error.Name }}Error) Kind() {{ $error.Name }}ErrorType {
 }	
 {{end}}
 `
+	errorTestsTemplate = `package reconciler
 
+// GENERATED from errors.yaml, DO NOT EDIT DIRECTLY
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/require"
+)
+{{ range $error := $ }}
+
+func Test{{ $error.Name }}ErrorType(t *testing.T) {
+	t.Parallel()
+
+	expected := "expected"
+
+	{{ range $value := $error.Types -}}
+	require.Equal(t, expected, New{{ $error.Name }}Error{{ $value }}(expected).Error())
+	require.Equal(t, {{ $error.Name }}ErrorType{{ $value }}, New{{ $error.Name }}Error{{ $value }}(expected).Kind())
+{{end}}}
+{{end}}
+`
+	statusTestsTemplate = `package reconciler
+
+// GENERATED from statuses.yaml, DO NOT EDIT DIRECTLY
+
+import (
+	"errors"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+)
+
+{{ range $status := $ }}{{ range $conditionType := $status.Types -}}
+func Test{{ $status.Kind }}{{ $conditionType.Name }}Status(t *testing.T) {
+	t.Parallel()
+
+	var status {{ $status.Kind }}{{ $conditionType.Name }}Status
+
+	expected := errors.New("expected")
+
+	status = {{ $status.Kind }}{{ $conditionType.Name }}Status{}
+	require.Equal(t, "{{ $conditionType.Base.Message }}", status.Condition(0).Message)
+	require.Equal(t, {{ $status.Kind }}ConditionReason{{ $conditionType.Base.Name }}, status.Condition(0).Reason)
+	{{ if not $conditionType.Ignore }}require.False(t, status.HasError()){{end}}
+
+	{{ range $error := $conditionType.Errors }}
+	status = {{ $status.Kind }}{{ $conditionType.Name }}Status{ {{ $error.Name }}: expected}
+	require.Equal(t, "expected", status.Condition(0).Message)
+	require.Equal(t, {{ $status.Kind }}ConditionReason{{ $error.Name }}, status.Condition(0).Reason)
+	{{ if not $conditionType.Ignore }}require.True(t, status.HasError()){{end}}
+{{ end }}}
+
+{{end}}
+
+func Test{{ $status.Kind }}Status(t *testing.T) {
+	t.Parallel()
+
+	status := {{ $status.Kind }}Status{}
+	conditions := status.Conditions(0)
+
+	var conditionType string
+	var reason string
+
+	{{ range $index, $conditionType := $status.Types }}
+	conditionType = {{ $status.Kind }}Condition{{ $conditionType.Name }}
+	reason = {{ $status.Kind }}ConditionReason{{ $conditionType.Base.Name }} 
+	require.Equal(t, conditionType, conditions[{{ $index }}].Type)
+	require.Equal(t, reason, conditions[{{ $index }}].Reason)
+	{{end}}
+	{{- if $status.Validation }}
+
+	require.True(t, status.Valid())
+
+	validationError := errors.New("error")
+
+	{{ range $conditionType := (required $status.Types) }}
+	{{ range $error := $conditionType.Errors }}
+	status = {{ $status.Kind }}Status{}
+	status.{{ $conditionType.Name }}.{{$error.Name}} = validationError
+	require.False(t, status.Valid())
+{{end}}{{end}}{{end}}}
+
+{{end}}
+`
 	statusTemplate = `package reconciler
 
 // GENERATED from statuses.yaml, DO NOT EDIT DIRECTLY
@@ -318,10 +408,28 @@ func main() {
 
 	buffer.Reset()
 
+	if err := statusTestGenerator.Execute(&buffer, statuses); err != nil {
+		panic(err)
+	}
+	if err := os.WriteFile("zz_generated_status_test.go", buffer.Bytes(), 0644); err != nil {
+		panic(err)
+	}
+
+	buffer.Reset()
+
 	if err := errorGenerator.Execute(&buffer, errors); err != nil {
 		panic(err)
 	}
 	if err := os.WriteFile("zz_generated_errors.go", buffer.Bytes(), 0644); err != nil {
+		panic(err)
+	}
+
+	buffer.Reset()
+
+	if err := errorTestGenerator.Execute(&buffer, errors); err != nil {
+		panic(err)
+	}
+	if err := os.WriteFile("zz_generated_errors_test.go", buffer.Bytes(), 0644); err != nil {
 		panic(err)
 	}
 }

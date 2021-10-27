@@ -74,6 +74,7 @@ func (g *K8sGateway) certificates() []string {
 }
 
 func (g *K8sGateway) Validate(ctx context.Context) error {
+	g.status = GatewayStatus{}
 	g.validateListenerConflicts()
 
 	if err := g.validatePods(ctx); err != nil {
@@ -157,6 +158,8 @@ func (g *K8sGateway) validatePodConditions(pod *corev1.Pod) {
 		return
 	}
 
+	g.addresses = append(g.addresses, pod.Status.PodIP)
+
 	switch pod.Status.Phase {
 	case corev1.PodPending:
 		g.validatePodStatusPending(pod)
@@ -207,7 +210,7 @@ func (g *K8sGateway) ID() core.GatewayID {
 
 func (g *K8sGateway) Meta() map[string]string {
 	return map[string]string{
-		"managed_by":                               "consul-api-gateway",
+		"external-source":                          "consul-api-gateway",
 		"consul-api-gateway/k8s/Gateway.Name":      g.gateway.Name,
 		"consul-api-gateway/k8s/Gateway.Namespace": g.gateway.Namespace,
 	}
@@ -321,8 +324,18 @@ func (g *K8sGateway) Status() gw.GatewayStatus {
 		conditions = g.gateway.Status.Conditions
 	}
 
+	ipType := gw.IPAddressType
+	addresses := []gw.GatewayAddress{}
+	for _, address := range g.addresses {
+		addresses = append(addresses, gw.GatewayAddress{
+			Type:  &ipType,
+			Value: address,
+		})
+	}
+
 	// TODO: set addresses based off of pod/service lookup
 	return gw.GatewayStatus{
+		Addresses:  addresses,
 		Conditions: conditions,
 		Listeners:  listenerStatuses,
 	}
@@ -368,7 +381,7 @@ func (g *K8sGateway) ensureDeploymentExists(ctx context.Context) error {
 	deployment = g.config.DeploymentFor(g.gateway, g.sdsConfig)
 	if g.logger.IsTrace() {
 		data, err := json.MarshalIndent(deployment, "", "  ")
-		if err != nil {
+		if err == nil {
 			g.logger.Trace("creating gateway deployment", "deployment", string(data))
 		}
 	}
@@ -382,7 +395,7 @@ func (g *K8sGateway) ensureDeploymentExists(ctx context.Context) error {
 	if service := g.config.ServiceFor(g.gateway); service != nil {
 		if g.logger.IsTrace() {
 			data, err := json.MarshalIndent(service, "", "  ")
-			if err != nil {
+			if err == nil {
 				g.logger.Trace("creating gateway service", "service", string(data))
 			}
 		}

@@ -60,13 +60,13 @@ func hostnamesMatch(a, b gw.Hostname) bool {
 	return a == b
 }
 
-func routeKindIsAllowedForListener(allowedRoutes *gw.AllowedRoutes, route *K8sRoute) bool {
-	if allowedRoutes == nil || len(allowedRoutes.Kinds) == 0 {
+func routeKindIsAllowedForListener(kinds []gw.RouteGroupKind, route *K8sRoute) bool {
+	if kinds == nil {
 		return true
 	}
 
 	gvk := route.GroupVersionKind()
-	for _, kind := range allowedRoutes.Kinds {
+	for _, kind := range kinds {
 		group := gw.GroupName
 		if kind.Group != nil && *kind.Group != "" {
 			group = string(*kind.Group)
@@ -80,8 +80,12 @@ func routeKindIsAllowedForListener(allowedRoutes *gw.AllowedRoutes, route *K8sRo
 }
 
 func routeAllowedForListenerNamespaces(gatewayNS string, allowedRoutes *gw.AllowedRoutes, route *K8sRoute) (bool, error) {
-	// check gateway namespace
-	namespaceSelector := allowedRoutes.Namespaces
+	var namespaceSelector *gw.RouteNamespaces
+	if allowedRoutes != nil {
+		// check gateway namespace
+		namespaceSelector = allowedRoutes.Namespaces
+	}
+
 	// set default is namespace selector is nil
 	from := gw.NamespacesFromSame
 	if namespaceSelector != nil && namespaceSelector.From != nil && *namespaceSelector.From != "" {
@@ -206,7 +210,7 @@ func listenerStatusesEqual(a, b []gw.ListenerStatus) bool {
 }
 
 func parentStatusEqual(a, b gw.RouteParentStatus) bool {
-	if a.Controller != b.Controller {
+	if a.ControllerName != b.ControllerName {
 		return false
 	}
 	if asJSON(a.ParentRef) != asJSON(b.ParentRef) {

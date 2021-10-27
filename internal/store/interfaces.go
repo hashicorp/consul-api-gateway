@@ -6,6 +6,8 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/core"
 )
 
+//go:generate mockgen -source ./interfaces.go -destination ./mocks/interfaces.go -package mocks StatusTrackingGateway,Gateway,RouteTrackingListener,Listener,StatusTrackingRoute,Route,Store
+
 type CompareResult int
 
 const (

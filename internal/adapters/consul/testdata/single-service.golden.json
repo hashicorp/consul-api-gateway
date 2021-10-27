@@ -1,0 +1,35 @@
+{
+  "Router": {
+    "Kind": "service-router",
+    "Name": "single-service",
+    "Namespace": "k8s",
+    "Routes": [
+      {
+        "Match": {
+          "HTTP": {
+            "PathExact": "/prefix"
+          }
+        },
+        "Destination": {
+          "Service": "service",
+          "Namespace": "namespace",
+          "RequestHeaders": {
+            "Add": {
+              "x-add": "4"
+            },
+            "Set": {
+              "x-set": "3"
+            },
+            "Remove": [
+              "x-remove",
+              "x-remove-too"
+            ]
+          }
+        }
+      }
+    ],
+    "CreateIndex": 0,
+    "ModifyIndex": 0
+  },
+  "Splitters": null
+}

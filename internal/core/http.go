@@ -107,12 +107,12 @@ type HTTPRouteRule struct {
 }
 
 type HTTPRoute struct {
-	commonRoute
+	CommonRoute
 	Hostnames []string
 	Rules     []HTTPRouteRule
 }
 
-func (r HTTPRoute) Type() ResolvedRouteType {
+func (r HTTPRoute) GetType() ResolvedRouteType {
 	return ResolvedHTTPRouteType
 }
 
@@ -151,10 +151,10 @@ func (b *HTTPRouteBuilder) WithRules(rules []HTTPRouteRule) *HTTPRouteBuilder {
 
 func (b *HTTPRouteBuilder) Build() ResolvedRoute {
 	return HTTPRoute{
-		commonRoute: commonRoute{
-			meta:      b.meta,
-			name:      b.name,
-			namespace: b.namespace,
+		CommonRoute: CommonRoute{
+			Meta:      b.meta,
+			Name:      b.name,
+			Namespace: b.namespace,
 		},
 		Hostnames: b.hostnames,
 		Rules:     b.rules,

@@ -141,7 +141,6 @@ func TestRunExecCertFail(t *testing.T) {
 		},
 		isTest: true,
 	}))
-	require.Contains(t, buffer.String(), "error generating client leaf certificate")
 	require.Contains(t, buffer.String(), "timeout waiting for certs to be written")
 }
 
@@ -177,7 +176,6 @@ func TestRunExecRootCertFail(t *testing.T) {
 		},
 		isTest: true,
 	}))
-	require.Contains(t, buffer.String(), "error retrieving root CA")
 	require.Contains(t, buffer.String(), "timeout waiting for certs to be written")
 }
 

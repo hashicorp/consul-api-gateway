@@ -137,9 +137,6 @@ func RunExec(config ExecConfig) (ret int) {
 	if config.EnvoyConfig.CertificateDirectory != "" {
 		options.Directory = config.EnvoyConfig.CertificateDirectory
 	}
-	if config.isTest {
-		options.Tries = 1
-	}
 	certManager := consul.NewCertManager(
 		config.Logger.Named("cert-manager"),
 		consulClient,

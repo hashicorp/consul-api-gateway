@@ -12,6 +12,7 @@ import (
 
 	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/service"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	"github.com/hashicorp/consul-api-gateway/internal/store"
 	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
@@ -92,19 +93,20 @@ func (m *GatewayReconcileManager) UpsertGateway(ctx context.Context, g *gw.Gatew
 
 	var err error
 
+	gatewayClassName := string(g.Spec.GatewayClassName)
+
 	// first check our cache to see if we have a known configuration
-	config, managed := m.gatewayClasses.GetConfig(g.Spec.GatewayClassName)
+	config, managed := m.gatewayClasses.GetConfig(gatewayClassName)
 	if !managed {
 		// next check to see if we have an existing deployment, if we do, we manage the gateway
 		// and can just use an empty config since we won't re-deploy
-		// just in case the
 		managed, err = m.client.HasManagedDeployment(ctx, g)
 		if err != nil {
 			return err
 		}
 		if !managed {
 			// finally, see if we can run through all of the relationships and retrieve the config
-			config, managed, err = m.client.GetConfigForGatewayClassName(ctx, g.Spec.GatewayClassName)
+			config, managed, err = m.client.GetConfigForGatewayClassName(ctx, gatewayClassName)
 			if err != nil {
 				return err
 			}
@@ -157,7 +159,7 @@ func (m *GatewayReconcileManager) upsertRoute(ctx context.Context, r Route, id s
 		ControllerName: m.controllerName,
 		Logger:         m.logger,
 		Client:         m.client,
-		Consul:         m.consul,
+		Resolver:       service.NewBackendResolver(r.GetNamespace(), m.client, m.consul),
 	})
 
 	managed, err := m.deleteUnmanagedRoute(ctx, route, id)

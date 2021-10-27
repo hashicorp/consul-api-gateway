@@ -104,12 +104,13 @@ func (l *K8sListener) validateTLS(ctx context.Context) error {
 		return nil
 	}
 
-	if l.listener.TLS.CertificateRef == nil {
+	if len(l.listener.TLS.CertificateRefs) == 0 {
 		l.status.ResolvedRefs.InvalidCertificateRef = errors.New("certificate reference must be set")
 		return nil
 	}
 
-	ref := *l.listener.TLS.CertificateRef
+	// we only support a single certificate for now
+	ref := *l.listener.TLS.CertificateRefs[0]
 	resource, err := l.resolveCertificateReference(ctx, ref)
 	if err != nil {
 		var certificateErr CertificateResolutionError
@@ -189,14 +190,14 @@ func (l *K8sListener) resolveCertificateReference(ctx context.Context, ref gw.Se
 
 	switch {
 	case kind == "Secret" && group == corev1.GroupName:
-		cert, err := l.client.GetSecret(ctx, types.NamespacedName{Name: ref.Name, Namespace: namespace})
+		cert, err := l.client.GetSecret(ctx, types.NamespacedName{Name: string(ref.Name), Namespace: namespace})
 		if err != nil {
 			return "", fmt.Errorf("error fetching secret: %w", err)
 		}
 		if cert == nil {
 			return "", NewCertificateResolutionErrorNotFound("certificate not found")
 		}
-		return utils.NewK8sSecret(namespace, ref.Name).String(), nil
+		return utils.NewK8sSecret(namespace, string(ref.Name)).String(), nil
 	// add more supported types here
 	default:
 		return "", NewCertificateResolutionErrorUnsupported(fmt.Sprintf("unsupported certificate type - group: %s, kind: %s", group, kind))
@@ -258,7 +259,7 @@ func (l *K8sListener) canBind(ref gw.ParentRef, route *K8sRoute) (bool, error) {
 	// meaning if we must attach, but cannot, it's an error
 	allowed, must := routeMatchesListener(l.listener.Name, ref.SectionName)
 	if allowed {
-		if !routeKindIsAllowedForListener(l.listener.AllowedRoutes, route) {
+		if !routeKindIsAllowedForListener(l.supportedKinds, route) {
 			if must {
 				return false, NewBindErrorRouteKind("route kind not allowed for listener")
 			}

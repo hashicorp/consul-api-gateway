@@ -2,7 +2,7 @@
 
 enableHelmRepo() {
   echo "Enabling Hashicorp Helm repo"
-  helm repo add hashicorp https://helm.releases.hashicorp.com 2>&1 > /dev/null
+  (helm repo add hashicorp https://helm.releases.hashicorp.com && helm repo update) 2>&1 > /dev/null
 }
 
 destroyCluster() {
@@ -20,118 +20,23 @@ createCluster() {
     echo "consul-api-gateway cluster already exists"
     exit 1
   fi
-  cat <<EOF | kind create cluster --name consul-api-gateway --config=-
-kind: Cluster
-apiVersion: kind.x-k8s.io/v1alpha4
-nodes:
-- role: control-plane
-  kubeadmConfigPatches:
-  - |
-    kind: InitConfiguration
-    nodeRegistration:
-      kubeletExtraArgs:
-        node-labels: "ingress-ready=true"
-  extraPortMappings:
-  - containerPort: 443
-    hostPort: 443
-    protocol: TCP
-  - containerPort: 8501
-    hostPort: 8501
-    protocol: TCP
-  - containerPort: 8502
-    hostPort: 8502
-    protocol: TCP
-  - containerPort: 8443
-    hostPort: 8443
-    protocol: TCP
-EOF
+  kind create cluster --name consul-api-gateway --config=dev/config/kind/cluster.yaml
 }
 
 installGatewayCRDs() {
   echo "Installing Gateway CRDs"
-  kubectl kustomize "github.com/kubernetes-sigs/gateway-api/config/crd?ref=v0.4.0-rc1" | kubectl apply -f -  2>&1 > /dev/null
+  kubectl apply -k "github.com/kubernetes-sigs/gateway-api/config/crd?ref=v0.4.0"  2>&1 > /dev/null
 }
 
 createServiceAccountForRBAC() {
   echo "Creating consul-api-gateway Service Account"
   kubectl create serviceaccount consul-api-gateway 2>&1 > /dev/null
-
-  cat <<EOF | kubectl apply -f - 2>&1 > /dev/null
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: consul-api-gateway-tokenreview-binding
-  namespace: default
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: system:auth-delegator
-subjects:
-  - kind: ServiceAccount
-    name: consul-api-gateway
-    namespace: default
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  namespace: default
-  name: consul-api-gateway-auth
-rules:
-- apiGroups:
-  - ""
-  resources:
-  - serviceaccounts
-  verbs: ["get"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: consul-api-gateway-auth-binding
-  namespace: default
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: consul-api-gateway-auth
-subjects:
-  - kind: ServiceAccount
-    name: consul-api-gateway
-    namespace: default
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: consul-auth-binding
-  namespace: default
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: consul-api-gateway-auth
-subjects:
-  - kind: ServiceAccount
-    name: consul-server
-    namespace: default
-EOF
+  kubectl apply -f dev/config/k8s/rbac.yaml 2>&1 > /dev/null
 }
 
 createNginxIngress() {
   echo "Creating nginx ingress"
-  cat <<EOF > tmp/kustomization.yaml
-apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
-resources:
-  - https://github.com/kubernetes/ingress-nginx/deploy/static/provider/kind
-patchesJSON6902:
-- target:
-    group: apps
-    version: v1
-    kind: Deployment
-    name: ingress-nginx-controller
-  patch: |-
-    - op: add
-      path: "/spec/template/spec/containers/0/args/-"
-      value: "--enable-ssl-passthrough"
-EOF
-  kubectl kustomize tmp | kubectl apply -f - 2>&1 > /dev/null
+  kubectl apply -k dev/config/k8s/consul-ui 2>&1 > /dev/null
   echo "Waiting for ingress pod to start"
   sleep 10
   kubectl wait --namespace ingress-nginx --for=condition=ready pod --selector=app.kubernetes.io/component=controller --timeout=90s
@@ -139,49 +44,7 @@ EOF
 
 installConsul() {
   echo "Installing consul helm chart"
-  cat <<EOF | helm install consul hashicorp/consul --version 0.33.0 -f - 2>&1 > /dev/null
-global:
-  name: consul
-  image: "hashicorpdev/consul:581357c32"
-  tls:
-    enabled: true
-    serverAdditionalDNSSANs:
-    - host.docker.internal
-    - localhost
-    - consul-server.default.svc.cluster.local
-connectInject:
-  enabled: true
-controller:
-  enabled: true
-server:
-  replicas: 1
-  extraConfig: |
-    {
-      "log_level": "trace",
-      "acl": {
-        "enabled": true,
-        "default_policy": "allow",
-        "enable_token_persistence": true
-      },
-      "connect": {
-        "enabled": true
-      }
-    }
-ui:
-  enabled: true
-  ingress:
-    enabled: true
-    hosts:
-    - host: "host.docker.internal"
-      paths:
-      - "/"
-    - host: "localhost"
-      paths:
-      - "/"
-    annotations: |
-      "kubernetes.io/ingress.class": "nginx"
-      "nginx.ingress.kubernetes.io/ssl-passthrough": "true"
-EOF
+  helm install consul hashicorp/consul --version 0.35.0 -f dev/config/helm/consul.yaml 2>&1 > /dev/null
   echo "Waiting for consul to stabilize"
   sleep 10
   kubectl wait --for=condition=ready pod --selector=app=consul,component=server,release=consul --timeout=90s
@@ -189,28 +52,18 @@ EOF
 }
 
 setupAuthMethod() {
-  local consul_policy=$(cat <<'EOF'
-node_prefix "" { policy = "write" }
-service_prefix "" { policy = "write" }
-agent_prefix "" { policy = "write" }
-event_prefix "" { policy = "write" }
-query_prefix "" { policy = "write" }
-session_prefix "" { policy = "write" }
-operator = "write"
-acl = "write"
-keyring = "write"
-EOF
-)
   echo "Importing Kubernetes Configuration"
   export K8S_JWT=$(kubectl get secret $(kubectl get serviceaccounts consul-api-gateway -o json | jq '.secrets[0].name' -r) -o json | jq '.data.token' -r | base64 -d)
   export K8S_HOST=$(kind get kubeconfig --name consul-api-gateway --internal | grep server | tr -s ' '| cut -d' ' -f3)
   export K8S_CERT=$(kubectl config view -o jsonpath='{.clusters[].cluster.certificate-authority-data}' --raw | base64 -d)
+
   echo "Bootstrapping ACLs"
   export CONSUL_HTTP_ADDR="https://localhost"
   export CONSUL_HTTP_SSL_VERIFY=false
   export CONSUL_HTTP_TOKEN=$(consul acl bootstrap -format json | jq '.SecretID' -r)
-  export CONSUL_POLICY_ID=$(consul acl policy create -name policy -rules "$consul_policy" -format json | jq '.ID' -r)
+  export CONSUL_POLICY_ID=$(consul acl policy create -name policy -rules @dev/config/consul/acl-policy.hcl -format json | jq '.ID' -r)
   consul acl role create -name "consul-api-gateway" -policy-id "${CONSUL_POLICY_ID}" > /dev/null
+
   echo "Creating ACL Auth Rule Binding"
   consul acl auth-method create -type "kubernetes" -name "consul-api-gateway" -kubernetes-host "$K8S_HOST" -kubernetes-ca-cert "$K8S_CERT" -kubernetes-service-account-jwt "$K8S_JWT" | grep ServiceAccountJWT | cut -d':' -f 2 | tr -s " " | jq -r > token
   consul acl binding-rule create -method=consul-api-gateway -bind-type=role -bind-name='consul-api-gateway' -selector='serviceaccount.name=="consul-api-gateway"' > /dev/null
@@ -258,7 +111,7 @@ main() {
     buildAPIGateway
     buildDocker
     loadDockerImage
-    echo "To reload the init container after modifications run './scripts/develop -l'"
+    echo "To reload the init container after modifications run './dev/run -l'"
   fi
   if [[ "${start}" == "TRUE" ]]; then
     export CONSUL_HTTP_TOKEN=$(cat token)
@@ -267,12 +120,12 @@ main() {
       -ca-secret consul-ca-cert -consul-address https://localhost:8501 \
       -sds-server-host host.docker.internal -sds-server-port 9090 \
       -metrics-port 9091 -pprof-port 9092 -log-level trace
-    echo "To re-run the server run './scripts/develop -s'"
+    echo "To re-run the server run './dev/run -s'"
   fi
 }
 
 usage() {
-  echo -e "./scripts/develop [flags]"
+  echo -e "./dev/run [flags]"
   echo -e ""
   echo -e "Bootstraps a kind environment with Consul and ACLs enabled."
   echo -e "When this script is run without flags it creates the"
@@ -314,15 +167,15 @@ do
           ;;
         h)
           usage
-          exit 0 
+          exit 0
           ;;
-        l) 
+        l)
           load=TRUE
           destroy=FALSE
           provision=FALSE
           start=FALSE
           ;;
-        s) 
+        s)
           load=FALSE
           destroy=FALSE
           provision=FALSE

@@ -160,8 +160,8 @@ func convertHTTPRouteFilters(routeFilters []gw.HTTPRouteFilter) []core.HTTPFilte
 			})
 		case gw.HTTPRouteFilterRequestRedirect:
 			scheme := ""
-			if filter.RequestRedirect.Protocol != nil {
-				scheme = *filter.RequestRedirect.Protocol
+			if filter.RequestRedirect.Scheme != nil {
+				scheme = *filter.RequestRedirect.Scheme
 			}
 			hostname := ""
 			if filter.RequestRedirect.Hostname != nil {
@@ -176,7 +176,7 @@ func convertHTTPRouteFilters(routeFilters []gw.HTTPRouteFilter) []core.HTTPFilte
 				statusCode = *filter.RequestRedirect.StatusCode
 			}
 			filters = append(filters, core.HTTPFilter{
-				Type: core.HTTPHeaderFilterType,
+				Type: core.HTTPRedirectFilterType,
 				Redirect: core.HTTPRedirectFilter{
 					Scheme:   scheme,
 					Hostname: hostname,
