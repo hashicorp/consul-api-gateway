@@ -13,9 +13,9 @@ DIST     = dist/$(PLATFORM)
 BIN      = $(DIST)/$(BIN_NAME)
 
 ifneq (,$(wildcard internal/version/version_ent.go))
-VERSION = $(shell ./scripts/version internal/version/version_ent.go)
+VERSION = $(shell ./dev/version internal/version/version_ent.go)
 else
-VERSION = $(shell ./scripts/version internal/version/version.go)
+VERSION = $(shell ./dev/version internal/version/version.go)
 endif
 
 # Get latest revision (no dirty check for now).
