@@ -277,6 +277,14 @@ func TestServiceListeners(t *testing.T) {
 				return port.Port == 443
 			}, 30*time.Second, 1*time.Second, "no service found in the allotted time")
 
+			// update the class config to ensure our config snapshot works
+			err = resources.Get(ctx, gcc.Name, gcc.Namespace, gcc)
+			require.NoError(t, err)
+			serviceType = core.ServiceTypeLoadBalancer
+			gcc.Spec.ServiceType = &serviceType
+			err = resources.Update(ctx, gcc)
+			require.NoError(t, err)
+
 			err = resources.Get(ctx, gatewayName, namespace, gw)
 			require.NoError(t, err)
 			gw.Spec.Listeners[0].Port = 444
@@ -291,6 +299,7 @@ func TestServiceListeners(t *testing.T) {
 				if len(service.Spec.Ports) != 1 {
 					return false
 				}
+				require.Equal(t, core.ServiceTypeNodePort, service.Spec.Type)
 				port := service.Spec.Ports[0]
 				return port.Port == 444
 			}, 30*time.Second, 1*time.Second, "service not updated in the allotted time")

@@ -64,25 +64,26 @@ func TestUpsertGateway(t *testing.T) {
 	inner := &gw.Gateway{}
 	expected := errors.New("expected")
 
-	client.EXPECT().HasManagedDeployment(gomock.Any(), inner).Return(false, expected)
-	require.Equal(t, expected, manager.UpsertGateway(context.Background(), inner))
-
-	client.EXPECT().HasManagedDeployment(gomock.Any(), inner).Return(false, nil)
 	client.EXPECT().GetConfigForGatewayClassName(gomock.Any(), "").Return(apigwv1alpha1.GatewayClassConfig{}, false, expected)
 	require.Equal(t, expected, manager.UpsertGateway(context.Background(), inner))
 
-	client.EXPECT().HasManagedDeployment(gomock.Any(), inner).Return(false, nil)
 	client.EXPECT().GetConfigForGatewayClassName(gomock.Any(), "").Return(apigwv1alpha1.GatewayClassConfig{}, false, nil)
 	require.NoError(t, manager.UpsertGateway(context.Background(), inner))
 
-	// validation
-	client.EXPECT().HasManagedDeployment(gomock.Any(), inner).Return(false, nil)
+	// annotation
 	client.EXPECT().GetConfigForGatewayClassName(gomock.Any(), "").Return(apigwv1alpha1.GatewayClassConfig{}, true, nil)
+	client.EXPECT().Update(gomock.Any(), gomock.Any()).Return(expected)
+	require.Equal(t, expected, manager.UpsertGateway(context.Background(), inner.DeepCopy()))
+
+	client.EXPECT().GetConfigForGatewayClassName(gomock.Any(), "").Return(apigwv1alpha1.GatewayClassConfig{}, true, nil)
+	client.EXPECT().Update(gomock.Any(), gomock.Any()).Return(nil)
+	require.NoError(t, manager.UpsertGateway(context.Background(), inner))
+	require.NotEmpty(t, inner.Annotations[annotationConfig])
+
+	// validation
 	client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(nil, expected)
 	require.Equal(t, expected, manager.UpsertGateway(context.Background(), inner))
 
-	client.EXPECT().HasManagedDeployment(gomock.Any(), inner).Return(false, nil)
-	client.EXPECT().GetConfigForGatewayClassName(gomock.Any(), "").Return(apigwv1alpha1.GatewayClassConfig{}, true, nil)
 	client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(nil, nil)
 	store.EXPECT().UpsertGateway(gomock.Any(), gomock.Any())
 	require.NoError(t, manager.UpsertGateway(context.Background(), inner))

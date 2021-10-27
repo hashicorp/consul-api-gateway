@@ -56,6 +56,10 @@ type Client interface {
 
 	UpdateStatus(ctx context.Context, obj client.Object) error
 
+	// updates
+
+	Update(ctx context.Context, obj client.Object) error
+
 	// deployments
 
 	CreateOrUpdateDeployment(ctx context.Context, deployment *apps.Deployment, mutators ...func() error) error
@@ -247,6 +251,13 @@ func (g *gatewayClient) RemoveFinalizer(ctx context.Context, object client.Objec
 
 func (g *gatewayClient) UpdateStatus(ctx context.Context, obj client.Object) error {
 	if err := g.Status().Update(ctx, obj); err != nil {
+		return NewK8sError(err)
+	}
+	return nil
+}
+
+func (g *gatewayClient) Update(ctx context.Context, obj client.Object) error {
+	if err := g.Client.Update(ctx, obj); err != nil {
 		return NewK8sError(err)
 	}
 	return nil
