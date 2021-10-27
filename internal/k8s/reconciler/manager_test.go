@@ -11,7 +11,6 @@ import (
 	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 	"github.com/hashicorp/go-hclog"
 	"github.com/stretchr/testify/require"
-	apps "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/types"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
 )
@@ -85,7 +84,6 @@ func TestUpsertGateway(t *testing.T) {
 	client.EXPECT().HasManagedDeployment(gomock.Any(), inner).Return(false, nil)
 	client.EXPECT().GetConfigForGatewayClassName(gomock.Any(), "").Return(apigwv1alpha1.GatewayClassConfig{}, true, nil)
 	client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(nil, nil)
-	client.EXPECT().DeploymentForGateway(gomock.Any(), gomock.Any()).Return(&apps.Deployment{}, nil)
 	store.EXPECT().UpsertGateway(gomock.Any(), gomock.Any())
 	require.NoError(t, manager.UpsertGateway(context.Background(), inner))
 }
