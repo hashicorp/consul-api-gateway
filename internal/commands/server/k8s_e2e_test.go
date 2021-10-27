@@ -44,56 +44,13 @@ func TestGatewayBasic(t *testing.T) {
 			namespace := e2e.Namespace(ctx)
 			gatewayNamespace := gateway.Namespace(namespace)
 			resources := cfg.Client().Resources(namespace)
-			configName := envconf.RandomName("gcc", 16)
-			className := envconf.RandomName("gc", 16)
-			gatewayName := envconf.RandomName("gw", 16)
-			gcc := &apigwv1alpha1.GatewayClassConfig{
-				ObjectMeta: meta.ObjectMeta{
-					Name:      configName,
-					Namespace: namespace,
-				},
-				Spec: apigwv1alpha1.GatewayClassConfigSpec{
-					ImageSpec: apigwv1alpha1.ImageSpec{
-						ConsulAPIGateway: e2e.DockerImage(ctx),
-					},
-					ConsulSpec: apigwv1alpha1.ConsulSpec{
-						Address: "host.docker.internal", // we're working trough kind
-						Scheme:  "https",
-						PortSpec: apigwv1alpha1.PortSpec{
-							GRPC: e2e.ConsulGRPCPort(ctx),
-							HTTP: e2e.ConsulHTTPPort(ctx),
-						},
-						AuthSpec: apigwv1alpha1.AuthSpec{
-							Method:  "consul-api-gateway",
-							Account: "consul-api-gateway",
-						},
-					},
-				},
-			}
-			err := resources.Create(ctx, gcc)
-			require.NoError(t, err)
 
-			gc := &gateway.GatewayClass{
-				ObjectMeta: meta.ObjectMeta{
-					Name:      className,
-					Namespace: namespace,
-				},
-				Spec: gateway.GatewayClassSpec{
-					ControllerName: k8s.ControllerName,
-					ParametersRef: &gateway.ParametersReference{
-						Group:     apigwv1alpha1.Group,
-						Kind:      apigwv1alpha1.GatewayClassConfigKind,
-						Name:      configName,
-						Namespace: &gatewayNamespace,
-					},
-				},
-			}
-			err = resources.Create(ctx, gc)
-			require.NoError(t, err)
+			gatewayName := envconf.RandomName("gw", 16)
+			_, gc := createGatewayClass(ctx, t, cfg)
 
 			require.Eventually(t, func() bool {
 				created := &gateway.GatewayClass{}
-				if err := resources.Get(ctx, className, namespace, created); err != nil {
+				if err := resources.Get(ctx, gc.Name, "", created); err != nil {
 					return false
 				}
 
@@ -112,7 +69,7 @@ func TestGatewayBasic(t *testing.T) {
 					Namespace: namespace,
 				},
 				Spec: gateway.GatewaySpec{
-					GatewayClassName: gateway.ObjectName(className),
+					GatewayClassName: gateway.ObjectName(gc.Name),
 					Listeners: []gateway.Listener{{
 						Name:     "https",
 						Port:     gateway.PortNumber(443),
@@ -126,7 +83,7 @@ func TestGatewayBasic(t *testing.T) {
 					}},
 				},
 			}
-			err = resources.Create(ctx, gw)
+			err := resources.Create(ctx, gw)
 			require.NoError(t, err)
 
 			require.Eventually(t, func() bool {
@@ -178,69 +135,9 @@ func TestServiceListeners(t *testing.T) {
 			namespace := e2e.Namespace(ctx)
 			gatewayNamespace := gateway.Namespace(namespace)
 			resources := cfg.Client().Resources(namespace)
-			configName := envconf.RandomName("gcc", 16)
-			className := envconf.RandomName("gc", 16)
+
 			gatewayName := envconf.RandomName("gw", 16)
-			serviceType := core.ServiceTypeNodePort
-			gcc := &apigwv1alpha1.GatewayClassConfig{
-				ObjectMeta: meta.ObjectMeta{
-					Name:      configName,
-					Namespace: namespace,
-				},
-				Spec: apigwv1alpha1.GatewayClassConfigSpec{
-					ImageSpec: apigwv1alpha1.ImageSpec{
-						ConsulAPIGateway: e2e.DockerImage(ctx),
-					},
-					ServiceType: &serviceType,
-					ConsulSpec: apigwv1alpha1.ConsulSpec{
-						Address: "host.docker.internal", // we're working trough kind
-						Scheme:  "https",
-						PortSpec: apigwv1alpha1.PortSpec{
-							GRPC: e2e.ConsulGRPCPort(ctx),
-							HTTP: e2e.ConsulHTTPPort(ctx),
-						},
-						AuthSpec: apigwv1alpha1.AuthSpec{
-							Method:  "consul-api-gateway",
-							Account: "consul-api-gateway",
-						},
-					},
-				},
-			}
-			err := resources.Create(ctx, gcc)
-			require.NoError(t, err)
-
-			gc := &gateway.GatewayClass{
-				ObjectMeta: meta.ObjectMeta{
-					Name:      className,
-					Namespace: namespace,
-				},
-				Spec: gateway.GatewayClassSpec{
-					ControllerName: k8s.ControllerName,
-					ParametersRef: &gateway.ParametersReference{
-						Group:     apigwv1alpha1.Group,
-						Kind:      apigwv1alpha1.GatewayClassConfigKind,
-						Name:      configName,
-						Namespace: &gatewayNamespace,
-					},
-				},
-			}
-			err = resources.Create(ctx, gc)
-			require.NoError(t, err)
-
-			require.Eventually(t, func() bool {
-				created := &gateway.GatewayClass{}
-				if err := resources.Get(ctx, className, namespace, created); err != nil {
-					return false
-				}
-
-				for _, condition := range created.Status.Conditions {
-					if condition.Type == "Accepted" ||
-						condition.Status == "True" {
-						return true
-					}
-				}
-				return false
-			}, 30*time.Second, 1*time.Second, "gatewayclass not accepted in the allotted time")
+			gcc, gc := createGatewayClass(ctx, t, cfg)
 
 			gw := &gateway.Gateway{
 				ObjectMeta: meta.ObjectMeta{
@@ -248,7 +145,7 @@ func TestServiceListeners(t *testing.T) {
 					Namespace: namespace,
 				},
 				Spec: gateway.GatewaySpec{
-					GatewayClassName: gateway.ObjectName(className),
+					GatewayClassName: gateway.ObjectName(gc.Name),
 					Listeners: []gateway.Listener{{
 						Name:     "https",
 						Port:     gateway.PortNumber(443),
@@ -262,7 +159,7 @@ func TestServiceListeners(t *testing.T) {
 					}},
 				},
 			}
-			err = resources.Create(ctx, gw)
+			err := resources.Create(ctx, gw)
 			require.NoError(t, err)
 
 			require.Eventually(t, func() bool {
@@ -280,7 +177,7 @@ func TestServiceListeners(t *testing.T) {
 			// update the class config to ensure our config snapshot works
 			err = resources.Get(ctx, gcc.Name, gcc.Namespace, gcc)
 			require.NoError(t, err)
-			serviceType = core.ServiceTypeLoadBalancer
+			serviceType := core.ServiceTypeLoadBalancer
 			gcc.Spec.ServiceType = &serviceType
 			err = resources.Update(ctx, gcc)
 			require.NoError(t, err)
@@ -308,4 +205,59 @@ func TestServiceListeners(t *testing.T) {
 		})
 
 	testenv.Test(t, feature.Feature())
+}
+
+func createGatewayClass(ctx context.Context, t *testing.T, cfg *envconf.Config) (*apigwv1alpha1.GatewayClassConfig, *gateway.GatewayClass) {
+	t.Helper()
+
+	namespace := e2e.Namespace(ctx)
+	configName := envconf.RandomName("gcc", 16)
+	className := envconf.RandomName("gc", 16)
+	serviceType := core.ServiceTypeNodePort
+
+	resources := cfg.Client().Resources(namespace)
+
+	gcc := &apigwv1alpha1.GatewayClassConfig{
+		ObjectMeta: meta.ObjectMeta{
+			Name: configName,
+		},
+		Spec: apigwv1alpha1.GatewayClassConfigSpec{
+			ImageSpec: apigwv1alpha1.ImageSpec{
+				ConsulAPIGateway: e2e.DockerImage(ctx),
+			},
+			ServiceType: &serviceType,
+			ConsulSpec: apigwv1alpha1.ConsulSpec{
+				Address: "host.docker.internal", // we're connecting through the kind port mappings
+				Scheme:  "https",
+				PortSpec: apigwv1alpha1.PortSpec{
+					GRPC: e2e.ConsulGRPCPort(ctx),
+					HTTP: e2e.ConsulHTTPPort(ctx),
+				},
+				AuthSpec: apigwv1alpha1.AuthSpec{
+					Method:  "consul-api-gateway",
+					Account: "consul-api-gateway",
+				},
+			},
+		},
+	}
+	err := resources.Create(ctx, gcc)
+	require.NoError(t, err)
+
+	gc := &gateway.GatewayClass{
+		ObjectMeta: meta.ObjectMeta{
+			Name: className,
+		},
+		Spec: gateway.GatewayClassSpec{
+			ControllerName: k8s.ControllerName,
+			ParametersRef: &gateway.ParametersReference{
+				Group: apigwv1alpha1.Group,
+				Kind:  apigwv1alpha1.GatewayClassConfigKind,
+				Name:  configName,
+			},
+		},
+	}
+	err = resources.Create(ctx, gc)
+	require.NoError(t, err)
+
+	return gcc, gc
 }

@@ -318,9 +318,13 @@ func (g *gatewayClient) GetConfigForGatewayClassName(ctx context.Context, name s
 	if err != nil {
 		return apigwv1alpha1.GatewayClassConfig{}, false, NewK8sError(err)
 	}
+	if class == nil {
+		// no class found
+		return apigwv1alpha1.GatewayClassConfig{}, false, nil
+	}
 	if class.Spec.ControllerName != gateway.GatewayController(g.controllerName) {
 		// we're not owned by this controller, so pretend we don't exist
-		return apigwv1alpha1.GatewayClassConfig{}, false, NewK8sError(err)
+		return apigwv1alpha1.GatewayClassConfig{}, false, nil
 	}
 	if ref := class.Spec.ParametersRef; ref != nil {
 		// check that we're using a typed config
