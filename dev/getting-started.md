@@ -29,7 +29,7 @@ Make sure that the echo container is routable:
 curl https://localhost:8443 -k
 ```
 
-TODO: You should expect...
+You should expect to see output including a hostname and pod information - if the response if "no healthy upstream", the resources may not have finished being created yet.
 
 Clean up the gateway you just created:
 
