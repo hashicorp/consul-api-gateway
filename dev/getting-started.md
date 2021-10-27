@@ -4,11 +4,12 @@
 
 ## Quick Start (Mac)
 
-This setup assumes using [Homebrew](https://brew.sh/) as a package manager. Consul will be installed in a Kubernetes cluster using the Helm chart, so it's not necessary to install separately.
+This setup assumes using [Homebrew](https://brew.sh/) as a package manager and the [official HashiCorp tap](https://github.com/hashicorp/homebrew-tap). Consul will be installed in a Kubernetes cluster using the Helm chart, but the standalone binary is currently used for bootstrapping ACLs.
 
 ```bash
+brew tap hashicorp/tap
 brew cask install docker
-brew install go jq kubectl kustomize kind helm
+brew install go jq kubectl kustomize kind helm hashicorp/tap/consul
 ```
 
 Ensure Docker for Mac is running (enabling the Kubernetes single-node cluster is not necessary, as `kind` will build its own cluster), clone this repo, navigate to the root directory, then run:
