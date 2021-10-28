@@ -26,7 +26,7 @@ func TestIntentionsReconciler_watchDiscoveryChain(t *testing.T) {
 	results := make(chan *discoChainWatchResult)
 	t.Cleanup(func() {
 		cancel()
-		consulSrv.Stop()
+		require.NoError(consulSrv.Stop())
 		close(results)
 	})
 

@@ -17,10 +17,9 @@ import (
 )
 
 type syncState struct {
-	routers    *consul.ConfigEntryIndex
-	splitters  *consul.ConfigEntryIndex
-	defaults   *consul.ConfigEntryIndex
-	intentions *consul.IntentionsReconciler
+	routers   *consul.ConfigEntryIndex
+	splitters *consul.ConfigEntryIndex
+	defaults  *consul.ConfigEntryIndex
 }
 
 type ConsulSyncAdapter struct {

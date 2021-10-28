@@ -14,8 +14,6 @@ import (
 	"github.com/hashicorp/consul/sdk/testutil"
 )
 
-var testCompiledDC = &api.CompiledDiscoveryChain{}
-
 type configEntryMatcher struct {
 	Kind      string
 	Name      string
@@ -215,7 +213,10 @@ func TestIntentionsReconciler_Reconcile(t *testing.T) {
 		c.Connect = map[string]interface{}{"enabled": true}
 	})
 	require.NoError(err)
-	defer consulSrv.Stop()
+	t.Cleanup(func() {
+		require.NoError(consulSrv.Stop())
+	})
+
 	consulSrv.WaitForServiceIntentions(t)
 	cfg := api.DefaultConfig()
 	cfg.Address = consulSrv.HTTPAddr

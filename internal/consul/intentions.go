@@ -154,7 +154,7 @@ func (r *IntentionsReconciler) sourceIntention() *api.SourceIntention {
 		Name:        r.gatewayName.Name,
 		Namespace:   r.gatewayName.Namespace,
 		Action:      api.IntentionActionAllow,
-		Description: fmt.Sprintf("Allow traffic from Consul API Gateway. reconciled by controller at %s", time.Now().Format(time.RFC3339)),
+		Description: fmt.Sprintf("Allow traffic from Consul API Gateway. Reconciled by controller at %s.", time.Now().Format(time.RFC3339)),
 	}
 }
 
@@ -197,6 +197,7 @@ func (r *IntentionsReconciler) reconcileLoop() {
 				close(r.initialDiscoChainWaitCh)
 			})
 			r.handleChainResult(chain)
+			ticker.Reset(intentionSyncInterval)
 
 		// periodically synchronize the intentions
 		case <-ticker.C:
@@ -246,14 +247,40 @@ func ingressToServiceIndex(igw *api.IngressGatewayConfigEntry) *common.ServiceNa
 
 func (r *IntentionsReconciler) syncIntentions() error {
 	mErr := &multierror.Error{}
+	source := r.sourceIntention()
+	addSourceCB := func(intention *api.ServiceIntentionsConfigEntry) bool {
+		var found bool
+		for _, src := range intention.Sources {
+			if src.Name == source.Name && src.Namespace == source.Namespace {
+				found = true
+				break
+			}
+		}
+
+		// add source to intention
+		if !found {
+			intention.Sources = append(intention.Sources, source)
+			return true
+		}
+		return false
+	}
 	for _, target := range r.targetIndex.all() {
-		if err := r.updateIntentionSources(target, r.sourceIntention(), nil); err != nil {
+		if err := r.updateIntentionSources(target, addSourceCB); err != nil {
 			mErr = multierror.Append(mErr, fmt.Errorf("failed to update intention with added gateway source: %w", err))
 		}
 	}
 
+	delSourceCB := func(intention *api.ServiceIntentionsConfigEntry) bool {
+		for i, src := range intention.Sources {
+			if src.Name == source.Name && src.Namespace == source.Namespace {
+				intention.Sources = append(intention.Sources[:i], intention.Sources[i+1:]...)
+				return true
+			}
+		}
+		return false
+	}
 	for _, target := range r.targetTombstones.All() {
-		if err := r.updateIntentionSources(target, nil, r.sourceIntention()); err != nil {
+		if err := r.updateIntentionSources(target, delSourceCB); err != nil {
 			mErr = multierror.Append(mErr, fmt.Errorf("failed to update intention with removed gateway source: %w", err))
 			continue
 		}
@@ -277,12 +304,9 @@ func (r *IntentionsReconciler) handleChainResult(result *discoChainWatchResult) 
 	}
 }
 
-func (r *IntentionsReconciler) updateIntentionSources(name api.CompoundServiceName, toAdd, toRemove *api.SourceIntention) error {
+func (r *IntentionsReconciler) updateIntentionSources(name api.CompoundServiceName, updateFn func(intention *api.ServiceIntentionsConfigEntry) bool) error {
 	if name.Namespace == api.IntentionDefaultNamespace {
 		name.Namespace = ""
-	}
-	if toAdd == nil && toRemove == nil {
-		return nil
 	}
 	return backoff.Retry(func() error {
 		intention, idx, err := r.getOrInitIntention(name)
@@ -290,39 +314,9 @@ func (r *IntentionsReconciler) updateIntentionSources(name api.CompoundServiceNa
 			return err
 		}
 
-		// changed tracks if any modifications have been made to the intention
-		var changed bool
-
-		if toAdd != nil {
-			// check if source is already in intention
-			var found bool
-			for _, src := range intention.Sources {
-				if src.Name == toAdd.Name && src.Namespace == toAdd.Namespace {
-					found = true
-					break
-				}
-			}
-
-			// add source to intention
-			if !found {
-				intention.Sources = append(intention.Sources, toAdd)
-				changed = true
-			}
-		}
-
-		if toRemove != nil {
-			// find and remove source with matching name and namespace
-			for i, src := range intention.Sources {
-				if src.Name == toRemove.Name && src.Namespace == toRemove.Namespace {
-					intention.Sources = append(intention.Sources[:i], intention.Sources[i+1:]...)
-					changed = true
-					break
-				}
-			}
-		}
-
-		// if no intention changes stop here
-		if !changed {
+		// perform update on intention and check if any modifications have been reported
+		if !updateFn(intention) {
+			// if no intention changes stop here
 			return nil
 		}
 
