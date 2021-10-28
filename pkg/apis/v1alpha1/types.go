@@ -15,7 +15,10 @@ import (
 )
 
 var (
-	defaultImage string
+	defaultImage              string
+	defaultServiceAnnotations = []string{
+		"external-dns.alpha.kubernetes.io/hostname",
+	}
 )
 
 func init() {
@@ -64,6 +67,8 @@ type GatewayClassConfigSpec struct {
 	ConsulSpec ConsulSpec `json:"consul,omitempty"`
 	// Configuration information about the images to use
 	ImageSpec ImageSpec `json:"image,omitempty"`
+	// Annotation Information to copy to services or deployments
+	CopyAnnotations CopyAnnotationsSpec `json:"copyAnnotations,omitempty"`
 	// +kubebuilder:validation:Enum=trace;debug;info;warning;error
 	// Logging levels
 	LogLevel string `json:"logLevel,omitempty"`
@@ -97,6 +102,13 @@ type ImageSpec struct {
 	ConsulAPIGateway string `json:"consulAPIGateway,omitempty"`
 	// The image to use for Envoy.
 	Envoy string `json:"envoy,omitempty"`
+}
+
+//+kubebuilder:object:generate=true
+
+type CopyAnnotationsSpec struct {
+	// List of annotations to copy to the gateway service.
+	Service []string `json:"service,omitempty"`
 }
 
 type AuthSpec struct {
@@ -150,11 +162,17 @@ func (c *GatewayClassConfig) ServiceFor(gw *gateway.Gateway) *corev1.Service {
 		})
 	}
 	labels := utils.LabelsForGateway(gw)
+	allowedAnnotations := c.Spec.CopyAnnotations.Service
+	if allowedAnnotations == nil {
+		allowedAnnotations = defaultServiceAnnotations
+	}
+
 	return &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      gw.Name,
-			Namespace: gw.Namespace,
-			Labels:    labels,
+			Name:        gw.Name,
+			Namespace:   gw.Namespace,
+			Labels:      labels,
+			Annotations: getAnnotations(gw.Annotations, allowedAnnotations),
 		},
 		Spec: corev1.ServiceSpec{
 			Selector: labels,
@@ -175,6 +193,16 @@ func MergeService(a, b *corev1.Service) *corev1.Service {
 	return b
 }
 
+func getAnnotations(annotations map[string]string, allowed []string) map[string]string {
+	filtered := make(map[string]string)
+	for _, annotation := range allowed {
+		if value, found := annotations[annotation]; found {
+			filtered[annotation] = value
+		}
+	}
+	return filtered
+}
+
 // DeploymentsFor returns the deployment configuration for the given gateway.
 func (c *GatewayClassConfig) DeploymentFor(gw *gateway.Gateway, sds SDSConfig) *appsv1.Deployment {
 	labels := utils.LabelsForGateway(gw)
@@ -191,6 +219,9 @@ func (c *GatewayClassConfig) DeploymentFor(gw *gateway.Gateway, sds SDSConfig) *
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: labels,
+					Annotations: map[string]string{
+						"consul.hashicorp.com/connect-inject": "false",
+					},
 				},
 				Spec: c.podSpecFor(gw, sds),
 			},

@@ -117,10 +117,11 @@ func (s *ServiceRegistry) retryRegistration(ctx context.Context) error {
 
 func (s *ServiceRegistry) register(ctx context.Context) error {
 	registration := &api.AgentServiceRegistration{
-		Kind:    api.ServiceKind(api.IngressGateway),
-		ID:      s.id,
-		Name:    s.name,
-		Address: s.host,
+		Kind:      api.ServiceKind(api.IngressGateway),
+		ID:        s.id,
+		Name:      s.name,
+		Namespace: s.namespace,
+		Address:   s.host,
 		Meta: map[string]string{
 			"external-source": "consul-api-gateway",
 		},
@@ -130,9 +131,6 @@ func (s *ServiceRegistry) register(ctx context.Context) error {
 			Interval:                       serviceCheckInterval,
 			DeregisterCriticalServiceAfter: serviceDeregistrationTime,
 		}},
-	}
-	if s.namespace != "" && s.namespace != "default" {
-		registration.Namespace = s.namespace
 	}
 
 	return s.consul.Agent().ServiceRegisterOpts(registration, (&api.ServiceRegisterOpts{}).WithContext(ctx))

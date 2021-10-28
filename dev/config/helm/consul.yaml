@@ -1,0 +1,41 @@
+global:
+  name: consul
+  image: "hashicorpdev/consul:581357c32"
+  tls:
+    enabled: true
+    serverAdditionalDNSSANs:
+    - host.docker.internal
+    - localhost
+    - consul-server.default.svc.cluster.local
+connectInject:
+  enabled: true
+controller:
+  enabled: true
+server:
+  replicas: 1
+  extraConfig: |
+    {
+      "log_level": "trace",
+      "acl": {
+        "enabled": true,
+        "default_policy": "allow",
+        "enable_token_persistence": true
+      },
+      "connect": {
+        "enabled": true
+      }
+    }
+ui:
+  enabled: true
+  ingress:
+    enabled: true
+    hosts:
+    - host: "host.docker.internal"
+      paths:
+      - "/"
+    - host: "localhost"
+      paths:
+      - "/"
+    annotations: |
+      "kubernetes.io/ingress.class": "nginx"
+      "nginx.ingress.kubernetes.io/ssl-passthrough": "true"

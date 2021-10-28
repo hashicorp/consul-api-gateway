@@ -2,7 +2,9 @@ Procfile
 refresh.yml
 .DS_Store
 .overmind.sock
-tmp
 /token
 /consul-api-gateway
 cover.out
+demo-deployment
+bin
+pkg/bin
