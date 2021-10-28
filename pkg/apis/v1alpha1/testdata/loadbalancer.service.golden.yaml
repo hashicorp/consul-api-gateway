@@ -1,4 +1,6 @@
 metadata:
+  annotations:
+    external-dns.alpha.kubernetes.io/hostname: test.example.com
   creationTimestamp: null
   labels:
     api-gateway.consul.hashicorp.com/created: "-62135596800"

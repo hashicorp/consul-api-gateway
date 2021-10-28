@@ -98,7 +98,7 @@ func (c *Command) init() {
 		c.flagSet.StringVar(&c.flagGatewayID, "gateway-id", "", "ID of the gateway.")
 		c.flagSet.StringVar(&c.flagGatewayHost, "gateway-host", "", "Host of the gateway.")
 		c.flagSet.StringVar(&c.flagGatewayName, "gateway-name", "", "Name of the gateway.")
-		c.flagSet.StringVar(&c.flagGatewayNamespace, "gateway-namespace", "default", "Name of the gateway namespace.")
+		c.flagSet.StringVar(&c.flagGatewayNamespace, "gateway-namespace", "", "Name of the gateway namespace.")
 	}
 	{
 		// ACL Auth
