@@ -87,12 +87,6 @@ func (g *K8sGateway) Validate(ctx context.Context) error {
 		}
 	}
 
-	// we've done all but created our state tree, so kick off a deployment
-	// if one does not exist
-	if err := g.ensureDeploymentExists(ctx); err != nil {
-		return err
-	}
-
 	return nil
 }
 
@@ -158,7 +152,9 @@ func (g *K8sGateway) validatePodConditions(pod *corev1.Pod) {
 		return
 	}
 
-	g.addresses = append(g.addresses, pod.Status.PodIP)
+	if pod.Status.PodIP != "" {
+		g.addresses = append(g.addresses, pod.Status.PodIP)
+	}
 
 	switch pod.Status.Phase {
 	case corev1.PodPending:
@@ -342,6 +338,11 @@ func (g *K8sGateway) Status() gw.GatewayStatus {
 }
 
 func (g *K8sGateway) TrackSync(ctx context.Context, sync func() (bool, error)) error {
+	// we've done all but synced our state, so ensure our deployments are up-to-date
+	if err := g.ensureDeploymentExists(ctx); err != nil {
+		return err
+	}
+
 	didSync, err := sync()
 	if err != nil {
 		g.status.InSync.SyncError = err
@@ -368,41 +369,35 @@ func (g *K8sGateway) TrackSync(ctx context.Context, sync func() (bool, error)) e
 }
 
 func (g *K8sGateway) ensureDeploymentExists(ctx context.Context) error {
-	deployment, err := g.client.DeploymentForGateway(ctx, g.gateway)
-	if err != nil {
-		return err
-	}
-	// we only create a deployment/service a single time -- when the
-	// gateway is first created
-	if deployment != nil {
-		return nil
-	}
-
-	deployment = g.config.DeploymentFor(g.gateway, g.sdsConfig)
-	if g.logger.IsTrace() {
-		data, err := json.MarshalIndent(deployment, "", "  ")
-		if err == nil {
-			g.logger.Trace("creating gateway deployment", "deployment", string(data))
+	deployment := g.config.DeploymentFor(g.gateway, g.sdsConfig)
+	mutated := deployment.DeepCopy()
+	if err := g.client.CreateOrUpdateDeployment(ctx, mutated, func() error {
+		mutated = apigwv1alpha1.MergeDeployment(deployment, mutated)
+		if g.logger.IsTrace() {
+			data, err := json.MarshalIndent(mutated, "", "  ")
+			if err == nil {
+				g.logger.Trace("created or updated gateway deployment", "deployment", string(data))
+			}
 		}
-	}
-	if err = g.client.CreateOrUpdateDeployment(ctx, deployment, func() error {
-		return g.client.SetControllerOwnership(g.gateway, deployment)
+		return g.client.SetControllerOwnership(g.gateway, mutated)
 	}); err != nil {
-		return fmt.Errorf("failed to create new gateway deployment: %w", err)
+		return fmt.Errorf("failed to create or update gateway deployment: %w", err)
 	}
 
 	// Create service for the gateway
 	if service := g.config.ServiceFor(g.gateway); service != nil {
-		if g.logger.IsTrace() {
-			data, err := json.MarshalIndent(service, "", "  ")
-			if err == nil {
-				g.logger.Trace("creating gateway service", "service", string(data))
+		mutated := service.DeepCopy()
+		if err := g.client.CreateOrUpdateService(ctx, mutated, func() error {
+			mutated = apigwv1alpha1.MergeService(service, mutated)
+			if g.logger.IsTrace() {
+				data, err := json.MarshalIndent(mutated, "", "  ")
+				if err == nil {
+					g.logger.Trace("created or updated gateway service", "service", string(data))
+				}
 			}
-		}
-		if err := g.client.CreateOrUpdateService(ctx, service, func() error {
-			return g.client.SetControllerOwnership(g.gateway, service)
+			return g.client.SetControllerOwnership(g.gateway, mutated)
 		}); err != nil {
-			return fmt.Errorf("failed to create gateway service: %w", err)
+			return fmt.Errorf("failed to create or update gateway service: %w", err)
 		}
 	}
 

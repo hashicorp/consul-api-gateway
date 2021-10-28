@@ -2,6 +2,7 @@ package reconciler
 
 import (
 	"context"
+	"encoding/json"
 	"sync"
 
 	"k8s.io/apimachinery/pkg/types"
@@ -19,6 +20,10 @@ import (
 )
 
 //go:generate mockgen -source ./manager.go -destination ./mocks/manager.go -package mocks ReconcileManager
+
+const (
+	annotationConfig = "api-gateway.consul.hashicorp.com/config"
+)
 
 type ReconcileManager interface {
 	UpsertGatewayClass(ctx context.Context, gc *gw.GatewayClass) error
@@ -92,18 +97,30 @@ func (m *GatewayReconcileManager) UpsertGateway(ctx context.Context, g *gw.Gatew
 	defer m.mutex.Unlock()
 
 	var err error
+	var config apigwv1alpha1.GatewayClassConfig
+	var managed bool
 
 	gatewayClassName := string(g.Spec.GatewayClassName)
 
-	// first check our cache to see if we have a known configuration
-	config, managed := m.gatewayClasses.GetConfig(gatewayClassName)
-	if !managed {
-		// next check to see if we have an existing deployment, if we do, we manage the gateway
-		// and can just use an empty config since we won't re-deploy
-		managed, err = m.client.HasManagedDeployment(ctx, g)
-		if err != nil {
-			return err
+	if g.Annotations == nil {
+		g.Annotations = map[string]string{}
+	}
+
+	annotated := false
+
+	// first check to see whether we have our initial configuration as a gateway annotation
+	if annotatedConfig, ok := g.Annotations[annotationConfig]; ok {
+		if err := json.Unmarshal([]byte(annotatedConfig), &config.Spec); err != nil {
+			m.logger.Warn("error unmarshaling GatewayClassConfig annotation, skipping")
+		} else {
+			annotated = true
+			managed = true
 		}
+	}
+
+	if !managed {
+		// next check our in-memory cache of class configs
+		config, managed = m.gatewayClasses.GetConfig(gatewayClassName)
 		if !managed {
 			// finally, see if we can run through all of the relationships and retrieve the config
 			config, managed, err = m.client.GetConfigForGatewayClassName(ctx, gatewayClassName)
@@ -115,6 +132,20 @@ func (m *GatewayReconcileManager) UpsertGateway(ctx context.Context, g *gw.Gatew
 				return nil
 			}
 		}
+	}
+
+	// at this point we have a managed gateway and its configuration, make sure we set the
+	// configuration annotation
+	marshaled, err := json.Marshal(config.Spec)
+	if err != nil {
+		return err
+	}
+	g.Annotations[annotationConfig] = string(marshaled)
+	if !annotated {
+		// if we're annotating the gateway for the first time, update the gateway and return
+		// the upsert will get handled next reconciliation loop which should get triggered
+		// because of the call to Update
+		return m.client.Update(ctx, g)
 	}
 
 	// TODO: do real namespace mapping

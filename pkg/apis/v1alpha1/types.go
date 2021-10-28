@@ -182,6 +182,17 @@ func (c *GatewayClassConfig) ServiceFor(gw *gateway.Gateway) *corev1.Service {
 	}
 }
 
+// MergeService merges a gateway service a onto b and returns b, overriding all of
+// the fields that we'd normally set for a service deployment. It does not attempt
+// to change the service type
+func MergeService(a, b *corev1.Service) *corev1.Service {
+	b.ObjectMeta.Labels = a.ObjectMeta.Labels
+	b.ObjectMeta.Annotations = a.ObjectMeta.Annotations
+	b.Spec.Selector = a.Spec.Selector
+	b.Spec.Ports = a.Spec.Ports
+	return b
+}
+
 func getAnnotations(annotations map[string]string, allowed []string) map[string]string {
 	filtered := make(map[string]string)
 	for _, annotation := range allowed {
@@ -216,6 +227,17 @@ func (c *GatewayClassConfig) DeploymentFor(gw *gateway.Gateway, sds SDSConfig) *
 			},
 		},
 	}
+}
+
+// MergeDeploymentmerges a gateway deployment a onto b and returns b, overriding all of
+// the fields that we'd normally set for a service deployment. It does not attempt
+// to change the service type
+func MergeDeployment(a, b *appsv1.Deployment) *appsv1.Deployment {
+	b.ObjectMeta.Labels = a.ObjectMeta.Labels
+	b.ObjectMeta.Annotations = a.ObjectMeta.Annotations
+	b.Spec.Selector = a.Spec.Selector
+	b.Spec.Template = a.Spec.Template
+	return b
 }
 
 func (c *GatewayClassConfig) podSpecFor(gw *gateway.Gateway, sds SDSConfig) corev1.PodSpec {

@@ -332,6 +332,20 @@ func (mr *MockClientMockRecorder) SetControllerOwnership(owner, object interface
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetControllerOwnership", reflect.TypeOf((*MockClient)(nil).SetControllerOwnership), owner, object)
 }
 
+// Update mocks base method.
+func (m *MockClient) Update(ctx context.Context, obj client.Object) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Update", ctx, obj)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Update indicates an expected call of Update.
+func (mr *MockClientMockRecorder) Update(ctx, obj interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockClient)(nil).Update), ctx, obj)
+}
+
 // UpdateStatus mocks base method.
 func (m *MockClient) UpdateStatus(ctx context.Context, obj client.Object) error {
 	m.ctrl.T.Helper()

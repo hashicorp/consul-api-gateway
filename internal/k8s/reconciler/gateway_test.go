@@ -53,32 +53,14 @@ func TestGatewayValidate(t *testing.T) {
 	})
 	client.EXPECT().GetSecret(gomock.Any(), gomock.Any()).Return(nil, nil)
 	client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(nil, nil)
-	client.EXPECT().DeploymentForGateway(gomock.Any(), gomock.Any()).Return(nil, nil)
-	client.EXPECT().CreateOrUpdateDeployment(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
-	client.EXPECT().CreateOrUpdateService(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 	require.NoError(t, gateway.Validate(context.Background()))
 
 	expected := errors.New("expected")
+	client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(nil, nil)
 	client.EXPECT().GetSecret(gomock.Any(), gomock.Any()).Return(nil, expected)
-	client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(nil, nil)
 	require.True(t, errors.Is(gateway.Validate(context.Background()), expected))
 
-	client.EXPECT().GetSecret(gomock.Any(), gomock.Any()).Return(nil, nil)
-	client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(nil, nil)
-	client.EXPECT().DeploymentForGateway(gomock.Any(), gomock.Any()).Return(nil, expected)
-	require.True(t, errors.Is(gateway.Validate(context.Background()), expected))
-
-	client.EXPECT().GetSecret(gomock.Any(), gomock.Any()).Return(nil, nil)
-	client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(nil, nil)
-	client.EXPECT().DeploymentForGateway(gomock.Any(), gomock.Any()).Return(nil, nil)
-	client.EXPECT().CreateOrUpdateDeployment(gomock.Any(), gomock.Any(), gomock.Any()).Return(expected)
-	require.True(t, errors.Is(gateway.Validate(context.Background()), expected))
-
-	client.EXPECT().GetSecret(gomock.Any(), gomock.Any()).Return(nil, nil)
-	client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(nil, nil)
-	client.EXPECT().DeploymentForGateway(gomock.Any(), gomock.Any()).Return(nil, nil)
-	client.EXPECT().CreateOrUpdateDeployment(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
-	client.EXPECT().CreateOrUpdateService(gomock.Any(), gomock.Any(), gomock.Any()).Return(expected)
+	client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(nil, expected)
 	require.True(t, errors.Is(gateway.Validate(context.Background()), expected))
 }
 
@@ -109,8 +91,6 @@ func TestGatewayValidate_ListenerProtocolConflicts(t *testing.T) {
 		Client: client,
 	})
 	client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(nil, nil)
-	client.EXPECT().DeploymentForGateway(gomock.Any(), gomock.Any()).Return(nil, nil)
-	client.EXPECT().CreateOrUpdateDeployment(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 	require.NoError(t, gateway.Validate(context.Background()))
 	require.Equal(t, ListenerConditionReasonProtocolConflict, gateway.listeners["1"].status.Conflicted.Condition(0).Reason)
 	require.Equal(t, ListenerConditionReasonProtocolConflict, gateway.listeners["2"].status.Conflicted.Condition(0).Reason)
@@ -147,8 +127,6 @@ func TestGatewayValidate_ListenerHostnameConflicts(t *testing.T) {
 		Client: client,
 	})
 	client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(nil, nil)
-	client.EXPECT().DeploymentForGateway(gomock.Any(), gomock.Any()).Return(nil, nil)
-	client.EXPECT().CreateOrUpdateDeployment(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 	require.NoError(t, gateway.Validate(context.Background()))
 	require.Equal(t, ListenerConditionReasonHostnameConflict, gateway.listeners["1"].status.Conflicted.Condition(0).Reason)
 	require.Equal(t, ListenerConditionReasonHostnameConflict, gateway.listeners["2"].status.Conflicted.Condition(0).Reason)
@@ -172,9 +150,6 @@ func TestGatewayValidate_Pods(t *testing.T) {
 		}),
 		Client: client,
 	})
-	client.EXPECT().DeploymentForGateway(gomock.Any(), gomock.Any()).MinTimes(1).Return(nil, nil)
-	client.EXPECT().CreateOrUpdateDeployment(gomock.Any(), gomock.Any(), gomock.Any()).MinTimes(1).Return(nil)
-
 	client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(&core.Pod{
 		Status: core.PodStatus{},
 	}, nil)
@@ -347,6 +322,7 @@ func TestGatewayTrackSync(t *testing.T) {
 		Client: client,
 	})
 	gateway.gateway.Status = gateway.Status()
+	client.EXPECT().CreateOrUpdateDeployment(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 	require.NoError(t, gateway.TrackSync(context.Background(), func() (bool, error) {
 		return false, nil
 	}))
@@ -358,11 +334,14 @@ func TestGatewayTrackSync(t *testing.T) {
 		}),
 		Client: client,
 	})
+	client.EXPECT().CreateOrUpdateDeployment(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 	client.EXPECT().UpdateStatus(gomock.Any(), gateway.gateway).Return(nil)
 	require.NoError(t, gateway.TrackSync(context.Background(), func() (bool, error) {
 		return false, nil
 	}))
 
+	expected := errors.New("expected")
+
 	gateway = NewK8sGateway(&gw.Gateway{}, K8sGatewayConfig{
 		Logger: hclog.New(&hclog.LoggerOptions{
 			Output: io.Discard,
@@ -370,7 +349,19 @@ func TestGatewayTrackSync(t *testing.T) {
 		}),
 		Client: client,
 	})
-	expected := errors.New("expected")
+	client.EXPECT().CreateOrUpdateDeployment(gomock.Any(), gomock.Any(), gomock.Any()).Return(expected)
+	require.True(t, errors.Is(gateway.TrackSync(context.Background(), func() (bool, error) {
+		return false, nil
+	}), expected))
+
+	gateway = NewK8sGateway(&gw.Gateway{}, K8sGatewayConfig{
+		Logger: hclog.New(&hclog.LoggerOptions{
+			Output: io.Discard,
+			Level:  hclog.Trace,
+		}),
+		Client: client,
+	})
+	client.EXPECT().CreateOrUpdateDeployment(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 	client.EXPECT().UpdateStatus(gomock.Any(), gateway.gateway).Return(expected)
 	require.Equal(t, expected, gateway.TrackSync(context.Background(), func() (bool, error) {
 		return false, nil
@@ -383,6 +374,7 @@ func TestGatewayTrackSync(t *testing.T) {
 		}),
 		Client: client,
 	})
+	client.EXPECT().CreateOrUpdateDeployment(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 	client.EXPECT().UpdateStatus(gomock.Any(), gateway.gateway).Return(nil)
 	require.NoError(t, gateway.TrackSync(context.Background(), func() (bool, error) {
 		return true, nil
@@ -395,6 +387,7 @@ func TestGatewayTrackSync(t *testing.T) {
 		}),
 		Client: client,
 	})
+	client.EXPECT().CreateOrUpdateDeployment(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 	client.EXPECT().UpdateStatus(gomock.Any(), gateway.gateway).Return(nil)
 	require.NoError(t, gateway.TrackSync(context.Background(), func() (bool, error) {
 		return false, expected

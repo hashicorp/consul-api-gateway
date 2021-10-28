@@ -56,6 +56,10 @@ type Client interface {
 
 	UpdateStatus(ctx context.Context, obj client.Object) error
 
+	// updates
+
+	Update(ctx context.Context, obj client.Object) error
+
 	// deployments
 
 	CreateOrUpdateDeployment(ctx context.Context, deployment *apps.Deployment, mutators ...func() error) error
@@ -252,6 +256,13 @@ func (g *gatewayClient) UpdateStatus(ctx context.Context, obj client.Object) err
 	return nil
 }
 
+func (g *gatewayClient) Update(ctx context.Context, obj client.Object) error {
+	if err := g.Client.Update(ctx, obj); err != nil {
+		return NewK8sError(err)
+	}
+	return nil
+}
+
 func (g *gatewayClient) CreateOrUpdateDeployment(ctx context.Context, deployment *apps.Deployment, mutators ...func() error) error {
 	operation, err := controllerutil.CreateOrUpdate(ctx, g.Client, deployment, func() error {
 		for _, mutate := range mutators {
@@ -307,9 +318,13 @@ func (g *gatewayClient) GetConfigForGatewayClassName(ctx context.Context, name s
 	if err != nil {
 		return apigwv1alpha1.GatewayClassConfig{}, false, NewK8sError(err)
 	}
+	if class == nil {
+		// no class found
+		return apigwv1alpha1.GatewayClassConfig{}, false, nil
+	}
 	if class.Spec.ControllerName != gateway.GatewayController(g.controllerName) {
 		// we're not owned by this controller, so pretend we don't exist
-		return apigwv1alpha1.GatewayClassConfig{}, false, NewK8sError(err)
+		return apigwv1alpha1.GatewayClassConfig{}, false, nil
 	}
 	if ref := class.Spec.ParametersRef; ref != nil {
 		// check that we're using a typed config
