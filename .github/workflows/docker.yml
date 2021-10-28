@@ -1,0 +1,56 @@
+name: docker
+
+on:
+  push:
+    branches: ["main"]
+
+jobs: 
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        goos: ["linux"]
+        goarch: ["amd64"]
+        go: ["1.16"]
+      fail-fast: true
+
+    name: Go ${{ matrix.go }} ${{ matrix.goos }} ${{ matrix.goarch }} build
+    env:
+      GOOS: ${{ matrix.goos }}
+      GOARCH: ${{ matrix.goarch }}
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Setup go
+        uses: actions/setup-go@v2
+        with:
+          go-version: ${{ matrix.go }}
+      - name: get product version
+        id: get-product-version
+        run: |
+          make version
+          echo "::set-output name=product-version::$(make version)"
+      - name: Build
+        run: |
+          mkdir -p dist/linux/${{ matrix.goarch }}
+          go build -o dist/linux/${{ matrix.goarch }}
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v1
+        with:
+          registry: ghcr.io
+          username: hashicorp
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Docker Buld And Push (Alpha)
+        uses: docker/build-push-action@v2
+        with:
+          build-args: |
+            PRODUCT_VERSION=${{ env.version }}
+            PRODUCT_REVISION=${{ github.sha }}
+            BIN_NAME=consul-api-gateway
+          target: default
+          context: .
+          platforms: linux/${{ matrix.goarch }}
+          push: true
+          tags: |
+            ghcr.io/hashicorp/consul-api-gateway-snapshot:latest
+            ghcr.io/hashicorp/consul-api-gateway-snapshot:${{ github.sha }}
