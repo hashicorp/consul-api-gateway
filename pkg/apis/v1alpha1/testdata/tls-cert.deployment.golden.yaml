@@ -16,6 +16,8 @@ spec:
   strategy: {}
   template:
     metadata:
+      annotations:
+        consul.hashicorp.com/connect-inject: "false"
       creationTimestamp: null
       labels:
         api-gateway.consul.hashicorp.com/created: "-62135596800"
