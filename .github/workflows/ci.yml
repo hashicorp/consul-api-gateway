@@ -5,9 +5,57 @@ on:
     branches: ["main"]
   pull_request: 
     branches: ["main", "release/**"]
-jobs: 
+jobs:
+  e2e:
+    name: e2e tests
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+
+    - name: Install Dependencies
+      run: |
+        curl -L https://kind.sigs.k8s.io/dl/v0.11.1/kind-linux-amd64 -o ./kind 
+        chmod +x ./kind
+        mv ./kind /usr/local/bin/kind
+        curl -L https://dl.k8s.io/release/v1.22.0/bin/linux/amd64/kubectl -o ./kubectl 
+        chmod +x ./kubectl
+        mv ./kubectl /usr/local/bin/kubectl
+        curl -L https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv4.4.0/kustomize_v4.4.0_linux_amd64.tar.gz -o kustomize_v4.4.0_linux_amd64.tar.gz
+        tar xvzf kustomize_v4.4.0_linux_amd64.tar.gz
+        mv kustomize /usr/local/bin/kustomize
+        rm kustomize_v4.4.0_linux_amd64.tar.gz
+
+    - name: Setup Go
+      uses: actions/setup-go@v2
+      with:
+        go-version: '1.16'
+
+    - id: go-cache-paths
+      name: Setup Go Cache paths 
+      run: |
+        echo "::set-output name=go-e2e-build-cache::$(go env GOCACHE)"
+        echo "::set-output name=go-e2e-mod-cache::$(go env GOMODCACHE)"
+
+    - name: Go Build Cache
+      uses: actions/cache@v2
+      with:
+        path: ${{ steps.go-cache-paths.outputs.go-e2e-build-cache }}
+        key: ${{ runner.os }}-go-e2e-build-${{ hashFiles('**/go.sum') }}
+
+    - name: Go Mod Cache
+      uses: actions/cache@v2
+      with:
+        path: ${{ steps.go-cache-paths.outputs.go-e2e-mod-cache }}
+        key: ${{ runner.os }}-go-e2e-mod-${{ hashFiles('**/go.sum') }}
+
+    - name: Test
+      run: |
+        cd internal/commands/server
+        DOCKER_HOST_ROUTE="172.17.0.1" go test -tags e2e
+        
   test:
-    name: Testing
+    name: unit tests
     runs-on: ubuntu-latest
     steps:
     - name: Checkout

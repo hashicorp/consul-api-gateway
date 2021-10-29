@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -27,14 +28,22 @@ import (
 )
 
 var (
-	testenv env.Environment
+	testenv   env.Environment
+	hostRoute string
 )
+
+func init() {
+	hostRoute = os.Getenv("DOCKER_HOST_ROUTE")
+	if hostRoute == "" {
+		hostRoute = "host.docker.internal"
+	}
+}
 
 func TestMain(m *testing.M) {
 	testenv = env.New()
 
 	testenv.Setup(
-		e2e.SetUpStack,
+		e2e.SetUpStack(hostRoute),
 	)
 
 	testenv.Finish(
@@ -261,7 +270,7 @@ func TestMeshService(t *testing.T) {
 					UseHostPorts: true,
 					LogLevel:     "trace",
 					ConsulSpec: apigwv1alpha1.ConsulSpec{
-						Address: "host.docker.internal",
+						Address: hostRoute,
 						Scheme:  "https",
 						PortSpec: apigwv1alpha1.PortSpec{
 							GRPC: e2e.ConsulGRPCPort(ctx),
@@ -524,7 +533,7 @@ func createGatewayClass(ctx context.Context, t *testing.T, cfg *envconf.Config) 
 			},
 			ServiceType: &serviceType,
 			ConsulSpec: apigwv1alpha1.ConsulSpec{
-				Address: "host.docker.internal",
+				Address: hostRoute,
 				Scheme:  "https",
 				PortSpec: apigwv1alpha1.PortSpec{
 					GRPC: e2e.ConsulGRPCPort(ctx),

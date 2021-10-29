@@ -168,7 +168,7 @@ func DeployMeshService(ctx context.Context, cfg *envconf.Config) (*core.Service,
 	client := ConsulClient(ctx)
 	consulPort := ConsulGRPCPort(ctx)
 	token := ConsulMasterToken(ctx)
-	consulAddress := "host.docker.internal"
+	consulAddress := HostRoute(ctx)
 	proxyServiceName := name + "-proxy"
 
 	resourcesClient := cfg.Client().Resources(namespace)
