@@ -106,7 +106,7 @@ func TestConvertHTTPRoute(t *testing.T) {
 	"Name": "kitchen-sink",
 	"Namespace": "",
 	"Hostnames": [
-		""
+		"*"
 	],
 	"Rules": [
 		{

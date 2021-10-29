@@ -1,0 +1,48 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: consul-api-gateway-controller
+  name: consul-api-gateway-controller
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: consul-api-gateway-controller
+  template:
+    metadata:
+      labels:
+        app: consul-api-gateway-controller
+      annotations:
+        'consul.hashicorp.com/connect-inject': 'false'
+    spec:
+      serviceAccountName: consul-api-gateway-controller
+      containers:
+      - image: hashicorp/consul-api-gateway:0.1.0
+        command: ["consul-api-gateway", "server", "-consul-address", "$(HOST_IP):8501", "-ca-file", "/ca/tls.crt", "-sds-server-host", "$(IP)", "-k8s-namespace", "$(CONSUL_K8S_NAMESPACE)", "-log-level", "$(LOG_LEVEL)"]
+        name: consul-api-gateway-controller
+        ports:
+        - containerPort: 9090
+        volumeMounts:
+        - mountPath: /ca
+          name: ca
+          readOnly: true
+        env:
+        - name: LOG_LEVEL
+          value: info
+        - name: CONSUL_K8S_NAMESPACE
+          value: default
+        - name: IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: HOST_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP
+      volumes:
+      - name: ca
+        secret:
+          secretName: consul-ca-cert

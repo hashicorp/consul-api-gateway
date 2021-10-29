@@ -6,6 +6,7 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	gateway "sigs.k8s.io/gateway-api/apis/v1alpha2"
@@ -15,7 +16,10 @@ import (
 )
 
 var (
-	defaultImage string
+	defaultImage              string
+	defaultServiceAnnotations = []string{
+		"external-dns.alpha.kubernetes.io/hostname",
+	}
 )
 
 func init() {
@@ -64,6 +68,8 @@ type GatewayClassConfigSpec struct {
 	ConsulSpec ConsulSpec `json:"consul,omitempty"`
 	// Configuration information about the images to use
 	ImageSpec ImageSpec `json:"image,omitempty"`
+	// Annotation Information to copy to services or deployments
+	CopyAnnotations CopyAnnotationsSpec `json:"copyAnnotations,omitempty"`
 	// +kubebuilder:validation:Enum=trace;debug;info;warning;error
 	// Logging levels
 	LogLevel string `json:"logLevel,omitempty"`
@@ -97,6 +103,13 @@ type ImageSpec struct {
 	ConsulAPIGateway string `json:"consulAPIGateway,omitempty"`
 	// The image to use for Envoy.
 	Envoy string `json:"envoy,omitempty"`
+}
+
+//+kubebuilder:object:generate=true
+
+type CopyAnnotationsSpec struct {
+	// List of annotations to copy to the gateway service.
+	Service []string `json:"service,omitempty"`
 }
 
 type AuthSpec struct {
@@ -150,11 +163,17 @@ func (c *GatewayClassConfig) ServiceFor(gw *gateway.Gateway) *corev1.Service {
 		})
 	}
 	labels := utils.LabelsForGateway(gw)
+	allowedAnnotations := c.Spec.CopyAnnotations.Service
+	if allowedAnnotations == nil {
+		allowedAnnotations = defaultServiceAnnotations
+	}
+
 	return &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      gw.Name,
-			Namespace: gw.Namespace,
-			Labels:    labels,
+			Name:        gw.Name,
+			Namespace:   gw.Namespace,
+			Labels:      labels,
+			Annotations: getAnnotations(gw.Annotations, allowedAnnotations),
 		},
 		Spec: corev1.ServiceSpec{
 			Selector: labels,
@@ -162,6 +181,51 @@ func (c *GatewayClassConfig) ServiceFor(gw *gateway.Gateway) *corev1.Service {
 			Ports:    ports,
 		},
 	}
+}
+
+// MergeService merges a gateway service a onto b and returns b, overriding all of
+// the fields that we'd normally set for a service deployment. It does not attempt
+// to change the service type
+func MergeService(a, b *corev1.Service) *corev1.Service {
+	if !compareServices(a, b) {
+		a.Annotations = b.Annotations
+		b.Spec.Ports = a.Spec.Ports
+	}
+
+	return b
+}
+
+func compareServices(a, b *corev1.Service) bool {
+	// since K8s adds a bunch of defaults when we create a service, check that
+	// they don't differ by the things that we may actually change, namely container
+	// ports and propagated annotations
+	if !equality.Semantic.DeepEqual(a.Annotations, b.Annotations) {
+		return false
+	}
+	if len(b.Spec.Ports) != len(a.Spec.Ports) {
+		return false
+	}
+
+	for i, port := range a.Spec.Ports {
+		otherPort := b.Spec.Ports[i]
+		if port.Port != otherPort.Port {
+			return false
+		}
+		if port.Protocol != otherPort.Protocol {
+			return false
+		}
+	}
+	return true
+}
+
+func getAnnotations(annotations map[string]string, allowed []string) map[string]string {
+	filtered := make(map[string]string)
+	for _, annotation := range allowed {
+		if value, found := annotations[annotation]; found {
+			filtered[annotation] = value
+		}
+	}
+	return filtered
 }
 
 // DeploymentsFor returns the deployment configuration for the given gateway.
@@ -180,11 +244,50 @@ func (c *GatewayClassConfig) DeploymentFor(gw *gateway.Gateway, sds SDSConfig) *
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: labels,
+					Annotations: map[string]string{
+						"consul.hashicorp.com/connect-inject": "false",
+					},
 				},
 				Spec: c.podSpecFor(gw, sds),
 			},
 		},
 	}
+}
+
+// MergeDeploymentmerges a gateway deployment a onto b and returns b, overriding all of
+// the fields that we'd normally set for a service deployment. It does not attempt
+// to change the service type
+func MergeDeployment(a, b *appsv1.Deployment) *appsv1.Deployment {
+	if !compareDeployments(a, b) {
+		b.Spec.Template = a.Spec.Template
+	}
+
+	return b
+}
+
+func compareDeployments(a, b *appsv1.Deployment) bool {
+	// since K8s adds a bunch of defaults when we create a deployment, check that
+	// they don't differ by the things that we may actually change, namely container
+	// ports
+	if len(b.Spec.Template.Spec.Containers) != len(a.Spec.Template.Spec.Containers) {
+		return false
+	}
+	for i, container := range a.Spec.Template.Spec.Containers {
+		otherPorts := b.Spec.Template.Spec.Containers[i].Ports
+		if len(container.Ports) != len(otherPorts) {
+			return false
+		}
+		for j, port := range container.Ports {
+			otherPort := otherPorts[j]
+			if port.ContainerPort != otherPort.ContainerPort {
+				return false
+			}
+			if port.Protocol != otherPort.Protocol {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 func (c *GatewayClassConfig) podSpecFor(gw *gateway.Gateway, sds SDSConfig) corev1.PodSpec {
