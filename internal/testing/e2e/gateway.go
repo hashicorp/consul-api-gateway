@@ -53,7 +53,7 @@ func (p *gatewayTestEnvironment) run(ctx context.Context, namespace string, cfg 
 	controller, err := k8s.New(nullLogger, &k8s.Config{
 		CACertSecretNamespace: namespace,
 		CACertSecret:          "consul-ca-cert",
-		SDSServerHost:         "gateway-controller.default.svc.cluster.local",
+		SDSServerHost:         "host.docker.internal",
 		SDSServerPort:         9090,
 		RestConfig:            cfg.Client().RESTConfig(),
 	})

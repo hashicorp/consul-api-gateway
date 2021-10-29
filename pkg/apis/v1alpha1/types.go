@@ -6,6 +6,7 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	gateway "sigs.k8s.io/gateway-api/apis/v1alpha2"
@@ -186,11 +187,35 @@ func (c *GatewayClassConfig) ServiceFor(gw *gateway.Gateway) *corev1.Service {
 // the fields that we'd normally set for a service deployment. It does not attempt
 // to change the service type
 func MergeService(a, b *corev1.Service) *corev1.Service {
-	b.ObjectMeta.Labels = a.ObjectMeta.Labels
-	b.ObjectMeta.Annotations = a.ObjectMeta.Annotations
-	b.Spec.Selector = a.Spec.Selector
-	b.Spec.Ports = a.Spec.Ports
+	if !compareServices(a, b) {
+		a.Annotations = b.Annotations
+		b.Spec.Ports = a.Spec.Ports
+	}
+
 	return b
+}
+
+func compareServices(a, b *corev1.Service) bool {
+	// since K8s adds a bunch of defaults when we create a service, check that
+	// they don't differ by the things that we may actually change, namely container
+	// ports and propagated annotations
+	if !equality.Semantic.DeepEqual(a.Annotations, b.Annotations) {
+		return false
+	}
+	if len(b.Spec.Ports) != len(a.Spec.Ports) {
+		return false
+	}
+
+	for i, port := range a.Spec.Ports {
+		otherPort := b.Spec.Ports[i]
+		if port.Port != otherPort.Port {
+			return false
+		}
+		if port.Protocol != otherPort.Protocol {
+			return false
+		}
+	}
+	return true
 }
 
 func getAnnotations(annotations map[string]string, allowed []string) map[string]string {
@@ -233,11 +258,36 @@ func (c *GatewayClassConfig) DeploymentFor(gw *gateway.Gateway, sds SDSConfig) *
 // the fields that we'd normally set for a service deployment. It does not attempt
 // to change the service type
 func MergeDeployment(a, b *appsv1.Deployment) *appsv1.Deployment {
-	b.ObjectMeta.Labels = a.ObjectMeta.Labels
-	b.ObjectMeta.Annotations = a.ObjectMeta.Annotations
-	b.Spec.Selector = a.Spec.Selector
-	b.Spec.Template = a.Spec.Template
+	if !compareDeployments(a, b) {
+		b.Spec.Template = a.Spec.Template
+	}
+
 	return b
+}
+
+func compareDeployments(a, b *appsv1.Deployment) bool {
+	// since K8s adds a bunch of defaults when we create a deployment, check that
+	// they don't differ by the things that we may actually change, namely container
+	// ports
+	if len(b.Spec.Template.Spec.Containers) != len(a.Spec.Template.Spec.Containers) {
+		return false
+	}
+	for i, container := range a.Spec.Template.Spec.Containers {
+		otherPorts := b.Spec.Template.Spec.Containers[i].Ports
+		if len(container.Ports) != len(otherPorts) {
+			return false
+		}
+		for j, port := range container.Ports {
+			otherPort := otherPorts[j]
+			if port.ContainerPort != otherPort.ContainerPort {
+				return false
+			}
+			if port.Protocol != otherPort.Protocol {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 func (c *GatewayClassConfig) podSpecFor(gw *gateway.Gateway, sds SDSConfig) corev1.PodSpec {

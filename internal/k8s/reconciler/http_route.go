@@ -17,6 +17,9 @@ func convertHTTPRoute(namespace, hostname, prefix string, meta map[string]string
 		hostnames = append(hostnames, string(hostname))
 	}
 	if len(hostnames) == 0 {
+		if hostname == "" {
+			hostname = "*"
+		}
 		hostnames = append(hostnames, hostname)
 	}
 	name := prefix + route.Name

@@ -16,17 +16,19 @@ import (
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/e2e-framework/klient/k8s/resources"
 	"sigs.k8s.io/e2e-framework/pkg/env"
 	"sigs.k8s.io/e2e-framework/pkg/envconf"
 )
 
 const (
-	consulImage          = "hashicorp/consul:1.10.2"
+	consulImage          = "hashicorpdev/consul:581357c32"
 	configTemplateString = `
 {
+	"log_level": "trace",
   "acl": {
     "enabled": true,
-    "default_policy": "deny"
+    "default_policy": "allow"
   },
   "server": true,
   "bootstrap": true,
@@ -72,6 +74,8 @@ type consulTestEnvironment struct {
 	policy       *api.ACLPolicy
 	httpPort     int
 	grpcPort     int
+	extraPort    int
+	ip           string
 }
 
 func CreateTestConsulContainer(name, namespace string) env.Func {
@@ -85,22 +89,26 @@ func CreateTestConsulContainer(name, namespace string) env.Func {
 		cluster := clusterVal.(*kindCluster)
 		httpsPort := cluster.httpsPort
 		grpcPort := cluster.grpcPort
+		extraPort := cluster.extraPort
 
 		rootCA, err := testing.GenerateSignedCertificate(testing.GenerateCertificateOptions{
 			IsCA: true,
+			Bits: 2048,
 		})
 		if err != nil {
 			return nil, err
 		}
 		serverCert, err := testing.GenerateSignedCertificate(testing.GenerateCertificateOptions{
 			CA:        rootCA,
+			Bits:      2048,
 			ExtraSANs: []string{"localhost", "host.docker.internal"},
 		})
 		if err != nil {
 			return nil, err
 		}
 		clientCert, err := testing.GenerateSignedCertificate(testing.GenerateCertificateOptions{
-			CA: rootCA,
+			CA:   rootCA,
+			Bits: 2048,
 		})
 		if err != nil {
 			return nil, err
@@ -158,12 +166,20 @@ func CreateTestConsulContainer(name, namespace string) env.Func {
 			return nil, err
 		}
 
+		ip, err := consulPodIP(ctx, cfg, deployment)
+		if err != nil {
+			return nil, err
+		}
+
 		env := &consulTestEnvironment{
 			ca:           rootCA.CertBytes,
 			consulClient: consulClient,
 			httpPort:     httpsPort,
 			grpcPort:     grpcPort,
+			extraPort:    extraPort,
+			ip:           ip,
 		}
+
 		return context.WithValue(ctx, consulTestContextKey, env), nil
 	}
 }
@@ -193,6 +209,35 @@ func consulCASecret(namespace string, caCert *testing.CertificateInfo) client.Ob
 		},
 		Type: core.SecretTypeOpaque,
 	}
+}
+
+func consulPodIP(ctx context.Context, cfg *envconf.Config, deployment *apps.Deployment) (string, error) {
+	namespace := Namespace(ctx)
+	resourcesClient := cfg.Client().Resources(namespace)
+
+	pod := &core.Pod{}
+	err := backoff.Retry(func() error {
+		list := &core.PodList{}
+		if err := resourcesClient.List(ctx, list, resources.WithLabelSelector(meta.FormatLabelSelector(&meta.LabelSelector{
+			MatchLabels: deployment.Labels,
+		}))); err != nil {
+			return err
+		}
+
+		if len(list.Items) == 0 {
+			return errors.New("no pod created yet")
+		}
+		pod = &list.Items[0]
+
+		if pod.Status.PodIP == "" {
+			return errors.New("no assigned ip yet")
+		}
+		return nil
+	}, backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 20), ctx))
+	if err != nil {
+		return "", err
+	}
+	return pod.Status.PodIP, nil
 }
 
 func consulConfig(httpsPort, grpcPort int) (string, error) {
@@ -226,7 +271,7 @@ func consulConfigMap(namespace string, httpsPort, grpcPort int) (client.Object, 
 	}, nil
 }
 
-func consulDeployment(namespace string, httpsPort, grpcPort int) client.Object {
+func consulDeployment(namespace string, httpsPort, grpcPort int) *apps.Deployment {
 	labels := map[string]string{
 		"deployment": "consul-test-server",
 	}
@@ -340,12 +385,28 @@ func ConsulMasterToken(ctx context.Context) string {
 	return consulEnvironment.(*consulTestEnvironment).token
 }
 
+func ConsulIP(ctx context.Context) string {
+	consulEnvironment := ctx.Value(consulTestContextKey)
+	if consulEnvironment == nil {
+		panic("must run this with an integration test that has called CreateTestConsul")
+	}
+	return consulEnvironment.(*consulTestEnvironment).ip
+}
+
 func ConsulGRPCPort(ctx context.Context) int {
 	consulEnvironment := ctx.Value(consulTestContextKey)
 	if consulEnvironment == nil {
 		panic("must run this with an integration test that has called CreateTestConsul")
 	}
 	return consulEnvironment.(*consulTestEnvironment).grpcPort
+}
+
+func ExtraPort(ctx context.Context) int {
+	consulEnvironment := ctx.Value(consulTestContextKey)
+	if consulEnvironment == nil {
+		panic("must run this with an integration test that has called CreateTestConsul")
+	}
+	return consulEnvironment.(*consulTestEnvironment).extraPort
 }
 
 func ConsulHTTPPort(ctx context.Context) int {
