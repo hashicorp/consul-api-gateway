@@ -41,15 +41,16 @@ func (m *MockClient) EXPECT() *MockClientMockRecorder {
 }
 
 // CreateOrUpdateDeployment mocks base method.
-func (m *MockClient) CreateOrUpdateDeployment(ctx context.Context, deployment *v1.Deployment, mutators ...func() error) error {
+func (m *MockClient) CreateOrUpdateDeployment(ctx context.Context, deployment *v1.Deployment, mutators ...func() error) (bool, error) {
 	m.ctrl.T.Helper()
 	varargs := []interface{}{ctx, deployment}
 	for _, a := range mutators {
 		varargs = append(varargs, a)
 	}
 	ret := m.ctrl.Call(m, "CreateOrUpdateDeployment", varargs...)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // CreateOrUpdateDeployment indicates an expected call of CreateOrUpdateDeployment.
@@ -60,15 +61,16 @@ func (mr *MockClientMockRecorder) CreateOrUpdateDeployment(ctx, deployment inter
 }
 
 // CreateOrUpdateService mocks base method.
-func (m *MockClient) CreateOrUpdateService(ctx context.Context, service *v10.Service, mutators ...func() error) error {
+func (m *MockClient) CreateOrUpdateService(ctx context.Context, service *v10.Service, mutators ...func() error) (bool, error) {
 	m.ctrl.T.Helper()
 	varargs := []interface{}{ctx, service}
 	for _, a := range mutators {
 		varargs = append(varargs, a)
 	}
 	ret := m.ctrl.Call(m, "CreateOrUpdateService", varargs...)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // CreateOrUpdateService indicates an expected call of CreateOrUpdateService.

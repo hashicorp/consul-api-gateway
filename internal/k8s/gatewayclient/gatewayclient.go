@@ -62,8 +62,8 @@ type Client interface {
 
 	// deployments
 
-	CreateOrUpdateDeployment(ctx context.Context, deployment *apps.Deployment, mutators ...func() error) error
-	CreateOrUpdateService(ctx context.Context, service *core.Service, mutators ...func() error) error
+	CreateOrUpdateDeployment(ctx context.Context, deployment *apps.Deployment, mutators ...func() error) (bool, error)
+	CreateOrUpdateService(ctx context.Context, service *core.Service, mutators ...func() error) (bool, error)
 	DeleteService(ctx context.Context, service *core.Service) error
 }
 
@@ -263,7 +263,7 @@ func (g *gatewayClient) Update(ctx context.Context, obj client.Object) error {
 	return nil
 }
 
-func (g *gatewayClient) CreateOrUpdateDeployment(ctx context.Context, deployment *apps.Deployment, mutators ...func() error) error {
+func (g *gatewayClient) CreateOrUpdateDeployment(ctx context.Context, deployment *apps.Deployment, mutators ...func() error) (bool, error) {
 	operation, err := controllerutil.CreateOrUpdate(ctx, g.Client, deployment, func() error {
 		for _, mutate := range mutators {
 			if err := mutate(); err != nil {
@@ -273,16 +273,16 @@ func (g *gatewayClient) CreateOrUpdateDeployment(ctx context.Context, deployment
 		return nil
 	})
 	if err != nil {
-		return NewK8sError(err)
+		return false, NewK8sError(err)
 	}
 	if operation == controllerutil.OperationResultCreated {
 		metrics.Registry.IncrCounter(metrics.K8sNewGatewayDeployments, 1)
 	}
-	return nil
+	return operation != controllerutil.OperationResultNone, nil
 }
 
-func (g *gatewayClient) CreateOrUpdateService(ctx context.Context, service *core.Service, mutators ...func() error) error {
-	_, err := controllerutil.CreateOrUpdate(ctx, g.Client, service, func() error {
+func (g *gatewayClient) CreateOrUpdateService(ctx context.Context, service *core.Service, mutators ...func() error) (bool, error) {
+	op, err := controllerutil.CreateOrUpdate(ctx, g.Client, service, func() error {
 		for _, mutate := range mutators {
 			if err := mutate(); err != nil {
 				return err
@@ -291,9 +291,9 @@ func (g *gatewayClient) CreateOrUpdateService(ctx context.Context, service *core
 		return nil
 	})
 	if err != nil {
-		return NewK8sError(err)
+		return false, NewK8sError(err)
 	}
-	return nil
+	return op != controllerutil.OperationResultNone, nil
 }
 
 func (g *gatewayClient) DeleteService(ctx context.Context, service *core.Service) error {

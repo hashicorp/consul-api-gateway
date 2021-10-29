@@ -322,7 +322,7 @@ func TestGatewayTrackSync(t *testing.T) {
 		Client: client,
 	})
 	gateway.gateway.Status = gateway.Status()
-	client.EXPECT().CreateOrUpdateDeployment(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+	client.EXPECT().CreateOrUpdateDeployment(gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil)
 	require.NoError(t, gateway.TrackSync(context.Background(), func() (bool, error) {
 		return false, nil
 	}))
@@ -334,7 +334,7 @@ func TestGatewayTrackSync(t *testing.T) {
 		}),
 		Client: client,
 	})
-	client.EXPECT().CreateOrUpdateDeployment(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+	client.EXPECT().CreateOrUpdateDeployment(gomock.Any(), gomock.Any(), gomock.Any()).Return(false, nil)
 	client.EXPECT().UpdateStatus(gomock.Any(), gateway.gateway).Return(nil)
 	require.NoError(t, gateway.TrackSync(context.Background(), func() (bool, error) {
 		return false, nil
@@ -349,7 +349,7 @@ func TestGatewayTrackSync(t *testing.T) {
 		}),
 		Client: client,
 	})
-	client.EXPECT().CreateOrUpdateDeployment(gomock.Any(), gomock.Any(), gomock.Any()).Return(expected)
+	client.EXPECT().CreateOrUpdateDeployment(gomock.Any(), gomock.Any(), gomock.Any()).Return(false, expected)
 	require.True(t, errors.Is(gateway.TrackSync(context.Background(), func() (bool, error) {
 		return false, nil
 	}), expected))
@@ -361,7 +361,7 @@ func TestGatewayTrackSync(t *testing.T) {
 		}),
 		Client: client,
 	})
-	client.EXPECT().CreateOrUpdateDeployment(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+	client.EXPECT().CreateOrUpdateDeployment(gomock.Any(), gomock.Any(), gomock.Any()).Return(false, nil)
 	client.EXPECT().UpdateStatus(gomock.Any(), gateway.gateway).Return(expected)
 	require.Equal(t, expected, gateway.TrackSync(context.Background(), func() (bool, error) {
 		return false, nil
@@ -374,7 +374,7 @@ func TestGatewayTrackSync(t *testing.T) {
 		}),
 		Client: client,
 	})
-	client.EXPECT().CreateOrUpdateDeployment(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+	client.EXPECT().CreateOrUpdateDeployment(gomock.Any(), gomock.Any(), gomock.Any()).Return(false, nil)
 	client.EXPECT().UpdateStatus(gomock.Any(), gateway.gateway).Return(nil)
 	require.NoError(t, gateway.TrackSync(context.Background(), func() (bool, error) {
 		return true, nil
@@ -387,7 +387,7 @@ func TestGatewayTrackSync(t *testing.T) {
 		}),
 		Client: client,
 	})
-	client.EXPECT().CreateOrUpdateDeployment(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+	client.EXPECT().CreateOrUpdateDeployment(gomock.Any(), gomock.Any(), gomock.Any()).Return(false, nil)
 	client.EXPECT().UpdateStatus(gomock.Any(), gateway.gateway).Return(nil)
 	require.NoError(t, gateway.TrackSync(context.Background(), func() (bool, error) {
 		return false, expected

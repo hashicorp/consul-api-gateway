@@ -93,12 +93,18 @@ type GenerateCertificateOptions struct {
 	SPIFFEHostOverride string
 	SPIFFEPathOverride string
 	ExtraSANs          []string
+	ExtraIPs           []net.IP
 	Expiration         time.Time
+	Bits               int
 }
 
 // GenerateSignedCertificate generates a certificate with the given options
 func GenerateSignedCertificate(options GenerateCertificateOptions) (*CertificateInfo, error) {
-	privateKey, err := rsa.GenerateKey(rand.Reader, 1024)
+	bits := options.Bits
+	if bits == 0 {
+		bits = 1024
+	}
+	privateKey, err := rsa.GenerateKey(rand.Reader, bits)
 	if err != nil {
 		return nil, err
 	}
@@ -128,7 +134,7 @@ func GenerateSignedCertificate(options GenerateCertificateOptions) (*Certificate
 			PostalCode:    []string{"11111"},
 		},
 		IsCA:                  options.IsCA,
-		IPAddresses:           []net.IP{net.IPv4(127, 0, 0, 1), net.IPv6loopback},
+		IPAddresses:           append(options.ExtraIPs, net.IPv4(127, 0, 0, 1), net.IPv6loopback),
 		NotBefore:             time.Now().Add(-10 * time.Minute),
 		NotAfter:              expiration,
 		SubjectKeyId:          []byte{1, 2, 3, 4, 6},

@@ -371,33 +371,35 @@ func (g *K8sGateway) TrackSync(ctx context.Context, sync func() (bool, error)) e
 func (g *K8sGateway) ensureDeploymentExists(ctx context.Context) error {
 	deployment := g.config.DeploymentFor(g.gateway, g.sdsConfig)
 	mutated := deployment.DeepCopy()
-	if err := g.client.CreateOrUpdateDeployment(ctx, mutated, func() error {
+	if updated, err := g.client.CreateOrUpdateDeployment(ctx, mutated, func() error {
 		mutated = apigwv1alpha1.MergeDeployment(deployment, mutated)
+		return g.client.SetControllerOwnership(g.gateway, mutated)
+	}); err != nil {
+		return fmt.Errorf("failed to create or update gateway deployment: %w", err)
+	} else if updated {
 		if g.logger.IsTrace() {
 			data, err := json.MarshalIndent(mutated, "", "  ")
 			if err == nil {
 				g.logger.Trace("created or updated gateway deployment", "deployment", string(data))
 			}
 		}
-		return g.client.SetControllerOwnership(g.gateway, mutated)
-	}); err != nil {
-		return fmt.Errorf("failed to create or update gateway deployment: %w", err)
 	}
 
 	// Create service for the gateway
 	if service := g.config.ServiceFor(g.gateway); service != nil {
 		mutated := service.DeepCopy()
-		if err := g.client.CreateOrUpdateService(ctx, mutated, func() error {
+		if updated, err := g.client.CreateOrUpdateService(ctx, mutated, func() error {
 			mutated = apigwv1alpha1.MergeService(service, mutated)
+			return g.client.SetControllerOwnership(g.gateway, mutated)
+		}); err != nil {
+			return fmt.Errorf("failed to create or update gateway service: %w", err)
+		} else if updated {
 			if g.logger.IsTrace() {
 				data, err := json.MarshalIndent(mutated, "", "  ")
 				if err == nil {
 					g.logger.Trace("created or updated gateway service", "service", string(data))
 				}
 			}
-			return g.client.SetControllerOwnership(g.gateway, mutated)
-		}); err != nil {
-			return fmt.Errorf("failed to create or update gateway service: %w", err)
 		}
 	}
 
