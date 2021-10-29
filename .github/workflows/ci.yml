@@ -7,7 +7,9 @@ on:
     branches: ["main", "release/**"]
 jobs:
   test:
-    name: Testing
+    strategy:
+      matrix:
+        consul-version: [1.11.x, 1.11.x+ent]
     runs-on: ubuntu-latest
     steps:
     - name: Checkout
@@ -17,6 +19,12 @@ jobs:
       uses: actions/setup-go@v2
       with:
         go-version: '1.16'
+
+    - name: Install Consul
+      uses: nickethier/action-setup-hashicorp-tool@main #TODO: update action when migrated to hc org
+      with:
+        product: consul
+        version: ${{ matrix.consul-version }}
 
     - id: go-cache-paths
       name: Setup Go Cache paths 
