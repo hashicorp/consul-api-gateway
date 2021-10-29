@@ -34,33 +34,45 @@ const (
 			"id": "{{ .ID }}"
 		},
 		"static_resources": {
-			"clusters": [
-				{
-					"name": "self_admin",
-					"ignore_health_on_host_removal": false,
-					"connect_timeout": "5s",
-					"type": "STATIC",
-					"http_protocol_options": {},
-					"loadAssignment": {
-						"clusterName": "self_admin",
-						"endpoints": [
-							{
-								"lbEndpoints": [
-									{
-										"endpoint": {
-											"address": {
-												"socket_address": {
-													"address": "127.0.0.1",
-													"port_value": 19000
-												}
-											}
-										}
-									}
-								]
-							}
-						]
+			"listeners": [{
+				"name": "static",
+				"address": {
+					"socket_address": {
+						"address": "127.0.0.1",
+						"port_value": 19001
 					}
 				},
+				"filter_chains": [{
+					"filters": [{
+						"name": "envoy.filters.network.http_connection_manager",
+						"typed_config": {
+							"@type": "type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager",
+							"stat_prefix": "edge",
+							"http_filters": [{
+								"name": "envoy.filters.http.router"
+							}],
+							"route_config": {
+								"virtual_hosts": [{
+									"name": "direct_response",
+									"domains": ["*"],
+									"routes": [{
+										"match": {
+											"prefix": "/"
+										},
+										"direct_response": {
+											"status": 200,
+											"body": {
+												"inline_string": "{{ .ID }}"
+											}
+										}
+									}]
+								}]	
+							}
+						}
+					}]
+				}]
+			}],
+			"clusters": [
 				{
 					"name": "consul-server",
 					"ignore_health_on_host_removal": false,
@@ -206,7 +218,7 @@ func DeployMeshService(ctx context.Context, cfg *envconf.Config) (*core.Service,
 	registration := &api.AgentServiceRegistration{
 		ID:   name,
 		Name: name,
-		Port: 19000,
+		Port: 19001,
 		Meta: map[string]string{
 			serviceResolver.MetaKeyKubeServiceName: name,
 			serviceResolver.MetaKeyKubeNS:          namespace,
@@ -239,7 +251,7 @@ func DeployMeshService(ctx context.Context, cfg *envconf.Config) (*core.Service,
 		Proxy: &api.AgentServiceConnectProxyConfig{
 			DestinationServiceName: name,
 			LocalServiceAddress:    "127.0.0.1",
-			LocalServicePort:       19000,
+			LocalServicePort:       19001,
 		},
 		Address: pod.Status.PodIP,
 	}

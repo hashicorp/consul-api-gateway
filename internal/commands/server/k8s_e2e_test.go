@@ -6,7 +6,9 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"io"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -225,14 +227,25 @@ func TestServiceListeners(t *testing.T) {
 func TestMeshService(t *testing.T) {
 	feature := features.New("mesh service routing").
 		Assess("basic routing", func(ctx context.Context, t *testing.T, cfg *envconf.Config) context.Context {
-			service, err := e2e.DeployMeshService(ctx, cfg)
+			serviceOne, err := e2e.DeployMeshService(ctx, cfg)
+			require.NoError(t, err)
+			serviceTwo, err := e2e.DeployMeshService(ctx, cfg)
+			require.NoError(t, err)
+			serviceThree, err := e2e.DeployMeshService(ctx, cfg)
+			require.NoError(t, err)
+			serviceFour, err := e2e.DeployMeshService(ctx, cfg)
+			require.NoError(t, err)
+			serviceFive, err := e2e.DeployMeshService(ctx, cfg)
 			require.NoError(t, err)
 
 			namespace := e2e.Namespace(ctx)
 			configName := envconf.RandomName("gcc", 16)
 			className := envconf.RandomName("gc", 16)
 			gatewayName := envconf.RandomName("gw", 16)
-			routeName := envconf.RandomName("route", 16)
+			routeOneName := envconf.RandomName("route", 16)
+			routeTwoName := envconf.RandomName("route", 16)
+			routeThreeName := envconf.RandomName("route", 16)
+			routeFourName := envconf.RandomName("route", 16)
 
 			gatewayNamespace := gateway.Namespace(namespace)
 			resources := cfg.Client().Resources(namespace)
@@ -304,10 +317,125 @@ func TestMeshService(t *testing.T) {
 			require.NoError(t, err)
 			require.Eventually(t, gatewayReady(ctx, resources, gatewayName, namespace), 30*time.Second, 1*time.Second, "no gateway found in the allotted time")
 
-			port := gateway.PortNumber(service.Spec.Ports[0].Port)
+			// route 1
+			port := gateway.PortNumber(serviceOne.Spec.Ports[0].Port)
+			path := "/v1"
+			pathMatch := gateway.PathMatchExact
+			routeOne := &gateway.HTTPRoute{
+				ObjectMeta: meta.ObjectMeta{
+					Name:      routeOneName,
+					Namespace: namespace,
+				},
+				Spec: gateway.HTTPRouteSpec{
+					CommonRouteSpec: gateway.CommonRouteSpec{
+						ParentRefs: []gateway.ParentRef{{
+							Name: gateway.ObjectName(gatewayName),
+						}},
+					},
+					Rules: []gateway.HTTPRouteRule{{
+						Matches: []gateway.HTTPRouteMatch{{
+							Path: &gateway.HTTPPathMatch{
+								Type:  &pathMatch,
+								Value: &path,
+							},
+						}},
+						BackendRefs: []gateway.HTTPBackendRef{{
+							BackendRef: gateway.BackendRef{
+								BackendObjectReference: gateway.BackendObjectReference{
+									Name: gateway.ObjectName(serviceOne.Name),
+									Port: &port,
+								},
+							},
+						}},
+					}},
+				},
+			}
+			err = resources.Create(ctx, routeOne)
+			require.NoError(t, err)
+
+			// route 2
+			port = gateway.PortNumber(serviceTwo.Spec.Ports[0].Port)
+			path = "/v2"
 			route := &gateway.HTTPRoute{
 				ObjectMeta: meta.ObjectMeta{
-					Name:      routeName,
+					Name:      routeTwoName,
+					Namespace: namespace,
+				},
+				Spec: gateway.HTTPRouteSpec{
+					CommonRouteSpec: gateway.CommonRouteSpec{
+						ParentRefs: []gateway.ParentRef{{
+							Name: gateway.ObjectName(gatewayName),
+						}},
+					},
+					Rules: []gateway.HTTPRouteRule{{
+						Matches: []gateway.HTTPRouteMatch{{
+							Path: &gateway.HTTPPathMatch{
+								Type:  &pathMatch,
+								Value: &path,
+							},
+						}},
+						BackendRefs: []gateway.HTTPBackendRef{{
+							BackendRef: gateway.BackendRef{
+								BackendObjectReference: gateway.BackendObjectReference{
+									Name: gateway.ObjectName(serviceTwo.Name),
+									Port: &port,
+								},
+							},
+						}},
+					}},
+				},
+			}
+			err = resources.Create(ctx, route)
+			require.NoError(t, err)
+
+			// route 3
+			port = gateway.PortNumber(serviceThree.Spec.Ports[0].Port)
+			path = "/v3"
+			headerMatch := gateway.HeaderMatchExact
+			route = &gateway.HTTPRoute{
+				ObjectMeta: meta.ObjectMeta{
+					Name:      routeThreeName,
+					Namespace: namespace,
+				},
+				Spec: gateway.HTTPRouteSpec{
+					CommonRouteSpec: gateway.CommonRouteSpec{
+						ParentRefs: []gateway.ParentRef{{
+							Name: gateway.ObjectName(gatewayName),
+						}},
+					},
+					Hostnames: []gateway.Hostname{"test.host"},
+					Rules: []gateway.HTTPRouteRule{{
+						Matches: []gateway.HTTPRouteMatch{{
+							Path: &gateway.HTTPPathMatch{
+								Type:  &pathMatch,
+								Value: &path,
+							},
+							Headers: []gateway.HTTPHeaderMatch{{
+								Type:  &headerMatch,
+								Name:  gateway.HTTPHeaderName("x-v3"),
+								Value: "v3",
+							}},
+						}},
+						BackendRefs: []gateway.HTTPBackendRef{{
+							BackendRef: gateway.BackendRef{
+								BackendObjectReference: gateway.BackendObjectReference{
+									Name: gateway.ObjectName(serviceThree.Name),
+									Port: &port,
+								},
+							},
+						}},
+					}},
+				},
+			}
+			err = resources.Create(ctx, route)
+			require.NoError(t, err)
+
+			// route 4 - fallback
+			portFour := gateway.PortNumber(serviceFour.Spec.Ports[0].Port)
+			portFive := gateway.PortNumber(serviceFive.Spec.Ports[0].Port)
+			route = &gateway.HTTPRoute{
+				ObjectMeta: meta.ObjectMeta{
+					Name:      routeFourName,
 					Namespace: namespace,
 				},
 				Spec: gateway.HTTPRouteSpec{
@@ -320,8 +448,15 @@ func TestMeshService(t *testing.T) {
 						BackendRefs: []gateway.HTTPBackendRef{{
 							BackendRef: gateway.BackendRef{
 								BackendObjectReference: gateway.BackendObjectReference{
-									Name: gateway.ObjectName(service.Name),
-									Port: &port,
+									Name: gateway.ObjectName(serviceFour.Name),
+									Port: &portFour,
+								},
+							},
+						}, {
+							BackendRef: gateway.BackendRef{
+								BackendObjectReference: gateway.BackendObjectReference{
+									Name: gateway.ObjectName(serviceFive.Name),
+									Port: &portFive,
 								},
 							},
 						}},
@@ -331,13 +466,21 @@ func TestMeshService(t *testing.T) {
 			err = resources.Create(ctx, route)
 			require.NoError(t, err)
 
-			require.Eventually(t, func() bool {
-				ok, err := checkRoute(e2e.ExtraPort(ctx))
-				if err != nil || !ok {
-					return false
-				}
-				return true
-			}, 30*time.Second, 1*time.Second, "gateway route not usable in allotted time")
+			checkPort := e2e.ExtraPort(ctx)
+			checkRoute(t, checkPort, "/v1", serviceOne.Name, nil, "service one not routable in allotted time")
+			checkRoute(t, checkPort, "/v2", serviceTwo.Name, nil, "service two not routable in allotted time")
+			checkRoute(t, checkPort, "/v3", serviceThree.Name, map[string]string{
+				"x-v3": "v3",
+				"Host": "test.host",
+			}, "service three not routable in allotted time")
+			checkRoute(t, checkPort, "/v3", serviceFour.Name, nil, "service four not routable in allotted time")
+			checkRoute(t, checkPort, "/v3", serviceFive.Name, nil, "service five not routable in allotted time")
+
+			err = resources.Delete(ctx, routeOne)
+			require.NoError(t, err)
+
+			checkRoute(t, checkPort, "/v1", serviceFour.Name, nil, "after route deletion service four not routable in allotted time")
+			checkRoute(t, checkPort, "/v1", serviceFive.Name, nil, "after route deletion service five not routable in allotted time")
 
 			return ctx
 		})
@@ -416,20 +559,41 @@ func createGatewayClass(ctx context.Context, t *testing.T, cfg *envconf.Config) 
 	return gcc, gc
 }
 
-func checkRoute(port int) (bool, error) {
-	client := &http.Client{Transport: &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-	}}
-	req, err := http.NewRequest("GET", fmt.Sprintf("https://localhost:%d", port), nil)
-	if err != nil {
-		return false, err
-	}
+func checkRoute(t *testing.T, port int, path, expected string, headers map[string]string, message string) {
+	t.Helper()
 
-	resp, err := client.Do(req)
-	if err != nil {
-		return false, err
-	}
-	defer resp.Body.Close()
+	require.Eventually(t, func() bool {
+		client := &http.Client{Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		}}
+		req, err := http.NewRequest("GET", fmt.Sprintf("https://localhost:%d%s", port, path), nil)
+		if err != nil {
+			return false
+		}
 
-	return resp.StatusCode == http.StatusOK, nil
+		for k, v := range headers {
+			req.Header.Set(k, v)
+
+			if k == "Host" {
+				req.Host = v
+			}
+		}
+
+		resp, err := client.Do(req)
+		if err != nil {
+			return false
+		}
+		defer resp.Body.Close()
+
+		data, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return false
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			return false
+		}
+
+		return strings.HasPrefix(string(data), expected)
+	}, 30*time.Second, 1*time.Second, message)
 }

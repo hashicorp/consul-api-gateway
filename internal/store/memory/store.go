@@ -171,6 +171,8 @@ func (s *Store) DeleteRoute(ctx context.Context, id string) error {
 		gateway.Remove(id)
 	}
 
+	delete(s.routes, id)
+
 	// sync the gateways to consul and route statuses to k8s
 	return s.Sync(ctx)
 }
