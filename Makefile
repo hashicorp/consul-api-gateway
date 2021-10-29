@@ -1,163 +1,60 @@
-SHELL = bash
+SHELL := /usr/bin/env bash -euo pipefail -c
 
-GOOS?=$(shell go env GOOS)
-GOARCH?=$(shell go env GOARCH)
-GOPATH=$(shell go env GOPATH)
-GOTAGS ?=
-GOTOOLS = \
-	github.com/magiconair/vendorfmt/cmd/vendorfmt \
-	github.com/mitchellh/gox \
-	golang.org/x/tools/cmd/cover \
-	golang.org/x/tools/cmd/stringer
+REPO_NAME    ?= $(shell basename "$(CURDIR)")
+PRODUCT_NAME ?= $(REPO_NAME)
+BIN_NAME     ?= $(PRODUCT_NAME)
 
-DEV_IMAGE?=consul-api-gateway
-GO_BUILD_TAG?=consul-api-gateway-build-go
-GIT_COMMIT?=$(shell git rev-parse --short HEAD)
-GIT_DIRTY?=$(shell test -n "`git status --porcelain`" && echo "+CHANGES" || true)
-GIT_DESCRIBE?=$(shell git describe --tags --always)
-GIT_IMPORT=github.com/hashicorp/consul-api-gateway/version
-GOLDFLAGS=-X $(GIT_IMPORT).GitCommit=$(GIT_COMMIT)$(GIT_DIRTY) -X $(GIT_IMPORT).GitDescribe=$(GIT_DESCRIBE)
+# Get local ARCH; on Intel Mac, 'uname -m' returns x86_64 which we turn into amd64.
+# Not using 'go env GOOS/GOARCH' here so 'make docker' will work without local Go install.
+ARCH     = $(shell A=$$(uname -m); [ $$A = x86_64 ] && A=amd64; echo $$A)
+OS       = $(shell uname | tr [[:upper:]] [[:lower:]])
+PLATFORM = $(OS)/$(ARCH)
+DIST     = dist/$(PLATFORM)
+BIN      = $(DIST)/$(BIN_NAME)
 
-export GIT_COMMIT
-export GIT_DIRTY
-export GIT_DESCRIBE
-export GOLDFLAGS
-export GOTAGS
+ifneq (,$(wildcard internal/version/version_ent.go))
+VERSION = $(shell ./dev/version internal/version/version_ent.go)
+else
+VERSION = $(shell ./dev/version internal/version/version.go)
+endif
 
+# Get latest revision (no dirty check for now).
+REVISION = $(shell git rev-parse HEAD)
+
+# Kubernetes-specific stuff
 CRD_OPTIONS ?= "crd:trivialVersions=true,allowDangerousTypes=true"
 
 ################
-# CI Variables #
-################
-CI_DEV_DOCKER_NAMESPACE?=hashicorpdev
-CI_DEV_DOCKER_IMAGE_NAME?=consul-api-gateway
-CI_DEV_DOCKER_WORKDIR?=.
-CONSUL_K8S_IMAGE_VERSION?=latest
-################
 
-DIST_TAG?=1
-DIST_BUILD?=1
-DIST_SIGN?=1
-
-ifdef DIST_VERSION
-DIST_VERSION_ARG=-v "$(DIST_VERSION)"
-else
-DIST_VERSION_ARG=
-endif
-
-ifdef DIST_RELEASE_DATE
-DIST_DATE_ARG=-d "$(DIST_RELEASE_DATE)"
-else
-DIST_DATE_ARG=
-endif
-
-ifdef DIST_PRERELEASE
-DIST_REL_ARG=-r "$(DIST_PRERELEASE)"
-else
-DIST_REL_ARG=
-endif
-
-PUB_GIT?=1
-PUB_WEBSITE?=1
-
-ifeq ($(PUB_GIT),1)
-PUB_GIT_ARG=-g
-else
-PUB_GIT_ARG=
-endif
-
-ifeq ($(PUB_WEBSITE),1)
-PUB_WEBSITE_ARG=-w
-else
-PUB_WEBSITE_ARG=
-endif
-
-DEV_PUSH?=0
-ifeq ($(DEV_PUSH),1)
-DEV_PUSH_ARG=
-else
-DEV_PUSH_ARG=--no-push
-endif
-
-all: bin ctrl-generate
-
+.PHONY: fmt
 fmt:
-	@for d in $$(go list -f {{.Dir}} ./...); do goimports --local github.com/hashicorp,github.com/hashicorp/consul-api-gateway -w -l $$d/*.go; done
+	@for d in $$(go list -f {{.Dir}} ./...); do goimports --local github.com/hashicorp/consul-api-gateway -w -l $$d/*.go; done
 
-bin:
-	@$(SHELL) $(CURDIR)/build-support/scripts/build-local.sh
-
-dev:
-	@$(SHELL) $(CURDIR)/build-support/scripts/build-local.sh -o $(GOOS) -a $(GOARCH)
-
-dev-docker:
-	@$(SHELL) $(CURDIR)/build-support/scripts/build-local.sh -o linux -a amd64
-	@docker build -t '$(DEV_IMAGE)' --build-arg 'GIT_COMMIT=$(GIT_COMMIT)' --build-arg 'GIT_DIRTY=$(GIT_DIRTY)' --build-arg 'GIT_DESCRIBE=$(GIT_DESCRIBE)' -f $(CURDIR)/build-support/docker/Dev.dockerfile $(CURDIR)
-
-dev-tree:
-	@$(SHELL) $(CURDIR)/build-support/scripts/dev.sh $(DEV_PUSH_ARG)
-
+.PHONY: test
 test:
 	go test ./...
 
-# requires a consul enterprise binary on the path
-ent-test:
-	go test ./... -tags=enterprise
-
-cov:
-	go test ./... -coverprofile=coverage.out
-	go tool cover -html=coverage.out
-
-tools:
-	go get -u -v $(GOTOOLS)
-
-# dist builds binaries for all platforms and packages them for distribution
-# make dist DIST_VERSION=<Desired Version> DIST_RELEASE_DATE=<release date>
-# date is in "month day, year" format.
-dist:
-	@$(SHELL) $(CURDIR)/build-support/scripts/release.sh -t '$(DIST_TAG)' -b '$(DIST_BUILD)' -S '$(DIST_SIGN)' $(DIST_VERSION_ARG) $(DIST_DATE_ARG) $(DIST_REL_ARG)
-
-publish:
-	@$(SHELL) $(CURDIR)/build-support/scripts/publish.sh $(PUB_GIT_ARG) $(PUB_WEBSITE_ARG)
-
-docker-images: go-build-image
-
-go-build-image:
-	@echo "Building Golang build container"
-	@docker build $(NOCACHE) $(QUIET) --build-arg 'GOTOOLS=$(GOTOOLS)' -t $(GO_BUILD_TAG) - < build-support/docker/Build-Go.dockerfile
-
-clean:
-	@rm -rf \
-		$(CURDIR)/bin \
-		$(CURDIR)/pkg
-
 # Run controller tests
+.PHONY: ctrl-test
 ENVTEST_ASSETS_DIR=$(shell pwd)/testbin
 ctrl-test: ctrl-generate ctrl-manifests
 	mkdir -p ${ENVTEST_ASSETS_DIR}
 	test -f ${ENVTEST_ASSETS_DIR}/setup-envtest.sh || curl -sSLo ${ENVTEST_ASSETS_DIR}/setup-envtest.sh https://raw.githubusercontent.com/kubernetes-sigs/controller-runtime/master/hack/setup-envtest.sh
 	source ${ENVTEST_ASSETS_DIR}/setup-envtest.sh; fetch_envtest_tools $(ENVTEST_ASSETS_DIR); setup_envtest_env $(ENVTEST_ASSETS_DIR); go test ./...
 
-# Deploy controller in the configured Kubernetes cluster in ~/.kube/config
-ctrl-deploy: ctrl-manifests kustomize
-	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
-	$(KUSTOMIZE) build config/default | kubectl apply -f -
-
 # Generate manifests e.g. CRD, RBAC etc.
+.PHONY: ctrl-manifests
 ctrl-manifests: controller-gen
 	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=consul-api-gateway-controller webhook paths="./..." output:crd:artifacts:config=config/crd/bases
 
 # Generate code
+.PHONY: ctrl-generate
 ctrl-generate: controller-gen
 	$(CONTROLLER_GEN) object paths="./..."
 
-# Copy CRD YAML to consul-helm.
-# Usage: make ctrl-crd-copy helm=<path-to-consul-helm-repo>
-ctrl-crd-copy:
-	@cd hack/crds-to-consul-helm; go run ./... $(helm)
-
 # find or download controller-gen
 # download controller-gen if necessary
+.PHONY: controller-gen
 controller-gen:
 ifeq (, $(shell which controller-gen))
 	@{ \
@@ -173,43 +70,49 @@ else
 CONTROLLER_GEN=$(shell which controller-gen)
 endif
 
-kustomize:
-ifeq (, $(shell which kustomize))
-	@{ \
-	set -e ;\
-	KUSTOMIZE_GEN_TMP_DIR=$$(mktemp -d) ;\
-	cd $$KUSTOMIZE_GEN_TMP_DIR ;\
-	go mod init tmp ;\
-	go get sigs.k8s.io/kustomize/kustomize/v3@v3.5.4 ;\
-	rm -rf $$KUSTOMIZE_GEN_TMP_DIR ;\
-	}
-KUSTOMIZE=$(GOBIN)/kustomize
-else
-KUSTOMIZE=$(shell which kustomize)
-endif
+.PHONY: version
+version:
+	@echo $(VERSION)
 
-# In CircleCI, the linux binary will be attached from a previous step at pkg/bin/linux_amd64/. This make target
-# should only run in CI and not locally.
-ci.dev-docker:
-	@echo "Pulling consul-api-gateway container image - $(CONSUL_K8S_IMAGE_VERSION)"
-	@docker pull hashicorp/$(CI_DEV_DOCKER_IMAGE_NAME):$(CONSUL_K8S_IMAGE_VERSION) >/dev/null
-	@echo "Building consul-api-gateway Development container - $(CI_DEV_DOCKER_IMAGE_NAME)"
-	@docker build -t '$(CI_DEV_DOCKER_NAMESPACE)/$(CI_DEV_DOCKER_IMAGE_NAME):$(GIT_COMMIT)' \
-	--build-arg CONSUL_K8S_IMAGE_VERSION=$(CONSUL_K8S_IMAGE_VERSION) \
-	--label COMMIT_SHA=$(CIRCLE_SHA1) \
-	--label PULL_REQUEST=$(CIRCLE_PULL_REQUEST) \
-	--label CIRCLE_BUILD_URL=$(CIRCLE_BUILD_URL) \
-	$(CI_DEV_DOCKER_WORKDIR) -f $(CURDIR)/build-support/docker/Dev.dockerfile
-	@echo $(DOCKER_PASS) | docker login -u="$(DOCKER_USER)" --password-stdin
-	@echo "Pushing dev image to: https://cloud.docker.com/u/$(CI_DEV_DOCKER_NAMESPACE)/repository/docker/$(CI_DEV_DOCKER_NAMESPACE)/$(CI_DEV_DOCKER_IMAGE_NAME)"
-	@docker push $(CI_DEV_DOCKER_NAMESPACE)/$(CI_DEV_DOCKER_IMAGE_NAME):$(GIT_COMMIT)
-ifeq ($(CIRCLE_BRANCH), master)
-	@docker tag $(CI_DEV_DOCKER_NAMESPACE)/$(CI_DEV_DOCKER_IMAGE_NAME):$(GIT_COMMIT) $(CI_DEV_DOCKER_NAMESPACE)/$(CI_DEV_DOCKER_IMAGE_NAME):latest
-	@docker push $(CI_DEV_DOCKER_NAMESPACE)/$(CI_DEV_DOCKER_IMAGE_NAME):latest
-endif
-ifeq ($(CIRCLE_BRANCH), crd-controller-base)
-	@docker tag $(CI_DEV_DOCKER_NAMESPACE)/$(CI_DEV_DOCKER_IMAGE_NAME):$(GIT_COMMIT) $(CI_DEV_DOCKER_NAMESPACE)/$(CI_DEV_DOCKER_IMAGE_NAME):crd-controller-base-latest
-	@docker push $(CI_DEV_DOCKER_NAMESPACE)/$(CI_DEV_DOCKER_IMAGE_NAME):crd-controller-base-latest
-endif
+dist:
+	mkdir -p $(DIST)
+	echo '*' > dist/.gitignore
 
-.PHONY: all bin clean dev dist docker-images go-build-image test tools ci.dev-docker fmt
+.PHONY: bin
+bin: dist
+	GOARCH=$(ARCH) GOOS=$(OS) go build -o $(BIN)
+
+# Docker Stuff.
+export DOCKER_BUILDKIT=1
+BUILD_ARGS = BIN_NAME=$(BIN_NAME) PRODUCT_VERSION=$(VERSION) PRODUCT_REVISION=$(REVISION)
+TAG        = $(PRODUCT_NAME)/$(TARGET):$(VERSION)
+BA_FLAGS   = $(addprefix --build-arg=,$(BUILD_ARGS))
+FLAGS      = --target $(TARGET) --platform $(PLATFORM) --tag $(TAG) $(BA_FLAGS)
+
+# Set OS to linux for all docker/* targets.
+docker/%: OS = linux
+
+# DOCKER_TARGET is a macro that generates the build and run make targets
+# for a given Dockerfile target.
+# Args: 1) Dockerfile target name (required).
+#       2) Build prerequisites (optional).
+define DOCKER_TARGET
+.PHONY: docker/$(1)
+docker/$(1): TARGET=$(1)
+docker/$(1): $(2)
+	docker build $$(FLAGS) .
+	@echo 'Image built; run "docker run --rm $$(TAG)" to try it out.'
+
+.PHONY: docker/$(1)/run
+docker/$(1)/run: TARGET=$(1)
+docker/$(1)/run: docker/$(1)
+	docker run --rm $$(TAG)
+endef
+
+# Create docker/<target>[/run] targets.
+$(eval $(call DOCKER_TARGET,dev,))
+$(eval $(call DOCKER_TARGET,default,bin))
+$(eval $(call DOCKER_TARGET,debian,bin))
+
+.PHONY: docker
+docker: docker/dev
