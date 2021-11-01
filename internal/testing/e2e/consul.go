@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"html/template"
 	"log"
+	"net"
 
 	"github.com/cenkalti/backoff"
 	"github.com/hashicorp/consul-api-gateway/internal/testing"
@@ -101,7 +102,8 @@ func CreateTestConsulContainer(name, namespace string) env.Func {
 		serverCert, err := testing.GenerateSignedCertificate(testing.GenerateCertificateOptions{
 			CA:        rootCA,
 			Bits:      2048,
-			ExtraSANs: []string{"localhost", "host.docker.internal"},
+			ExtraSANs: []string{"localhost", "host.docker.internal"}, // host route for docker on mac/windows
+			ExtraIPs:  []net.IP{net.IPv4(172, 17, 0, 1)},             // host ip for docker bridge
 		})
 		if err != nil {
 			return nil, err

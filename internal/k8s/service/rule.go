@@ -32,6 +32,7 @@ func (r RouteRuleReferenceMap) Add(rule RouteRule, resolved ResolvedReference) {
 	refs, found := r[rule]
 	if found {
 		r[rule] = append(refs, resolved)
+		return
 	}
 	r[rule] = []ResolvedReference{resolved}
 }

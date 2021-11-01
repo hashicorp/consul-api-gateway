@@ -30,7 +30,7 @@ func BuildDockerImage(ctx context.Context, cfg *envconf.Config) (context.Context
 		return nil, err
 	}
 	_, err = dockerClient.ImageBuild(ctx, tar, types.ImageBuildOptions{
-		Dockerfile: "Dockerfile",
+		Dockerfile: "Dockerfile.local",
 		Tags:       []string{tag},
 		Remove:     true,
 	})

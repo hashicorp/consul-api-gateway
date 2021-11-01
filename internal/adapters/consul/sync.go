@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -296,6 +298,74 @@ func routeDiscoveryChain(route core.ResolvedRoute) (*api.IngressService, *api.Se
 	}
 }
 
+func mergeRoutes(gateway core.ResolvedGateway, routes []core.ResolvedRoute) []core.ResolvedRoute {
+	merged := map[string]core.HTTPRoute{}
+	unmerged := []core.ResolvedRoute{}
+	for _, route := range routes {
+		switch route.GetType() {
+		case core.ResolvedHTTPRouteType:
+			httpRoute := route.(core.HTTPRoute)
+			key := hostsKey(httpRoute.Hostnames)
+			if found, ok := merged[key]; ok {
+				found.Name = gateway.ID.Service + "-merged-" + key
+				found.Namespace = gateway.ID.ConsulNamespace
+				found.Rules = append(found.Rules, httpRoute.Rules...)
+				sort.SliceStable(found.Rules, func(i, j int) bool {
+					return compareHTTPRules(found.Rules[i], found.Rules[j])
+				})
+				merged[key] = found
+			} else {
+				merged[key] = httpRoute
+			}
+		default:
+			unmerged = append(unmerged, route)
+		}
+	}
+
+	for _, route := range merged {
+		unmerged = append(unmerged, route)
+	}
+
+	return unmerged
+}
+
+func hostsKey(hosts []string) string {
+	sort.Strings(hosts)
+	return strings.Join(hosts, "_")
+}
+
+func compareHTTPRules(ruleA, ruleB core.HTTPRouteRule) bool {
+	matchesA := ruleA.Matches
+	matchesB := ruleB.Matches
+
+	// this tries to implement some of the logic specified by the K8S gateway API spec
+
+	// Proxy or Load Balancer routing configuration generated from HTTPRoutes MUST prioritize
+	// rules based on the following criteria, continuing on ties. Precedence must be given
+	// to the the Rule with the largest number of:
+	// Characters in a matching non-wildcard hostname.
+	// Characters in a matching hostname.
+	// Characters in a matching path.
+	// Header matches.
+	// Query param matches.
+
+	var longestPathMatchA int
+	for _, match := range matchesA {
+		pathLength := len(match.Path.Value)
+		if longestPathMatchA < pathLength {
+			longestPathMatchA = pathLength
+		}
+	}
+	var longestPathMatchB int
+	for _, match := range matchesB {
+		pathLength := len(match.Path.Value)
+		if longestPathMatchB < pathLength {
+			longestPathMatchB = pathLength
+		}
+	}
+	return longestPathMatchA > longestPathMatchB
+}
+
 func discoveryChain(gateway core.ResolvedGateway) (*api.IngressGatewayConfigEntry, *consul.ConfigEntryIndex, *consul.ConfigEntryIndex, *consul.ConfigEntryIndex) {
 	ingress := &api.IngressGatewayConfigEntry{
 		Kind:      api.IngressGateway,
@@ -310,7 +380,8 @@ func discoveryChain(gateway core.ResolvedGateway) (*api.IngressGatewayConfigEntr
 	for _, listener := range gateway.Listeners {
 		services := []api.IngressService{}
 
-		for _, route := range listener.Routes {
+		routes := mergeRoutes(gateway, listener.Routes)
+		for _, route := range routes {
 			service, router, splits, serviceDefaults := routeDiscoveryChain(route)
 			if service != nil {
 				services = append(services, *service)
