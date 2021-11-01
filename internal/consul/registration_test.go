@@ -62,7 +62,7 @@ func TestRegister(t *testing.T) {
 				require.Error(t, err)
 				return
 			}
-			defer registry.Deregister(context.Background())
+			defer require.NoError(t, registry.Deregister(context.Background()))
 
 			require.NoError(t, err)
 			require.Equal(t, id, registry.ID())
