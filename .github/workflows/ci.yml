@@ -1,41 +1,101 @@
 name: ci
-
 on:
   push: 
     branches: ["main"]
   pull_request: 
     branches: ["main", "release/**"]
+env:
+  GO_VERSION: '1.16'
 jobs:
-  test:
-    name: Testing
+  lint:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout
       uses: actions/checkout@v2
-
-    - name: Setup Go
-      uses: actions/setup-go@v2
+    - uses: ./.github/actions/goenv
       with:
-        go-version: '1.16'
-
-    - id: go-cache-paths
-      name: Setup Go Cache paths 
-      run: |
-        echo "::set-output name=go-build-cache::$(go env GOCACHE)"
-        echo "::set-output name=go-mod-cache::$(go env GOMODCACHE)"
-
-    - name: Go Build Cache
-      uses: actions/cache@v2
+        go-version: ${{ env.GO_VERSION }}
+    - name: golangci-lint
+      uses: golangci/golangci-lint-action@v2
       with:
-        path: ${{ steps.go-cache-paths.outputs.go-build-cache }}
-        key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}
+        # Optional: version of golangci-lint to use in form of v1.2 or v1.2.3 or `latest` to use the latest version
+        version: v1.29
+        args: -v --concurrency 2 --timeout 10m
+        # Optional: show only new issues if it's a pull request. The default value is `false`.
+        only-new-issues: true
+        # Optional: if set to true then the action will use pre-installed Go.
+        skip-go-installation: true
 
-    - name: Go Mod Cache
-      uses: actions/cache@v2
+  test:
+    name: unit test (consul-version=${{ matrix.consul-version }})
+    strategy:
+      matrix:
+        consul-version: [1.11.x, 1.11.x+ent]
+    runs-on: ubuntu-latest
+    env:
+      TEST_RESULTS_DIR: /tmp/test-results/consul@${{ matrix.consul-version }}
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+    - uses: ./.github/actions/goenv
       with:
-        path: ${{ steps.go-cache-paths.outputs.go-mod-cache }}
-        key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}
+        go-version: ${{ env.GO_VERSION }}
+
+    - name: Install Consul
+      uses: nickethier/action-setup-hashicorp-tool@main #TODO: update action when migrated to hc org
+      with:
+        product: consul
+        version: ${{ matrix.consul-version }}
 
     - name: Test
       run: |
-        go test -race ./...
+        mkdir -p $TEST_RESULTS_DIR/json
+        PACKAGE_NAMES=$(go list ./... | grep -v 'mocks' | grep -v 'testing' | tr '\n' ' ')
+        echo "Testing $(echo $PACKAGE_NAMES | wc -w) packages"
+        echo $PACKAGE_NAMES
+        gotestsum \
+          --format=short-verbose \
+          --jsonfile $TEST_RESULTS_DIR/json/go-test-race.log \
+          --junitfile $TEST_RESULTS_DIR/gotestsum-report.xml -- \
+          -race $PACKAGE_NAMES
+
+    - uses: actions/upload-artifact@v2
+      with:
+        name: test-results
+        path: ${{ env.TEST_RESULTS_DIR }}
+
+  e2e:
+    name: e2e tests
+    runs-on: ubuntu-latest
+    env:
+      TEST_RESULTS_DIR: /tmp/test-results/e2e
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+
+    - name: Install Dependencies
+      run: |
+        curl -L https://kind.sigs.k8s.io/dl/v0.11.1/kind-linux-amd64 -o ./kind
+        chmod +x ./kind
+        mv ./kind /usr/local/bin/kind
+        curl -L https://dl.k8s.io/release/v1.22.0/bin/linux/amd64/kubectl -o ./kubectl
+        chmod +x ./kubectl
+        mv ./kubectl /usr/local/bin/kubectl
+        curl -L https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv4.4.0/kustomize_v4.4.0_linux_amd64.tar.gz -o kustomize_v4.4.0_linux_amd64.tar.gz
+        tar xvzf kustomize_v4.4.0_linux_amd64.tar.gz
+        mv kustomize /usr/local/bin/kustomize
+        rm kustomize_v4.4.0_linux_amd64.tar.gz
+    - uses: ./.github/actions/goenv
+      with:
+        go-version: ${{ env.GO_VERSION }}
+
+    - name: Test
+      env:
+        DOCKER_HOST_ROUTE: 172.17.0.1
+      run: |
+        mkdir -p $TEST_RESULTS_DIR/json
+        gotestsum \
+        --format=short-verbose \
+        --jsonfile $TEST_RESULTS_DIR/json/go-test-race.log \
+        --junitfile $TEST_RESULTS_DIR/gotestsum-report.xml -- \
+        -tags e2e ./internal/commands/server

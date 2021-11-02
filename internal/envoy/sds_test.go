@@ -97,8 +97,11 @@ func TestSDSRunClientVerificationError(t *testing.T) {
 
 		// error on invalid client private key
 		require.Error(t, err)
-		// cnnection closed happens on a bad client cert
-		require.Contains(t, err.Error(), "connection closed")
+		// connection closed or error happens on a bad client cert
+		require.Truef(t,
+			strings.Contains(err.Error(), "connection closed") || strings.Contains(err.Error(), "connection error"),
+			"error message should have contained 'connection closed' or 'connection error', but got: %v", err)
+
 	})
 	require.NoError(t, err)
 }

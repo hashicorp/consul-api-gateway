@@ -242,8 +242,13 @@ func (c *CertManager) Manage(ctx context.Context) error {
 	c.leafWatch = leafWatch
 	c.leafWatch.HybridHandler = c.handleLeafWatch
 
-	go c.rootWatch.RunWithClientAndHclog(c.consul, c.logger)
-	go c.leafWatch.RunWithClientAndHclog(c.consul, c.logger)
+	wrapWatch := func(w *watch.Plan) {
+		if err := w.RunWithClientAndHclog(c.consul, c.logger); err != nil {
+			c.logger.Error("consul watch.Plan returned unexpectedly", "error", err)
+		}
+	}
+	go wrapWatch(c.rootWatch)
+	go wrapWatch(c.leafWatch)
 
 	<-ctx.Done()
 	c.rootWatch.Stop()
