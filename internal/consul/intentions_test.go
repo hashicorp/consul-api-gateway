@@ -214,7 +214,7 @@ func TestIntentionsReconciler_Reconcile(t *testing.T) {
 	})
 	require.NoError(err)
 	t.Cleanup(func() {
-		require.NoError(consulSrv.Stop())
+		_ = consulSrv.Stop()
 	})
 
 	consulSrv.WaitForServiceIntentions(t)

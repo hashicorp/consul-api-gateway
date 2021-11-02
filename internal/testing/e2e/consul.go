@@ -10,8 +10,6 @@ import (
 	"net"
 
 	"github.com/cenkalti/backoff"
-	"github.com/hashicorp/consul-api-gateway/internal/testing"
-	"github.com/hashicorp/consul/api"
 	apps "k8s.io/api/apps/v1"
 	core "k8s.io/api/core/v1"
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -20,6 +18,9 @@ import (
 	"sigs.k8s.io/e2e-framework/klient/k8s/resources"
 	"sigs.k8s.io/e2e-framework/pkg/env"
 	"sigs.k8s.io/e2e-framework/pkg/envconf"
+
+	"github.com/hashicorp/consul-api-gateway/internal/testing"
+	"github.com/hashicorp/consul/api"
 )
 
 const (
@@ -162,6 +163,30 @@ func CreateTestConsulContainer(name, namespace string) env.Func {
 			if !meta.KnownLeader {
 				return errors.New("no known consul leader")
 			}
+			return nil
+		}, backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 20), ctx))
+		if err != nil {
+			return nil, err
+		}
+
+		err = backoff.Retry(func() error {
+			ok, _, err := consulClient.ConfigEntries().Set(&api.ServiceIntentionsConfigEntry{
+				Kind: api.ServiceIntentions,
+				Name: "*",
+				Sources: []*api.SourceIntention{
+					{
+						Name:   "*",
+						Action: api.IntentionActionDeny,
+					},
+				},
+			}, nil)
+			if err != nil {
+				return err
+			}
+			if !ok {
+				return errors.New("default intention rule failed to apply")
+			}
+
 			return nil
 		}, backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 20), ctx))
 		if err != nil {
