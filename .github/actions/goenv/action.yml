@@ -27,10 +27,9 @@ runs:
     shell: bash
     run: |
       url=https://github.com/gotestyourself/gotestsum/releases/download
-      mkdir $GITHUB_WORKSPACE/bin
       curl -sSL "${url}/v${{ inputs.gotestsum-version }}/gotestsum_${{ inputs.gotestsum-version }}_linux_amd64.tar.gz" | \
-            tar -xz --overwrite -C $GITHUB_WORKSPACE/bin gotestsum
-      echo "$GITHUB_WORKSPACE/bin" >> $GITHUB_PATH
+            tar -xz --overwrite -C /usr/local/bin gotestsum
+      gotestsum --version
 
   - id: go-cache-paths
     name: Setup Go Cache paths
