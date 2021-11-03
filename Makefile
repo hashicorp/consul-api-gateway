@@ -26,9 +26,20 @@ CRD_OPTIONS ?= "crd:trivialVersions=true,allowDangerousTypes=true"
 
 ################
 
+# find or download goimports
+# download goimports if necessary
+.PHONY: goimports
+goimports:
+ifeq (, $(shell which goimports))
+	@go install golang.org/x/tools/cmd/goimports@latest
+GOIMPORTS=$(GOBIN)/goimports
+else
+GOIMPORTS=$(shell which goimports)
+endif
+
 .PHONY: fmt
-fmt:
-	@for d in $$(go list -f {{.Dir}} ./...); do goimports --local github.com/hashicorp/consul-api-gateway -w -l $$d/*.go; done
+fmt: goimports
+	@for d in $$(go list -f {{.Dir}} ./...); do ${GOIMPORTS} --local github.com/hashicorp/consul-api-gateway -w -l $$d/*.go; done
 
 .PHONY: test
 test:
