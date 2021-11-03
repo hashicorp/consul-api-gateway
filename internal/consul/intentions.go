@@ -67,11 +67,6 @@ type IntentionsReconciler struct {
 	// stop can be called the cancelled ctx and stop the main reconcile loop
 	stop context.CancelFunc
 
-	// initialDiscoChainWaitCh is closed when the first discovery chain is resolved and unblocks calls to Reconcile
-	initialDiscoChainWaitCh chan struct{}
-	// initialDiscoChainOnce ensures that initialDiscoChainWaitCh is only closed once
-	initialDiscoChainOnce sync.Once
-
 	// forceSyncChan is used to trigger a blocking intention sync. An error chan is sent and can be blocked on for
 	// the result to the intention sync.
 	forceSyncChan chan (chan error)
@@ -97,19 +92,18 @@ func NewIntentionsReconciler(consul *api.Client, ingress *api.IngressGatewayConf
 func newIntentionsReconciler(disco consulDiscoveryChains, config consulConfigEntries, name api.CompoundServiceName, logger hclog.Logger) *IntentionsReconciler {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &IntentionsReconciler{
-		consulDisco:             disco,
-		consulConfig:            config,
-		gatewayName:             name,
-		chainWatchers:           map[api.CompoundServiceName]*discoChainWatcher{},
-		discoChainChan:          make(chan *discoChainWatchResult),
-		ingressServiceIndex:     common.NewServiceNameIndex(),
-		targetIndex:             &intentionTargetReferenceIndex{refs: map[api.CompoundServiceName]*common.ServiceNameIndex{}},
-		targetTombstones:        common.NewServiceNameIndex(),
-		ctx:                     ctx,
-		stop:                    cancel,
-		initialDiscoChainWaitCh: make(chan struct{}),
-		forceSyncChan:           make(chan (chan error)),
-		logger:                  logger,
+		consulDisco:         disco,
+		consulConfig:        config,
+		gatewayName:         name,
+		chainWatchers:       map[api.CompoundServiceName]*discoChainWatcher{},
+		discoChainChan:      make(chan *discoChainWatchResult),
+		ingressServiceIndex: common.NewServiceNameIndex(),
+		targetIndex:         &intentionTargetReferenceIndex{refs: map[api.CompoundServiceName]*common.ServiceNameIndex{}},
+		targetTombstones:    common.NewServiceNameIndex(),
+		ctx:                 ctx,
+		stop:                cancel,
+		forceSyncChan:       make(chan (chan error)),
+		logger:              logger,
 	}
 }
 
@@ -123,13 +117,6 @@ func (r *IntentionsReconciler) SetIngressServices(igw *api.IngressGatewayConfigE
 
 // Reconcile forces a synchronous reconcile, returning any errors that occurred as a result
 func (r *IntentionsReconciler) Reconcile() error {
-	// wait for the initial query of the service's compiled discovery chain to complete
-	select {
-	case <-r.initialDiscoChainWaitCh:
-	case <-r.ctx.Done():
-		return r.ctx.Err()
-	}
-
 	// create an error channel to return the result from intention synchronization
 	errCh := make(chan error)
 	defer close(errCh)
@@ -193,9 +180,6 @@ func (r *IntentionsReconciler) reconcileLoop() {
 
 		// process changes to the compiled discovery chain
 		case chain := <-r.discoChainChan:
-			r.initialDiscoChainOnce.Do(func() {
-				close(r.initialDiscoChainWaitCh)
-			})
 			r.handleChainResult(chain)
 			ticker.Reset(intentionSyncInterval)
 
@@ -266,7 +250,7 @@ func (r *IntentionsReconciler) syncIntentions() error {
 	}
 	for _, target := range r.targetIndex.all() {
 		if err := r.updateIntentionSources(target, addSourceCB); err != nil {
-			mErr = multierror.Append(mErr, fmt.Errorf("failed to update intention with added gateway source: %w", err))
+			mErr = multierror.Append(mErr, fmt.Errorf("failed to update intention with added gateway source (%s/%s): %w", target.Namespace, target.Name, err))
 		}
 	}
 
