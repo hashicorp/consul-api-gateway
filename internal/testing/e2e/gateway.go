@@ -41,7 +41,7 @@ func (p *gatewayTestEnvironment) run(ctx context.Context, namespace string, cfg 
 	consulClient.AddHeader("x-consul-token", ConsulMasterToken(ctx))
 
 	nullLogger := hclog.Default()
-	nullLogger.SetLevel(hclog.Debug)
+	nullLogger.SetLevel(hclog.Trace)
 	// nullLogger := hclog.NewNullLogger()
 
 	secretClient := envoy.NewMultiSecretClient()
