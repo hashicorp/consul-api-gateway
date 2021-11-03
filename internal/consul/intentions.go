@@ -251,7 +251,7 @@ func (r *IntentionsReconciler) syncIntentions() error {
 	addSourceCB := func(intention *api.ServiceIntentionsConfigEntry) bool {
 		var found bool
 		for _, src := range intention.Sources {
-			if src.Name == source.Name && src.Namespace == source.Namespace {
+			if sourceIntentionMatches(src, source) {
 				found = true
 				break
 			}
@@ -272,7 +272,7 @@ func (r *IntentionsReconciler) syncIntentions() error {
 
 	delSourceCB := func(intention *api.ServiceIntentionsConfigEntry) bool {
 		for i, src := range intention.Sources {
-			if src.Name == source.Name && src.Namespace == source.Namespace {
+			if sourceIntentionMatches(src, source) {
 				intention.Sources = append(intention.Sources[:i], intention.Sources[i+1:]...)
 				return true
 			}
@@ -405,4 +405,14 @@ func (i *intentionTargetReferenceIndex) all() []api.CompoundServiceName {
 		results = append(results, name)
 	}
 	return results
+}
+
+func sourceIntentionMatches(a, b *api.SourceIntention) bool {
+	canonicalizeDefault := func(s string) string {
+		if s == "" {
+			return api.IntentionDefaultNamespace
+		}
+		return s
+	}
+	return a.Name == b.Name && canonicalizeDefault(a.Namespace) == canonicalizeDefault(b.Namespace)
 }

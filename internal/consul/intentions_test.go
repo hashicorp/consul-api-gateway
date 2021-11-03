@@ -273,3 +273,35 @@ func TestIntentionsReconciler_Reconcile(t *testing.T) {
 	require.Equal(api.IntentionActionAllow, intention.Sources[0].Action)
 	r.Stop()
 }
+
+func Test_sourceIntentionMatches(t *testing.T) {
+	mkSrcInt := func(name, namespace string) *api.SourceIntention {
+		return &api.SourceIntention{Name: name, Namespace: namespace}
+	}
+	for _, c := range []struct {
+		a     *api.SourceIntention
+		b     *api.SourceIntention
+		match bool
+	}{
+		{
+			a: mkSrcInt("foo", ""),
+			b: mkSrcInt("bar", ""),
+		},
+		{
+			a:     mkSrcInt("foo", ""),
+			b:     mkSrcInt("foo", ""),
+			match: true,
+		},
+		{
+			a:     mkSrcInt("foo", "default"),
+			b:     mkSrcInt("foo", ""),
+			match: true,
+		},
+		{
+			a: mkSrcInt("foo", "default"),
+			b: mkSrcInt("foo", "bar"),
+		},
+	} {
+		require.Equal(t, c.match, sourceIntentionMatches(c.a, c.b))
+	}
+}
