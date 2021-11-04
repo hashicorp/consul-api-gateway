@@ -4,8 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"hash/crc32"
 	"sort"
-	"strings"
+	"strconv"
 	"sync"
 	"time"
 
@@ -333,7 +334,13 @@ func mergeRoutes(gateway core.ResolvedGateway, routes []core.ResolvedRoute) []co
 
 func hostsKey(hosts []string) string {
 	sort.Strings(hosts)
-	return strings.Join(hosts, "_")
+	hostsHash := crc32.NewIEEE()
+	for _, h := range hosts {
+		if _, err := hostsHash.Write([]byte(h)); err != nil {
+			continue
+		}
+	}
+	return strconv.FormatUint(uint64(hostsHash.Sum32()), 16)
 }
 
 func compareHTTPRules(ruleA, ruleB core.HTTPRouteRule) bool {
