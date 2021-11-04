@@ -216,7 +216,6 @@ func TestIntentionsReconciler_Reconcile(t *testing.T) {
 	t.Cleanup(func() {
 		_ = consulSrv.Stop()
 	})
-
 	consulSrv.WaitForServiceIntentions(t)
 	cfg := api.DefaultConfig()
 	cfg.Address = consulSrv.HTTPAddr

@@ -265,7 +265,7 @@ func (r *IntentionsReconciler) syncIntentions() error {
 	}
 	for _, target := range r.targetTombstones.All() {
 		if err := r.updateIntentionSources(target, delSourceCB); err != nil {
-			mErr = multierror.Append(mErr, fmt.Errorf("failed to update intention with removed gateway source: %w", err))
+			mErr = multierror.Append(mErr, fmt.Errorf("failed to update intention with removed gateway source (%s/%s): %w", target.Namespace, target.Name, err))
 			continue
 		}
 		r.targetTombstones.Remove(target)

@@ -90,6 +90,11 @@ func (w *discoChainWatcher) watchLoop() {
 func compiledDiscoChainToServiceNames(chain *api.CompiledDiscoveryChain) *common.ServiceNameIndex {
 	names := common.NewServiceNameIndex()
 	for _, target := range chain.Targets {
+		if target.Service == chain.ServiceName && chain.Protocol != "tcp" {
+			// chain targets include the chain service name
+			// this service should only be included if the protocol is tcp
+			continue
+		}
 		names.Add(api.CompoundServiceName{
 			Name:      target.Service,
 			Namespace: target.Namespace,

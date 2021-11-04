@@ -30,7 +30,7 @@ const (
 	"log_level": "trace",
   "acl": {
     "enabled": true,
-    "default_policy": "allow"
+    "default_policy": "deny"
   },
   "server": true,
   "bootstrap": true,
@@ -163,30 +163,6 @@ func CreateTestConsulContainer(name, namespace string) env.Func {
 			if !meta.KnownLeader {
 				return errors.New("no known consul leader")
 			}
-			return nil
-		}, backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 20), ctx))
-		if err != nil {
-			return nil, err
-		}
-
-		err = backoff.Retry(func() error {
-			ok, _, err := consulClient.ConfigEntries().Set(&api.ServiceIntentionsConfigEntry{
-				Kind: api.ServiceIntentions,
-				Name: "*",
-				Sources: []*api.SourceIntention{
-					{
-						Name:   "*",
-						Action: api.IntentionActionDeny,
-					},
-				},
-			}, nil)
-			if err != nil {
-				return err
-			}
-			if !ok {
-				return errors.New("default intention rule failed to apply")
-			}
-
 			return nil
 		}, backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 20), ctx))
 		if err != nil {

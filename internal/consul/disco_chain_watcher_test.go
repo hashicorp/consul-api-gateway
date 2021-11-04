@@ -91,7 +91,7 @@ func TestIntentionsReconciler_watchDiscoveryChain(t *testing.T) {
 	}, 5*time.Second, 500*time.Millisecond)
 	require.NotNil(results)
 	require.Equal(w.name, result.name)
-	require.Len(result.added, 3)
+	require.Len(result.added, 2)
 	require.Len(result.removed, 0)
 
 	w.Cancel()
