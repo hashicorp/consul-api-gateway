@@ -39,7 +39,7 @@ endif
 
 .PHONY: fmt
 fmt: goimports
-	@for d in $$(go list -f {{.Dir}} ./...); do ${GOIMPORTS} --local github.com/hashicorp/consul-api-gateway -w -l $$d/*.go; done
+	@for d in $$(go list -f {{.Dir}} ./...); do ${GOIMPORTS} --local github.com/hashicorp --local github.com/hashicorp/consul-api-gateway -w -l $$d/*.go; done
 
 .PHONY: test
 test:
