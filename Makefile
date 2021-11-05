@@ -32,10 +32,8 @@ CRD_OPTIONS ?= "crd:trivialVersions=true,allowDangerousTypes=true"
 goimports:
 ifeq (, $(shell which goimports))
 	@go install golang.org/x/tools/cmd/goimports@latest
-GOIMPORTS=$(GOBIN)/goimports
-else
-GOIMPORTS=$(shell which goimports)
 endif
+GOIMPORTS=$(shell which goimports)
 
 .PHONY: fmt
 fmt: goimports
@@ -69,10 +67,8 @@ ctrl-generate: controller-gen
 controller-gen:
 ifeq (, $(shell which controller-gen))
 	@go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.6.0
-CONTROLLER_GEN=$(GOBIN)/controller-gen
-else
-CONTROLLER_GEN=$(shell which controller-gen)
 endif
+CONTROLLER_GEN=$(shell which controller-gen)
 
 .PHONY: version
 version:
