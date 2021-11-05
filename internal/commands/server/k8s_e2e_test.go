@@ -13,9 +13,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hashicorp/consul-api-gateway/internal/k8s"
-	"github.com/hashicorp/consul-api-gateway/internal/testing/e2e"
-	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 	"github.com/stretchr/testify/require"
 	apps "k8s.io/api/apps/v1"
 	core "k8s.io/api/core/v1"
@@ -25,6 +22,10 @@ import (
 	"sigs.k8s.io/e2e-framework/pkg/envconf"
 	"sigs.k8s.io/e2e-framework/pkg/features"
 	gateway "sigs.k8s.io/gateway-api/apis/v1alpha2"
+
+	"github.com/hashicorp/consul-api-gateway/internal/k8s"
+	"github.com/hashicorp/consul-api-gateway/internal/testing/e2e"
+	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 )
 
 var (
@@ -324,7 +325,7 @@ func TestMeshService(t *testing.T) {
 			}
 			err = resources.Create(ctx, gw)
 			require.NoError(t, err)
-			require.Eventually(t, gatewayReady(ctx, resources, gatewayName, namespace), 30*time.Second, 1*time.Second, "no gateway found in the allotted time")
+			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, gatewayReady), 30*time.Second, 1*time.Second, "no gateway found in the allotted time")
 
 			// route 1
 			port := gateway.PortNumber(serviceOne.Spec.Ports[0].Port)
@@ -474,6 +475,7 @@ func TestMeshService(t *testing.T) {
 			}
 			err = resources.Create(ctx, route)
 			require.NoError(t, err)
+			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, gatewayInSync), 30*time.Second, 1*time.Second, "gateway not synced in the allotted time")
 
 			checkPort := e2e.ExtraPort(ctx)
 			checkRoute(t, checkPort, "/v1", serviceOne.Name, nil, "service one not routable in allotted time")
@@ -497,20 +499,34 @@ func TestMeshService(t *testing.T) {
 	testenv.Test(t, feature.Feature())
 }
 
-func gatewayReady(ctx context.Context, resources *resources.Resources, gatewayName, namespace string) func() bool {
+func gatewayStatusCheck(ctx context.Context, resources *resources.Resources, gatewayName, namespace string, checkFn func([]meta.Condition) bool) func() bool {
 	return func() bool {
 		updated := &gateway.Gateway{}
 		if err := resources.Get(ctx, gatewayName, namespace, updated); err != nil {
 			return false
 		}
-		for _, condition := range updated.Status.Conditions {
-			if condition.Type == "Accepted" ||
-				condition.Status == "True" {
-				return true
-			}
-		}
-		return false
+		return checkFn(updated.Status.Conditions)
 	}
+}
+
+func gatewayReady(conditions []meta.Condition) bool {
+	for _, condition := range conditions {
+		if condition.Type == "Accepted" ||
+			condition.Status == "True" {
+			return true
+		}
+	}
+	return false
+}
+
+func gatewayInSync(conditions []meta.Condition) bool {
+	for _, condition := range conditions {
+		if condition.Type == "InSync" ||
+			condition.Status == "True" {
+			return true
+		}
+	}
+	return false
 }
 
 func createGatewayClass(ctx context.Context, t *testing.T, cfg *envconf.Config) (*apigwv1alpha1.GatewayClassConfig, *gateway.GatewayClass) {
