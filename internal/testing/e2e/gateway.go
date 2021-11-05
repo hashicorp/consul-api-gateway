@@ -8,6 +8,13 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/sync/errgroup"
+	"k8s.io/client-go/kubernetes/scheme"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/envtest"
+	"sigs.k8s.io/e2e-framework/pkg/env"
+	"sigs.k8s.io/e2e-framework/pkg/envconf"
+
 	consulAdapters "github.com/hashicorp/consul-api-gateway/internal/adapters/consul"
 	"github.com/hashicorp/consul-api-gateway/internal/consul"
 	"github.com/hashicorp/consul-api-gateway/internal/envoy"
@@ -15,12 +22,6 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/store/memory"
 	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 	"github.com/hashicorp/go-hclog"
-	"golang.org/x/sync/errgroup"
-	"k8s.io/client-go/kubernetes/scheme"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/envtest"
-	"sigs.k8s.io/e2e-framework/pkg/env"
-	"sigs.k8s.io/e2e-framework/pkg/envconf"
 )
 
 type gatewayTestContext struct{}
@@ -39,9 +40,9 @@ func (p *gatewayTestEnvironment) run(ctx context.Context, namespace string, cfg 
 	// this should go away once we implement auth in the server bootup
 	consulClient.AddHeader("x-consul-token", ConsulMasterToken(ctx))
 
-	// nullLogger := hclog.Default()
-	// nullLogger.SetLevel(hclog.Trace)
-	nullLogger := hclog.NewNullLogger()
+	nullLogger := hclog.Default()
+	nullLogger.SetLevel(hclog.Trace)
+	// nullLogger := hclog.NewNullLogger()
 
 	secretClient := envoy.NewMultiSecretClient()
 	k8sSecretClient, err := k8s.NewK8sSecretClient(nullLogger, cfg.Client().RESTConfig())

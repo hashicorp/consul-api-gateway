@@ -4,8 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"hash/crc32"
 	"sort"
-	"strings"
+	"strconv"
 	"sync"
 	"time"
 
@@ -26,17 +27,19 @@ type ConsulSyncAdapter struct {
 	logger hclog.Logger
 	consul *api.Client
 
-	sync  map[core.GatewayID]syncState
-	mutex sync.Mutex
+	sync       map[core.GatewayID]syncState
+	intentions map[core.GatewayID]*consul.IntentionsReconciler
+	mutex      sync.Mutex
 }
 
 var _ core.SyncAdapter = &ConsulSyncAdapter{}
 
-func NewConsulSyncAdapter(logger hclog.Logger, consul *api.Client) *ConsulSyncAdapter {
+func NewConsulSyncAdapter(logger hclog.Logger, consulClient *api.Client) *ConsulSyncAdapter {
 	return &ConsulSyncAdapter{
-		logger: logger,
-		consul: consul,
-		sync:   make(map[core.GatewayID]syncState),
+		logger:     logger,
+		consul:     consulClient,
+		sync:       make(map[core.GatewayID]syncState),
+		intentions: make(map[core.GatewayID]*consul.IntentionsReconciler),
 	}
 }
 
@@ -331,7 +334,13 @@ func mergeRoutes(gateway core.ResolvedGateway, routes []core.ResolvedRoute) []co
 
 func hostsKey(hosts []string) string {
 	sort.Strings(hosts)
-	return strings.Join(hosts, "_")
+	hostsHash := crc32.NewIEEE()
+	for _, h := range hosts {
+		if _, err := hostsHash.Write([]byte(h)); err != nil {
+			continue
+		}
+	}
+	return strconv.FormatUint(uint64(hostsHash.Sum32()), 16)
 }
 
 func compareHTTPRules(ruleA, ruleB core.HTTPRouteRule) bool {
@@ -430,6 +439,22 @@ func (a *ConsulSyncAdapter) setEntriesForGateway(gateway core.ResolvedGateway, r
 	}
 }
 
+func (a *ConsulSyncAdapter) syncIntentionsForGateway(gateway core.GatewayID, ingress *api.IngressGatewayConfigEntry) error {
+	if a.intentions[gateway] == nil {
+		a.intentions[gateway] = consul.NewIntentionsReconciler(a.consul, ingress, a.logger)
+	} else {
+		a.intentions[gateway].SetIngressServices(ingress)
+	}
+	return a.intentions[gateway].Reconcile()
+}
+
+func (a *ConsulSyncAdapter) stopIntentionSyncForGateway(gw core.GatewayID) {
+	if ir, ok := a.intentions[gw]; ok {
+		ir.Stop()
+		delete(a.intentions, gw)
+	}
+}
+
 func (a *ConsulSyncAdapter) Clear(ctx context.Context, id core.GatewayID) error {
 	a.mutex.Lock()
 	defer a.mutex.Unlock()
@@ -479,8 +504,8 @@ func (a *ConsulSyncAdapter) Clear(ctx context.Context, id core.GatewayID) error 
 		return fmt.Errorf("error removing ingress config entry: %w", err)
 	}
 
+	a.stopIntentionSyncForGateway(id)
 	delete(a.sync, id)
-
 	return nil
 }
 
@@ -555,6 +580,9 @@ func (a *ConsulSyncAdapter) Sync(ctx context.Context, gateway core.ResolvedGatew
 	}
 
 	a.setEntriesForGateway(gateway, computedRouters, computedSplitters, computedDefaults)
+	if err := a.syncIntentionsForGateway(gateway.ID, ingress); err != nil {
+		return fmt.Errorf("error syncing service intention config entries: %w", err)
+	}
 
 	return nil
 }
