@@ -475,7 +475,6 @@ func TestMeshService(t *testing.T) {
 			}
 			err = resources.Create(ctx, route)
 			require.NoError(t, err)
-			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, gatewayInSync), 30*time.Second, 1*time.Second, "gateway not synced in the allotted time")
 
 			checkPort := e2e.ExtraPort(ctx)
 			checkRoute(t, checkPort, "/v1", serviceOne.Name, nil, "service one not routable in allotted time")
@@ -493,6 +492,7 @@ func TestMeshService(t *testing.T) {
 			checkRoute(t, checkPort, "/v1", serviceFour.Name, nil, "after route deletion service four not routable in allotted time")
 			checkRoute(t, checkPort, "/v1", serviceFive.Name, nil, "after route deletion service five not routable in allotted time")
 
+			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, gatewayInSync), 30*time.Second, 1*time.Second, "gateway not synced in the allotted time")
 			return ctx
 		})
 
