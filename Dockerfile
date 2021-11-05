@@ -1,5 +1,5 @@
 # ===================================
-# 
+#
 #   Non-release images.
 #
 # ===================================
@@ -24,11 +24,11 @@ ARG BIN_NAME
 # Export BIN_NAME for the CMD below, it can't see ARGs directly.
 ENV BIN_NAME=$BIN_NAME
 COPY --from=devbuild /build/$BIN_NAME /bin/
-ENTRYPOINT [/bin/$BIN_NAME]
+ENTRYPOINT /bin/$BIN_NAME
 CMD ["version"]
 
 # ===================================
-# 
+#
 #   Release images.
 #
 # ===================================
@@ -58,7 +58,7 @@ RUN addgroup $PRODUCT_NAME && \
 COPY dist/$TARGETOS/$TARGETARCH/$BIN_NAME /bin/
 
 USER 100
-ENTRYPOINT [/bin/$BIN_NAME]
+ENTRYPOINT /bin/$BIN_NAME
 CMD ["version"]
 
 
@@ -86,11 +86,11 @@ RUN addgroup $PRODUCT_NAME && \
 COPY dist/$TARGETOS/$TARGETARCH/$BIN_NAME /bin/
 
 USER 101
-ENTRYPOINT [/bin/$BIN_NAME]
+ENTRYPOINT /bin/$BIN_NAME
 CMD ["version"]
 
 # ===================================
-# 
+#
 #   Set default target to 'dev'.
 #
 # ===================================
