@@ -26,9 +26,18 @@ CRD_OPTIONS ?= "crd:trivialVersions=true,allowDangerousTypes=true"
 
 ################
 
+# find or download goimports
+# download goimports if necessary
+.PHONY: goimports
+goimports:
+ifeq (, $(shell which goimports))
+	@go install golang.org/x/tools/cmd/goimports@latest
+endif
+GOIMPORTS=$(shell which goimports)
+
 .PHONY: fmt
-fmt:
-	@for d in $$(go list -f {{.Dir}} ./...); do goimports --local github.com/hashicorp/consul-api-gateway -w -l $$d/*.go; done
+fmt: goimports
+	@for d in $$(go list -f {{.Dir}} ./...); do ${GOIMPORTS} --local github.com/hashicorp --local github.com/hashicorp/consul-api-gateway -w -l $$d/*.go; done
 
 .PHONY: test
 test:
@@ -58,10 +67,8 @@ ctrl-generate: controller-gen
 controller-gen:
 ifeq (, $(shell which controller-gen))
 	@go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.6.0
-CONTROLLER_GEN=$(GOBIN)/controller-gen
-else
-CONTROLLER_GEN=$(shell which controller-gen)
 endif
+CONTROLLER_GEN=$(shell which controller-gen)
 
 .PHONY: version
 version:
