@@ -7,7 +7,7 @@ is implemented as a Kubernetes Gateway Controller, but is meant to eventually wo
 
 # Usage
 
-The Consul API Gateway project Kubernetes integration leverages connect-injected services managed by the
+The Consul API Gateway project Kubernetes integration leverages Connect-injected services managed by the
 [Consul K8s](https://github.com/hashicorp/consul-k8s) project. To use this project, make sure you have a running Kubernetes cluster and
 Consul 1.11 or greater installed [via Helm](https://github.com/hashicorp/consul-k8s#usage) with Connect injection support enabled.
 
