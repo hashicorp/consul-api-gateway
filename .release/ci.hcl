@@ -8,7 +8,7 @@ project "consul-api-gateway" {
   github {
     organization = "hashicorp"
     repository = "consul-api-gateway"
-    release_branches = ["release/**"]
+    release_branches = ["release/0.0.x"]
   }
 }
 
