@@ -1,0 +1,101 @@
+name: build
+
+on:
+  push:
+    branches:    
+      - 'release/**'
+
+env:
+  CGO_ENABLED: 0
+  PKG_NAME: "consul-api-gateway"
+
+jobs:
+  get-product-version:
+    runs-on: ubuntu-latest
+    outputs:
+      product-version: ${{ steps.get-product-version.outputs.product-version }}
+    steps:
+      - uses: actions/checkout@v2
+      - name: get product version
+        id: get-product-version
+        run: |
+          make version
+          echo "::set-output name=product-version::$(make version)"
+  generate-metadata-file:
+    needs: get-product-version
+    runs-on: ubuntu-latest
+    outputs:
+      filepath: ${{ steps.generate-metadata-file.outputs.filepath }}
+    steps:
+      - name: 'Checkout directory'
+        uses: actions/checkout@v2
+      - name: Generate metadata file
+        id: generate-metadata-file
+        uses: hashicorp/actions-generate-metadata@main
+        with:
+          version: ${{ needs.get-product-version.outputs.product-version }}
+          product: ${{ env.PKG_NAME }}
+      - uses: actions/upload-artifact@v2
+        with:
+          name: metadata.json
+          path: ${{ steps.generate-metadata-file.outputs.filepath }}
+
+  build:
+    needs: get-product-version
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        goos: ["linux"]
+        goarch: ["arm", "arm64", "386", "amd64"]
+        go: ["1.16"]
+      fail-fast: true
+
+    name: Go ${{ matrix.go }} ${{ matrix.goos }} ${{ matrix.goarch }} build
+    env:
+      GOOS: ${{ matrix.goos }}
+      GOARCH: ${{ matrix.goarch }}
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Setup go
+        uses: actions/setup-go@v2
+        with:
+          go-version: ${{ matrix.go }}
+      - name: Build
+        run: |
+          mkdir dist out
+          go build -o dist/
+          zip -r -j out/${{ env.PKG_NAME }}_${{ needs.get-product-version.outputs.product-version }}_${{ matrix.goos }}_${{ matrix.goarch }}.zip dist/
+      - uses: actions/upload-artifact@v2
+        with:
+          name: ${{ env.PKG_NAME }}_${{ needs.get-product-version.outputs.product-version }}_${{ matrix.goos }}_${{ matrix.goarch }}.zip
+          path: out/${{ env.PKG_NAME }}_${{ needs.get-product-version.outputs.product-version }}_${{ matrix.goos }}_${{ matrix.goarch }}.zip
+
+  build-docker:
+    name: Docker ${{ matrix.arch }} build
+    needs:
+      - get-product-version
+      - build
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: ["arm", "arm64", "386", "amd64"]
+    env:
+      repo: ${{github.event.repository.name}}
+      version: ${{needs.get-product-version.outputs.product-version}}
+
+    steps:
+      - uses: actions/checkout@v2
+      # we currently have the +ent as part of the verion string so removing it here
+      # we should separate this from the version going forward 
+      - name: Remove + from version
+        run: |
+          echo "version=$(echo $version | sed 's/+ent//g')" >> $GITHUB_ENV
+      - name: Docker Build (Action)
+        uses: hashicorp/actions-docker-build@v1
+        with:
+          version: ${{env.version}}
+          target: default
+          arch: ${{matrix.arch}}
+          tags: |
+            docker.io/hashicorp/${{env.repo}}:${{env.version}}
