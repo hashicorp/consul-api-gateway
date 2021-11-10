@@ -275,6 +275,7 @@ func (g *K8sGateway) ShouldBind(route store.Route) bool {
 	}
 
 	if !k8sRoute.IsValid() {
+		g.logger.Trace("route is invalid, should not bind", "route", route.ID())
 		return false
 	}
 
@@ -285,7 +286,7 @@ func (g *K8sGateway) ShouldBind(route store.Route) bool {
 			}
 		}
 	}
-
+	g.logger.Trace("route does not reference gateway, should not bind", "route", route.ID())
 	return false
 }
 
