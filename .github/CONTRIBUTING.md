@@ -16,8 +16,8 @@ work on an issue, comment on it first and tell us the approach you want to take.
 
 ## Reporting an Issue
 
-> **Note:** Issues on GitHub are intended to be related to bugs or feature requests. 
-> Questions should be directed to the [HashiCorp Discuss Forum](https://discuss.hashicorp.com/c/consul/29).
+> **Note:** Please see [`SUPPORT.md`](./SUPPORT.md) for guidance on where to 
+> ask product questions or how to get help.
 
 * Make sure you test against the latest released version. It is possible we 
 already fixed the bug you're experiencing. However, if you are on an older 
@@ -32,25 +32,16 @@ then it dramatically lowers the chances it'll get fixed.
 * Aim to respond promptly to any questions made by the maintainers on your 
 issue. Stale issues may be closed.
 
-## Building
-
-You'll first need [Go](https://golang.org) installed - the version of Go should match `GO_VERSION` in our [CI config](.github/workflows/ci.yml).
-
-Next, clone this repository and then run `make bin`. In a few moments, you'll have a working
-`consul` executable in `dist/{OS}/{ARCH}/consul-api-gateway`.
-
-> **Note:** `make bin` will build for your local machine's operating systemn and architecture. If you wish to build all supported combinations use `make`.
-
-### Developer Documentation
-
-A quick start guide, sample deployment instructions and entity relationship diagrams are available in our [developer documentation](./dev/docs).
-
 ## Developing
 
 If you make any changes to the code, please run `make fmt` to automatically format the code according to Go standards.
 If a dependency is added or changed, please run `go mod tidy` to update `go.mod` and `go.sum`.
 
 When opening your first pull request to a HashiCorp project, you may be asked to sign a Contributor Licensing Agreement before your contribution can be merged.
+
+### Developer Documentation
+
+A quick start guide, sample deployment instructions and entity relationship diagrams are available in our [developer documentation](./dev/docs).
 
 ## Testing
 
