@@ -41,7 +41,7 @@ When opening your first pull request to a HashiCorp project, you may be asked to
 
 ### Developer Documentation
 
-A quick start guide, sample deployment instructions and entity relationship diagrams are available in our [developer documentation](./dev/docs).
+A quick start guide, sample deployment instructions and entity relationship diagrams are available in our [developer documentation](../dev/docs).
 
 ## Testing
 
