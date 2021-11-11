@@ -23,7 +23,11 @@ var (
 )
 
 func init() {
-	defaultImage = fmt.Sprintf("hashicorp/consul-api-gateway:%s", version.Version)
+	imageVersion := version.Version
+	if version.VersionPrerelease != "" {
+		imageVersion += "-" + version.VersionPrerelease
+	}
+	defaultImage = fmt.Sprintf("hashicorp/consul-api-gateway:%s", imageVersion)
 }
 
 const (

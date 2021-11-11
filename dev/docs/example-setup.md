@@ -35,25 +35,6 @@ doctl auth init -t $DIGITALOCEAN_TOKEN
 doctl kubernetes cluster create demo-cluster --node-pool "name=worker-pool;size=s-2vcpu-2gb;count=1"
 ```
 
-## (PRE PUBLIC RELEASE ONLY) Set up private docker registry and image
-
-Since we're using an unpublished docker image, you'll need to build the project and push it to a
-private repository. In order for deployments to work, you'll also need to make sure that the
-default service account for Kubernetes can pull Docker images from your private repo. Run the
-following commands to set up the private repo, patch the service account and push a locally built
-Docker image to the private repo.
-
-```bash
-doctl registry create gateway
-doctl kubernetes cluster registry add demo-cluster
-doctl registry login gateway
-doctl registry kubernetes-manifest | kubectl apply -f -
-kubectl patch serviceaccount default -p '{"imagePullSecrets": [{"name": "registry-gateway"}]}'
-GOOS=linux go build
-docker build -t registry.digitalocean.com/gateway/controller:1 .
-docker push registry.digitalocean.com/gateway/controller:1
-```
-
 ## Installing Consul and the Consul API Gateway
 
 The Consul API Gateway relies on an existing Consul deployment, so in this next
@@ -70,73 +51,27 @@ helm repo add hashicorp https://helm.releases.hashicorp.com
 cat <<EOF | helm install consul hashicorp/consul --version 0.35.0 -f -
 global:
   name: consul
-  image: "hashicorpdev/consul:581357c32"
+  image: "hashicorp/consul:1.11.0-beta2"
   tls:
     enabled: true
 connectInject:
   enabled: true
 controller:
   enabled: true
-server:
-  replicas: 1
 EOF
 ```
 
 If `helm` is having problems finding the proper version of the chart, ensure that
 the local repositories are up-to-date by running `helm repo update`.
 
-### (PRE PUBLIC RELEASE ONLY) Install controller kustomizations
-
-We'll need to override some of the configuration in our `kustomize` manifests since
-we're using the private Docker repo. Create the overrides and apply them with the
-following commands.
-
-```bash
-mkdir -p demo-deployment/install
-cat <<EOF > demo-deployment/install/kustomization.yaml 
-apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
-
-resources:
-- ../../config
-
-images:
-- name: hashicorp/consul-api-gateway
-  newName: registry.digitalocean.com/gateway/controller
-  newTag: "1"
-
-patchesStrategicMerge:
-- |-
-  apiVersion: api-gateway.consul.hashicorp.com/v1alpha1
-  kind: GatewayClassConfig
-  metadata:
-    name: default-consul-gateway-class-config
-  spec:
-    image:
-      consulAPIGateway: "registry.digitalocean.com/gateway/controller:1"
-- |-
-  apiVersion: apps/v1
-  kind: Deployment
-  metadata:
-    name: consul-api-gateway-controller
-  spec:
-    template:
-      spec:
-        imagePullSecrets:
-          - name: registry-gateway
-EOF
-kubectl kustomize config/crd --reorder=none | kubectl apply -f -
-kubectl kustomize demo-deployment/install --reorder=none | kubectl apply -f -
-```
-
-### (POST RELEASE ONLY) Set up gateway controller
+### Set up gateway controller
 
 We have provided a set of `kustomize` manifests for installing the Consul API Gateway controller and CRDs.
 Apply them to your cluster using the following commands.
 
 ```bash
-kubectl kustomize "github.com/hashicorp/consul-api/gateway/config/crd?ref=v0.1.0" --reorder=none | kubectl apply -f -
-kubectl apply -k "github.com/hashicorp/consul-api/gateway/config?ref=v0.1.0" --reorder=none | kubectl apply -f
+kubectl apply -k "github.com/hashicorp/consul-api/gateway/config/crd?ref=v0.1.0-techpreview"
+kubectl apply -k "github.com/hashicorp/consul-api/gateway/config?ref=v0.1.0-techpreview"
 ```
 
 ## Installing the demo Gateway and Mesh Service
@@ -179,10 +114,7 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 resources:
-# Once we have a public repo, delete the following line
-- ../../config/example
-# Once we have a public repo, uncomment the following line
-# - github.com/hashicorp/consul-api/gateway/config/example?ref=v0.1.0
+- github.com/hashicorp/consul-api/gateway/config/example?ref=v0.1.0-techpreview
 
 patches:
 - target:
@@ -239,8 +171,7 @@ patches:
       path: /spec/dnsNames/0
       value: $DNS_HOSTNAME
 EOF
-
-kubectl kustomize demo-deployment/example --reorder=none | kubectl apply -f -
+kubectl apply -k demo-deployment/example
 ```
 
 ### Option 2: Manually apply the demo configurations
@@ -505,6 +436,5 @@ Make sure you clean up all of the resources you created, otherwise you will be c
 ```bash
 export LB_IP=$(kubectl get svc example-gateway -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
 doctl kubernetes cluster delete demo-cluster
-doctl registry delete gateway
 doctl compute load-balancer delete $(doctl compute load-balancer list -o json | jq -r ".[] | select(.ip == \"$LB_IP\") | .id")
 ```
