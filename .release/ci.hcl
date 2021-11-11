@@ -41,6 +41,7 @@ event "upload-dev" {
 }
 
 event "sign" {
+  depends = ["upload-dev"]
   action "sign" {
     organization = "hashicorp"
     repository = "crt-workflows-common"
