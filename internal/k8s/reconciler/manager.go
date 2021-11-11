@@ -190,7 +190,7 @@ func (m *GatewayReconcileManager) upsertRoute(ctx context.Context, r Route, id s
 		ControllerName: m.controllerName,
 		Logger:         m.logger,
 		Client:         m.client,
-		Resolver:       service.NewBackendResolver(r.GetNamespace(), m.client, m.consul),
+		Resolver:       service.NewBackendResolver(m.logger, r.GetNamespace(), m.client, m.consul),
 	})
 
 	managed, err := m.deleteUnmanagedRoute(ctx, route, id)

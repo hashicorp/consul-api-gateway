@@ -10,6 +10,7 @@ import (
 	"github.com/cenkalti/backoff"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul/api"
+	"github.com/hashicorp/go-hclog"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -184,13 +185,15 @@ type backendResolver struct {
 	namespace string
 	client    gatewayclient.Client
 	consul    *api.Client
+	logger    hclog.Logger
 }
 
-func NewBackendResolver(namespace string, client gatewayclient.Client, consul *api.Client) BackendResolver {
+func NewBackendResolver(logger hclog.Logger, namespace string, client gatewayclient.Client, consul *api.Client) BackendResolver {
 	return &backendResolver{
 		namespace: namespace,
 		client:    client,
 		consul:    consul,
+		logger:    logger,
 	}
 }
 
@@ -226,31 +229,61 @@ func (r *backendResolver) consulServiceForK8SService(ctx context.Context, namesp
 
 	service, err := r.client.GetService(ctx, namespacedName)
 	if err != nil {
+		r.logger.Error("error resolving kubernetes service", "error", err)
 		return nil, err
 	}
 	if service == nil {
+		r.logger.Warn("kubernetes service not found")
 		return nil, NewK8sResolutionError("service not found")
 	}
 
 	// we do an inner retry since consul may take some time to sync
 	err = backoff.Retry(func() error {
-		services, err := r.consul.Agent().ServicesWithFilter(fmt.Sprintf(`Meta[%q] == %q and Meta[%q] == %q and Kind != "connect-proxy"`, MetaKeyKubeServiceName, service.Name, MetaKeyKubeNS, service.Namespace))
+		r.logger.Trace("attempting to resolve local agent service")
+		resolved, err = r.findLocalAgentService(service)
 		if err != nil {
+			r.logger.Trace("error resolving local agent reference", "error", err)
 			return err
 		}
-		resolved, err = validateConsulReference(services, service)
-		return err
+		if resolved == nil {
+			// check in the global catalog
+			r.logger.Trace("attempting to resolve global catalog service")
+			resolved, err = r.findGlobalCatalogService(service)
+			if err != nil {
+				r.logger.Trace("error resolving global catalog reference", "error", err)
+				return err
+			}
+		}
+		if resolved == nil {
+			return NewConsulResolutionError("consul service not found")
+		}
+		return nil
 	}, backoff.WithContext(backoff.WithMaxRetries(backoff.NewConstantBackOff(1*time.Second), 30), ctx))
 	if err != nil {
+		r.logger.Error("could not resolve consul service", "error", err)
 		return nil, err
 	}
 	return resolved, nil
 }
 
-func validateConsulReference(services map[string]*api.AgentService, object client.Object) (*ResolvedReference, error) {
-	if len(services) == 0 {
-		return nil, NewConsulResolutionError("consul service not found")
+func (r *backendResolver) findLocalAgentService(service *corev1.Service) (*ResolvedReference, error) {
+	services, err := r.consul.Agent().ServicesWithFilter(fmt.Sprintf(`Meta[%q] == %q and Meta[%q] == %q and Kind != "connect-proxy"`, MetaKeyKubeServiceName, service.Name, MetaKeyKubeNS, service.Namespace))
+	if err != nil {
+		r.logger.Trace("error filtering services", "error", err)
+		return nil, err
 	}
+	if len(services) == 0 {
+		return nil, nil
+	}
+	resolved, err := validateAgentConsulReference(services, service)
+	if err != nil {
+		r.logger.Trace("error validating consul service", "error", err)
+		return nil, err
+	}
+	return resolved, nil
+}
+
+func validateAgentConsulReference(services map[string]*api.AgentService, object client.Object) (*ResolvedReference, error) {
 	serviceName := ""
 	serviceNamespace := ""
 	for _, service := range services {
@@ -272,4 +305,38 @@ func validateConsulReference(services map[string]*api.AgentService, object clien
 		Name:      serviceName,
 		Namespace: serviceNamespace,
 	}), nil
+}
+
+// this acts as a brute-force mechanism for resolving a consul service if we can't find it registered
+// in our local catalog
+func (r *backendResolver) findGlobalCatalogService(service *corev1.Service) (*ResolvedReference, error) {
+	services, _, err := r.consul.Catalog().Services(nil)
+	if err != nil {
+		r.logger.Trace("error retrieving services", "error", err)
+		return nil, err
+	}
+	for s := range services {
+		catalogServices, _, err := r.consul.Catalog().Service(s, "", nil)
+		if err != nil {
+			r.logger.Trace("error retrieving catalog services", "error", err, "service", s)
+			return nil, err
+		}
+		resolved := findCatalogConsulReference(catalogServices, service)
+		if resolved != nil {
+			return resolved, nil
+		}
+	}
+	return nil, nil
+}
+
+func findCatalogConsulReference(services []*api.CatalogService, object client.Object) *ResolvedReference {
+	for _, s := range services {
+		if s.ServiceMeta[MetaKeyKubeServiceName] == object.GetName() && s.ServiceMeta[MetaKeyKubeNS] == object.GetNamespace() {
+			return NewConsulServiceReference(object, &ConsulService{
+				Name:      s.ServiceName,
+				Namespace: s.Namespace,
+			})
+		}
+	}
+	return nil
 }
