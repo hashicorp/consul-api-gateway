@@ -239,20 +239,11 @@ func (r *backendResolver) consulServiceForK8SService(ctx context.Context, namesp
 
 	// we do an inner retry since consul may take some time to sync
 	err = backoff.Retry(func() error {
-		r.logger.Trace("attempting to resolve local agent service")
-		resolved, err = r.findLocalAgentService(service)
+		r.logger.Trace("attempting to resolve global catalog service")
+		resolved, err = r.findGlobalCatalogService(service)
 		if err != nil {
-			r.logger.Trace("error resolving local agent reference", "error", err)
+			r.logger.Trace("error resolving global catalog reference", "error", err)
 			return err
-		}
-		if resolved == nil {
-			// check in the global catalog
-			r.logger.Trace("attempting to resolve global catalog service")
-			resolved, err = r.findGlobalCatalogService(service)
-			if err != nil {
-				r.logger.Trace("error resolving global catalog reference", "error", err)
-				return err
-			}
 		}
 		if resolved == nil {
 			return NewConsulResolutionError("consul service not found")
@@ -261,23 +252,6 @@ func (r *backendResolver) consulServiceForK8SService(ctx context.Context, namesp
 	}, backoff.WithContext(backoff.WithMaxRetries(backoff.NewConstantBackOff(1*time.Second), 30), ctx))
 	if err != nil {
 		r.logger.Error("could not resolve consul service", "error", err)
-		return nil, err
-	}
-	return resolved, nil
-}
-
-func (r *backendResolver) findLocalAgentService(service *corev1.Service) (*ResolvedReference, error) {
-	services, err := r.consul.Agent().ServicesWithFilter(fmt.Sprintf(`Meta[%q] == %q and Meta[%q] == %q and Kind != "connect-proxy"`, MetaKeyKubeServiceName, service.Name, MetaKeyKubeNS, service.Namespace))
-	if err != nil {
-		r.logger.Trace("error filtering services", "error", err)
-		return nil, err
-	}
-	if len(services) == 0 {
-		return nil, nil
-	}
-	resolved, err := validateAgentConsulReference(services, service)
-	if err != nil {
-		r.logger.Trace("error validating consul service", "error", err)
 		return nil, err
 	}
 	return resolved, nil
