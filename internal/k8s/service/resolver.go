@@ -308,35 +308,34 @@ func validateAgentConsulReference(services map[string]*api.AgentService, object 
 }
 
 // this acts as a brute-force mechanism for resolving a consul service if we can't find it registered
-// in our local catalog
+// in our local agent -- it checks all services based on their node with the same filtering mechanism
+// we use in filtering the agent endpoint
 func (r *backendResolver) findGlobalCatalogService(service *corev1.Service) (*ResolvedReference, error) {
-	services, _, err := r.consul.Catalog().Services(nil)
+	nodes, _, err := r.consul.Catalog().Nodes(nil)
 	if err != nil {
-		r.logger.Trace("error retrieving services", "error", err)
+		r.logger.Trace("error retrieving nodes", "error", err)
 		return nil, err
 	}
-	for s := range services {
-		catalogServices, _, err := r.consul.Catalog().Service(s, "", nil)
+	filter := fmt.Sprintf(`Meta[%q] == %q and Meta[%q] == %q and Kind != "connect-proxy"`, MetaKeyKubeServiceName, service.Name, MetaKeyKubeNS, service.Namespace)
+	for _, node := range nodes {
+		nodeWithServices, _, err := r.consul.Catalog().Node(node.Node, &api.QueryOptions{
+			Filter: filter,
+		})
 		if err != nil {
-			r.logger.Trace("error retrieving catalog services", "error", err, "service", s)
+			r.logger.Trace("error retrieving node services", "error", err, "node", node.Node)
 			return nil, err
 		}
-		resolved := findCatalogConsulReference(catalogServices, service)
+		if len(nodeWithServices.Services) == 0 {
+			continue
+		}
+		resolved, err := validateAgentConsulReference(nodeWithServices.Services, service)
+		if err != nil {
+			r.logger.Trace("error validating node services", "error", err, "node", node.Node)
+			return nil, err
+		}
 		if resolved != nil {
 			return resolved, nil
 		}
 	}
 	return nil, nil
-}
-
-func findCatalogConsulReference(services []*api.CatalogService, object client.Object) *ResolvedReference {
-	for _, s := range services {
-		if s.ServiceMeta[MetaKeyKubeServiceName] == object.GetName() && s.ServiceMeta[MetaKeyKubeNS] == object.GetNamespace() {
-			return NewConsulServiceReference(object, &ConsulService{
-				Name:      s.ServiceName,
-				Namespace: s.Namespace,
-			})
-		}
-	}
-	return nil
 }
