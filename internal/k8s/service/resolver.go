@@ -10,6 +10,7 @@ import (
 	"github.com/cenkalti/backoff"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul/api"
+	"github.com/hashicorp/go-hclog"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -184,13 +185,15 @@ type backendResolver struct {
 	namespace string
 	client    gatewayclient.Client
 	consul    *api.Client
+	logger    hclog.Logger
 }
 
-func NewBackendResolver(namespace string, client gatewayclient.Client, consul *api.Client) BackendResolver {
+func NewBackendResolver(logger hclog.Logger, namespace string, client gatewayclient.Client, consul *api.Client) BackendResolver {
 	return &backendResolver{
 		namespace: namespace,
 		client:    client,
 		consul:    consul,
+		logger:    logger,
 	}
 }
 
@@ -226,31 +229,35 @@ func (r *backendResolver) consulServiceForK8SService(ctx context.Context, namesp
 
 	service, err := r.client.GetService(ctx, namespacedName)
 	if err != nil {
+		r.logger.Error("error resolving kubernetes service", "error", err)
 		return nil, err
 	}
 	if service == nil {
+		r.logger.Warn("kubernetes service not found")
 		return nil, NewK8sResolutionError("service not found")
 	}
 
 	// we do an inner retry since consul may take some time to sync
 	err = backoff.Retry(func() error {
-		services, err := r.consul.Agent().ServicesWithFilter(fmt.Sprintf(`Meta[%q] == %q and Meta[%q] == %q and Kind != "connect-proxy"`, MetaKeyKubeServiceName, service.Name, MetaKeyKubeNS, service.Namespace))
+		r.logger.Trace("attempting to resolve global catalog service")
+		resolved, err = r.findGlobalCatalogService(service)
 		if err != nil {
+			r.logger.Trace("error resolving global catalog reference", "error", err)
 			return err
 		}
-		resolved, err = validateConsulReference(services, service)
-		return err
+		if resolved == nil {
+			return NewConsulResolutionError("consul service not found")
+		}
+		return nil
 	}, backoff.WithContext(backoff.WithMaxRetries(backoff.NewConstantBackOff(1*time.Second), 30), ctx))
 	if err != nil {
+		r.logger.Error("could not resolve consul service", "error", err)
 		return nil, err
 	}
 	return resolved, nil
 }
 
-func validateConsulReference(services map[string]*api.AgentService, object client.Object) (*ResolvedReference, error) {
-	if len(services) == 0 {
-		return nil, NewConsulResolutionError("consul service not found")
-	}
+func validateAgentConsulReference(services map[string]*api.AgentService, object client.Object) (*ResolvedReference, error) {
 	serviceName := ""
 	serviceNamespace := ""
 	for _, service := range services {
@@ -272,4 +279,37 @@ func validateConsulReference(services map[string]*api.AgentService, object clien
 		Name:      serviceName,
 		Namespace: serviceNamespace,
 	}), nil
+}
+
+// this acts as a brute-force mechanism for resolving a consul service if we can't find it registered
+// in our local agent -- it checks all services based on their node with the same filtering mechanism
+// we use in filtering the agent endpoint
+func (r *backendResolver) findGlobalCatalogService(service *corev1.Service) (*ResolvedReference, error) {
+	nodes, _, err := r.consul.Catalog().Nodes(nil)
+	if err != nil {
+		r.logger.Trace("error retrieving nodes", "error", err)
+		return nil, err
+	}
+	filter := fmt.Sprintf(`Meta[%q] == %q and Meta[%q] == %q and Kind != "connect-proxy"`, MetaKeyKubeServiceName, service.Name, MetaKeyKubeNS, service.Namespace)
+	for _, node := range nodes {
+		nodeWithServices, _, err := r.consul.Catalog().Node(node.Node, &api.QueryOptions{
+			Filter: filter,
+		})
+		if err != nil {
+			r.logger.Trace("error retrieving node services", "error", err, "node", node.Node)
+			return nil, err
+		}
+		if len(nodeWithServices.Services) == 0 {
+			continue
+		}
+		resolved, err := validateAgentConsulReference(nodeWithServices.Services, service)
+		if err != nil {
+			r.logger.Trace("error validating node services", "error", err, "node", node.Node)
+			return nil, err
+		}
+		if resolved != nil {
+			return resolved, nil
+		}
+	}
+	return nil, nil
 }

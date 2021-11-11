@@ -50,16 +50,20 @@ func (g *gatewayState) Remove(id string) {
 }
 
 func (g *gatewayState) TryBind(route store.Route) {
+	g.logger.Trace("checking if route can bind to gateway", "route", route.ID())
 	if g.ShouldBind(route) {
 		bound := false
 		var bindError error
 		for _, l := range g.listeners {
+			g.logger.Trace("checking if route can bind to listener", "listener", l.name, "route", route.ID())
 			canBind, err := l.CanBind(route)
 			if err != nil {
 				// consider each route distinct for the purposes of binding
+				g.logger.Debug("error binding route to gateway", "error", err, "route", route.ID())
 				bindError = multierror.Append(bindError, err)
 			}
 			if canBind {
+				g.logger.Trace("setting listener route", "listener", l.name, "route", route.ID())
 				l.SetRoute(route)
 				bound = true
 			}

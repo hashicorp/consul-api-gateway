@@ -231,12 +231,16 @@ func (l *K8sListener) Config() store.ListenerConfig {
 func (l *K8sListener) CanBind(route store.Route) (bool, error) {
 	k8sRoute, ok := route.(*K8sRoute)
 	if !ok {
+		l.logger.Error("route is not a known type")
 		return false, nil
 	}
 
 	for _, ref := range k8sRoute.CommonRouteSpec().ParentRefs {
+		l.logger.Trace("checking route parent ref", "name", ref.Name)
 		if namespacedName, isGateway := utils.ReferencesGateway(k8sRoute.GetNamespace(), ref); isGateway {
-			if utils.NamespacedName(l.gateway) == namespacedName {
+			expected := utils.NamespacedName(l.gateway)
+			l.logger.Trace("checking gateway match", "expected", expected.String(), "found", namespacedName.String())
+			if expected == namespacedName {
 				canBind, err := l.canBind(ref, k8sRoute)
 				if err != nil {
 					return false, err
@@ -252,6 +256,7 @@ func (l *K8sListener) CanBind(route store.Route) (bool, error) {
 
 func (l *K8sListener) canBind(ref gw.ParentRef, route *K8sRoute) (bool, error) {
 	if l.status.Ready.HasError() {
+		l.logger.Trace("listener not ready, unable to bind", "route", route.ID())
 		return false, nil
 	}
 
@@ -260,6 +265,7 @@ func (l *K8sListener) canBind(ref gw.ParentRef, route *K8sRoute) (bool, error) {
 	allowed, must := routeMatchesListener(l.listener.Name, ref.SectionName)
 	if allowed {
 		if !routeKindIsAllowedForListener(l.supportedKinds, route) {
+			l.logger.Trace("route kind not allowed for listener", "route", route.ID())
 			if must {
 				return false, NewBindErrorRouteKind("route kind not allowed for listener")
 			}
@@ -270,6 +276,7 @@ func (l *K8sListener) canBind(ref gw.ParentRef, route *K8sRoute) (bool, error) {
 			return false, fmt.Errorf("error checking listener namespaces: %w", err)
 		}
 		if !allowed {
+			l.logger.Trace("route not allowed because of listener namespace policy", "route", route.ID())
 			if must {
 				return false, NewBindErrorListenerNamespacePolicy("route not allowed because of listener namespace policy")
 			}
@@ -277,6 +284,7 @@ func (l *K8sListener) canBind(ref gw.ParentRef, route *K8sRoute) (bool, error) {
 		}
 
 		if !route.MatchesHostname(l.listener.Hostname) {
+			l.logger.Trace("route does not match listener hostname", "route", route.ID())
 			if must {
 				return false, NewBindErrorHostnameMismatch("route does not match listener hostname")
 			}
@@ -286,6 +294,7 @@ func (l *K8sListener) canBind(ref gw.ParentRef, route *K8sRoute) (bool, error) {
 		return true, nil
 	}
 
+	l.logger.Trace("route does not match listener name", "route", route.ID())
 	return false, nil
 }
 
