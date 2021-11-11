@@ -436,6 +436,5 @@ Make sure you clean up all of the resources you created, otherwise you will be c
 ```bash
 export LB_IP=$(kubectl get svc example-gateway -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
 doctl kubernetes cluster delete demo-cluster
-doctl registry delete gateway
 doctl compute load-balancer delete $(doctl compute load-balancer list -o json | jq -r ".[] | select(.ip == \"$LB_IP\") | .id")
 ```
