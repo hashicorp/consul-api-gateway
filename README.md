@@ -19,7 +19,7 @@ cluster. This can be done with the following commands:
 
 ```bash
 helm repo add hashicorp https://helm.releases.hashicorp.com
-cat <<EOF | helm install consul hashicorp/consul --version 0.35.0 -f -
+cat <<EOF | helm install consul hashicorp/consul --version 0.36.0 -f -
 global:
   name: consul
   image: "hashicorp/consul:1.11.0-beta2"
