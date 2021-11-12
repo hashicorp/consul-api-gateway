@@ -48,7 +48,7 @@ We'll need to enable the HashiCorp Helm repo and install the latest Consul chart
 
 ```bash
 helm repo add hashicorp https://helm.releases.hashicorp.com
-cat <<EOF | helm install consul hashicorp/consul --version 0.35.0 -f -
+cat <<EOF | helm install consul hashicorp/consul --version 0.36.0 -f -
 global:
   name: consul
   image: "hashicorp/consul:1.11.0-beta2"
@@ -58,6 +58,8 @@ connectInject:
   enabled: true
 controller:
   enabled: true
+server:
+  replicas: 1
 EOF
 ```
 
@@ -89,7 +91,7 @@ export CLOUDFLARE_EMAIL=...
 export DNS_HOSTNAME=...
 ```
 
-### Install third-party dependencies
+### Install third-party dependencies and demo
 
 First we'll install `cert-manager` from the published `helm` repo.
 
@@ -178,6 +180,8 @@ kubectl apply -k demo-deployment/example
 
 If you followed the steps for Option 1, you may skip this section.
 
+#### Creating a CertManager Issuer and Provisioning a certificate
+
 First we'll create a CertManager `Issuer` and `Certificate` for use in our `Gateway` instance
 and hook it up to Let's Encrypt via ACME DNS challenges.
 
@@ -222,6 +226,8 @@ spec:
   - $DNS_HOSTNAME
 EOF
 ```
+
+#### Installing ExternalDNS configured for CloudFlare
 
 Next we'll create service accounts and deploy ExternalDNS hooked up to CloudFlare.
 
@@ -296,6 +302,8 @@ spec:
 EOF
 ```
 
+#### Deploying a demo service
+
 Now we'll deploy a service to route to on the service mesh.
 
 ```bash
@@ -366,6 +374,8 @@ spec:
 EOF
 ```
 
+#### Creating a Gateway instance
+
 And we'll deploy our `Gateway` instance.
 
 ```bash
@@ -392,6 +402,8 @@ spec:
         - name: gateway-production-certificate
 EOF
 ```
+
+#### Creating a route to the echo service
 
 Finally, we'll add an `HTTPRoute` to the `Gateway` in order to route
 traffic to the service we previously created.
