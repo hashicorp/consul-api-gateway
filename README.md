@@ -2,21 +2,24 @@
 
 # Overview
 
-The Consul API Gateway implements a North/South managed gateway that integrates natively with the Consul Service Mesh. Currently this
-is implemented as a Kubernetes Gateway Controller, but is meant to eventually work across multiple scheduler and runtime ecosystems.
+The Consul API Gateway is a dedicated ingress solution for intelligently routing traffic to applications
+running on a Consul Service Mesh. Currently it only runs on Kubernetes and is implemented as a
+Kubernetes Gateway Controller but, in future releases, it will work across multiple scheduler and
+runtime ecosystems.
 
 # Usage
 
-The Consul API Gateway project Kubernetes integration leverages connect-injected services managed by the
-[Consul K8s](https://github.com/hashicorp/consul-k8s) project. To use this project, make sure you have a running Kubernetes cluster and
-Consul 1.11 or greater installed [via Helm](https://github.com/hashicorp/consul-k8s#usage) with Connect injection support enabled.
+## Prerequisits  
 
-Our default `kustomization` manifests also assume that the Consul helm chart has TLS enabled. To install a compatible Consul instance via
-Helm, you can run the following commands:
+The Consul API Gateway must be installed on a Kubernetes cluster with the [Consul K8s](https://github.com/hashicorp/consul-k8s) service
+mesh deployed on it. The installed version of Consul must be `v1.11-beta2` or greater.
+
+The Consul Helm chart must be used, with specific settings, to install Consul on the Kubernetes
+cluster. This can be done with the following commands:
 
 ```bash
 helm repo add hashicorp https://helm.releases.hashicorp.com
-cat <<EOF | helm install consul hashicorp/consul --version 0.35.0 -f -
+cat <<EOF | helm install consul hashicorp/consul --version 0.36.0 -f -
 global:
   name: consul
   image: "hashicorp/consul:1.11.0-beta2"
@@ -29,20 +32,35 @@ controller:
 EOF
 ```
 
-To install the gateway controller and a base Kubernetes `GatewayClass` that leverages the API Gateway, run the following commands:
+## Install the Tech Preview
+
+To install the Consul API Gateway controller and a base Kubernetes `GatewayClass` that leverages the
+API Gateway, run the following commands:
 
 ```bash
 kubectl apply -k "github.com/hashicorp/consul-api-gateway/config/crd?ref=v0.1.0-techpreview"
 kubectl apply -k "github.com/hashicorp/consul-api-gateway/config?ref=v0.1.0-techpreview"
 ```
 
-You should now be able to deploy a Gateway by referencing the gateway class `default-consul-gateway-class` in a Kubernetes `Gateway`
-manifest.
+You should now be able to deploy a Gateway by referencing the gateway class `default-consul-gateway-class` in
+a Kubernetes `Gateway` manifest.
 
-For more detailed instructions and an example of how to use this alongside
-[CertManager](https://github.com/jetstack/cert-manager) and [External DNS](https://github.com/kubernetes-sigs/external-dns) see the
-[development documentation](./dev/docs/example-setup.md).
+## Configuring and Deplying API Gateways
 
-# Tutorials
+Consul API Gateways are configured and deployed via the [Kubernetes Gateway API](https://github.com/kubernetes-sigs/gateway-api) staandard.
+The [Kubernetes Gateway API webite](https://gateway-api.sigs.k8s.io/) explains the design of the standard, examples of how to
+use it and the complete specification of the API. 
+
+The Consul API Gateway Tech Preview supports current version (`v1alpha2`) of the Gateway API.
+
+# Tutorial
+
+For an example of how to deploy a Consul API Gateway and use it alongside [CertManager](https://github.com/jetstack/cert-manager) and
+[External DNS](https://github.com/kubernetes-sigs/external-dns), see the [Example Setup](./dev/docs/example-setup.md).
+
+
+# Contributing
+
+Thank you for your interest in contributing! Please refer to [CONTRIBUTING.md](https://github.com/hashicorp/consul-api-gateway/blob/main/.github/CONTRIBUTING.md#contributing) for guidance.
 
 For development, please see our [Quick Start](./dev/docs/getting-started.md) guide. Other documentation can be found inside our [in-repo developer documentation](./dev/docs).
