@@ -47,7 +47,7 @@ a Kubernetes `Gateway` manifest.
 
 ## Configuring and Deplying API Gateways
 
-Consul API Gateways are configured and deployed via the [Kubernetes Gateway API](https://github.com/kubernetes-sigs/gateway-api) staandard.
+Consul API Gateways are configured and deployed via the [Kubernetes Gateway API](https://github.com/kubernetes-sigs/gateway-api) standard.
 The [Kubernetes Gateway API webite](https://gateway-api.sigs.k8s.io/) explains the design of the standard, examples of how to
 use it and the complete specification of the API. 
 
