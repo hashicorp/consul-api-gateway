@@ -9,7 +9,7 @@ runtime ecosystems.
 
 # Usage
 
-## Prerequisits  
+## Prerequisites  
 
 The Consul API Gateway must be installed on a Kubernetes cluster with the [Consul K8s](https://github.com/hashicorp/consul-k8s) service
 mesh deployed on it. The installed version of Consul must be `v1.11-beta2` or greater.
