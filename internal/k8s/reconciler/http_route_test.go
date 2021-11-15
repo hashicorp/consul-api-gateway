@@ -99,6 +99,32 @@ func TestConvertHTTPRoute(t *testing.T) {
 			}, {
 				Type: service.HTTPRouteReference,
 			}},
+			service.RouteRule{
+				HTTPRule: &gw.HTTPRouteRule{
+					Matches: []gw.HTTPRouteMatch{{
+						QueryParams: []gw.HTTPQueryParamMatch{{
+							Type:  &queryMatchType,
+							Name:  "c",
+							Value: "d",
+						}},
+					}},
+				},
+			}: []service.ResolvedReference{{
+				Type: service.ConsulServiceReference,
+				Consul: &service.ConsulService{
+					Name:      "other",
+					Namespace: "namespace",
+				},
+				Reference: &service.BackendReference{
+					HTTPRef: &gw.HTTPBackendRef{
+						BackendRef: gw.BackendRef{
+							Weight: &weight,
+						},
+					},
+				},
+			}, {
+				Type: service.HTTPRouteReference,
+			}},
 		},
 		expected: `
 {
@@ -174,6 +200,36 @@ func TestConvertHTTPRoute(t *testing.T) {
 					"Service": {
 						"ConsulNamespace": "namespace",
 						"Service": "name"
+					},
+					"Weight": 10,
+					"Filters": []
+				}
+			]
+		},
+		{
+			"Filters": [],
+			"Matches": [
+				{
+					"Headers": null,
+					"Method": 0,
+					"Path": {
+						"Type": 0,
+						"Value": ""
+					},
+					"Query": [
+						{
+							"Type": 1,
+							"Name": "c",
+							"Value": "d"
+						}
+					]
+				}
+			],
+			"Services": [
+				{
+					"Service": {
+						"ConsulNamespace": "namespace",
+						"Service": "other"
 					},
 					"Weight": 10,
 					"Filters": []

@@ -337,8 +337,9 @@ func (r *K8sRoute) Validate(ctx context.Context) error {
 	switch route := r.Route.(type) {
 	case *gw.HTTPRoute:
 		for _, rule := range route.Spec.Rules {
-			routeRule := service.NewRouteRule(&rule)
-			for _, ref := range rule.BackendRefs {
+			copiedRule := rule.DeepCopy()
+			routeRule := service.NewRouteRule(copiedRule)
+			for _, ref := range copiedRule.BackendRefs {
 				reference, err := r.resolver.Resolve(ctx, ref.BackendObjectReference)
 				if err != nil {
 					var resolutionError service.ResolutionError
