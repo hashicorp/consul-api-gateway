@@ -45,13 +45,16 @@ kubectl apply -k "github.com/hashicorp/consul-api-gateway/config?ref=v0.1.0-tech
 You should now be able to deploy a Gateway by referencing the gateway class `default-consul-gateway-class` in
 a Kubernetes `Gateway` manifest.
 
-## Configuring and Deplying API Gateways
+## Configuring and Deploying API Gateways
 
 Consul API Gateways are configured and deployed via the [Kubernetes Gateway API](https://github.com/kubernetes-sigs/gateway-api) standard.
 The [Kubernetes Gateway API webite](https://gateway-api.sigs.k8s.io/) explains the design of the standard, examples of how to
 use it and the complete specification of the API. 
 
 The Consul API Gateway Tech Preview supports current version (`v1alpha2`) of the Gateway API.
+
+**Supported Features:** Please see [Supported Features](./dev/docs/supported-features.md) for a list of K8s Gateway API features
+supported by the current release of Consul API Gateway.
 
 # Tutorial
 
