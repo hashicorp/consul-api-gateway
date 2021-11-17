@@ -501,7 +501,7 @@ func TestHTTPMeshService(t *testing.T) {
 }
 
 func TestTCPMeshService(t *testing.T) {
-	feature := features.New("mesh service routing").
+	feature := features.New("mesh service tcp routing").
 		Assess("basic routing", func(ctx context.Context, t *testing.T, cfg *envconf.Config) context.Context {
 			serviceOne, err := e2e.DeployTCPMeshService(ctx, cfg)
 			require.NoError(t, err)
@@ -654,6 +654,117 @@ func TestTCPMeshService(t *testing.T) {
 
 			// only service 4 should be routable as we don't support routes with multiple rules or backend refs for TCP
 			checkTCPRoute(t, checkPort, serviceFour.Name, "service four not routable in allotted time")
+
+			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, gatewayInSync), 30*time.Second, 1*time.Second, "gateway not synced in the allotted time")
+			return ctx
+		}).
+		Assess("tls routing", func(ctx context.Context, t *testing.T, cfg *envconf.Config) context.Context {
+			serviceOne, err := e2e.DeployTCPMeshService(ctx, cfg)
+			require.NoError(t, err)
+
+			namespace := e2e.Namespace(ctx)
+			configName := envconf.RandomName("gcc", 16)
+			className := envconf.RandomName("gc", 16)
+			gatewayName := envconf.RandomName("gw", 16)
+			routeOneName := envconf.RandomName("route", 16)
+
+			gatewayNamespace := gateway.Namespace(namespace)
+			resources := cfg.Client().Resources(namespace)
+
+			gcc := &apigwv1alpha1.GatewayClassConfig{
+				ObjectMeta: meta.ObjectMeta{
+					Name: configName,
+				},
+				Spec: apigwv1alpha1.GatewayClassConfigSpec{
+					ImageSpec: apigwv1alpha1.ImageSpec{
+						ConsulAPIGateway: e2e.DockerImage(ctx),
+					},
+					UseHostPorts: true,
+					LogLevel:     "trace",
+					ConsulSpec: apigwv1alpha1.ConsulSpec{
+						Address: hostRoute,
+						Scheme:  "https",
+						PortSpec: apigwv1alpha1.PortSpec{
+							GRPC: e2e.ConsulGRPCPort(ctx),
+							HTTP: e2e.ConsulHTTPPort(ctx),
+						},
+						AuthSpec: apigwv1alpha1.AuthSpec{
+							Method:  "consul-api-gateway",
+							Account: "consul-api-gateway",
+						},
+					},
+				},
+			}
+			err = resources.Create(ctx, gcc)
+			require.NoError(t, err)
+
+			gc := &gateway.GatewayClass{
+				ObjectMeta: meta.ObjectMeta{
+					Name: className,
+				},
+				Spec: gateway.GatewayClassSpec{
+					ControllerName: k8s.ControllerName,
+					ParametersRef: &gateway.ParametersReference{
+						Group: apigwv1alpha1.Group,
+						Kind:  apigwv1alpha1.GatewayClassConfigKind,
+						Name:  configName,
+					},
+				},
+			}
+			err = resources.Create(ctx, gc)
+			require.NoError(t, err)
+
+			gw := &gateway.Gateway{
+				ObjectMeta: meta.ObjectMeta{
+					Name:      gatewayName,
+					Namespace: namespace,
+				},
+				Spec: gateway.GatewaySpec{
+					GatewayClassName: gateway.ObjectName(gc.Name),
+					Listeners: []gateway.Listener{{
+						Name:     "tcp",
+						Port:     gateway.PortNumber(e2e.TCPTLSPort(ctx)),
+						Protocol: gateway.TCPProtocolType,
+						TLS: &gateway.GatewayTLSConfig{
+							CertificateRefs: []*gateway.SecretObjectReference{{
+								Name:      "consul-server-cert",
+								Namespace: &gatewayNamespace,
+							}},
+						},
+					}},
+				},
+			}
+			err = resources.Create(ctx, gw)
+			require.NoError(t, err)
+			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, gatewayReady), 30*time.Second, 1*time.Second, "no gateway found in the allotted time")
+
+			portOne := gateway.PortNumber(serviceOne.Spec.Ports[0].Port)
+			route := &gateway.TCPRoute{
+				ObjectMeta: meta.ObjectMeta{
+					Name:      routeOneName,
+					Namespace: namespace,
+				},
+				Spec: gateway.TCPRouteSpec{
+					CommonRouteSpec: gateway.CommonRouteSpec{
+						ParentRefs: []gateway.ParentRef{{
+							Name: gateway.ObjectName(gatewayName),
+						}},
+					},
+					Rules: []gateway.TCPRouteRule{{
+						BackendRefs: []gateway.BackendRef{{
+							BackendObjectReference: gateway.BackendObjectReference{
+								Name: gateway.ObjectName(serviceOne.Name),
+								Port: &portOne,
+							},
+						}},
+					}},
+				},
+			}
+			err = resources.Create(ctx, route)
+			require.NoError(t, err)
+
+			checkPort := e2e.TCPTLSPort(ctx)
+			checkTCPTLSRoute(t, checkPort, serviceOne.Name, "service not routable in allotted time")
 
 			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, gatewayInSync), 30*time.Second, 1*time.Second, "gateway not synced in the allotted time")
 			return ctx
@@ -824,6 +935,28 @@ func checkTCPRoute(t *testing.T, port int, expected string, message string) {
 			return false
 		}
 		data, err := io.ReadAll(conn)
+		if err != nil {
+			return false
+		}
+		return strings.HasPrefix(string(data), expected)
+	}, 30*time.Second, 1*time.Second, message)
+}
+
+func checkTCPTLSRoute(t *testing.T, port int, expected string, message string) {
+	t.Helper()
+
+	require.Eventually(t, func() bool {
+		conn, err := net.DialTCP("tcp", nil, &net.TCPAddr{
+			IP:   net.IPv4(127, 0, 0, 1),
+			Port: port,
+		})
+		if err != nil {
+			return false
+		}
+		tlsConn := tls.Client(conn, &tls.Config{
+			InsecureSkipVerify: true,
+		})
+		data, err := io.ReadAll(tlsConn)
 		if err != nil {
 			return false
 		}

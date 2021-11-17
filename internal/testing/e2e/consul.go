@@ -70,15 +70,16 @@ func init() {
 }
 
 type consulTestEnvironment struct {
-	ca            []byte
-	consulClient  *api.Client
-	token         string
-	policy        *api.ACLPolicy
-	httpPort      int
-	grpcPort      int
-	extraHTTPPort int
-	extraTCPPort  int
-	ip            string
+	ca              []byte
+	consulClient    *api.Client
+	token           string
+	policy          *api.ACLPolicy
+	httpPort        int
+	grpcPort        int
+	extraHTTPPort   int
+	extraTCPPort    int
+	extraTCPTLSPort int
+	ip              string
 }
 
 func CreateTestConsulContainer(name, namespace string) env.Func {
@@ -93,6 +94,7 @@ func CreateTestConsulContainer(name, namespace string) env.Func {
 		httpsPort := cluster.httpsPort
 		grpcPort := cluster.grpcPort
 		extraTCPPort := cluster.extraTCPPort
+		extraTCPTLSPort := cluster.extraTCPTLSPort
 		extraHTTPPort := cluster.extraHTTPPort
 
 		rootCA, err := testing.GenerateSignedCertificate(testing.GenerateCertificateOptions{
@@ -177,13 +179,14 @@ func CreateTestConsulContainer(name, namespace string) env.Func {
 		}
 
 		env := &consulTestEnvironment{
-			ca:            rootCA.CertBytes,
-			consulClient:  consulClient,
-			httpPort:      httpsPort,
-			grpcPort:      grpcPort,
-			extraHTTPPort: extraHTTPPort,
-			extraTCPPort:  extraTCPPort,
-			ip:            ip,
+			ca:              rootCA.CertBytes,
+			consulClient:    consulClient,
+			httpPort:        httpsPort,
+			grpcPort:        grpcPort,
+			extraHTTPPort:   extraHTTPPort,
+			extraTCPPort:    extraTCPPort,
+			extraTCPTLSPort: extraTCPTLSPort,
+			ip:              ip,
 		}
 
 		return context.WithValue(ctx, consulTestContextKey, env), nil
@@ -413,6 +416,14 @@ func TCPPort(ctx context.Context) int {
 		panic("must run this with an integration test that has called CreateTestConsul")
 	}
 	return consulEnvironment.(*consulTestEnvironment).extraTCPPort
+}
+
+func TCPTLSPort(ctx context.Context) int {
+	consulEnvironment := ctx.Value(consulTestContextKey)
+	if consulEnvironment == nil {
+		panic("must run this with an integration test that has called CreateTestConsul")
+	}
+	return consulEnvironment.(*consulTestEnvironment).extraTCPTLSPort
 }
 
 func HTTPPort(ctx context.Context) int {
