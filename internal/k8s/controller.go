@@ -192,5 +192,15 @@ func (k *Kubernetes) Start(ctx context.Context) error {
 		return fmt.Errorf("failed to create http route controller: %w", err)
 	}
 
+	err = (&controllers.TCPRouteReconciler{
+		Client:         gwClient,
+		Log:            k.logger.Named("TCPRoute"),
+		Manager:        reconcileManager,
+		ControllerName: ControllerName,
+	}).SetupWithManager(k.k8sManager)
+	if err != nil {
+		return fmt.Errorf("failed to create tcp route controller: %w", err)
+	}
+
 	return k.k8sManager.Start(ctx)
 }

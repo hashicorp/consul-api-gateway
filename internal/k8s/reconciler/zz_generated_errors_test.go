@@ -30,4 +30,6 @@ func TestBindErrorType(t *testing.T) {
 	require.Equal(t, BindErrorTypeListenerNamespacePolicy, NewBindErrorListenerNamespacePolicy(expected).Kind())
 	require.Equal(t, expected, NewBindErrorHostnameMismatch(expected).Error())
 	require.Equal(t, BindErrorTypeHostnameMismatch, NewBindErrorHostnameMismatch(expected).Kind())
+	require.Equal(t, expected, NewBindErrorRouteInvalid(expected).Error())
+	require.Equal(t, BindErrorTypeRouteInvalid, NewBindErrorRouteInvalid(expected).Kind())
 }

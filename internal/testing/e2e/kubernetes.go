@@ -49,6 +49,8 @@ func InstallGatewayCRDs(ctx context.Context, cfg *envconf.Config) (context.Conte
 		&gateway.GatewayList{},
 		&gateway.HTTPRoute{},
 		&gateway.HTTPRouteList{},
+		&gateway.TCPRoute{},
+		&gateway.TCPRouteList{},
 	)
 	meta.AddToGroupVersion(scheme.Scheme, gateway.SchemeGroupVersion)
 

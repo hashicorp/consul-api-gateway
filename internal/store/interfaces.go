@@ -65,6 +65,7 @@ type Listener interface {
 	CanBind(route Route) (bool, error)
 	Certificates() []string
 	Config() ListenerConfig
+	IsValid() bool
 }
 
 // StatusTrackingRoute is an optional extension

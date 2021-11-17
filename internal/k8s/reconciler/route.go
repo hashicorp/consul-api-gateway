@@ -188,10 +188,24 @@ func (r *K8sRoute) OnBindFailed(err error, gateway store.Gateway) {
 					status.Accepted.ListenerNamespacePolicy = err
 				case BindErrorTypeRouteKind:
 					status.Accepted.InvalidRouteKind = err
+				case BindErrorTypeRouteInvalid:
+					status.Accepted.BindError = err
 				}
-				return
+			} else {
+				status.Accepted.BindError = err
 			}
-			status.Accepted.BindError = err
+			// set resolution errors - we can do this here because
+			// a route with resolution errors will always fail to bind
+			errorType, err := r.resolutionErrors.Flatten()
+			switch errorType {
+			case service.GenericResolutionErrorType:
+				status.ResolvedRefs.Errors = err
+			case service.ConsulServiceResolutionErrorType:
+				status.ResolvedRefs.ConsulServiceNotFound = err
+			case service.K8sServiceResolutionErrorType:
+				status.ResolvedRefs.ServiceNotFound = err
+			}
+
 			r.parentStatuses[id] = status
 		}
 	}
@@ -202,9 +216,10 @@ func (r *K8sRoute) OnBound(gateway store.Gateway) {
 	if ok {
 		id, found := r.parentKeyForGateway(utils.NamespacedName(k8sGateway.gateway))
 		if found {
-			// clear out any existing errors on the accepted status
+			// clear out any existing errors on our statuses
 			if status, statusFound := r.parentStatuses[id]; statusFound {
 				status.Accepted = RouteAcceptedStatus{}
+				status.ResolvedRefs = RouteResolvedRefsStatus{}
 			} else {
 				r.parentStatuses[id] = &RouteStatus{}
 			}
@@ -312,6 +327,14 @@ func (r *K8sRoute) Resolve(listener store.Listener) *core.ResolvedRoute {
 			"consul-api-gateway/k8s/HTTPRoute.Name":      r.GetName(),
 			"consul-api-gateway/k8s/HTTPRoute.Namespace": r.GetNamespace(),
 		}, route, r)
+	case *gw.TCPRoute:
+		return convertTCPRoute(namespace, prefix, map[string]string{
+			"external-source":                           "consul-api-gateway",
+			"consul-api-gateway/k8s/Gateway.Name":       k8sListener.gateway.Name,
+			"consul-api-gateway/k8s/Gateway.Namespace":  k8sListener.gateway.Namespace,
+			"consul-api-gateway/k8s/TCPRoute.Name":      r.GetName(),
+			"consul-api-gateway/k8s/TCPRoute.Namespace": r.GetNamespace(),
+		}, route, r)
 	default:
 		// TODO: add other route types
 		return nil
@@ -352,6 +375,36 @@ func (r *K8sRoute) Validate(ctx context.Context) error {
 				r.references.Add(routeRule, *reference)
 			}
 		}
+	case *gw.TCPRoute:
+		if len(route.Spec.Rules) != 1 {
+			err := service.NewResolutionError("a single tcp rule is required")
+			r.resolutionErrors.Add(err)
+			return nil
+		}
+
+		rule := route.Spec.Rules[0]
+
+		if len(rule.BackendRefs) != 1 {
+			err := service.NewResolutionError("a single backendRef per tcp rule is required")
+			r.resolutionErrors.Add(err)
+			return nil
+		}
+
+		routeRule := service.NewRouteRule(rule)
+
+		ref := rule.BackendRefs[0]
+		reference, err := r.resolver.Resolve(ctx, ref.BackendObjectReference)
+		if err != nil {
+			var resolutionError service.ResolutionError
+			if !errors.As(err, &resolutionError) {
+				return err
+			}
+			r.resolutionErrors.Add(resolutionError)
+			return nil
+		}
+
+		reference.Reference.Set(&ref)
+		r.references.Add(routeRule, *reference)
 	}
 
 	return nil

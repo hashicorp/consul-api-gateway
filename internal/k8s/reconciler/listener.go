@@ -25,6 +25,10 @@ var (
 			Group: (*gw.Group)(&gw.GroupVersion.Group),
 			Kind:  "HTTPRoute",
 		}},
+		gw.TCPProtocolType: {{
+			Group: (*gw.Group)(&gw.GroupVersion.Group),
+			Kind:  "TCPRoute",
+		}},
 	}
 )
 
@@ -291,6 +295,10 @@ func (l *K8sListener) canBind(ref gw.ParentRef, route *K8sRoute) (bool, error) {
 			return false, nil
 		}
 
+		// check if the route is valid, if not, then return a status about it being rejected
+		if !route.IsValid() {
+			return false, NewBindErrorRouteInvalid("route is in an invalid state and cannot bind")
+		}
 		return true, nil
 	}
 
@@ -307,10 +315,28 @@ func (l *K8sListener) OnRouteRemoved(_ string) {
 }
 
 func (l *K8sListener) Status() gw.ListenerStatus {
+	routeCount := atomic.LoadInt32(&l.routeCount)
+	if l.listener.Protocol == gw.TCPProtocolType {
+		if routeCount > 1 {
+			l.status.Conflicted.RouteConflict = errors.New("only a single TCP route can be bound to a TCP listener")
+		} else {
+			l.status.Conflicted.RouteConflict = nil
+		}
+	}
 	return gw.ListenerStatus{
 		Name:           l.listener.Name,
 		SupportedKinds: l.supportedKinds,
-		AttachedRoutes: atomic.LoadInt32(&l.routeCount),
+		AttachedRoutes: routeCount,
 		Conditions:     l.status.Conditions(l.gateway.Generation),
 	}
+}
+
+func (l *K8sListener) IsValid() bool {
+	routeCount := atomic.LoadInt32(&l.routeCount)
+	if l.listener.Protocol == gw.TCPProtocolType {
+		if routeCount > 1 {
+			return false
+		}
+	}
+	return l.status.Valid()
 }

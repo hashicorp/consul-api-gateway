@@ -17,6 +17,9 @@ func NewConfigEntryIndex(kind string) *ConfigEntryIndex {
 }
 
 func (i *ConfigEntryIndex) Add(entry api.ConfigEntry) {
+	if entry == nil {
+		return
+	}
 	if entry.GetKind() != i.kind {
 		return
 	}
@@ -24,6 +27,9 @@ func (i *ConfigEntryIndex) Add(entry api.ConfigEntry) {
 }
 
 func (i *ConfigEntryIndex) Merge(other *ConfigEntryIndex) {
+	if other == nil {
+		return
+	}
 	if i.kind != other.kind {
 		return
 	}

@@ -32,6 +32,7 @@ type Client interface {
 	GetSecret(ctx context.Context, key types.NamespacedName) (*core.Secret, error)
 	GetService(ctx context.Context, key types.NamespacedName) (*core.Service, error)
 	GetHTTPRoute(ctx context.Context, key types.NamespacedName) (*gateway.HTTPRoute, error)
+	GetTCPRoute(ctx context.Context, key types.NamespacedName) (*gateway.TCPRoute, error)
 
 	// finalizer helpers
 
@@ -204,6 +205,17 @@ func (g *gatewayClient) GetSecret(ctx context.Context, key types.NamespacedName)
 
 func (g *gatewayClient) GetHTTPRoute(ctx context.Context, key types.NamespacedName) (*gateway.HTTPRoute, error) {
 	route := &gateway.HTTPRoute{}
+	if err := g.Client.Get(ctx, key, route); err != nil {
+		if k8serrors.IsNotFound(err) {
+			return nil, nil
+		}
+		return nil, NewK8sError(err)
+	}
+	return route, nil
+}
+
+func (g *gatewayClient) GetTCPRoute(ctx context.Context, key types.NamespacedName) (*gateway.TCPRoute, error) {
+	route := &gateway.TCPRoute{}
 	if err := g.Client.Get(ctx, key, route); err != nil {
 		if k8serrors.IsNotFound(err) {
 			return nil, nil
