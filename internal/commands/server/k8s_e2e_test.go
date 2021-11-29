@@ -458,42 +458,6 @@ func TestHTTPMeshService(t *testing.T) {
 			err = resources.Create(ctx, route)
 			require.NoError(t, err)
 
-			// route 4 - fallback
-			portFour := gateway.PortNumber(serviceFour.Spec.Ports[0].Port)
-			portFive := gateway.PortNumber(serviceFive.Spec.Ports[0].Port)
-			route = &gateway.HTTPRoute{
-				ObjectMeta: meta.ObjectMeta{
-					Name:      routeFourName,
-					Namespace: namespace,
-				},
-				Spec: gateway.HTTPRouteSpec{
-					CommonRouteSpec: gateway.CommonRouteSpec{
-						ParentRefs: []gateway.ParentRef{{
-							Name: gateway.ObjectName(gatewayName),
-						}},
-					},
-					Rules: []gateway.HTTPRouteRule{{
-						BackendRefs: []gateway.HTTPBackendRef{{
-							BackendRef: gateway.BackendRef{
-								BackendObjectReference: gateway.BackendObjectReference{
-									Name: gateway.ObjectName(serviceFour.Name),
-									Port: &portFour,
-								},
-							},
-						}, {
-							BackendRef: gateway.BackendRef{
-								BackendObjectReference: gateway.BackendObjectReference{
-									Name: gateway.ObjectName(serviceFive.Name),
-									Port: &portFive,
-								},
-							},
-						}},
-					}},
-				},
-			}
-			err = resources.Create(ctx, route)
-			require.NoError(t, err)
-
 			checkPort := e2e.HTTPPort(ctx)
 			checkRoute(t, checkPort, "/v1", serviceOne.Name, nil, "service one not routable in allotted time")
 			checkRoute(t, checkPort, "/v2", serviceTwo.Name, nil, "service two not routable in allotted time")
