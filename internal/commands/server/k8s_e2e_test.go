@@ -256,7 +256,6 @@ func TestHTTPMeshService(t *testing.T) {
 			routeOneName := envconf.RandomName("route", 16)
 			routeTwoName := envconf.RandomName("route", 16)
 			routeThreeName := envconf.RandomName("route", 16)
-			routeFourName := envconf.RandomName("route", 16)
 
 			gatewayNamespace := gateway.Namespace(namespace)
 			resources := cfg.Client().Resources(namespace)
@@ -366,6 +365,8 @@ func TestHTTPMeshService(t *testing.T) {
 
 			// route 2
 			port = gateway.PortNumber(serviceTwo.Spec.Ports[0].Port)
+			portFour := gateway.PortNumber(serviceFour.Spec.Ports[0].Port)
+			portFive := gateway.PortNumber(serviceFive.Spec.Ports[0].Port)
 			path = "/v2"
 			route := &gateway.HTTPRoute{
 				ObjectMeta: meta.ObjectMeta{
@@ -390,6 +391,22 @@ func TestHTTPMeshService(t *testing.T) {
 								BackendObjectReference: gateway.BackendObjectReference{
 									Name: gateway.ObjectName(serviceTwo.Name),
 									Port: &port,
+								},
+							},
+						}},
+					}, {
+						BackendRefs: []gateway.HTTPBackendRef{{
+							BackendRef: gateway.BackendRef{
+								BackendObjectReference: gateway.BackendObjectReference{
+									Name: gateway.ObjectName(serviceFour.Name),
+									Port: &portFour,
+								},
+							},
+						}, {
+							BackendRef: gateway.BackendRef{
+								BackendObjectReference: gateway.BackendObjectReference{
+									Name: gateway.ObjectName(serviceFive.Name),
+									Port: &portFive,
 								},
 							},
 						}},

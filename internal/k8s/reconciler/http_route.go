@@ -51,11 +51,13 @@ var methodMappings = map[gw.HTTPMethod]core.HTTPMethod{
 
 var pathMappings = map[gw.PathMatchType]core.HTTPPathMatchType{
 	gw.PathMatchExact:             core.HTTPPathMatchExactType,
+	gw.PathMatchPathPrefix:        core.HTTPPathMatchPrefixType,
 	gw.PathMatchRegularExpression: core.HTTPPathMatchRegularExpressionType,
 }
 
 var queryMappings = map[gw.QueryParamMatchType]core.HTTPQueryMatchType{
-	gw.QueryParamMatchExact: core.HTTPQueryMatchExactType,
+	gw.QueryParamMatchExact:             core.HTTPQueryMatchExactType,
+	gw.QueryParamMatchRegularExpression: core.HTTPQueryMatchRegularExpressionType,
 }
 
 var headerMappings = map[gw.HeaderMatchType]core.HTTPHeaderMatchType{
