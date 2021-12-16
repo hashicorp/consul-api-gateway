@@ -3,7 +3,8 @@ name: build
 on:
   push:
     branches:    
-      - 'release/**'
+      # - 'release/**'
+      - 'enable-security-scan'
 
 env:
   CGO_ENABLED: 0

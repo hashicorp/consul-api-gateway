@@ -3,12 +3,12 @@ schema = "1"
 project "consul-api-gateway" {
   team = "consul-api-gateway"
   slack {
-    notification_channel = "C01RWVBQ6GJ"
+    notification_channel = "C01A3A54G0L"
   }
   github {
     organization = "hashicorp"
     repository = "consul-api-gateway"
-    release_branches = ["release/0.1.x"]
+    release_branches = ["enable-security-scan"]
   }
 }
 
@@ -40,8 +40,36 @@ event "upload-dev" {
   }
 }
 
-event "sign" {
+event "security-scan-binaries" {
   depends = ["upload-dev"]
+  action "security-scan-binaries" {
+    organization = "hashicorp"
+    repository = "crt-workflows-common"
+    workflow = "security-scan-binaries"
+    config = "security-scan.hcl"
+  }
+
+  notification {
+    on = "fail"
+  }
+}
+
+event "security-scan-containers" {
+  depends = ["security-scan-binaries"]
+  action "security-scan-containers" {
+    organization = "hashicorp"
+    repository = "crt-workflows-common"
+    workflow = "security-scan-containers"
+    config = "security-scan.hcl"
+  }
+
+  notification {
+    on = "fail"
+  }
+}
+
+event "sign" {
+  depends = ["security-scan-containers"]
   action "sign" {
     organization = "hashicorp"
     repository = "crt-workflows-common"
