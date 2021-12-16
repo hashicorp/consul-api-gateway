@@ -3,12 +3,12 @@ schema = "1"
 project "consul-api-gateway" {
   team = "consul-api-gateway"
   slack {
-    notification_channel = "C01A3A54G0L"
+    notification_channel = "C01RWVBQ6GJ"
   }
   github {
     organization = "hashicorp"
     repository = "consul-api-gateway"
-    release_branches = ["enable-security-scan"]
+    release_branches = ["release/0.1.x"]
   }
 }
 
