@@ -40,8 +40,36 @@ event "upload-dev" {
   }
 }
 
-event "sign" {
+event "security-scan-binaries" {
   depends = ["upload-dev"]
+  action "security-scan-binaries" {
+    organization = "hashicorp"
+    repository = "crt-workflows-common"
+    workflow = "security-scan-binaries"
+    config = "security-scan.hcl"
+  }
+
+  notification {
+    on = "fail"
+  }
+}
+
+event "security-scan-containers" {
+  depends = ["security-scan-binaries"]
+  action "security-scan-containers" {
+    organization = "hashicorp"
+    repository = "crt-workflows-common"
+    workflow = "security-scan-containers"
+    config = "security-scan.hcl"
+  }
+
+  notification {
+    on = "fail"
+  }
+}
+
+event "sign" {
+  depends = ["security-scan-containers"]
   action "sign" {
     organization = "hashicorp"
     repository = "crt-workflows-common"
