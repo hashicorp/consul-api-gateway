@@ -116,7 +116,9 @@ func (g *gatewayState) sync(ctx context.Context) error {
 func (g *gatewayState) Resolve() core.ResolvedGateway {
 	listeners := []core.ResolvedListener{}
 	for _, listener := range g.listeners {
-		listeners = append(listeners, listener.Resolve())
+		if listener.Listener.IsValid() {
+			listeners = append(listeners, listener.Resolve())
+		}
 	}
 	return core.ResolvedGateway{
 		ID:        g.ID(),

@@ -274,11 +274,6 @@ func (g *K8sGateway) ShouldBind(route store.Route) bool {
 		return false
 	}
 
-	if !k8sRoute.IsValid() {
-		g.logger.Trace("route is invalid, should not bind", "route", route.ID())
-		return false
-	}
-
 	for _, ref := range k8sRoute.CommonRouteSpec().ParentRefs {
 		if namespacedName, isGateway := utils.ReferencesGateway(k8sRoute.GetNamespace(), ref); isGateway {
 			if utils.NamespacedName(g.gateway) == namespacedName {
@@ -286,7 +281,6 @@ func (g *K8sGateway) ShouldBind(route store.Route) bool {
 			}
 		}
 	}
-	g.logger.Trace("route does not reference gateway, should not bind", "route", route.ID())
 	return false
 }
 

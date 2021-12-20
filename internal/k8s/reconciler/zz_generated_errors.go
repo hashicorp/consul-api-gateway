@@ -35,6 +35,7 @@ const (
 	BindErrorTypeRouteKind BindErrorType = iota
 	BindErrorTypeListenerNamespacePolicy
 	BindErrorTypeHostnameMismatch
+	BindErrorTypeRouteInvalid
 )
 
 type BindError struct {
@@ -50,6 +51,9 @@ func NewBindErrorListenerNamespacePolicy(inner string) BindError {
 }
 func NewBindErrorHostnameMismatch(inner string) BindError {
 	return BindError{inner, BindErrorTypeHostnameMismatch}
+}
+func NewBindErrorRouteInvalid(inner string) BindError {
+	return BindError{inner, BindErrorTypeRouteInvalid}
 }
 
 func (r BindError) Error() string {

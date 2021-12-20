@@ -260,6 +260,21 @@ func (mr *MockClientMockRecorder) GetService(ctx, key interface{}) *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetService", reflect.TypeOf((*MockClient)(nil).GetService), ctx, key)
 }
 
+// GetTCPRoute mocks base method.
+func (m *MockClient) GetTCPRoute(ctx context.Context, key types.NamespacedName) (*v1alpha2.TCPRoute, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTCPRoute", ctx, key)
+	ret0, _ := ret[0].(*v1alpha2.TCPRoute)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetTCPRoute indicates an expected call of GetTCPRoute.
+func (mr *MockClientMockRecorder) GetTCPRoute(ctx, key interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTCPRoute", reflect.TypeOf((*MockClient)(nil).GetTCPRoute), ctx, key)
+}
+
 // HasManagedDeployment mocks base method.
 func (m *MockClient) HasManagedDeployment(ctx context.Context, gw *v1alpha2.Gateway) (bool, error) {
 	m.ctrl.T.Helper()

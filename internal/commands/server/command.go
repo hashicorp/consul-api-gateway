@@ -35,13 +35,16 @@ type Command struct {
 	flagCAFile            string // CA File for CA for Consul server
 	flagCASecret          string // CA Secret for Consul server
 	flagCASecretNamespace string // CA Secret namespace for Consul server
-	flagConsulAddress     string // Consul server address
-	flagSDSServerHost     string // SDS server host
-	flagSDSServerPort     int    // SDS server port
-	flagMetricsPort       int    // Port for prometheus metrics
-	flagPprofPort         int    // Port for pprof profiling
-	flagK8sContext        string // context to use
-	flagK8sNamespace      string // namespace we're run in
+
+	flagConsulAddress string // Consul server address
+	flagConsulHTTPS   bool   // use https for connecting to Consul
+
+	flagSDSServerHost string // SDS server host
+	flagSDSServerPort int    // SDS server port
+	flagMetricsPort   int    // Port for prometheus metrics
+	flagPprofPort     int    // Port for pprof profiling
+	flagK8sContext    string // context to use
+	flagK8sNamespace  string // namespace we're run in
 
 	// Logging
 	flagLogLevel string
@@ -62,6 +65,7 @@ func (c *Command) init() {
 	c.flagSet.StringVar(&c.flagCASecret, "ca-secret", "", "CA Secret for Consul server.")
 	c.flagSet.StringVar(&c.flagCASecretNamespace, "ca-secret-namespace", "", "CA Secret namespace for Consul server.")
 	c.flagSet.StringVar(&c.flagConsulAddress, "consul-address", "", "Consul Address.")
+	c.flagSet.BoolVar(&c.flagConsulHTTPS, "consul-https", false, "Use HTTPS to connect to Consul.")
 	c.flagSet.StringVar(&c.flagSDSServerHost, "sds-server-host", defaultSDSServerHost, "SDS Server Host.")
 	c.flagSet.StringVar(&c.flagK8sContext, "k8s-context", "", "Kubernetes context to use.")
 	c.flagSet.StringVar(&c.flagK8sNamespace, "k8s-namespace", "", "Kubernetes namespace to use.")
@@ -96,9 +100,14 @@ func (c *Command) Run(args []string) int {
 	consulCfg := api.DefaultConfig()
 	cfg := k8s.Defaults()
 
+	if c.flagConsulHTTPS {
+		consulCfg.Scheme = "https"
+	}
+
 	if c.flagCAFile != "" {
 		consulCfg.TLSConfig.CAFile = c.flagCAFile
 		cfg.CACertFile = c.flagCAFile
+		// set https scheme since we've supplied a CA
 		consulCfg.Scheme = "https"
 	}
 
@@ -118,6 +127,7 @@ func (c *Command) Run(args []string) int {
 		defer os.Remove(file.Name())
 		cfg.CACertFile = file.Name()
 		consulCfg.TLSConfig.CAFile = file.Name()
+		// set https scheme since we've supplied a certificate secret
 		consulCfg.Scheme = "https"
 	}
 
