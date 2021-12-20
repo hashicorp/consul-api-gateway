@@ -182,10 +182,19 @@ func discoveryChain(gateway core.ResolvedGateway) (*api.IngressGatewayConfigEntr
 
 		if len(services) > 0 {
 			tls := &api.GatewayTLSConfig{}
-			if len(listener.Certificates) > 0 {
-				tls.SDS = &api.GatewayTLSSDSConfig{
-					ClusterName:  "sds-cluster",
-					CertResource: listener.Certificates[0],
+
+			if listener.TLSParams != nil {
+				if listener.TLSParams.MinVersion != "" {
+				}
+				if listener.TLSParams.MaxVersion != "" {
+				}
+				if len(listener.TLSParams.CipherSuites) > 0 {
+				}
+				if len(listener.TLSParams.Certificates) > 0 {
+					tls.SDS = &api.GatewayTLSSDSConfig{
+						ClusterName:  "sds-cluster",
+						CertResource: listener.TLSParams.Certificates[0],
+					}
 				}
 			}
 			ingress.Listeners = append(ingress.Listeners, api.IngressListener{

@@ -36,6 +36,13 @@ const (
 	defaultListenerName = "default"
 )
 
+type tlsParams struct {
+	minVersion   string
+	maxVersion   string
+	cipherSuites []string
+	certificates []string
+}
+
 type K8sListener struct {
 	consulNamespace string
 	logger          hclog.Logger
@@ -44,8 +51,8 @@ type K8sListener struct {
 	client          gatewayclient.Client
 
 	status         ListenerStatus
+	tlsParams      *tlsParams
 	routeCount     int32
-	certificates   []string
 	supportedKinds []gw.RouteGroupKind
 }
 
@@ -73,8 +80,17 @@ func (l *K8sListener) ID() string {
 	return string(l.listener.Name)
 }
 
-func (l *K8sListener) Certificates() []string {
-	return l.certificates
+func (l *K8sListener) TLSParams() store.TLSParams {
+	tls := store.TLSParams{}
+
+	if l.tlsParams != nil {
+		tls.MinVersion = l.tlsParams.minVersion
+		tls.MaxVersion = l.tlsParams.maxVersion
+		tls.CipherSuites = l.tlsParams.cipherSuites
+		tls.Certificates = l.tlsParams.certificates
+	}
+
+	return tls
 }
 
 func (l *K8sListener) Validate(ctx context.Context) error {
@@ -123,7 +139,13 @@ func (l *K8sListener) validateTLS(ctx context.Context) error {
 		}
 		l.status.ResolvedRefs.InvalidCertificateRef = certificateErr
 	} else {
-		l.certificates = []string{resource}
+		if l.tlsParams != nil {
+			l.tlsParams.certificates = []string{resource}
+		} else {
+			l.tlsParams = &tlsParams{
+				certificates: []string{resource},
+			}
+		}
 	}
 
 	return nil

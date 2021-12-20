@@ -155,9 +155,9 @@ func TestListenerValidate(t *testing.T) {
 			Name: "secret",
 		},
 	}, nil)
-	require.Len(t, listener.Certificates(), 0)
+	require.Len(t, listener.TLSParams().Certificates, 0)
 	require.NoError(t, listener.Validate(context.Background()))
-	require.Len(t, listener.Certificates(), 1)
+	require.Len(t, listener.TLSParams().Certificates, 1)
 
 	group := gw.Group("group")
 	kind := gw.Kind("kind")
