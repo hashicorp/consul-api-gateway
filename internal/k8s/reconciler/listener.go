@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync/atomic"
 
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
@@ -33,7 +34,11 @@ var (
 )
 
 const (
-	defaultListenerName = "default"
+	defaultListenerName          = "default"
+	annotationKeyPrefix          = "api-gateway.consul.hashicorp.com/"
+	tlsMinVersionAnnotationKey   = annotationKeyPrefix + "tls_min_version"
+	tlsMaxVersionAnnotationKey   = annotationKeyPrefix + "tls_max_version"
+	tlsCipherSuitesAnnotationKey = annotationKeyPrefix + "tls_cipher_suites"
 )
 
 type tlsParams struct {
@@ -148,7 +153,75 @@ func (l *K8sListener) validateTLS(ctx context.Context) error {
 		}
 	}
 
+	if l.listener.TLS.Options != nil {
+		tlsMinVersion := l.listener.TLS.Options[tlsMinVersionAnnotationKey]
+		tlsMaxVersion := l.listener.TLS.Options[tlsMaxVersionAnnotationKey]
+		tlsCipherSuitesStr := l.listener.TLS.Options[tlsCipherSuitesAnnotationKey]
+
+		if tlsMinVersion != "" {
+			if _, ok := supportedTlsVersions[string(tlsMinVersion)]; !ok {
+				l.status.Ready.Invalid = errors.New("unrecognized TLS min version")
+				return nil
+			}
+
+			if tlsCipherSuitesStr != "" {
+				if _, ok := tlsVersionsWithConfigurableCipherSuites[string(tlsMinVersion)]; !ok {
+					l.status.Ready.Invalid = errors.New("configuring TLS cipher suites is only supported for TLS 1.2 and earlier")
+					return nil
+				}
+			}
+		}
+
+		if tlsMaxVersion != "" {
+			if _, ok := supportedTlsVersions[string(tlsMaxVersion)]; !ok {
+				l.status.Ready.Invalid = errors.New("unrecognized TLS max version")
+				return nil
+			}
+		}
+
+		if tlsCipherSuitesStr != "" {
+			// split comma delimited string into string array and trim whitespace
+			tlsCipherSuitesUntrimmed := strings.Split(string(tlsCipherSuitesStr), ",")
+			tlsCipherSuites := tlsCipherSuitesUntrimmed[:0]
+			for _, c := range tlsCipherSuitesUntrimmed {
+				tlsCipherSuites = append(tlsCipherSuites, strings.TrimSpace(c))
+			}
+
+			// validate each cipher suite in array
+			for _, c := range tlsCipherSuites {
+				if _, ok := supportedTlsCipherSuites[c]; !ok {
+					l.status.Ready.Invalid = fmt.Errorf("unrecognized or unsupported TLS cipher suite: %s", c)
+					return nil
+				}
+
+				// TODO: append to Listener TLSParams.CipherSuites?
+			}
+		}
+	}
+
 	return nil
+}
+
+// FIXME: import this from Consul API
+var supportedTlsVersions = map[string]struct{}{
+	"TLS_AUTO": {},
+	"TLSv1_0":  {},
+	"TLSv1_1":  {},
+	"TLSv1_2":  {},
+	"TLSv1_3":  {},
+}
+
+// FIXME: import this from Consul API
+var tlsVersionsWithConfigurableCipherSuites = map[string]struct{}{
+	"TLS_AUTO": {}, // Remove if Envoy ever sets TLS 1.3 as default minimum
+	"TLSv1_0":  {},
+	"TLSv1_1":  {},
+	"TLSv1_2":  {},
+}
+
+// FIXME: import this from Consul API
+var supportedTlsCipherSuites = map[string]struct{}{
+	"TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256": {},
 }
 
 func (l *K8sListener) validateUnsupported() {

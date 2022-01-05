@@ -179,6 +179,125 @@ func TestListenerValidate(t *testing.T) {
 	require.NoError(t, listener.Validate(context.Background()))
 	condition = listener.status.ResolvedRefs.Condition(0)
 	require.Equal(t, ListenerConditionReasonInvalidCertificateRef, condition.Reason)
+
+	listener = NewK8sListener(&gw.Gateway{}, gw.Listener{
+		Protocol: gw.HTTPSProtocolType,
+		TLS: &gw.GatewayTLSConfig{
+			CertificateRefs: []*gw.SecretObjectReference{{
+				Name: "secret",
+			}},
+			Options: map[gw.AnnotationKey]gw.AnnotationValue{
+				"api-gateway.consul.hashicorp.com/tls_min_version": "TLSv1_2",
+			},
+		},
+	}, K8sListenerConfig{
+		Logger: hclog.NewNullLogger(),
+		Client: client,
+	})
+	client.EXPECT().GetSecret(gomock.Any(), gomock.Any()).Return(&core.Secret{
+		ObjectMeta: meta.ObjectMeta{
+			Name: "secret",
+		},
+	}, nil)
+	require.NoError(t, listener.Validate(context.Background()))
+	condition = listener.status.Ready.Condition(0)
+	require.Equal(t, ListenerConditionReasonReady, condition.Reason)
+
+	listener = NewK8sListener(&gw.Gateway{}, gw.Listener{
+		Protocol: gw.HTTPSProtocolType,
+		TLS: &gw.GatewayTLSConfig{
+			CertificateRefs: []*gw.SecretObjectReference{{
+				Name: "secret",
+			}},
+			Options: map[gw.AnnotationKey]gw.AnnotationValue{
+				"api-gateway.consul.hashicorp.com/tls_min_version": "foo",
+			},
+		},
+	}, K8sListenerConfig{
+		Logger: hclog.NewNullLogger(),
+		Client: client,
+	})
+	client.EXPECT().GetSecret(gomock.Any(), gomock.Any()).Return(&core.Secret{
+		ObjectMeta: meta.ObjectMeta{
+			Name: "secret",
+		},
+	}, nil)
+	require.NoError(t, listener.Validate(context.Background()))
+	condition = listener.status.Ready.Condition(0)
+	require.Equal(t, ListenerConditionReasonInvalid, condition.Reason)
+	require.Equal(t, "unrecognized TLS min version", condition.Message)
+
+	listener = NewK8sListener(&gw.Gateway{}, gw.Listener{
+		Protocol: gw.HTTPSProtocolType,
+		TLS: &gw.GatewayTLSConfig{
+			CertificateRefs: []*gw.SecretObjectReference{{
+				Name: "secret",
+			}},
+			Options: map[gw.AnnotationKey]gw.AnnotationValue{
+				"api-gateway.consul.hashicorp.com/tls_cipher_suites": "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256",
+			},
+		},
+	}, K8sListenerConfig{
+		Logger: hclog.NewNullLogger(),
+		Client: client,
+	})
+	client.EXPECT().GetSecret(gomock.Any(), gomock.Any()).Return(&core.Secret{
+		ObjectMeta: meta.ObjectMeta{
+			Name: "secret",
+		},
+	}, nil)
+	require.NoError(t, listener.Validate(context.Background()))
+	condition = listener.status.Ready.Condition(0)
+	require.Equal(t, ListenerConditionReasonReady, condition.Reason)
+
+	listener = NewK8sListener(&gw.Gateway{}, gw.Listener{
+		Protocol: gw.HTTPSProtocolType,
+		TLS: &gw.GatewayTLSConfig{
+			CertificateRefs: []*gw.SecretObjectReference{{
+				Name: "secret",
+			}},
+			Options: map[gw.AnnotationKey]gw.AnnotationValue{
+				"api-gateway.consul.hashicorp.com/tls_min_version":   "TLSv1_3",
+				"api-gateway.consul.hashicorp.com/tls_cipher_suites": "foo",
+			},
+		},
+	}, K8sListenerConfig{
+		Logger: hclog.NewNullLogger(),
+		Client: client,
+	})
+	client.EXPECT().GetSecret(gomock.Any(), gomock.Any()).Return(&core.Secret{
+		ObjectMeta: meta.ObjectMeta{
+			Name: "secret",
+		},
+	}, nil)
+	require.NoError(t, listener.Validate(context.Background()))
+	condition = listener.status.Ready.Condition(0)
+	require.Equal(t, ListenerConditionReasonInvalid, condition.Reason)
+	require.Equal(t, "configuring TLS cipher suites is only supported for TLS 1.2 and earlier", condition.Message)
+
+	listener = NewK8sListener(&gw.Gateway{}, gw.Listener{
+		Protocol: gw.HTTPSProtocolType,
+		TLS: &gw.GatewayTLSConfig{
+			CertificateRefs: []*gw.SecretObjectReference{{
+				Name: "secret",
+			}},
+			Options: map[gw.AnnotationKey]gw.AnnotationValue{
+				"api-gateway.consul.hashicorp.com/tls_cipher_suites": "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, foo",
+			},
+		},
+	}, K8sListenerConfig{
+		Logger: hclog.NewNullLogger(),
+		Client: client,
+	})
+	client.EXPECT().GetSecret(gomock.Any(), gomock.Any()).Return(&core.Secret{
+		ObjectMeta: meta.ObjectMeta{
+			Name: "secret",
+		},
+	}, nil)
+	require.NoError(t, listener.Validate(context.Background()))
+	condition = listener.status.Ready.Condition(0)
+	require.Equal(t, ListenerConditionReasonInvalid, condition.Reason)
+	require.Equal(t, "unrecognized or unsupported TLS cipher suite: foo", condition.Message)
 }
 
 func TestIsKindInSet(t *testing.T) {
