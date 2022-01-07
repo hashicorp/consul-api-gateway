@@ -170,12 +170,28 @@ func (l *K8sListener) validateTLS(ctx context.Context) error {
 					return nil
 				}
 			}
+
+			if l.tlsParams != nil {
+				l.tlsParams.minVersion = string(tlsMinVersion)
+			} else {
+				l.tlsParams = &tlsParams{
+					minVersion: string(tlsMinVersion),
+				}
+			}
 		}
 
 		if tlsMaxVersion != "" {
 			if _, ok := supportedTlsVersions[string(tlsMaxVersion)]; !ok {
 				l.status.Ready.Invalid = errors.New("unrecognized TLS max version")
 				return nil
+			}
+
+			if l.tlsParams != nil {
+				l.tlsParams.maxVersion = string(tlsMaxVersion)
+			} else {
+				l.tlsParams = &tlsParams{
+					maxVersion: string(tlsMaxVersion),
+				}
 			}
 		}
 
@@ -193,8 +209,15 @@ func (l *K8sListener) validateTLS(ctx context.Context) error {
 					l.status.Ready.Invalid = fmt.Errorf("unrecognized or unsupported TLS cipher suite: %s", c)
 					return nil
 				}
+			}
 
-				// TODO: append to Listener TLSParams.CipherSuites?
+			// set cipher suites on listener TLSParams
+			if l.tlsParams != nil {
+				l.tlsParams.cipherSuites = tlsCipherSuites
+			} else {
+				l.tlsParams = &tlsParams{
+					cipherSuites: tlsCipherSuites,
+				}
 			}
 		}
 	}

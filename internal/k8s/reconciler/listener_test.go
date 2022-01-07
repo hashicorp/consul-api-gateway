@@ -202,6 +202,7 @@ func TestListenerValidate(t *testing.T) {
 	require.NoError(t, listener.Validate(context.Background()))
 	condition = listener.status.Ready.Condition(0)
 	require.Equal(t, ListenerConditionReasonReady, condition.Reason)
+	require.Equal(t, "TLSv1_2", listener.tlsParams.minVersion)
 
 	listener = NewK8sListener(&gw.Gateway{}, gw.Listener{
 		Protocol: gw.HTTPSProtocolType,
@@ -249,6 +250,7 @@ func TestListenerValidate(t *testing.T) {
 	require.NoError(t, listener.Validate(context.Background()))
 	condition = listener.status.Ready.Condition(0)
 	require.Equal(t, ListenerConditionReasonReady, condition.Reason)
+	require.Equal(t, []string{"TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256"}, listener.tlsParams.cipherSuites)
 
 	listener = NewK8sListener(&gw.Gateway{}, gw.Listener{
 		Protocol: gw.HTTPSProtocolType,
