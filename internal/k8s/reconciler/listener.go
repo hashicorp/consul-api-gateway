@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync/atomic"
 
+	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	"github.com/hashicorp/consul-api-gateway/internal/store"
@@ -41,13 +42,6 @@ const (
 	tlsCipherSuitesAnnotationKey = annotationKeyPrefix + "tls_cipher_suites"
 )
 
-type tlsParams struct {
-	minVersion   string
-	maxVersion   string
-	cipherSuites []string
-	certificates []string
-}
-
 type K8sListener struct {
 	consulNamespace string
 	logger          hclog.Logger
@@ -56,7 +50,7 @@ type K8sListener struct {
 	client          gatewayclient.Client
 
 	status         ListenerStatus
-	tlsParams      *tlsParams
+	tlsParams      core.TLSParams
 	routeCount     int32
 	supportedKinds []gw.RouteGroupKind
 }
@@ -85,17 +79,8 @@ func (l *K8sListener) ID() string {
 	return string(l.listener.Name)
 }
 
-func (l *K8sListener) TLSParams() store.TLSParams {
-	tls := store.TLSParams{}
-
-	if l.tlsParams != nil {
-		tls.MinVersion = l.tlsParams.minVersion
-		tls.MaxVersion = l.tlsParams.maxVersion
-		tls.CipherSuites = l.tlsParams.cipherSuites
-		tls.Certificates = l.tlsParams.certificates
-	}
-
-	return tls
+func (l *K8sListener) TLSParams() core.TLSParams {
+	return l.tlsParams
 }
 
 func (l *K8sListener) Validate(ctx context.Context) error {
@@ -144,13 +129,7 @@ func (l *K8sListener) validateTLS(ctx context.Context) error {
 		}
 		l.status.ResolvedRefs.InvalidCertificateRef = certificateErr
 	} else {
-		if l.tlsParams != nil {
-			l.tlsParams.certificates = []string{resource}
-		} else {
-			l.tlsParams = &tlsParams{
-				certificates: []string{resource},
-			}
-		}
+		l.tlsParams.Certificates = []string{resource}
 	}
 
 	if l.listener.TLS.Options != nil {
@@ -171,13 +150,7 @@ func (l *K8sListener) validateTLS(ctx context.Context) error {
 				}
 			}
 
-			if l.tlsParams != nil {
-				l.tlsParams.minVersion = string(tlsMinVersion)
-			} else {
-				l.tlsParams = &tlsParams{
-					minVersion: string(tlsMinVersion),
-				}
-			}
+			l.tlsParams.MinVersion = string(tlsMinVersion)
 		}
 
 		if tlsMaxVersion != "" {
@@ -186,13 +159,7 @@ func (l *K8sListener) validateTLS(ctx context.Context) error {
 				return nil
 			}
 
-			if l.tlsParams != nil {
-				l.tlsParams.maxVersion = string(tlsMaxVersion)
-			} else {
-				l.tlsParams = &tlsParams{
-					maxVersion: string(tlsMaxVersion),
-				}
-			}
+			l.tlsParams.MaxVersion = string(tlsMaxVersion)
 		}
 
 		if tlsCipherSuitesStr != "" {
@@ -212,13 +179,7 @@ func (l *K8sListener) validateTLS(ctx context.Context) error {
 			}
 
 			// set cipher suites on listener TLSParams
-			if l.tlsParams != nil {
-				l.tlsParams.cipherSuites = tlsCipherSuites
-			} else {
-				l.tlsParams = &tlsParams{
-					cipherSuites: tlsCipherSuites,
-				}
-			}
+			l.tlsParams.CipherSuites = tlsCipherSuites
 		}
 	}
 

@@ -38,13 +38,6 @@ type Gateway interface {
 	ShouldBind(route Route) bool
 }
 
-type TLSParams struct {
-	MinVersion   string
-	MaxVersion   string
-	CipherSuites []string
-	Certificates []string
-}
-
 // ListenerConfig contains the common configuration
 // options of a listener.
 type ListenerConfig struct {
@@ -70,7 +63,7 @@ type RouteTrackingListener interface {
 type Listener interface {
 	ID() string
 	CanBind(route Route) (bool, error)
-	TLSParams() TLSParams
+	TLSParams() core.TLSParams
 	Config() ListenerConfig
 	IsValid() bool
 }
