@@ -52,11 +52,9 @@ func (p *gatewayTestEnvironment) run(ctx context.Context, namespace string, cfg 
 	k8sSecretClient.AddToMultiClient(secretClient)
 
 	controller, err := k8s.New(nullLogger, &k8s.Config{
-		CACertSecretNamespace: namespace,
-		CACertSecret:          "consul-ca-cert",
-		SDSServerHost:         HostRoute(ctx),
-		SDSServerPort:         9090,
-		RestConfig:            cfg.Client().RESTConfig(),
+		SDSServerHost: HostRoute(ctx),
+		SDSServerPort: 9090,
+		RestConfig:    cfg.Client().RESTConfig(),
 	})
 	if err != nil {
 		return err
