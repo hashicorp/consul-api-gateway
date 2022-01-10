@@ -3,7 +3,6 @@ package k8s
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -53,7 +52,7 @@ type Kubernetes struct {
 }
 
 type Config struct {
-	CACertFile          string
+	CACert              string
 	SDSServerHost       string
 	SDSServerPort       int
 	MetricsBindAddr     string
@@ -65,7 +64,7 @@ type Config struct {
 
 func Defaults() *Config {
 	return &Config{
-		CACertFile:          "",
+		CACert:              "",
 		SDSServerHost:       "consul-api-gateway-controller.default.svc.cluster.local",
 		SDSServerPort:       9090,
 		MetricsBindAddr:     ":8080",
@@ -129,23 +128,19 @@ func (k *Kubernetes) Start(ctx context.Context) error {
 	apigwv1alpha1.RegisterTypes(scheme)
 
 	gwClient := gatewayclient.New(k.k8sManager.GetClient(), scheme, ControllerName)
-	consulCA, err := ioutil.ReadFile(k.config.CACertFile)
-	if err != nil {
-		return fmt.Errorf("failed to read CACertFile: %w", err)
-	}
 
 	reconcileManager := reconciler.NewReconcileManager(reconciler.ManagerConfig{
 		ControllerName: ControllerName,
 		Client:         gwClient,
 		Consul:         k.consul,
-		ConsulCA:       string(consulCA),
+		ConsulCA:       k.config.CACert,
 		SDSHost:        k.config.SDSServerHost,
 		SDSPort:        k.config.SDSServerPort,
 		Logger:         k.logger.Named("Reconciler"),
 		Store:          k.store,
 	})
 
-	err = (&controllers.GatewayClassConfigReconciler{
+	err := (&controllers.GatewayClassConfigReconciler{
 		Client: gwClient,
 		Log:    k.logger.Named("GatewayClassConfig"),
 	}).SetupWithManager(k.k8sManager)
