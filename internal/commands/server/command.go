@@ -4,8 +4,6 @@ import (
 	"context"
 	"flag"
 	"io"
-	"io/ioutil"
-	"os"
 	"sync"
 	"time"
 
@@ -106,30 +104,10 @@ func (c *Command) Run(args []string) int {
 
 	if c.flagCAFile != "" {
 		consulCfg.TLSConfig.CAFile = c.flagCAFile
-		cfg.CACertFile = c.flagCAFile
-		// set https scheme since we've supplied a CA
 		consulCfg.Scheme = "https"
 	}
-
-	if c.flagCASecret != "" {
-		cfg.CACertSecret = c.flagCASecret
-		if c.flagCASecretNamespace != "" {
-			cfg.CACertSecretNamespace = c.flagCASecretNamespace
-		}
-
-		// if we're pulling the cert from a secret, then we override the location
-		// where we store it
-		file, err := ioutil.TempFile("", "consul-api-gateway")
-		if err != nil {
-			logger.Error("error creating the kubernetes controller", "error", err)
-			return 1
-		}
-		defer os.Remove(file.Name())
-		cfg.CACertFile = file.Name()
-		consulCfg.TLSConfig.CAFile = file.Name()
-		// set https scheme since we've supplied a certificate secret
-		consulCfg.Scheme = "https"
-	}
+	// CA file can be set by cli flag or 'CONSUL_CACERT' env var
+	cfg.CACertFile = consulCfg.TLSConfig.CAFile
 
 	if c.flagConsulAddress != "" {
 		consulCfg.Address = c.flagConsulAddress

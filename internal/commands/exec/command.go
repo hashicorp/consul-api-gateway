@@ -141,8 +141,10 @@ func (c *Command) Run(args []string) (ret int) {
 	cfg := api.DefaultConfig()
 	cfg.Address = hostPort
 	if c.flagConsulCACertFile != "" {
-		cfg.Scheme = "https"
 		cfg.TLSConfig.CAFile = c.flagConsulCACertFile
+	}
+	if cfg.TLSConfig.CAFile != "" {
+		cfg.Scheme = "https"
 	}
 	consulClient, err := api.NewClient(cfg)
 	if err != nil {
@@ -177,7 +179,7 @@ func (c *Command) Run(args []string) (ret int) {
 			Namespace: c.flagGatewayNamespace,
 		},
 		EnvoyConfig: EnvoyConfig{
-			CACertificateFile: c.flagConsulCACertFile,
+			CACertificateFile: cfg.TLSConfig.CAFile,
 			XDSAddress:        c.flagConsulHTTPAddress,
 			XDSPort:           c.flagConsulXDSPort,
 			SDSAddress:        c.flagSDSServerAddress,

@@ -1,7 +1,6 @@
 package v1alpha1
 
 import (
-	"fmt"
 	"strconv"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -12,33 +11,10 @@ import (
 	gateway "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
-	"github.com/hashicorp/consul-api-gateway/internal/version"
 )
-
-var (
-	defaultImage              string
-	defaultServiceAnnotations = []string{
-		"external-dns.alpha.kubernetes.io/hostname",
-	}
-)
-
-func init() {
-	imageVersion := version.Version
-	if version.VersionPrerelease != "" {
-		imageVersion += "-" + version.VersionPrerelease
-	}
-	defaultImage = fmt.Sprintf("hashicorp/consul-api-gateway:%s", imageVersion)
-}
 
 const (
 	GatewayClassConfigKind = "GatewayClassConfig"
-
-	defaultEnvoyImage     = "envoyproxy/envoy:v1.19-latest"
-	defaultLogLevel       = "info"
-	defaultCASecret       = "consul-ca-cert"
-	defaultConsulAddress  = "$(HOST_IP)"
-	defaultConsulHTTPPort = "8500"
-	defaultConsulXDSPort  = "8502"
 )
 
 // +genclient
@@ -91,8 +67,6 @@ type ConsulSpec struct {
 	Address string `json:"address,omitempty"`
 	// The information about Consul's ports
 	PortSpec PortSpec `json:"ports,omitempty"`
-	// The location of a secret to mount with the Consul root CA.
-	CASecret string `json:"caSecret,omitempty"`
 }
 
 type PortSpec struct {
@@ -135,58 +109,6 @@ type GatewayClassConfigList struct {
 	metav1.ListMeta `json:"metadata"`
 
 	Items []GatewayClassConfig `json:"items"`
-}
-
-type SDSConfig struct {
-	Host string
-	Port int
-}
-
-// EmptyServiceFor returns an empty service definition for ensuring deletion
-func (c *GatewayClassConfig) EmptyServiceFor(gw *gateway.Gateway) *corev1.Service {
-	return &corev1.Service{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      gw.Name,
-			Namespace: gw.Namespace,
-		},
-	}
-}
-
-// ServicesFor returns the service configuration for the given gateway.
-// The gateway should be marked with the api-gateway.consul.hashicorp.com/service-type
-// annotation and marked with 'ClusterIP', `NodePort` or `LoadBalancer` to
-// expose the gateway listeners. Any other value does not expose the gateway.
-func (c *GatewayClassConfig) ServiceFor(gw *gateway.Gateway) *corev1.Service {
-	if c.Spec.ServiceType == nil {
-		return nil
-	}
-	ports := []corev1.ServicePort{}
-	for _, listener := range gw.Spec.Listeners {
-		ports = append(ports, corev1.ServicePort{
-			Name:     string(listener.Name),
-			Protocol: "TCP",
-			Port:     int32(listener.Port),
-		})
-	}
-	labels := utils.LabelsForGateway(gw)
-	allowedAnnotations := c.Spec.CopyAnnotations.Service
-	if allowedAnnotations == nil {
-		allowedAnnotations = defaultServiceAnnotations
-	}
-
-	return &corev1.Service{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:        gw.Name,
-			Namespace:   gw.Namespace,
-			Labels:      labels,
-			Annotations: getAnnotations(gw.Annotations, allowedAnnotations),
-		},
-		Spec: corev1.ServiceSpec{
-			Selector: labels,
-			Type:     *c.Spec.ServiceType,
-			Ports:    ports,
-		},
-	}
 }
 
 // ServicesAccountFor returns the service account to be created for the given gateway.
@@ -239,42 +161,6 @@ func compareServices(a, b *corev1.Service) bool {
 	return true
 }
 
-func getAnnotations(annotations map[string]string, allowed []string) map[string]string {
-	filtered := make(map[string]string)
-	for _, annotation := range allowed {
-		if value, found := annotations[annotation]; found {
-			filtered[annotation] = value
-		}
-	}
-	return filtered
-}
-
-// DeploymentsFor returns the deployment configuration for the given gateway.
-func (c *GatewayClassConfig) DeploymentFor(gw *gateway.Gateway, sds SDSConfig) *appsv1.Deployment {
-	labels := utils.LabelsForGateway(gw)
-	return &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      gw.Name,
-			Namespace: gw.Namespace,
-			Labels:    labels,
-		},
-		Spec: appsv1.DeploymentSpec{
-			Selector: &metav1.LabelSelector{
-				MatchLabels: labels,
-			},
-			Template: corev1.PodTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: labels,
-					Annotations: map[string]string{
-						"consul.hashicorp.com/connect-inject": "false",
-					},
-				},
-				Spec: c.podSpecFor(gw, sds),
-			},
-		},
-	}
-}
-
 // MergeDeploymentmerges a gateway deployment a onto b and returns b, overriding all of
 // the fields that we'd normally set for a service deployment. It does not attempt
 // to change the service type
@@ -310,6 +196,7 @@ func compareDeployments(a, b *appsv1.Deployment) bool {
 	}
 	return true
 }
+<<<<<<< HEAD
 
 func (c *GatewayClassConfig) podSpecFor(gw *gateway.Gateway, sds SDSConfig) corev1.PodSpec {
 	volumes, mounts := c.volumesFor(gw)
@@ -468,3 +355,5 @@ func (c *GatewayClassConfig) containerPortsFor(gw *gateway.Gateway) []corev1.Con
 func (c *GatewayClassConfig) requiresCA(gw *gateway.Gateway) bool {
 	return c.Spec.ConsulSpec.Scheme == "https"
 }
+=======
+>>>>>>> 2bb720d (refactor deployment building to seperate package with support for configurable ConsulCA)
