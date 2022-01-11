@@ -13,8 +13,8 @@ require (
 	github.com/golang/mock v1.6.0
 	github.com/google/uuid v1.2.0
 	github.com/gorilla/mux v1.8.0 // indirect
-	github.com/hashicorp/consul/api v1.10.1-0.20210924170522-581357c32a29
-	github.com/hashicorp/consul/sdk v0.7.0
+	github.com/hashicorp/consul/api v1.12.1-0.20220111183205-dcf1cd485363
+	github.com/hashicorp/consul/sdk v0.8.0
 	github.com/hashicorp/go-hclog v0.16.2
 	github.com/hashicorp/go-multierror v1.1.0
 	github.com/mitchellh/cli v1.1.2
