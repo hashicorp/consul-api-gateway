@@ -122,8 +122,9 @@ type CertManager struct {
 	rootWatch *watch.Plan
 	leafWatch *watch.Plan
 
-	// this can be overwritten to check retry logic in testing
-	writeCerts certWriter
+	// these can be overwritten to modify retry logic in testing
+	writeCerts     certWriter
+	skipExtraFetch bool
 }
 
 // NewCertManager creates a new CertManager instance.
@@ -259,15 +260,16 @@ func (c *CertManager) Manage(ctx context.Context) error {
 	// expires/is rotated. Adding a wait here causes the API to return once the timeout has
 	// been hit -- allowing us to short-circuit the buggy blocking. The subsequent
 	// goroutines can then be leveraged to pick up any certificate rotations.
-	leafCert, _, err := c.consul.Agent().ConnectCALeaf(c.service, &api.QueryOptions{
-		WaitTime: 1 * time.Second,
-	})
-	if err != nil {
-		c.logger.Error("error grabbing leaf certificate", "error", err)
-		return err
+	if !c.skipExtraFetch {
+		leafCert, _, err := c.consul.Agent().ConnectCALeaf(c.service, &api.QueryOptions{
+			WaitTime: 1 * time.Second,
+		})
+		if err != nil {
+			c.logger.Error("error grabbing leaf certificate", "error", err)
+			return err
+		}
+		c.handleLeafWatch(nil, leafCert)
 	}
-	c.handleLeafWatch(nil, leafCert)
-
 	go wrapWatch(c.rootWatch)
 	go wrapWatch(c.leafWatch)
 
