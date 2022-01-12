@@ -1,6 +1,7 @@
 package consul
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul/api"
+	"github.com/hashicorp/consul/sdk/testutil"
 	"github.com/stretchr/testify/require"
 )
 
@@ -142,4 +144,51 @@ func TestHTTPRouteDiscoveryChain(t *testing.T) {
 			require.JSONEq(t, expected, actual)
 		})
 	}
+}
+
+func TestSync(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	consulSrv, err := testutil.NewTestServerConfigT(t, func(c *testutil.TestServerConfig) {
+		c.Connect = map[string]interface{}{"enabled": true}
+	})
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		cancel()
+		_ = consulSrv.Stop()
+	})
+
+	cfg := api.DefaultConfig()
+	cfg.Address = consulSrv.HTTPAddr
+	consul, err := api.NewClient(cfg)
+	require.NoError(t, err)
+
+	adapter := NewConsulSyncAdapter(testutil.Logger(t), consul)
+
+	gateway := core.ResolvedGateway{
+		ID: core.GatewayID{
+			ConsulNamespace: "default",
+			Service:         "name1",
+		},
+		Listeners: []core.ResolvedListener{{
+			TLSParams: &core.TLSParams{
+				MinVersion: "TLSv1_2",
+			},
+		}},
+	}
+
+	adapter.Sync(ctx, gateway)
+	// TODO: wait for sync to complete - how?
+	// consulSrv.WaitForServiceIntentions(t)
+
+	// FIXME: Config entry not found for "ingress-gateway" / "name1"
+	entry, _, err := consul.ConfigEntries().Get(api.IngressGateway, "name1", nil)
+	require.NoError(t, err)
+	ingress, ok := entry.(*api.IngressGatewayConfigEntry)
+	require.True(t, ok)
+	require.NotNil(t, ingress)
+	fmt.Printf("%#v\n", ingress)
+	require.Equal(t, "TLSv1_2", ingress.TLS.TLSMinVersion)
 }

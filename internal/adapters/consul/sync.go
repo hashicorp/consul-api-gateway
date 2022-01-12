@@ -185,10 +185,13 @@ func discoveryChain(gateway core.ResolvedGateway) (*api.IngressGatewayConfigEntr
 
 			if listener.TLSParams != nil {
 				if listener.TLSParams.MinVersion != "" {
+					tls.TLSMinVersion = listener.TLSParams.MinVersion
 				}
 				if listener.TLSParams.MaxVersion != "" {
+					tls.TLSMaxVersion = listener.TLSParams.MaxVersion
 				}
 				if len(listener.TLSParams.CipherSuites) > 0 {
+					tls.CipherSuites = listener.TLSParams.CipherSuites
 				}
 				if len(listener.TLSParams.Certificates) > 0 {
 					tls.SDS = &api.GatewayTLSSDSConfig{
