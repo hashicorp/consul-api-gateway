@@ -197,7 +197,10 @@ var supportedTlsVersions = map[string]struct{}{
 
 // FIXME: import this from Consul API
 var tlsVersionsWithConfigurableCipherSuites = map[string]struct{}{
-	"TLS_AUTO": {}, // Remove if Envoy ever sets TLS 1.3 as default minimum
+    // Remove these two if Envoy ever sets TLS 1.3 as default minimum
+	"": {},
+	"TLS_AUTO": {},
+
 	"TLSv1_0":  {},
 	"TLSv1_1":  {},
 	"TLSv1_2":  {},
