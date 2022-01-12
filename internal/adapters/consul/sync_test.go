@@ -146,7 +146,7 @@ func TestHTTPRouteDiscoveryChain(t *testing.T) {
 	}
 }
 
-func TestSync(t *testing.T) {
+func TestConsulSyncAdapter_Sync(t *testing.T) {
 	t.Parallel()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -179,7 +179,8 @@ func TestSync(t *testing.T) {
 		}},
 	}
 
-	adapter.Sync(ctx, gateway)
+	err = adapter.Sync(ctx, gateway)
+	require.NoError(t, err)
 	// TODO: wait for sync to complete - how?
 	// consulSrv.WaitForServiceIntentions(t)
 
