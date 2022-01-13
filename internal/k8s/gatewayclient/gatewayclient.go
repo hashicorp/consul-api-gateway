@@ -335,13 +335,14 @@ func (g *gatewayClient) EnsureServiceAccount(ctx context.Context, owner *gateway
 		}
 		return NewK8sError(err)
 	}
-	for key, value := range serviceAccount.Labels {
-		if created.Labels[key] != value {
-			// we found the object, but we're not the owner of it, return an error
-			return errors.New("service account not owned by the gateway")
+	for _, ref := range created.GetOwnerReferences() {
+		if ref.UID == owner.GetUID() && ref.Name == owner.GetName() {
+			// we found proper ownership
+			return nil
 		}
 	}
-	return nil
+	// we found the object, but we're not the owner of it, return an error
+	return errors.New("service account not owned by the gateway")
 }
 
 func (g *gatewayClient) SetControllerOwnership(owner, object client.Object) error {
