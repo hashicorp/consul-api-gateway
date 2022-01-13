@@ -68,7 +68,7 @@ func NewK8sGateway(gateway *gw.Gateway, config K8sGatewayConfig) *K8sGateway {
 func (g *K8sGateway) certificates() []string {
 	certificates := []string{}
 	for _, listener := range g.listeners {
-		listenerTlsParams := listener.TLSParams()
+		listenerTlsParams := listener.TLS()
 		certificates = append(certificates, listenerTlsParams.Certificates...)
 	}
 	return certificates

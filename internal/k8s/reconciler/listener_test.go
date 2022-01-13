@@ -155,9 +155,9 @@ func TestListenerValidate(t *testing.T) {
 			Name: "secret",
 		},
 	}, nil)
-	require.Len(t, listener.TLSParams().Certificates, 0)
+	require.Len(t, listener.TLS().Certificates, 0)
 	require.NoError(t, listener.Validate(context.Background()))
-	require.Len(t, listener.TLSParams().Certificates, 1)
+	require.Len(t, listener.TLS().Certificates, 1)
 
 	group := gw.Group("group")
 	kind := gw.Kind("kind")
@@ -202,7 +202,7 @@ func TestListenerValidate(t *testing.T) {
 	require.NoError(t, listener.Validate(context.Background()))
 	condition = listener.status.Ready.Condition(0)
 	require.Equal(t, ListenerConditionReasonReady, condition.Reason)
-	require.Equal(t, "TLSv1_2", listener.tlsParams.MinVersion)
+	require.Equal(t, "TLSv1_2", listener.tls.MinVersion)
 
 	listener = NewK8sListener(&gw.Gateway{}, gw.Listener{
 		Protocol: gw.HTTPSProtocolType,
@@ -250,7 +250,7 @@ func TestListenerValidate(t *testing.T) {
 	require.NoError(t, listener.Validate(context.Background()))
 	condition = listener.status.Ready.Condition(0)
 	require.Equal(t, ListenerConditionReasonReady, condition.Reason)
-	require.Equal(t, []string{"TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256"}, listener.tlsParams.CipherSuites)
+	require.Equal(t, []string{"TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256"}, listener.tls.CipherSuites)
 
 	listener = NewK8sListener(&gw.Gateway{}, gw.Listener{
 		Protocol: gw.HTTPSProtocolType,

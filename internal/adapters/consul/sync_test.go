@@ -169,11 +169,10 @@ func TestConsulSyncAdapter_Sync(t *testing.T) {
 
 	gateway := core.ResolvedGateway{
 		ID: core.GatewayID{
-			ConsulNamespace: "default",
-			Service:         "name1",
+			Service: "name1",
 		},
 		Listeners: []core.ResolvedListener{{
-			TLSParams: &core.TLSParams{
+			TLS: core.TLSParams{
 				MinVersion: "TLSv1_2",
 			},
 		}},

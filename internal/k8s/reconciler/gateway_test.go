@@ -451,10 +451,10 @@ func TestGatewayCompare(t *testing.T) {
 	}, K8sGatewayConfig{
 		Logger: hclog.NewNullLogger(),
 	})
-	gateway.listeners["1"].tlsParams.Certificates = []string{"other"}
+	gateway.listeners["1"].tls.Certificates = []string{"other"}
 	require.Equal(t, store.CompareResultNotEqual, gateway.Compare(other))
 
-	gateway.listeners["1"].tlsParams.Certificates = []string{}
+	gateway.listeners["1"].tls.Certificates = []string{}
 	gateway.status.Scheduled.Unknown = errors.New("")
 	require.Equal(t, store.CompareResultNotEqual, gateway.Compare(other))
 

@@ -100,7 +100,7 @@ func (l *listenerState) Resolve() core.ResolvedListener {
 	for _, route := range l.routes {
 		routes = append(routes, route)
 	}
-	listenerTlsParams := l.Listener.TLSParams()
+	listenerTlsParams := l.Listener.TLS()
 	tlsParams := core.TLSParams{
 		MinVersion:   listenerTlsParams.MinVersion,
 		MaxVersion:   listenerTlsParams.MaxVersion,
@@ -108,11 +108,11 @@ func (l *listenerState) Resolve() core.ResolvedListener {
 		Certificates: listenerTlsParams.Certificates,
 	}
 	return core.ResolvedListener{
-		Name:      l.name,
-		Hostname:  l.hostname,
-		Port:      l.port,
-		Protocol:  l.protocol,
-		TLSParams: &tlsParams,
-		Routes:    routes,
+		Name:     l.name,
+		Hostname: l.hostname,
+		Port:     l.port,
+		Protocol: l.protocol,
+		TLS:      tlsParams,
+		Routes:   routes,
 	}
 }

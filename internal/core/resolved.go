@@ -29,12 +29,12 @@ type TLSParams struct {
 }
 
 type ResolvedListener struct {
-	Name      string
-	Hostname  string
-	Port      int
-	Protocol  string
-	TLSParams *TLSParams
-	Routes    []ResolvedRoute
+	Name     string
+	Hostname string
+	Port     int
+	Protocol string
+	TLS      TLSParams
+	Routes   []ResolvedRoute
 }
 
 type GatewayID struct {

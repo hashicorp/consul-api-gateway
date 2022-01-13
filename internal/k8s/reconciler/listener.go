@@ -50,7 +50,7 @@ type K8sListener struct {
 	client          gatewayclient.Client
 
 	status         ListenerStatus
-	tlsParams      core.TLSParams
+	tls            core.TLSParams
 	routeCount     int32
 	supportedKinds []gw.RouteGroupKind
 }
@@ -79,8 +79,8 @@ func (l *K8sListener) ID() string {
 	return string(l.listener.Name)
 }
 
-func (l *K8sListener) TLSParams() core.TLSParams {
-	return l.tlsParams
+func (l *K8sListener) TLS() core.TLSParams {
+	return l.tls
 }
 
 func (l *K8sListener) Validate(ctx context.Context) error {
@@ -129,7 +129,7 @@ func (l *K8sListener) validateTLS(ctx context.Context) error {
 		}
 		l.status.ResolvedRefs.InvalidCertificateRef = certificateErr
 	} else {
-		l.tlsParams.Certificates = []string{resource}
+		l.tls.Certificates = []string{resource}
 	}
 
 	if l.listener.TLS.Options != nil {
@@ -150,7 +150,7 @@ func (l *K8sListener) validateTLS(ctx context.Context) error {
 				}
 			}
 
-			l.tlsParams.MinVersion = string(tlsMinVersion)
+			l.tls.MinVersion = string(tlsMinVersion)
 		}
 
 		if tlsMaxVersion != "" {
@@ -159,7 +159,7 @@ func (l *K8sListener) validateTLS(ctx context.Context) error {
 				return nil
 			}
 
-			l.tlsParams.MaxVersion = string(tlsMaxVersion)
+			l.tls.MaxVersion = string(tlsMaxVersion)
 		}
 
 		if tlsCipherSuitesStr != "" {
@@ -178,8 +178,8 @@ func (l *K8sListener) validateTLS(ctx context.Context) error {
 				}
 			}
 
-			// set cipher suites on listener TLSParams
-			l.tlsParams.CipherSuites = tlsCipherSuites
+			// set cipher suites on listener TLS params
+			l.tls.CipherSuites = tlsCipherSuites
 		}
 	}
 
@@ -197,13 +197,13 @@ var supportedTlsVersions = map[string]struct{}{
 
 // FIXME: import this from Consul API
 var tlsVersionsWithConfigurableCipherSuites = map[string]struct{}{
-    // Remove these two if Envoy ever sets TLS 1.3 as default minimum
-	"": {},
+	// Remove these two if Envoy ever sets TLS 1.3 as default minimum
+	"":         {},
 	"TLS_AUTO": {},
 
-	"TLSv1_0":  {},
-	"TLSv1_1":  {},
-	"TLSv1_2":  {},
+	"TLSv1_0": {},
+	"TLSv1_1": {},
+	"TLSv1_2": {},
 }
 
 // FIXME: import this from Consul API

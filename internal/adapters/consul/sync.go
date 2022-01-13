@@ -183,23 +183,25 @@ func discoveryChain(gateway core.ResolvedGateway) (*api.IngressGatewayConfigEntr
 		if len(services) > 0 {
 			tls := &api.GatewayTLSConfig{}
 
-			if listener.TLSParams != nil {
-				if listener.TLSParams.MinVersion != "" {
-					tls.TLSMinVersion = listener.TLSParams.MinVersion
-				}
-				if listener.TLSParams.MaxVersion != "" {
-					tls.TLSMaxVersion = listener.TLSParams.MaxVersion
-				}
-				if len(listener.TLSParams.CipherSuites) > 0 {
-					tls.CipherSuites = listener.TLSParams.CipherSuites
-				}
-				if len(listener.TLSParams.Certificates) > 0 {
-					tls.SDS = &api.GatewayTLSSDSConfig{
-						ClusterName:  "sds-cluster",
-						CertResource: listener.TLSParams.Certificates[0],
-					}
+			if listener.TLS.MinVersion != "" {
+				tls.TLSMinVersion = listener.TLS.MinVersion
+			}
+
+			if listener.TLS.MaxVersion != "" {
+				tls.TLSMaxVersion = listener.TLS.MaxVersion
+			}
+
+			if len(listener.TLS.CipherSuites) > 0 {
+				tls.CipherSuites = listener.TLS.CipherSuites
+			}
+
+			if len(listener.TLS.Certificates) > 0 {
+				tls.SDS = &api.GatewayTLSSDSConfig{
+					ClusterName:  "sds-cluster",
+					CertResource: listener.TLS.Certificates[0],
 				}
 			}
+
 			ingress.Listeners = append(ingress.Listeners, api.IngressListener{
 				Port:     listener.Port,
 				Protocol: listener.Protocol,
