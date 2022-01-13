@@ -364,6 +364,13 @@ func (g *K8sGateway) TrackSync(ctx context.Context, sync func() (bool, error)) e
 }
 
 func (g *K8sGateway) ensureDeploymentExists(ctx context.Context) error {
+	// Create service account for the gateway
+	if serviceAccount := g.config.ServiceAccountFor(g.gateway); serviceAccount != nil {
+		if err := g.client.EnsureServiceAccount(ctx, g.gateway, serviceAccount); err != nil {
+			return err
+		}
+	}
+
 	deployment := g.config.DeploymentFor(g.gateway, g.sdsConfig)
 	mutated := deployment.DeepCopy()
 	if updated, err := g.client.CreateOrUpdateDeployment(ctx, mutated, func() error {

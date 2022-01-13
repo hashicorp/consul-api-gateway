@@ -2,6 +2,7 @@ package gatewayclient
 
 import (
 	"context"
+	"errors"
 
 	apps "k8s.io/api/apps/v1"
 	core "k8s.io/api/core/v1"
@@ -66,6 +67,7 @@ type Client interface {
 	CreateOrUpdateDeployment(ctx context.Context, deployment *apps.Deployment, mutators ...func() error) (bool, error)
 	CreateOrUpdateService(ctx context.Context, service *core.Service, mutators ...func() error) (bool, error)
 	DeleteService(ctx context.Context, service *core.Service) error
+	EnsureServiceAccount(ctx context.Context, owner *gateway.Gateway, serviceAccount *core.ServiceAccount) error
 }
 
 type gatewayClient struct {
@@ -314,6 +316,30 @@ func (g *gatewayClient) DeleteService(ctx context.Context, service *core.Service
 			return nil
 		}
 		return NewK8sError(err)
+	}
+	return nil
+}
+
+func (g *gatewayClient) EnsureServiceAccount(ctx context.Context, owner *gateway.Gateway, serviceAccount *core.ServiceAccount) error {
+	created := &core.ServiceAccount{}
+	key := types.NamespacedName{Name: serviceAccount.Name, Namespace: serviceAccount.Namespace}
+	if err := g.Client.Get(ctx, key, created); err != nil {
+		if k8serrors.IsNotFound(err) {
+			if err := g.SetControllerOwnership(owner, serviceAccount); err != nil {
+				return err
+			}
+			if err := g.Client.Create(ctx, serviceAccount); err != nil {
+				return NewK8sError(err)
+			}
+			return nil
+		}
+		return NewK8sError(err)
+	}
+	for key, value := range serviceAccount.Labels {
+		if created.Labels[key] != value {
+			// we found the object, but we're not the owner of it, return an error
+			return errors.New("service account not owned by the gateway")
+		}
 	}
 	return nil
 }
