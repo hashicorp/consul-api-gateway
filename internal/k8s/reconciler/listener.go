@@ -186,7 +186,6 @@ func (l *K8sListener) validateTLS(ctx context.Context) error {
 	return nil
 }
 
-// FIXME: import this from Consul API
 var supportedTlsVersions = map[string]struct{}{
 	"TLS_AUTO": {},
 	"TLSv1_0":  {},
@@ -195,7 +194,6 @@ var supportedTlsVersions = map[string]struct{}{
 	"TLSv1_3":  {},
 }
 
-// FIXME: import this from Consul API
 var tlsVersionsWithConfigurableCipherSuites = map[string]struct{}{
 	// Remove these two if Envoy ever sets TLS 1.3 as default minimum
 	"":         {},
@@ -206,9 +204,26 @@ var tlsVersionsWithConfigurableCipherSuites = map[string]struct{}{
 	"TLSv1_2": {},
 }
 
-// FIXME: import this from Consul API
+// TODO: move this somewhere where it can be imported as default config in
+// internal/adapters/consul when CipherSuites is undefined
+//
+// NOTE: excludes the following cipher suites which are currently supported by Envoy
+// but insecure and pending removal
+// TLS_RSA_WITH_AES_128_GCM_SHA256
+// TLS_RSA_WITH_AES_128_CBC_SHA
+// TLS_RSA_WITH_AES_256_GCM_SHA384
+// TLS_RSA_WITH_AES_256_CBC_SHA
 var supportedTlsCipherSuites = map[string]struct{}{
-	"TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256": {},
+	"TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256":       {},
+	"TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256": {},
+	"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256":         {},
+	"TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256":   {},
+	"TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA":          {},
+	"TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA":            {},
+	"TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384":       {},
+	"TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384":         {},
+	"TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA":          {},
+	"TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA":            {},
 }
 
 func (l *K8sListener) validateUnsupported() {
