@@ -7,6 +7,7 @@ import (
 	"os"
 	"path"
 	"testing"
+	"time"
 
 	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul/api"
@@ -167,6 +168,13 @@ func TestConsulSyncAdapter_Sync(t *testing.T) {
 
 	adapter := NewConsulSyncAdapter(testutil.Logger(t), consul)
 
+	route := core.NewTCPRouteBuilder().
+		WithName("tcp-default/route1").
+		WithService(core.ResolvedService{
+			Service: "tcp-default/service1",
+		}).
+		Build()
+
 	gateway := core.ResolvedGateway{
 		ID: core.GatewayID{
 			Service: "name1",
@@ -175,6 +183,7 @@ func TestConsulSyncAdapter_Sync(t *testing.T) {
 			TLS: core.TLSParams{
 				MinVersion: "TLSv1_2",
 			},
+			Routes: []core.ResolvedRoute{route},
 		}},
 	}
 
@@ -183,12 +192,16 @@ func TestConsulSyncAdapter_Sync(t *testing.T) {
 	// TODO: wait for sync to complete - how?
 	// consulSrv.WaitForServiceIntentions(t)
 
-	// FIXME: Config entry not found for "ingress-gateway" / "name1"
-	entry, _, err := consul.ConfigEntries().Get(api.IngressGateway, "name1", nil)
-	require.NoError(t, err)
-	ingress, ok := entry.(*api.IngressGatewayConfigEntry)
-	require.True(t, ok)
-	require.NotNil(t, ingress)
-	fmt.Printf("%#v\n", ingress)
-	require.Equal(t, "TLSv1_2", ingress.TLS.TLSMinVersion)
+	require.Eventually(t, func() bool {
+		entry, _, err := consul.ConfigEntries().Get(api.IngressGateway, "name1", nil)
+		if err != nil {
+			return false
+		}
+
+		ingress, ok := entry.(*api.IngressGatewayConfigEntry)
+		require.True(t, ok)
+		require.NotNil(t, ingress)
+
+		return ingress.Listeners[0].TLS.TLSMinVersion == "TLSv1_2"
+	}, 30*time.Second, 1*time.Second, "listener TLS config not synced in the allotted time")
 }
