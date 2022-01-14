@@ -1,4 +1,5 @@
-//+build e2e
+//go:build e2e
+// +build e2e
 
 package server
 
@@ -325,7 +326,7 @@ func TestHTTPMeshService(t *testing.T) {
 			}
 			err = resources.Create(ctx, gw)
 			require.NoError(t, err)
-			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, gatewayReady), 30*time.Second, 1*time.Second, "no gateway found in the allotted time")
+			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionReady), 30*time.Second, 1*time.Second, "no gateway found in the allotted time")
 
 			// route 1
 			port := gateway.PortNumber(serviceOne.Spec.Ports[0].Port)
@@ -474,7 +475,7 @@ func TestHTTPMeshService(t *testing.T) {
 			checkRoute(t, checkPort, "/v1", serviceFour.Name, nil, "after route deletion service four not routable in allotted time")
 			checkRoute(t, checkPort, "/v1", serviceFive.Name, nil, "after route deletion service five not routable in allotted time")
 
-			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, gatewayInSync), 30*time.Second, 1*time.Second, "gateway not synced in the allotted time")
+			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionInSync), 30*time.Second, 1*time.Second, "gateway not synced in the allotted time")
 			return ctx
 		})
 
@@ -561,7 +562,7 @@ func TestTCPMeshService(t *testing.T) {
 			}
 			err = resources.Create(ctx, gw)
 			require.NoError(t, err)
-			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, gatewayReady), 30*time.Second, 1*time.Second, "no gateway found in the allotted time")
+			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionReady), 30*time.Second, 1*time.Second, "no gateway found in the allotted time")
 
 			// route 1
 			portOne := gateway.PortNumber(serviceOne.Spec.Ports[0].Port)
@@ -636,7 +637,7 @@ func TestTCPMeshService(t *testing.T) {
 			// only service 4 should be routable as we don't support routes with multiple rules or backend refs for TCP
 			checkTCPRoute(t, checkPort, serviceFour.Name, "service four not routable in allotted time")
 
-			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, gatewayInSync), 30*time.Second, 1*time.Second, "gateway not synced in the allotted time")
+			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionInSync), 30*time.Second, 1*time.Second, "gateway not synced in the allotted time")
 			return ctx
 		}).
 		Assess("tls routing", func(ctx context.Context, t *testing.T, cfg *envconf.Config) context.Context {
@@ -717,7 +718,7 @@ func TestTCPMeshService(t *testing.T) {
 			}
 			err = resources.Create(ctx, gw)
 			require.NoError(t, err)
-			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, gatewayReady), 30*time.Second, 1*time.Second, "no gateway found in the allotted time")
+			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionReady), 30*time.Second, 1*time.Second, "no gateway found in the allotted time")
 
 			portOne := gateway.PortNumber(serviceOne.Spec.Ports[0].Port)
 			route := &gateway.TCPRoute{
@@ -747,7 +748,10 @@ func TestTCPMeshService(t *testing.T) {
 			checkPort := e2e.TCPTLSPort(ctx)
 			checkTCPTLSRoute(t, checkPort, serviceOne.Name, "service not routable in allotted time")
 
-			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, gatewayInSync), 30*time.Second, 1*time.Second, "gateway not synced in the allotted time")
+			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionInSync), 30*time.Second, 1*time.Second, "gateway not synced in the allotted time")
+
+			require.Eventually(t, listenerStatusCheck(ctx, resources, gatewayName, namespace, conditionReady), 30*time.Second, 1*time.Second, "listeners not ready in the allotted time")
+
 			return ctx
 		})
 
@@ -760,7 +764,25 @@ func gatewayStatusCheck(ctx context.Context, resources *resources.Resources, gat
 		if err := resources.Get(ctx, gatewayName, namespace, updated); err != nil {
 			return false
 		}
+
 		return checkFn(updated.Status.Conditions)
+	}
+}
+
+func listenerStatusCheck(ctx context.Context, resources *resources.Resources, gatewayName, namespace string, checkFn func([]meta.Condition) bool) func() bool {
+	return func() bool {
+		updated := &gateway.Gateway{}
+		if err := resources.Get(ctx, gatewayName, namespace, updated); err != nil {
+			return false
+		}
+
+		for _, listener := range updated.Status.Listeners {
+			if ok := checkFn(listener.Conditions); !ok {
+				return false
+			}
+		}
+
+		return true
 	}
 }
 
@@ -790,7 +812,7 @@ func routeRefErrors(conditions []meta.Condition) bool {
 	return false
 }
 
-func gatewayReady(conditions []meta.Condition) bool {
+func conditionReady(conditions []meta.Condition) bool {
 	for _, condition := range conditions {
 		if condition.Type == "Ready" &&
 			condition.Status == "True" {
@@ -800,7 +822,7 @@ func gatewayReady(conditions []meta.Condition) bool {
 	return false
 }
 
-func gatewayInSync(conditions []meta.Condition) bool {
+func conditionInSync(conditions []meta.Condition) bool {
 	for _, condition := range conditions {
 		if condition.Type == "InSync" &&
 			condition.Status == "True" {
