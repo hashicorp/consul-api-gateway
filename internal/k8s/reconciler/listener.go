@@ -232,7 +232,7 @@ var extraTlsCipherSuites = []string{
 }
 
 var supportedTlsCipherSuites = (func() map[string]struct{} {
-	var cipherSuites map[string]struct{}
+	cipherSuites := make(map[string]struct{})
 
 	for _, c := range append(defaultTlsCipherSuites, extraTlsCipherSuites...) {
 		cipherSuites[c] = struct{}{}
