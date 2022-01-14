@@ -642,6 +642,7 @@ func TestTCPMeshService(t *testing.T) {
 		}).
 		Assess("tls routing", func(ctx context.Context, t *testing.T, cfg *envconf.Config) context.Context {
 			serviceOne, err := e2e.DeployTCPMeshService(ctx, cfg)
+			// serviceTwo, err := e2e.DeployTCPMeshService(ctx, cfg)
 			require.NoError(t, err)
 
 			namespace := e2e.Namespace(ctx)
@@ -703,17 +704,35 @@ func TestTCPMeshService(t *testing.T) {
 				},
 				Spec: gateway.GatewaySpec{
 					GatewayClassName: gateway.ObjectName(gc.Name),
-					Listeners: []gateway.Listener{{
-						Name:     "tcp",
-						Port:     gateway.PortNumber(e2e.TCPTLSPort(ctx)),
-						Protocol: gateway.TCPProtocolType,
-						TLS: &gateway.GatewayTLSConfig{
-							CertificateRefs: []*gateway.SecretObjectReference{{
-								Name:      "consul-server-cert",
-								Namespace: &gatewayNamespace,
-							}},
+					Listeners: []gateway.Listener{
+						{
+							Name:     "tcp",
+							Port:     gateway.PortNumber(e2e.TCPTLSPort(ctx)),
+							Protocol: gateway.TCPProtocolType,
+							TLS: &gateway.GatewayTLSConfig{
+								CertificateRefs: []*gateway.SecretObjectReference{{
+									Name:      "consul-server-cert",
+									Namespace: &gatewayNamespace,
+								}},
+							},
 						},
-					}},
+						// {
+						// 	Name:     "insecure",
+						//  // This needs a non-conflicting port
+						// 	Port:     gateway.PortNumber(e2e.TCPTLSPort(ctx)),
+						// 	Protocol: gateway.TCPProtocolType,
+						// 	TLS: &gateway.GatewayTLSConfig{
+						// 		CertificateRefs: []*gateway.SecretObjectReference{{
+						// 			Name:      "consul-server-cert",
+						// 			Namespace: &gatewayNamespace,
+						// 		}},
+						// 		Options: map[gateway.AnnotationKey]gateway.AnnotationValue{
+						// 			"api-gateway.consul.hashicorp.com/tls_min_version":   "TLSv1_1",
+						// 			"api-gateway.consul.hashicorp.com/tls_cipher_suites": "TLS_RSA_WITH_AES_128_CBC_SHA",
+						// 		},
+						// 	},
+						// },
+					},
 				},
 			}
 			err = resources.Create(ctx, gw)
@@ -721,6 +740,7 @@ func TestTCPMeshService(t *testing.T) {
 			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionReady), 30*time.Second, 1*time.Second, "no gateway found in the allotted time")
 
 			portOne := gateway.PortNumber(serviceOne.Spec.Ports[0].Port)
+			// portTwo := gateway.PortNumber(serviceTwo.Spec.Ports[0].Port)
 			route := &gateway.TCPRoute{
 				ObjectMeta: meta.ObjectMeta{
 					Name:      routeOneName,
@@ -746,7 +766,30 @@ func TestTCPMeshService(t *testing.T) {
 			require.NoError(t, err)
 
 			checkPort := e2e.TCPTLSPort(ctx)
-			checkTCPTLSRoute(t, checkPort, serviceOne.Name, "service not routable in allotted time")
+			checkTCPTLSRoute(t, checkPort, &tls.Config{
+				InsecureSkipVerify: true,
+			}, serviceOne.Name, "service not routable in allotted time")
+
+			// Force insecure cipher suite excluded from Consul API Gateway default
+			// cipher suites, but supported by Envoy defaults
+			checkTCPTLSRoute(t, checkPort, &tls.Config{
+				InsecureSkipVerify: true,
+				CipherSuites:       []uint16{tls.TLS_RSA_WITH_AES_128_CBC_SHA},
+			}, serviceOne.Name, "service not routable in allotted time")
+
+			// Force TLS max version below Consul API Gateway default min version, but
+			// supported by Envoy defaults
+			checkTCPTLSRoute(t, checkPort, &tls.Config{
+				InsecureSkipVerify: true,
+				MaxVersion:         tls.VersionTLS11,
+			}, serviceOne.Name, "service not routable in allotted time")
+
+			// Service two listener overrides default config
+			// checkTCPTLSRoute(t, checkPort, &tls.Config{
+			// 	InsecureSkipVerify: true,
+			// 	CipherSuites:       []uint16{tls.TLS_RSA_WITH_AES_128_CBC_SHA},
+			// 	MaxVersion:         tls.VersionTLS11,
+			// }, serviceTwo.Name, "service not routable in allotted time")
 
 			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionInSync), 30*time.Second, 1*time.Second, "gateway not synced in the allotted time")
 
@@ -945,7 +988,7 @@ func checkTCPRoute(t *testing.T, port int, expected string, message string) {
 	}, 30*time.Second, 1*time.Second, message)
 }
 
-func checkTCPTLSRoute(t *testing.T, port int, expected string, message string) {
+func checkTCPTLSRoute(t *testing.T, port int, config *tls.Config, expected string, message string) {
 	t.Helper()
 
 	require.Eventually(t, func() bool {
@@ -956,13 +999,13 @@ func checkTCPTLSRoute(t *testing.T, port int, expected string, message string) {
 		if err != nil {
 			return false
 		}
-		tlsConn := tls.Client(conn, &tls.Config{
-			InsecureSkipVerify: true,
-		})
+		tlsConn := tls.Client(conn, config)
 		data, err := io.ReadAll(tlsConn)
 		if err != nil {
 			return false
 		}
+		// TODO: remove debug
+		fmt.Printf(string(data))
 		return strings.HasPrefix(string(data), expected)
 	}, 30*time.Second, 1*time.Second, message)
 }
