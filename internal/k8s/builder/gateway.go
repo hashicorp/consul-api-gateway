@@ -256,7 +256,6 @@ func (b *GatewayDeploymentBuilder) volumes() ([]corev1.Volume, []corev1.VolumeMo
 		mounts = append(mounts, corev1.VolumeMount{
 			Name:      "ca",
 			MountPath: consulCALocalPath,
-			ReadOnly:  true,
 		})
 	}
 	return volumes, mounts
