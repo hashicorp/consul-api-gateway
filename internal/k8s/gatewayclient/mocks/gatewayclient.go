@@ -124,6 +124,20 @@ func (mr *MockClientMockRecorder) EnsureFinalizer(ctx, object, finalizer interfa
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnsureFinalizer", reflect.TypeOf((*MockClient)(nil).EnsureFinalizer), ctx, object, finalizer)
 }
 
+// EnsureServiceAccount mocks base method.
+func (m *MockClient) EnsureServiceAccount(ctx context.Context, owner *v1alpha2.Gateway, serviceAccount *v10.ServiceAccount) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "EnsureServiceAccount", ctx, owner, serviceAccount)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// EnsureServiceAccount indicates an expected call of EnsureServiceAccount.
+func (mr *MockClientMockRecorder) EnsureServiceAccount(ctx, owner, serviceAccount interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnsureServiceAccount", reflect.TypeOf((*MockClient)(nil).EnsureServiceAccount), ctx, owner, serviceAccount)
+}
+
 // GatewayClassConfigInUse mocks base method.
 func (m *MockClient) GatewayClassConfigInUse(ctx context.Context, gcc *v1alpha1.GatewayClassConfig) (bool, error) {
 	m.ctrl.T.Helper()

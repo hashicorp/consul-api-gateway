@@ -117,6 +117,8 @@ type CopyAnnotationsSpec struct {
 }
 
 type AuthSpec struct {
+	// Whether deployments should be run with "managed" service accounts created by the gateway controller.
+	Managed bool `json:"managed,omitempty"`
 	// The Consul auth method used for initial authentication by consul-api-gateway.
 	Method string `json:"method,omitempty"`
 	// The Kubernetes service account to authenticate as.
@@ -183,6 +185,21 @@ func (c *GatewayClassConfig) ServiceFor(gw *gateway.Gateway) *corev1.Service {
 			Selector: labels,
 			Type:     *c.Spec.ServiceType,
 			Ports:    ports,
+		},
+	}
+}
+
+// ServicesAccountFor returns the service account to be created for the given gateway.
+func (c *GatewayClassConfig) ServiceAccountFor(gw *gateway.Gateway) *corev1.ServiceAccount {
+	if !c.Spec.ConsulSpec.AuthSpec.Managed {
+		return nil
+	}
+	labels := utils.LabelsForGateway(gw)
+	return &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      gw.Name,
+			Namespace: gw.Namespace,
+			Labels:    labels,
 		},
 	}
 }
@@ -296,9 +313,13 @@ func compareDeployments(a, b *appsv1.Deployment) bool {
 
 func (c *GatewayClassConfig) podSpecFor(gw *gateway.Gateway, sds SDSConfig) corev1.PodSpec {
 	volumes, mounts := c.volumesFor(gw)
+	defaultServiceAccount := ""
+	if c.Spec.ConsulSpec.AuthSpec.Managed {
+		defaultServiceAccount = gw.Name
+	}
 	return corev1.PodSpec{
 		NodeSelector:       c.Spec.NodeSelector,
-		ServiceAccountName: orDefault(c.Spec.ConsulSpec.AuthSpec.Account, ""),
+		ServiceAccountName: orDefault(c.Spec.ConsulSpec.AuthSpec.Account, defaultServiceAccount),
 		// the init container copies the binary into the
 		// next envoy container so we can decouple the envoy
 		// versions from our version of consul-api-gateway.
