@@ -652,7 +652,7 @@ func TestTCPMeshService(t *testing.T) {
 			routeOneName := envconf.RandomName("route", 16)
 			routeTwoName := envconf.RandomName("route", 16)
 			listenerOnePort := e2e.TCPTLSPort(ctx)
-			listenerTwoPort := e2e.TCPPort(ctx)
+			listenerTwoPort := e2e.ExtraTCPTLSPort(ctx)
 
 			gatewayNamespace := gateway.Namespace(namespace)
 			resources := cfg.Client().Resources(namespace)
