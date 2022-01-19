@@ -173,7 +173,7 @@ func (l *K8sListener) validateTLS(ctx context.Context) error {
 
 			// validate each cipher suite in array
 			for _, c := range tlsCipherSuites {
-				if _, ok := supportedTlsCipherSuites[c]; !ok {
+				if ok := common.SupportedTLSCipherSuite(c); !ok {
 					l.status.Ready.Invalid = fmt.Errorf("unrecognized or unsupported TLS cipher suite: %s", c)
 					return nil
 				}
@@ -204,32 +204,6 @@ var tlsVersionsWithConfigurableCipherSuites = map[string]struct{}{
 	"TLSv1_1": {},
 	"TLSv1_2": {},
 }
-
-// NOTE: the following cipher suites are currently supported by Envoy but insecure and
-// pending removal
-var extraTlsCipherSuites = []string{
-	// https://github.com/envoyproxy/envoy/issues/5399
-	"TLS_RSA_WITH_AES_128_GCM_SHA256",
-	"TLS_RSA_WITH_AES_128_CBC_SHA",
-	"TLS_RSA_WITH_AES_256_GCM_SHA384",
-	"TLS_RSA_WITH_AES_256_CBC_SHA",
-
-	// https://github.com/envoyproxy/envoy/issues/5400
-	"TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA",
-	"TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA",
-	"TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA",
-	"TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA",
-}
-
-var supportedTlsCipherSuites = (func() map[string]struct{} {
-	cipherSuites := make(map[string]struct{})
-
-	for _, c := range append(common.DefaultTLSCipherSuites(), extraTlsCipherSuites...) {
-		cipherSuites[c] = struct{}{}
-	}
-
-	return cipherSuites
-})()
 
 func (l *K8sListener) validateUnsupported() {
 	// seems weird that we're looking at gateway fields for listener status
