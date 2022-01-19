@@ -147,9 +147,13 @@ func (b *GatewayDeploymentBuilder) Build() *v1.Deployment {
 
 func (b *GatewayDeploymentBuilder) podSpec() corev1.PodSpec {
 	volumes, mounts := b.volumes()
+	defaultServiceAccount := ""
+	if b.gwConfig.Spec.ConsulSpec.AuthSpec.Managed {
+		defaultServiceAccount = b.gateway.Name
+	}
 	return corev1.PodSpec{
 		NodeSelector:       b.gwConfig.Spec.NodeSelector,
-		ServiceAccountName: orDefault(b.gwConfig.Spec.ConsulSpec.AuthSpec.Account, ""),
+		ServiceAccountName: orDefault(b.gwConfig.Spec.ConsulSpec.AuthSpec.Account, defaultServiceAccount),
 		// the init container copies the binary into the
 		// next envoy container so we can decouple the envoy
 		// versions from our version of consul-api-gateway.
@@ -201,6 +205,7 @@ func (b *GatewayDeploymentBuilder) podSpec() corev1.PodSpec {
 func (b *GatewayDeploymentBuilder) execCommand() []string {
 	// Render the command
 	data := gwContainerCommandData{
+		ACLAuthMethod:  b.gwConfig.Spec.ConsulSpec.AuthSpec.Method,
 		ConsulHTTPAddr: orDefault(b.gwConfig.Spec.ConsulSpec.Address, defaultConsulAddress),
 		ConsulHTTPPort: orDefaultIntString(b.gwConfig.Spec.ConsulSpec.PortSpec.HTTP, defaultConsulHTTPPort),
 		ConsulGRPCPort: orDefaultIntString(b.gwConfig.Spec.ConsulSpec.PortSpec.GRPC, defaultConsulXDSPort),
