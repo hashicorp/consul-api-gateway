@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hashicorp/consul-api-gateway/internal/common"
 	"github.com/hashicorp/consul-api-gateway/internal/consul"
 	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul/api"
@@ -196,6 +197,9 @@ func discoveryChain(gateway core.ResolvedGateway) (*api.IngressGatewayConfigEntr
 
 			if len(listener.TLS.CipherSuites) > 0 {
 				tls.CipherSuites = listener.TLS.CipherSuites
+			} else {
+				// set secure defaults excluding insecure RSA and SHA-1 ciphers pending removal from Envoy
+				tls.CipherSuites = common.DefaultTLSCipherSuites()
 			}
 
 			if len(listener.TLS.Certificates) > 0 {
