@@ -642,7 +642,7 @@ func TestTCPMeshService(t *testing.T) {
 		}).
 		Assess("tls routing", func(ctx context.Context, t *testing.T, cfg *envconf.Config) context.Context {
 			serviceOne, err := e2e.DeployTCPMeshService(ctx, cfg)
-			// serviceTwo, err := e2e.DeployTCPMeshService(ctx, cfg)
+			serviceTwo, err := e2e.DeployTCPMeshService(ctx, cfg)
 			require.NoError(t, err)
 
 			namespace := e2e.Namespace(ctx)
@@ -650,6 +650,9 @@ func TestTCPMeshService(t *testing.T) {
 			className := envconf.RandomName("gc", 16)
 			gatewayName := envconf.RandomName("gw", 16)
 			routeOneName := envconf.RandomName("route", 16)
+			routeTwoName := envconf.RandomName("route", 16)
+			listenerOnePort := e2e.TCPTLSPort(ctx)
+			listenerTwoPort := e2e.TCPPort(ctx)
 
 			gatewayNamespace := gateway.Namespace(namespace)
 			resources := cfg.Client().Resources(namespace)
@@ -707,7 +710,7 @@ func TestTCPMeshService(t *testing.T) {
 					Listeners: []gateway.Listener{
 						{
 							Name:     "tcp",
-							Port:     gateway.PortNumber(e2e.TCPTLSPort(ctx)),
+							Port:     gateway.PortNumber(listenerOnePort),
 							Protocol: gateway.TCPProtocolType,
 							TLS: &gateway.GatewayTLSConfig{
 								CertificateRefs: []*gateway.SecretObjectReference{{
@@ -716,22 +719,21 @@ func TestTCPMeshService(t *testing.T) {
 								}},
 							},
 						},
-						// {
-						// 	Name:     "insecure",
-						//  // This needs a non-conflicting port
-						// 	Port:     gateway.PortNumber(e2e.TCPTLSPort(ctx)),
-						// 	Protocol: gateway.TCPProtocolType,
-						// 	TLS: &gateway.GatewayTLSConfig{
-						// 		CertificateRefs: []*gateway.SecretObjectReference{{
-						// 			Name:      "consul-server-cert",
-						// 			Namespace: &gatewayNamespace,
-						// 		}},
-						// 		Options: map[gateway.AnnotationKey]gateway.AnnotationValue{
-						// 			"api-gateway.consul.hashicorp.com/tls_min_version":   "TLSv1_1",
-						// 			"api-gateway.consul.hashicorp.com/tls_cipher_suites": "TLS_RSA_WITH_AES_128_CBC_SHA",
-						// 		},
-						// 	},
-						// },
+						{
+							Name:     "insecure",
+							Port:     gateway.PortNumber(listenerTwoPort),
+							Protocol: gateway.TCPProtocolType,
+							TLS: &gateway.GatewayTLSConfig{
+								CertificateRefs: []*gateway.SecretObjectReference{{
+									Name:      "consul-server-cert",
+									Namespace: &gatewayNamespace,
+								}},
+								Options: map[gateway.AnnotationKey]gateway.AnnotationValue{
+									"api-gateway.consul.hashicorp.com/tls_min_version":   "TLSv1_1",
+									"api-gateway.consul.hashicorp.com/tls_cipher_suites": "TLS_RSA_WITH_AES_128_CBC_SHA",
+								},
+							},
+						},
 					},
 				},
 			}
@@ -739,57 +741,33 @@ func TestTCPMeshService(t *testing.T) {
 			require.NoError(t, err)
 			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionReady), 30*time.Second, 1*time.Second, "no gateway found in the allotted time")
 
-			portOne := gateway.PortNumber(serviceOne.Spec.Ports[0].Port)
-			// portTwo := gateway.PortNumber(serviceTwo.Spec.Ports[0].Port)
-			route := &gateway.TCPRoute{
-				ObjectMeta: meta.ObjectMeta{
-					Name:      routeOneName,
-					Namespace: namespace,
-				},
-				Spec: gateway.TCPRouteSpec{
-					CommonRouteSpec: gateway.CommonRouteSpec{
-						ParentRefs: []gateway.ParentRef{{
-							Name: gateway.ObjectName(gatewayName),
-						}},
-					},
-					Rules: []gateway.TCPRouteRule{{
-						BackendRefs: []gateway.BackendRef{{
-							BackendObjectReference: gateway.BackendObjectReference{
-								Name: gateway.ObjectName(serviceOne.Name),
-								Port: &portOne,
-							},
-						}},
-					}},
-				},
-			}
-			err = resources.Create(ctx, route)
-			require.NoError(t, err)
+			createTCPRoute(ctx, t, resources, namespace, gatewayName, routeOneName, serviceOne.Name, gateway.PortNumber(serviceOne.Spec.Ports[0].Port))
+			createTCPRoute(ctx, t, resources, namespace, gatewayName, routeTwoName, serviceTwo.Name, gateway.PortNumber(serviceTwo.Spec.Ports[0].Port))
 
-			checkPort := e2e.TCPTLSPort(ctx)
-			checkTCPTLSRoute(t, checkPort, &tls.Config{
+			checkTCPTLSRoute(t, listenerOnePort, &tls.Config{
 				InsecureSkipVerify: true,
 			}, serviceOne.Name, "service not routable in allotted time")
 
 			// Force insecure cipher suite excluded from Consul API Gateway default
 			// cipher suites, but supported by Envoy defaults
-			checkTCPTLSRoute(t, checkPort, &tls.Config{
+			checkTCPTLSRoute(t, listenerOnePort, &tls.Config{
 				InsecureSkipVerify: true,
 				CipherSuites:       []uint16{tls.TLS_RSA_WITH_AES_128_CBC_SHA},
 			}, serviceOne.Name, "service not routable in allotted time")
 
 			// Force TLS max version below Consul API Gateway default min version, but
 			// supported by Envoy defaults
-			checkTCPTLSRoute(t, checkPort, &tls.Config{
+			checkTCPTLSRoute(t, listenerOnePort, &tls.Config{
 				InsecureSkipVerify: true,
 				MaxVersion:         tls.VersionTLS11,
 			}, serviceOne.Name, "service not routable in allotted time")
 
 			// Service two listener overrides default config
-			// checkTCPTLSRoute(t, checkPort, &tls.Config{
-			// 	InsecureSkipVerify: true,
-			// 	CipherSuites:       []uint16{tls.TLS_RSA_WITH_AES_128_CBC_SHA},
-			// 	MaxVersion:         tls.VersionTLS11,
-			// }, serviceTwo.Name, "service not routable in allotted time")
+			checkTCPTLSRoute(t, listenerTwoPort, &tls.Config{
+				InsecureSkipVerify: true,
+				CipherSuites:       []uint16{tls.TLS_RSA_WITH_AES_128_CBC_SHA},
+				MaxVersion:         tls.VersionTLS11,
+			}, serviceTwo.Name, "service not routable in allotted time")
 
 			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionInSync), 30*time.Second, 1*time.Second, "gateway not synced in the allotted time")
 
@@ -928,6 +906,35 @@ func createGatewayClass(ctx context.Context, t *testing.T, cfg *envconf.Config) 
 	require.NoError(t, err)
 
 	return gcc, gc
+}
+
+func createTCPRoute(ctx context.Context, t *testing.T, resources *resources.Resources, namespace string, gatewayName string, routeName string, serviceName string, port gateway.PortNumber) {
+	t.Helper()
+
+	route := &gateway.TCPRoute{
+		ObjectMeta: meta.ObjectMeta{
+			Name:      routeName,
+			Namespace: namespace,
+		},
+		Spec: gateway.TCPRouteSpec{
+			CommonRouteSpec: gateway.CommonRouteSpec{
+				ParentRefs: []gateway.ParentRef{{
+					Name: gateway.ObjectName(gatewayName),
+				}},
+			},
+			Rules: []gateway.TCPRouteRule{{
+				BackendRefs: []gateway.BackendRef{{
+					BackendObjectReference: gateway.BackendObjectReference{
+						Name: gateway.ObjectName(serviceName),
+						Port: &port,
+					},
+				}},
+			}},
+		},
+	}
+
+	err := resources.Create(ctx, route)
+	require.NoError(t, err)
 }
 
 func checkRoute(t *testing.T, port int, path, expected string, headers map[string]string, message string) {
