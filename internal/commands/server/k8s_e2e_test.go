@@ -651,6 +651,8 @@ func TestTCPMeshService(t *testing.T) {
 			gatewayName := envconf.RandomName("gw", 16)
 			routeOneName := envconf.RandomName("route", 16)
 			routeTwoName := envconf.RandomName("route", 16)
+			listenerOneName := "tcp"
+			listenerTwoName := "insecure"
 			listenerOnePort := e2e.TCPTLSPort(ctx)
 			listenerTwoPort := e2e.ExtraTCPTLSPort(ctx)
 
@@ -709,7 +711,7 @@ func TestTCPMeshService(t *testing.T) {
 					GatewayClassName: gateway.ObjectName(gc.Name),
 					Listeners: []gateway.Listener{
 						{
-							Name:     "tcp",
+							Name:     gateway.SectionName(listenerOneName),
 							Port:     gateway.PortNumber(listenerOnePort),
 							Protocol: gateway.TCPProtocolType,
 							TLS: &gateway.GatewayTLSConfig{
@@ -720,7 +722,7 @@ func TestTCPMeshService(t *testing.T) {
 							},
 						},
 						{
-							Name:     "insecure",
+							Name:     gateway.SectionName(listenerTwoName),
 							Port:     gateway.PortNumber(listenerTwoPort),
 							Protocol: gateway.TCPProtocolType,
 							TLS: &gateway.GatewayTLSConfig{
@@ -741,8 +743,8 @@ func TestTCPMeshService(t *testing.T) {
 			require.NoError(t, err)
 			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionReady), 30*time.Second, 1*time.Second, "no gateway found in the allotted time")
 
-			createTCPRoute(ctx, t, resources, namespace, gatewayName, routeOneName, serviceOne.Name, gateway.PortNumber(serviceOne.Spec.Ports[0].Port))
-			createTCPRoute(ctx, t, resources, namespace, gatewayName, routeTwoName, serviceTwo.Name, gateway.PortNumber(serviceTwo.Spec.Ports[0].Port))
+			createTCPRoute(ctx, t, resources, namespace, gatewayName, gateway.SectionName(listenerOneName), routeOneName, serviceOne.Name, gateway.PortNumber(serviceOne.Spec.Ports[0].Port))
+			createTCPRoute(ctx, t, resources, namespace, gatewayName, gateway.SectionName(listenerTwoName), routeTwoName, serviceTwo.Name, gateway.PortNumber(serviceTwo.Spec.Ports[0].Port))
 
 			checkTCPTLSRoute(t, listenerOnePort, &tls.Config{
 				InsecureSkipVerify: true,
@@ -908,7 +910,7 @@ func createGatewayClass(ctx context.Context, t *testing.T, cfg *envconf.Config) 
 	return gcc, gc
 }
 
-func createTCPRoute(ctx context.Context, t *testing.T, resources *resources.Resources, namespace string, gatewayName string, routeName string, serviceName string, port gateway.PortNumber) {
+func createTCPRoute(ctx context.Context, t *testing.T, resources *resources.Resources, namespace string, gatewayName string, listenerName gateway.SectionName, routeName string, serviceName string, port gateway.PortNumber) {
 	t.Helper()
 
 	route := &gateway.TCPRoute{
@@ -919,7 +921,8 @@ func createTCPRoute(ctx context.Context, t *testing.T, resources *resources.Reso
 		Spec: gateway.TCPRouteSpec{
 			CommonRouteSpec: gateway.CommonRouteSpec{
 				ParentRefs: []gateway.ParentRef{{
-					Name: gateway.ObjectName(gatewayName),
+					Name:        gateway.ObjectName(gatewayName),
+					SectionName: &listenerName,
 				}},
 			},
 			Rules: []gateway.TCPRouteRule{{
