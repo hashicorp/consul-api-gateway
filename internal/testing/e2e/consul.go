@@ -24,7 +24,7 @@ import (
 )
 
 const (
-	consulImage          = "hashicorpdev/consul:581357c32"
+	consulImage          = "hashicorp/consul:1.11.2"
 	configTemplateString = `
 {
 	"log_level": "trace",
