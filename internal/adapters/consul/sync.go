@@ -185,6 +185,9 @@ func discoveryChain(gateway core.ResolvedGateway) (*api.IngressGatewayConfigEntr
 
 			if listener.TLS.MinVersion != "" {
 				tls.TLSMinVersion = listener.TLS.MinVersion
+			} else {
+			        // set secure default instead of Envoy's TLS 1.0 default
+			        tls.TLSMinVersion = "TLSv1_2"
 			}
 
 			if listener.TLS.MaxVersion != "" {
