@@ -751,15 +751,14 @@ func TestTCPMeshService(t *testing.T) {
 			}, serviceOne.Name, "service not routable in allotted time")
 
 			// Force insecure cipher suite excluded from Consul API Gateway default
-			// cipher suites, but supported by Envoy defaults
-			//
-			// FIXME: why is this test not failing? attempting to connect with only
-			// this cipher suite should be rejected by the Consul API Gateway listener
-			// default config
+			// cipher suites, but supported by Envoy defaults, limit max version to
+			// TLS 1.2 to ensure cipher suite config is applicable. The error returned
+			// is a bit odd, but is expected for this failure case.
 			checkTCPTLSRoute(t, listenerOnePort, &tls.Config{
 				InsecureSkipVerify: true,
+				MaxVersion:         tls.VersionTLS12,
 				CipherSuites:       []uint16{tls.TLS_RSA_WITH_AES_128_CBC_SHA},
-			}, serviceOne.Name, "service not routable in allotted time")
+			}, "remote error: tls: unknown certificate authority", "service not routable in allotted time")
 
 			// Force TLS max version below Consul API Gateway default min version, but
 			// supported by Envoy defaults
