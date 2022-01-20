@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"reflect"
 	"testing"
 	"time"
 
+	"github.com/hashicorp/consul-api-gateway/internal/common"
 	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/consul/sdk/testutil"
@@ -189,8 +191,6 @@ func TestConsulSyncAdapter_Sync(t *testing.T) {
 
 	err = adapter.Sync(ctx, gateway)
 	require.NoError(t, err)
-	// TODO: wait for sync to complete - how?
-	// consulSrv.WaitForServiceIntentions(t)
 
 	require.Eventually(t, func() bool {
 		entry, _, err := consul.ConfigEntries().Get(api.IngressGateway, "name1", nil)
@@ -202,6 +202,7 @@ func TestConsulSyncAdapter_Sync(t *testing.T) {
 		require.True(t, ok)
 		require.NotNil(t, ingress)
 
-		return ingress.Listeners[0].TLS.TLSMinVersion == "TLSv1_2"
+		return ingress.Listeners[0].TLS.TLSMinVersion == "TLSv1_2" &&
+			reflect.DeepEqual(ingress.Listeners[0].TLS.CipherSuites, common.DefaultTLSCipherSuites())
 	}, 30*time.Second, 1*time.Second, "listener TLS config not synced in the allotted time")
 }
