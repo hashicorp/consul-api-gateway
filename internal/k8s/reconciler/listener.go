@@ -340,6 +340,8 @@ func (l *K8sListener) canBind(ref gw.ParentRef, route *K8sRoute) (bool, error) {
 		return false, nil
 	}
 
+	l.logger.Trace("checking listener match", "expected", l.listener.Name, "found", ref.SectionName)
+
 	// must is only true if there's a ref with a specific listener name
 	// meaning if we must attach, but cannot, it's an error
 	allowed, must := routeMatchesListener(l.listener.Name, ref.SectionName)
