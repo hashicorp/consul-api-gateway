@@ -102,7 +102,8 @@ func (l *K8sListener) Validate(ctx context.Context) error {
 
 func (l *K8sListener) validateTLS(ctx context.Context) error {
 	if l.listener.TLS == nil {
-		if l.Config().TLS {
+		// TODO: should this struct field be "Required" instead of "Enabled"?
+		if l.Config().TLS.Enabled {
 			// we are using a protocol that requires TLS but has no TLS
 			// configured
 			l.status.Ready.Invalid = errors.New("tls configuration required for the given protocol")
@@ -299,7 +300,7 @@ func (l *K8sListener) Config() store.ListenerConfig {
 		Hostname: hostname,
 		Port:     int(l.listener.Port),
 		Protocol: protocol,
-		TLS:      tls,
+		TLS:      core.TLSParams{Enabled: tls},
 	}
 }
 
