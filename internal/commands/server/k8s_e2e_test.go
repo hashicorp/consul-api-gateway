@@ -752,6 +752,10 @@ func TestTCPMeshService(t *testing.T) {
 
 			// Force insecure cipher suite excluded from Consul API Gateway default
 			// cipher suites, but supported by Envoy defaults
+			//
+			// FIXME: why is this test not failing? attempting to connect with only
+			// this cipher suite should be rejected by the Consul API Gateway listener
+			// default config
 			checkTCPTLSRoute(t, listenerOnePort, &tls.Config{
 				InsecureSkipVerify: true,
 				CipherSuites:       []uint16{tls.TLS_RSA_WITH_AES_128_CBC_SHA},
@@ -762,7 +766,7 @@ func TestTCPMeshService(t *testing.T) {
 			checkTCPTLSRoute(t, listenerOnePort, &tls.Config{
 				InsecureSkipVerify: true,
 				MaxVersion:         tls.VersionTLS11,
-			}, serviceOne.Name, "service not routable in allotted time")
+			}, "remote error: tls: protocol version not supported", "service not routable in allotted time")
 
 			// Service two listener overrides default config
 			checkTCPTLSRoute(t, listenerTwoPort, &tls.Config{
@@ -1011,11 +1015,11 @@ func checkTCPTLSRoute(t *testing.T, port int, config *tls.Config, expected strin
 		}
 		tlsConn := tls.Client(conn, config)
 		data, err := io.ReadAll(tlsConn)
+
 		if err != nil {
-			return false
+			return strings.HasPrefix(err.Error(), expected)
 		}
-		// TODO: remove debug
-		fmt.Printf(string(data))
+
 		return strings.HasPrefix(string(data), expected)
 	}, 30*time.Second, 1*time.Second, message)
 }
