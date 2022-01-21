@@ -45,10 +45,7 @@ type ListenerConfig struct {
 	Hostname string
 	Port     int
 	Protocol string
-
-	// TODO: is this field a sufficient reason to use TLSParams instead of TLS as the
-	// field name on Listener structs to avoid confusion?
-	TLS bool
+	TLS      core.TLSParams
 }
 
 // RouteTrackingListener is an optional extension
@@ -66,7 +63,6 @@ type RouteTrackingListener interface {
 type Listener interface {
 	ID() string
 	CanBind(route Route) (bool, error)
-	TLS() core.TLSParams
 	Config() ListenerConfig
 	IsValid() bool
 }

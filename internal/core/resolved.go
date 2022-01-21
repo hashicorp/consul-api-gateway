@@ -22,6 +22,7 @@ type ResolvedRoute interface {
 }
 
 type TLSParams struct {
+	Enabled      bool
 	MinVersion   string
 	MaxVersion   string
 	CipherSuites []string
