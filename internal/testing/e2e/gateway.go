@@ -55,6 +55,7 @@ func (p *gatewayTestEnvironment) run(ctx context.Context, namespace string, cfg 
 		SDSServerHost: HostRoute(ctx),
 		SDSServerPort: 9090,
 		RestConfig:    cfg.Client().RESTConfig(),
+		CACert:        string(ConsulCA(ctx)),
 	})
 	if err != nil {
 		return err
