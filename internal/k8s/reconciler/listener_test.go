@@ -6,13 +6,12 @@ import (
 	"testing"
 
 	"github.com/golang/mock/gomock"
-	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient/mocks"
 	"github.com/hashicorp/consul-api-gateway/internal/store"
 	storeMocks "github.com/hashicorp/consul-api-gateway/internal/store/mocks"
 	"github.com/hashicorp/go-hclog"
 	"github.com/stretchr/testify/require"
-	k8s "k8s.io/api/core/v1"
+	core "k8s.io/api/core/v1"
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
@@ -151,7 +150,7 @@ func TestListenerValidate(t *testing.T) {
 		Logger: hclog.NewNullLogger(),
 		Client: client,
 	})
-	client.EXPECT().GetSecret(gomock.Any(), gomock.Any()).Return(&k8s.Secret{
+	client.EXPECT().GetSecret(gomock.Any(), gomock.Any()).Return(&core.Secret{
 		ObjectMeta: meta.ObjectMeta{
 			Name: "secret",
 		},
@@ -195,7 +194,7 @@ func TestListenerValidate(t *testing.T) {
 		Logger: hclog.NewNullLogger(),
 		Client: client,
 	})
-	client.EXPECT().GetSecret(gomock.Any(), gomock.Any()).Return(&k8s.Secret{
+	client.EXPECT().GetSecret(gomock.Any(), gomock.Any()).Return(&core.Secret{
 		ObjectMeta: meta.ObjectMeta{
 			Name: "secret",
 		},
@@ -219,7 +218,7 @@ func TestListenerValidate(t *testing.T) {
 		Logger: hclog.NewNullLogger(),
 		Client: client,
 	})
-	client.EXPECT().GetSecret(gomock.Any(), gomock.Any()).Return(&k8s.Secret{
+	client.EXPECT().GetSecret(gomock.Any(), gomock.Any()).Return(&core.Secret{
 		ObjectMeta: meta.ObjectMeta{
 			Name: "secret",
 		},
@@ -243,7 +242,7 @@ func TestListenerValidate(t *testing.T) {
 		Logger: hclog.NewNullLogger(),
 		Client: client,
 	})
-	client.EXPECT().GetSecret(gomock.Any(), gomock.Any()).Return(&k8s.Secret{
+	client.EXPECT().GetSecret(gomock.Any(), gomock.Any()).Return(&core.Secret{
 		ObjectMeta: meta.ObjectMeta{
 			Name: "secret",
 		},
@@ -268,7 +267,7 @@ func TestListenerValidate(t *testing.T) {
 		Logger: hclog.NewNullLogger(),
 		Client: client,
 	})
-	client.EXPECT().GetSecret(gomock.Any(), gomock.Any()).Return(&k8s.Secret{
+	client.EXPECT().GetSecret(gomock.Any(), gomock.Any()).Return(&core.Secret{
 		ObjectMeta: meta.ObjectMeta{
 			Name: "secret",
 		},
@@ -292,7 +291,7 @@ func TestListenerValidate(t *testing.T) {
 		Logger: hclog.NewNullLogger(),
 		Client: client,
 	})
-	client.EXPECT().GetSecret(gomock.Any(), gomock.Any()).Return(&k8s.Secret{
+	client.EXPECT().GetSecret(gomock.Any(), gomock.Any()).Return(&core.Secret{
 		ObjectMeta: meta.ObjectMeta{
 			Name: "secret",
 		},
@@ -330,7 +329,7 @@ func TestListenerConfig(t *testing.T) {
 
 	require.Equal(t, store.ListenerConfig{
 		Name: "listener",
-		TLS:  core.TLSParams{Enabled: false},
+		TLS:  false,
 	}, NewK8sListener(&gw.Gateway{}, gw.Listener{
 		Name: gw.SectionName("listener"),
 	}, K8sListenerConfig{
@@ -341,7 +340,7 @@ func TestListenerConfig(t *testing.T) {
 	require.Equal(t, store.ListenerConfig{
 		Name:     "default",
 		Hostname: "hostname",
-		TLS:      core.TLSParams{Enabled: false},
+		TLS:      false,
 	}, NewK8sListener(&gw.Gateway{}, gw.Listener{
 		Hostname: &hostname,
 	}, K8sListenerConfig{

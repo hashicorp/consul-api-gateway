@@ -26,7 +26,7 @@ func newGatewayState(logger hclog.Logger, gateway store.Gateway, adapter core.Sy
 	gatewayLogger := logger.With("gateway.consul.namespace", id.ConsulNamespace, "gateway.consul.service", id.Service)
 	listeners := make(map[string]*listenerState)
 	for _, listener := range gateway.Listeners() {
-		for _, cert := range listener.Config().TLS.Certificates {
+		for _, cert := range listener.TLS().Certificates {
 			secrets[cert] = struct{}{}
 		}
 		listeners[listener.ID()] = newListenerState(gatewayLogger, gateway, listener)
