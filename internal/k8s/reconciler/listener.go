@@ -80,10 +80,6 @@ func (l *K8sListener) ID() string {
 	return string(l.listener.Name)
 }
 
-func (l *K8sListener) TLS() core.TLSParams {
-	return l.tls
-}
-
 func (l *K8sListener) Validate(ctx context.Context) error {
 	l.validateUnsupported()
 	l.validateProtocols()
@@ -295,12 +291,16 @@ func (l *K8sListener) Config() store.ListenerConfig {
 		hostname = string(*l.listener.Hostname)
 	}
 	protocol, tls := utils.ProtocolToConsul(l.listener.Protocol)
+
+	// Update listener TLS config to specify whether TLS is required by the protocol
+	l.tls.Enabled = tls
+
 	return store.ListenerConfig{
 		Name:     name,
 		Hostname: hostname,
 		Port:     int(l.listener.Port),
 		Protocol: protocol,
-		TLS:      core.TLSParams{Enabled: tls},
+		TLS:      l.tls,
 	}
 }
 
