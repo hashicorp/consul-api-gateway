@@ -44,7 +44,7 @@ kubectl delete -f dev/config/k8s/consul-api-gateway.yaml
 
 - *Optional*: Some k8s setups require loading a custom image into the runtime environment for it to get pulled by worker nodes. For a local kind cluster you can load the image using the subcommand [`kind load docker-image`](https://kind.sigs.k8s.io/docs/user/quick-start/#loading-an-image-into-your-cluster)
 
-- In `config/deployment/deployment.yaml`, edit `image` to point to the name of the image you uploaded to the cluster.
+- In [`config/deployment/deployment.yaml`](https://github.com/hashicorp/consul-api-gateway/blob/main/config/deployment/deployment.yaml#L23), edit `image` to point to the name of the image you uploaded to the cluster.
 
 - Apply the version of the CRDs and Consul API Gateway deployment config from your local branch.
 ```
