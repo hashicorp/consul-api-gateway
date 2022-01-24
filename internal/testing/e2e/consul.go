@@ -389,6 +389,15 @@ func ConsulClient(ctx context.Context) *api.Client {
 	return consulEnvironment.(*consulTestEnvironment).consulClient
 }
 
+func ConsulCA(ctx context.Context) []byte {
+	consulEnvironment := ctx.Value(consulTestContextKey)
+	if consulEnvironment == nil {
+		panic("must run this with an integration test that has called CreateTestConsul")
+	}
+	return consulEnvironment.(*consulTestEnvironment).ca
+
+}
+
 func ConsulMasterToken(ctx context.Context) string {
 	consulEnvironment := ctx.Value(consulTestContextKey)
 	if consulEnvironment == nil {

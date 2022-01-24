@@ -3,15 +3,15 @@ metadata:
   labels:
     api-gateway.consul.hashicorp.com/created: "-62135596800"
     api-gateway.consul.hashicorp.com/managed: "true"
-    api-gateway.consul.hashicorp.com/name: test-clusterip
+    api-gateway.consul.hashicorp.com/name: tls-cert-test
     api-gateway.consul.hashicorp.com/namespace: ""
-  name: test-clusterip
+  name: tls-cert-test
 spec:
   selector:
     matchLabels:
       api-gateway.consul.hashicorp.com/created: "-62135596800"
       api-gateway.consul.hashicorp.com/managed: "true"
-      api-gateway.consul.hashicorp.com/name: test-clusterip
+      api-gateway.consul.hashicorp.com/name: tls-cert-test
       api-gateway.consul.hashicorp.com/namespace: ""
   strategy: {}
   template:
@@ -22,32 +22,30 @@ spec:
       labels:
         api-gateway.consul.hashicorp.com/created: "-62135596800"
         api-gateway.consul.hashicorp.com/managed: "true"
-        api-gateway.consul.hashicorp.com/name: test-clusterip
+        api-gateway.consul.hashicorp.com/name: tls-cert-test
         api-gateway.consul.hashicorp.com/namespace: ""
     spec:
       containers:
       - command:
-        - /bootstrap/consul-api-gateway
-        - exec
-        - -log-json
-        - -log-level
-        - info
-        - -gateway-host
-        - $(IP)
-        - -gateway-name
-        - test-clusterip
-        - -consul-http-address
-        - $(HOST_IP)
-        - -consul-http-port
-        - "8500"
-        - -consul-xds-port
-        - "8502"
-        - -envoy-bootstrap-path
-        - /bootstrap/envoy.json
-        - -envoy-sds-address
-        - consul-api-gateway-controller.default.svc.cluster.local
-        - -envoy-sds-port
-        - "9090"
+        - /bin/sh
+        - -ec
+        - |2-
+
+          export CONSUL_CACERT=/consul/tls/ca.pem
+          cat <<EOF >/consul/tls/ca.pem
+          CONSUL_CA_MOCKED
+          EOF
+
+          exec /bootstrap/consul-api-gateway exec -log-json \
+            -log-level info \
+            -gateway-host "$(IP)" \
+            -gateway-name tls-cert-test \
+            -consul-http-address $(HOST_IP) \
+            -consul-http-port 8500 \
+            -consul-xds-port  8502 \
+            -envoy-bootstrap-path /bootstrap/envoy.json \
+            -envoy-sds-address consul-api-gateway-controller.default.svc.cluster.local \
+            -envoy-sds-port 9090
         env:
         - name: IP
           valueFrom:
@@ -63,11 +61,8 @@ spec:
         - containerPort: 20000
           name: ready
           protocol: TCP
-        - containerPort: 8080
+        - containerPort: 80
           name: http
-          protocol: TCP
-        - containerPort: 8443
-          name: https
           protocol: TCP
         readinessProbe:
           httpGet:
@@ -79,6 +74,8 @@ spec:
           name: bootstrap
         - mountPath: /certs
           name: certs
+        - mountPath: /consul/tls
+          name: ca
       initContainers:
       - command:
         - cp
@@ -92,9 +89,13 @@ spec:
           name: bootstrap
         - mountPath: /certs
           name: certs
+        - mountPath: /consul/tls
+          name: ca
       volumes:
       - emptyDir: {}
         name: bootstrap
       - emptyDir: {}
         name: certs
+      - emptyDir: {}
+        name: ca
 status: {}

@@ -45,7 +45,9 @@ type GatewayReconcileManager struct {
 	logger         hclog.Logger
 	client         gatewayclient.Client
 	consul         *api.Client
-	sdsConfig      apigwv1alpha1.SDSConfig
+	consulCA       string
+	sdsHost        string
+	sdsPort        int
 
 	store          store.Store
 	gatewayClasses *K8sGatewayClasses
@@ -61,7 +63,9 @@ type ManagerConfig struct {
 	ControllerName string
 	Client         gatewayclient.Client
 	Consul         *api.Client
-	SDSConfig      apigwv1alpha1.SDSConfig
+	ConsulCA       string
+	SDSHost        string
+	SDSPort        int
 	Store          store.Store
 	Logger         hclog.Logger
 }
@@ -72,7 +76,9 @@ func NewReconcileManager(config ManagerConfig) *GatewayReconcileManager {
 		logger:         config.Logger,
 		client:         config.Client,
 		consul:         config.Consul,
-		sdsConfig:      config.SDSConfig,
+		consulCA:       config.ConsulCA,
+		sdsHost:        config.SDSHost,
+		sdsPort:        config.SDSPort,
 		gatewayClasses: NewK8sGatewayClasses(config.Logger.Named("gatewayclasses"), config.Client),
 		namespaceMap:   make(map[types.NamespacedName]string),
 		store:          config.Store,
@@ -153,9 +159,11 @@ func (m *GatewayReconcileManager) UpsertGateway(ctx context.Context, g *gw.Gatew
 	m.namespaceMap[utils.NamespacedName(g)] = consulNamespace
 	gateway := NewK8sGateway(g, K8sGatewayConfig{
 		ConsulNamespace: consulNamespace,
+		ConsulCA:        m.consulCA,
 		Logger:          m.logger,
 		Client:          m.client,
-		SDSConfig:       m.sdsConfig,
+		SDSHost:         m.sdsHost,
+		SDSPort:         m.sdsPort,
 		Config:          config,
 	})
 

@@ -19,7 +19,6 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/controllers"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler"
-	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	"github.com/hashicorp/consul-api-gateway/internal/store"
 	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 )
@@ -45,37 +44,32 @@ func init() {
 }
 
 type Kubernetes struct {
-	sDSServerHost string
-	sDSServerPort int
-	k8sManager    ctrl.Manager
-	consul        *api.Client
-	store         store.Store
-	logger        hclog.Logger
+	config     *Config
+	k8sManager ctrl.Manager
+	consul     *api.Client
+	store      store.Store
+	logger     hclog.Logger
 }
 
 type Config struct {
-	CACertSecretNamespace string
-	CACertSecret          string
-	CACertFile            string
-	SDSServerHost         string
-	SDSServerPort         int
-	MetricsBindAddr       string
-	HealthProbeBindAddr   string
-	WebhookPort           int
-	RestConfig            *rest.Config
-	Namespace             string
+	CACert              string
+	SDSServerHost       string
+	SDSServerPort       int
+	MetricsBindAddr     string
+	HealthProbeBindAddr string
+	WebhookPort         int
+	RestConfig          *rest.Config
+	Namespace           string
 }
 
 func Defaults() *Config {
 	return &Config{
-		CACertSecretNamespace: "default",
-		CACertSecret:          "",
-		CACertFile:            "",
-		SDSServerHost:         "consul-api-gateway-controller.default.svc.cluster.local",
-		SDSServerPort:         9090,
-		MetricsBindAddr:       ":8080",
-		HealthProbeBindAddr:   ":8081",
-		WebhookPort:           8443,
+		CACert:              "",
+		SDSServerHost:       "consul-api-gateway-controller.default.svc.cluster.local",
+		SDSServerPort:       9090,
+		MetricsBindAddr:     ":8080",
+		HealthProbeBindAddr: ":8081",
+		WebhookPort:         8443,
 	}
 }
 
@@ -111,17 +105,10 @@ func New(logger hclog.Logger, config *Config) (*Kubernetes, error) {
 		return nil, fmt.Errorf("unable to set up ready check: %w", err)
 	}
 
-	if config.CACertSecret != "" && config.CACertFile != "" {
-		if err := utils.WriteSecretCertFile(config.RestConfig, config.CACertSecret, config.CACertFile, config.CACertSecretNamespace); err != nil {
-			return nil, fmt.Errorf("unable to write CA cert file: %w", err)
-		}
-	}
-
 	return &Kubernetes{
-		k8sManager:    mgr,
-		sDSServerHost: config.SDSServerHost,
-		sDSServerPort: config.SDSServerPort,
-		logger:        logger.Named("k8s"),
+		k8sManager: mgr,
+		config:     config,
+		logger:     logger.Named("k8s"),
 	}, nil
 }
 
@@ -146,12 +133,11 @@ func (k *Kubernetes) Start(ctx context.Context) error {
 		ControllerName: ControllerName,
 		Client:         gwClient,
 		Consul:         k.consul,
-		SDSConfig: apigwv1alpha1.SDSConfig{
-			Host: k.sDSServerHost,
-			Port: k.sDSServerPort,
-		},
-		Logger: k.logger.Named("Reconciler"),
-		Store:  k.store,
+		ConsulCA:       k.config.CACert,
+		SDSHost:        k.config.SDSServerHost,
+		SDSPort:        k.config.SDSServerPort,
+		Logger:         k.logger.Named("Reconciler"),
+		Store:          k.store,
 	})
 
 	err := (&controllers.GatewayClassConfigReconciler{

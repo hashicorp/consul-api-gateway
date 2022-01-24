@@ -12,6 +12,7 @@ import (
 	"github.com/mitchellh/cli"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
 
@@ -63,9 +64,8 @@ func (c *Command) init() {
 	c.flagSet = flag.NewFlagSet("", flag.ContinueOnError)
 	c.flagSet.StringVar(&c.flagCAFile, "ca-file", "", "Path to CA for Consul server.")
 	c.flagSet.StringVar(&c.flagCASecret, "ca-secret", "", "CA Secret for Consul server.")
-	c.flagSet.StringVar(&c.flagCASecretNamespace, "ca-secret-namespace", "", "CA Secret namespace for Consul server.")
+	c.flagSet.StringVar(&c.flagCASecretNamespace, "ca-secret-namespace", "default", "CA Secret namespace for Consul server.")
 	c.flagSet.StringVar(&c.flagConsulAddress, "consul-address", "", "Consul Address.")
-	c.flagSet.BoolVar(&c.flagConsulHTTPS, "consul-https", false, "Use HTTPS to connect to Consul.")
 	c.flagSet.StringVar(&c.flagSDSServerHost, "sds-server-host", defaultSDSServerHost, "SDS Server Host.")
 	c.flagSet.StringVar(&c.flagK8sContext, "k8s-context", "", "Kubernetes context to use.")
 	c.flagSet.StringVar(&c.flagK8sNamespace, "k8s-namespace", "", "Kubernetes namespace to use.")
@@ -97,44 +97,7 @@ func (c *Command) Run(args []string) int {
 		IncludeLocation: true,
 	}).Named("consul-api-gateway-server")
 
-	consulCfg := api.DefaultConfig()
 	cfg := k8s.Defaults()
-
-	if c.flagConsulHTTPS {
-		consulCfg.Scheme = "https"
-	}
-
-	if c.flagCAFile != "" {
-		consulCfg.TLSConfig.CAFile = c.flagCAFile
-		cfg.CACertFile = c.flagCAFile
-		// set https scheme since we've supplied a CA
-		consulCfg.Scheme = "https"
-	}
-
-	if c.flagCASecret != "" {
-		cfg.CACertSecret = c.flagCASecret
-		if c.flagCASecretNamespace != "" {
-			cfg.CACertSecretNamespace = c.flagCASecretNamespace
-		}
-
-		// if we're pulling the cert from a secret, then we override the location
-		// where we store it
-		file, err := ioutil.TempFile("", "consul-api-gateway")
-		if err != nil {
-			logger.Error("error creating the kubernetes controller", "error", err)
-			return 1
-		}
-		defer os.Remove(file.Name())
-		cfg.CACertFile = file.Name()
-		consulCfg.TLSConfig.CAFile = file.Name()
-		// set https scheme since we've supplied a certificate secret
-		consulCfg.Scheme = "https"
-	}
-
-	if c.flagConsulAddress != "" {
-		consulCfg.Address = c.flagConsulAddress
-	}
-
 	restConfig, err := config.GetConfigWithContext(c.flagK8sContext)
 	if err != nil {
 		logger.Error("error getting kubernetes configuration", "error", err)
@@ -144,6 +107,43 @@ func (c *Command) Run(args []string) int {
 	cfg.SDSServerHost = c.flagSDSServerHost
 	cfg.SDSServerPort = c.flagSDSServerPort
 	cfg.Namespace = c.flagK8sNamespace
+
+	consulCfg := api.DefaultConfig()
+	if c.flagCAFile != "" {
+		consulCfg.TLSConfig.CAFile = c.flagCAFile
+	}
+
+	if c.flagCASecret != "" {
+		// if we're pulling the cert from a secret, then we override the location
+		// where we store it
+		file, err := ioutil.TempFile("", "consul-api-gateway")
+		if err != nil {
+			logger.Error("error creating the kubernetes controller", "error", err)
+			return 1
+		}
+		defer os.Remove(file.Name())
+		consulCfg.TLSConfig.CAFile = file.Name()
+
+		if err := utils.WriteSecretCertFile(restConfig, c.flagCASecret, file.Name(), c.flagCASecretNamespace); err != nil {
+			logger.Error("error creating the kubernetes controller", "error", err)
+			return 1
+		}
+	}
+	// CA file can be set by cli flag or 'CONSUL_CACERT' env var
+	if consulCfg.TLSConfig.CAFile != "" {
+		consulCfg.Scheme = "https"
+		consulCA, err := ioutil.ReadFile(consulCfg.TLSConfig.CAFile)
+		if err != nil {
+			logger.Error("error creating the kubernetes controller", "error", err)
+			return 1
+		}
+
+		cfg.CACert = string(consulCA)
+	}
+
+	if c.flagConsulAddress != "" {
+		consulCfg.Address = c.flagConsulAddress
+	}
 
 	return RunServer(ServerConfig{
 		Context:       context.Background(),

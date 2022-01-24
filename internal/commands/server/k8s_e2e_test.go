@@ -141,9 +141,10 @@ func TestGatewayBasic(t *testing.T) {
 				return status == "passing"
 			}, 30*time.Second, 1*time.Second, "no healthy consul service found in the allotted time")
 
+			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionReady), 30*time.Second, 1*time.Second, "no gateway found in the allotted time")
+
 			err = resources.Delete(ctx, created)
 			require.NoError(t, err)
-
 			require.Eventually(t, func() bool {
 				services, _, err := client.Catalog().Service(gatewayName, "", nil)
 				if err != nil {

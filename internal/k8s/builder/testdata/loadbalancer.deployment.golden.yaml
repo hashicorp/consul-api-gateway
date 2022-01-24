@@ -27,27 +27,21 @@ spec:
     spec:
       containers:
       - command:
-        - /bootstrap/consul-api-gateway
-        - exec
-        - -log-json
-        - -log-level
-        - info
-        - -gateway-host
-        - $(IP)
-        - -gateway-name
-        - test-loadbalancer
-        - -consul-http-address
-        - $(HOST_IP)
-        - -consul-http-port
-        - "8500"
-        - -consul-xds-port
-        - "8502"
-        - -envoy-bootstrap-path
-        - /bootstrap/envoy.json
-        - -envoy-sds-address
-        - consul-api-gateway-controller.default.svc.cluster.local
-        - -envoy-sds-port
-        - "9090"
+        - /bin/sh
+        - -ec
+        - |2-
+
+
+          exec /bootstrap/consul-api-gateway exec -log-json \
+            -log-level info \
+            -gateway-host "$(IP)" \
+            -gateway-name test-loadbalancer \
+            -consul-http-address $(HOST_IP) \
+            -consul-http-port 8500 \
+            -consul-xds-port  8502 \
+            -envoy-bootstrap-path /bootstrap/envoy.json \
+            -envoy-sds-address consul-api-gateway-controller.default.svc.cluster.local \
+            -envoy-sds-port 9090
         env:
         - name: IP
           valueFrom:
