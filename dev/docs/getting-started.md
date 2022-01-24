@@ -38,7 +38,7 @@ Clean up the gateway you just created:
 kubectl delete -f dev/config/k8s/consul-api-gateway.yaml
 ```
 
-## Deploying a custom Docker image
+## Deploying a custom Docker image on a development cluster
 
 - Create a Docker image from your local branch with `make docker`
 
