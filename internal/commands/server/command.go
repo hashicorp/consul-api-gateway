@@ -38,7 +38,6 @@ type Command struct {
 	flagCASecretNamespace string // CA Secret namespace for Consul server
 
 	flagConsulAddress string // Consul server address
-	flagConsulHTTPS   bool   // use https for connecting to Consul
 
 	flagSDSServerHost string // SDS server host
 	flagSDSServerPort int    // SDS server port
