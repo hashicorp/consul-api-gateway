@@ -32,7 +32,7 @@ spec:
         - |2-
 
 
-          /bootstrap/consul-api-gateway exec -log-json \
+          exec /bootstrap/consul-api-gateway exec -log-json \
             -log-level info \
             -gateway-host "$(IP)" \
             -gateway-name test-static-mapping \

@@ -36,7 +36,7 @@ spec:
           CONSUL_CA_MOCKED
           EOF
 
-          /bootstrap/consul-api-gateway exec -log-json \
+          exec /bootstrap/consul-api-gateway exec -log-json \
             -log-level info \
             -gateway-host "$(IP)" \
             -gateway-name tls-cert-test \
