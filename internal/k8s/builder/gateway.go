@@ -314,7 +314,7 @@ cat <<EOF >{{ .ConsulCAFile }}
 EOF
 {{- end}}
 
-/bootstrap/consul-api-gateway exec -log-json \
+exec /bootstrap/consul-api-gateway exec -log-json \
   -log-level {{ .LogLevel }} \
   -gateway-host "{{ .GatewayHost }}" \
   -gateway-name {{ .GatewayName }} \
