@@ -37,3 +37,25 @@ Clean up the gateway you just created:
 ```bash
 kubectl delete -f dev/config/k8s/consul-api-gateway.yaml
 ```
+
+## Deploying a custom Docker image on a development cluster
+
+- Create a Docker image from your local branch with `make docker`
+
+- *Optional*: Some k8s setups require loading a custom image into the runtime environment for it to get pulled by worker nodes. For a local kind cluster you can load the image using the subcommand [`kind load docker-image`](https://kind.sigs.k8s.io/docs/user/quick-start/#loading-an-image-into-your-cluster)
+
+- In [`config/deployment/deployment.yaml`](https://github.com/hashicorp/consul-api-gateway/blob/main/config/deployment/deployment.yaml#L23), edit `image` to point to the name of the image you uploaded to the cluster.
+
+- Apply the version of the CRDs and Consul API Gateway deployment config from your local branch.
+```
+kubectl apply -k config/crd
+kubectl apply -k config
+```
+
+## Running tests
+
+`go test ./...` will run the default set of tests. Note that some of these tests use the [`consul/sdk`](https://github.com/hashicorp/consul/tree/main/sdk) test helper package, which shells out to the Consul binary on your `$PATH`. You'll want to ensure `which consul` and `consul -v` are pointing to the Consul binary you expect - either a sufficiently recent version, or a custom build if your feature work requires upstream changes in Consul core.
+
+#### End-to-end tests
+
+The end-to-end test suite uses [kind](https://kind.sigs.k8s.io/) to spin up a local Kubernetes cluster, deploy the Consul API Gateway controller, and check that gateways and routes are created, attached and succesfully routable. These tests can be included when running the test suite by passing a tag, `go test ./... -tags e2e`
