@@ -76,7 +76,6 @@ spec:
           name: certs
         - mountPath: /consul/tls
           name: ca
-          readOnly: true
       initContainers:
       - command:
         - cp
@@ -92,7 +91,6 @@ spec:
           name: certs
         - mountPath: /consul/tls
           name: ca
-          readOnly: true
       volumes:
       - emptyDir: {}
         name: bootstrap
