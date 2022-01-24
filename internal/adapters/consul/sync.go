@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hashicorp/consul-api-gateway/internal/common"
 	"github.com/hashicorp/consul-api-gateway/internal/consul"
 	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul/api"
@@ -182,12 +183,32 @@ func discoveryChain(gateway core.ResolvedGateway) (*api.IngressGatewayConfigEntr
 
 		if len(services) > 0 {
 			tls := &api.GatewayTLSConfig{}
-			if len(listener.Certificates) > 0 {
+
+			if listener.TLS.MinVersion != "" {
+				tls.TLSMinVersion = listener.TLS.MinVersion
+			} else {
+				// set secure default instead of Envoy's TLS 1.0 default
+				tls.TLSMinVersion = "TLSv1_2"
+			}
+
+			if listener.TLS.MaxVersion != "" {
+				tls.TLSMaxVersion = listener.TLS.MaxVersion
+			}
+
+			if len(listener.TLS.CipherSuites) > 0 {
+				tls.CipherSuites = listener.TLS.CipherSuites
+			} else {
+				// set secure defaults excluding insecure RSA and SHA-1 ciphers pending removal from Envoy
+				tls.CipherSuites = common.DefaultTLSCipherSuites()
+			}
+
+			if len(listener.TLS.Certificates) > 0 {
 				tls.SDS = &api.GatewayTLSSDSConfig{
 					ClusterName:  "sds-cluster",
-					CertResource: listener.Certificates[0],
+					CertResource: listener.TLS.Certificates[0],
 				}
 			}
+
 			ingress.Listeners = append(ingress.Listeners, api.IngressListener{
 				Port:     listener.Port,
 				Protocol: listener.Protocol,

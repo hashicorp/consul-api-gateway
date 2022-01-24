@@ -1,14 +1,19 @@
 package consul
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path"
+	"reflect"
 	"testing"
+	"time"
 
+	"github.com/hashicorp/consul-api-gateway/internal/common"
 	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul/api"
+	"github.com/hashicorp/consul/sdk/testutil"
 	"github.com/stretchr/testify/require"
 )
 
@@ -142,4 +147,62 @@ func TestHTTPRouteDiscoveryChain(t *testing.T) {
 			require.JSONEq(t, expected, actual)
 		})
 	}
+}
+
+func TestConsulSyncAdapter_Sync(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	consulSrv, err := testutil.NewTestServerConfigT(t, func(c *testutil.TestServerConfig) {
+		c.Connect = map[string]interface{}{"enabled": true}
+	})
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		cancel()
+		_ = consulSrv.Stop()
+	})
+
+	cfg := api.DefaultConfig()
+	cfg.Address = consulSrv.HTTPAddr
+	consul, err := api.NewClient(cfg)
+	require.NoError(t, err)
+
+	adapter := NewConsulSyncAdapter(testutil.Logger(t), consul)
+
+	route := core.NewTCPRouteBuilder().
+		WithName("tcp-default/route1").
+		WithService(core.ResolvedService{
+			Service: "tcp-default/service1",
+		}).
+		Build()
+
+	gateway := core.ResolvedGateway{
+		ID: core.GatewayID{
+			Service: "name1",
+		},
+		Listeners: []core.ResolvedListener{{
+			TLS: core.TLSParams{
+				MinVersion: "TLSv1_2",
+			},
+			Routes: []core.ResolvedRoute{route},
+		}},
+	}
+
+	err = adapter.Sync(ctx, gateway)
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		entry, _, err := consul.ConfigEntries().Get(api.IngressGateway, "name1", nil)
+		if err != nil {
+			return false
+		}
+
+		ingress, ok := entry.(*api.IngressGatewayConfigEntry)
+		require.True(t, ok)
+		require.NotNil(t, ingress)
+
+		return ingress.Listeners[0].TLS.TLSMinVersion == "TLSv1_2" &&
+			reflect.DeepEqual(ingress.Listeners[0].TLS.CipherSuites, common.DefaultTLSCipherSuites())
+	}, 30*time.Second, 1*time.Second, "listener TLS config not synced in the allotted time")
 }

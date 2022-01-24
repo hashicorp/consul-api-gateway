@@ -4,8 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync/atomic"
 
+	"github.com/hashicorp/consul-api-gateway/internal/common"
+	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	"github.com/hashicorp/consul-api-gateway/internal/store"
@@ -33,7 +36,11 @@ var (
 )
 
 const (
-	defaultListenerName = "default"
+	defaultListenerName          = "default"
+	annotationKeyPrefix          = "api-gateway.consul.hashicorp.com/"
+	tlsMinVersionAnnotationKey   = annotationKeyPrefix + "tls_min_version"
+	tlsMaxVersionAnnotationKey   = annotationKeyPrefix + "tls_max_version"
+	tlsCipherSuitesAnnotationKey = annotationKeyPrefix + "tls_cipher_suites"
 )
 
 type K8sListener struct {
@@ -44,8 +51,8 @@ type K8sListener struct {
 	client          gatewayclient.Client
 
 	status         ListenerStatus
+	tls            core.TLSParams
 	routeCount     int32
-	certificates   []string
 	supportedKinds []gw.RouteGroupKind
 }
 
@@ -73,10 +80,6 @@ func (l *K8sListener) ID() string {
 	return string(l.listener.Name)
 }
 
-func (l *K8sListener) Certificates() []string {
-	return l.certificates
-}
-
 func (l *K8sListener) Validate(ctx context.Context) error {
 	l.validateUnsupported()
 	l.validateProtocols()
@@ -95,7 +98,8 @@ func (l *K8sListener) Validate(ctx context.Context) error {
 
 func (l *K8sListener) validateTLS(ctx context.Context) error {
 	if l.listener.TLS == nil {
-		if l.Config().TLS {
+		// TODO: should this struct field be "Required" instead of "Enabled"?
+		if l.Config().TLS.Enabled {
 			// we are using a protocol that requires TLS but has no TLS
 			// configured
 			l.status.Ready.Invalid = errors.New("tls configuration required for the given protocol")
@@ -123,10 +127,79 @@ func (l *K8sListener) validateTLS(ctx context.Context) error {
 		}
 		l.status.ResolvedRefs.InvalidCertificateRef = certificateErr
 	} else {
-		l.certificates = []string{resource}
+		l.tls.Certificates = []string{resource}
+	}
+
+	if l.listener.TLS.Options != nil {
+		tlsMinVersion := l.listener.TLS.Options[tlsMinVersionAnnotationKey]
+		tlsMaxVersion := l.listener.TLS.Options[tlsMaxVersionAnnotationKey]
+		tlsCipherSuitesStr := l.listener.TLS.Options[tlsCipherSuitesAnnotationKey]
+
+		if tlsMinVersion != "" {
+			if _, ok := supportedTlsVersions[string(tlsMinVersion)]; !ok {
+				l.status.Ready.Invalid = errors.New("unrecognized TLS min version")
+				return nil
+			}
+
+			if tlsCipherSuitesStr != "" {
+				if _, ok := tlsVersionsWithConfigurableCipherSuites[string(tlsMinVersion)]; !ok {
+					l.status.Ready.Invalid = errors.New("configuring TLS cipher suites is only supported for TLS 1.2 and earlier")
+					return nil
+				}
+			}
+
+			l.tls.MinVersion = string(tlsMinVersion)
+		}
+
+		if tlsMaxVersion != "" {
+			if _, ok := supportedTlsVersions[string(tlsMaxVersion)]; !ok {
+				l.status.Ready.Invalid = errors.New("unrecognized TLS max version")
+				return nil
+			}
+
+			l.tls.MaxVersion = string(tlsMaxVersion)
+		}
+
+		if tlsCipherSuitesStr != "" {
+			// split comma delimited string into string array and trim whitespace
+			tlsCipherSuitesUntrimmed := strings.Split(string(tlsCipherSuitesStr), ",")
+			tlsCipherSuites := tlsCipherSuitesUntrimmed[:0]
+			for _, c := range tlsCipherSuitesUntrimmed {
+				tlsCipherSuites = append(tlsCipherSuites, strings.TrimSpace(c))
+			}
+
+			// validate each cipher suite in array
+			for _, c := range tlsCipherSuites {
+				if ok := common.SupportedTLSCipherSuite(c); !ok {
+					l.status.Ready.Invalid = fmt.Errorf("unrecognized or unsupported TLS cipher suite: %s", c)
+					return nil
+				}
+			}
+
+			// set cipher suites on listener TLS params
+			l.tls.CipherSuites = tlsCipherSuites
+		}
 	}
 
 	return nil
+}
+
+var supportedTlsVersions = map[string]struct{}{
+	"TLS_AUTO": {},
+	"TLSv1_0":  {},
+	"TLSv1_1":  {},
+	"TLSv1_2":  {},
+	"TLSv1_3":  {},
+}
+
+var tlsVersionsWithConfigurableCipherSuites = map[string]struct{}{
+	// Remove these two if Envoy ever sets TLS 1.3 as default minimum
+	"":         {},
+	"TLS_AUTO": {},
+
+	"TLSv1_0": {},
+	"TLSv1_1": {},
+	"TLSv1_2": {},
 }
 
 func (l *K8sListener) validateUnsupported() {
@@ -218,12 +291,16 @@ func (l *K8sListener) Config() store.ListenerConfig {
 		hostname = string(*l.listener.Hostname)
 	}
 	protocol, tls := utils.ProtocolToConsul(l.listener.Protocol)
+
+	// Update listener TLS config to specify whether TLS is required by the protocol
+	l.tls.Enabled = tls
+
 	return store.ListenerConfig{
 		Name:     name,
 		Hostname: hostname,
 		Port:     int(l.listener.Port),
 		Protocol: protocol,
-		TLS:      tls,
+		TLS:      l.tls,
 	}
 }
 
@@ -263,6 +340,8 @@ func (l *K8sListener) canBind(ref gw.ParentRef, route *K8sRoute) (bool, error) {
 		l.logger.Trace("listener not ready, unable to bind", "route", route.ID())
 		return false, nil
 	}
+
+	l.logger.Trace("checking listener match", "expected", l.listener.Name, "found", ref.SectionName)
 
 	// must is only true if there's a ref with a specific listener name
 	// meaning if we must attach, but cannot, it's an error

@@ -21,13 +21,21 @@ type ResolvedRoute interface {
 	GetNamespace() string
 }
 
-type ResolvedListener struct {
-	Name         string
-	Hostname     string
-	Port         int
-	Protocol     string
+type TLSParams struct {
+	Enabled      bool
+	MinVersion   string
+	MaxVersion   string
+	CipherSuites []string
 	Certificates []string
-	Routes       []ResolvedRoute
+}
+
+type ResolvedListener struct {
+	Name     string
+	Hostname string
+	Port     int
+	Protocol string
+	TLS      TLSParams
+	Routes   []ResolvedRoute
 }
 
 type GatewayID struct {

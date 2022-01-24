@@ -251,8 +251,8 @@ func TestIntentionsReconciler_Reconcile(t *testing.T) {
 	require.NoError(err)
 
 	ok, _, err := c.ConfigEntries().Set(igw, nil)
-	require.True(ok)
 	require.NoError(err)
+	require.True(ok)
 	err = c.Agent().ServiceRegister(&api.AgentServiceRegistration{
 		Kind:    api.ServiceKindIngressGateway,
 		Name:    r.gatewayName.Name,

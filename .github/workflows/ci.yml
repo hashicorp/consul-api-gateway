@@ -1,8 +1,8 @@
 name: ci
 on:
-  push: 
+  push:
     branches: ["main"]
-  pull_request: 
+  pull_request:
     branches: ["main", "release/**"]
 env:
   GO_VERSION: '1.16'
@@ -31,7 +31,7 @@ jobs:
     name: unit test (consul-version=${{ matrix.consul-version }})
     strategy:
       matrix:
-        consul-version: [1.11.0-beta2, 1.11.0+ent-beta2]
+        consul-version: [1.11.2, 1.11.2+ent]
     runs-on: ubuntu-latest
     env:
       TEST_RESULTS_DIR: /tmp/test-results/consul@${{ matrix.consul-version }}
