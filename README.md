@@ -38,8 +38,8 @@ To install the Consul API Gateway controller and a base Kubernetes `GatewayClass
 API Gateway, run the following commands:
 
 ```bash
-kubectl apply -k "github.com/hashicorp/consul-api-gateway/config/crd?ref=v0.1.0-techpreview"
-kubectl apply -k "github.com/hashicorp/consul-api-gateway/config?ref=v0.1.0-techpreview"
+kubectl apply -k "github.com/hashicorp/consul-api-gateway/config/crd?ref=v0.1.0-beta"
+kubectl apply -k "github.com/hashicorp/consul-api-gateway/config?ref=v0.1.0-beta"
 ```
 
 You should now be able to deploy a Gateway by referencing the gateway class `default-consul-gateway-class` in
