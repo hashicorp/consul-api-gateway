@@ -45,7 +45,10 @@ Supported features are marked with a grey checkbox
           - [x] Terminate
           - [ ] Passthrough *explicitly not supported yet*
         - [x] Certificate References *only single Kubernetes secret certificates supported for now*
-        - [x] Options *not used*
+        - [x] Options
+          - [x] "api-gateway.consul.hashicorp.com/tls_min_version"
+          - [x] "api-gateway.consul.hashicorp.com/tls_max_version"
+          - [x] "api-gateway.consul.hashicorp.com/tls_cipher_suites"
     - [x] ~~Addresses~~ *not supported*
   - [x] Deployment *based off of a snapshot of GatewayClass configuration at time of Gateway creation as per spec suggestions* 
   - [ ] Status
