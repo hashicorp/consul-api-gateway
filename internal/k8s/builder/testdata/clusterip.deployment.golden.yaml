@@ -27,27 +27,21 @@ spec:
     spec:
       containers:
       - command:
-        - /bootstrap/consul-api-gateway
-        - exec
-        - -log-json
-        - -log-level
-        - info
-        - -gateway-host
-        - $(IP)
-        - -gateway-name
-        - test-clusterip
-        - -consul-http-address
-        - $(HOST_IP)
-        - -consul-http-port
-        - "8500"
-        - -consul-xds-port
-        - "8502"
-        - -envoy-bootstrap-path
-        - /bootstrap/envoy.json
-        - -envoy-sds-address
-        - consul-api-gateway-controller.default.svc.cluster.local
-        - -envoy-sds-port
-        - "9090"
+        - /bin/sh
+        - -ec
+        - |2-
+
+
+          exec /bootstrap/consul-api-gateway exec -log-json \
+            -log-level info \
+            -gateway-host "$(IP)" \
+            -gateway-name test-clusterip \
+            -consul-http-address $(HOST_IP) \
+            -consul-http-port 8500 \
+            -consul-xds-port  8502 \
+            -envoy-bootstrap-path /bootstrap/envoy.json \
+            -envoy-sds-address consul-api-gateway-controller.default.svc.cluster.local \
+            -envoy-sds-port 9090
         env:
         - name: IP
           valueFrom:
@@ -84,7 +78,7 @@ spec:
         - cp
         - /bin/consul-api-gateway
         - /bootstrap/consul-api-gateway
-        image: hashicorp/consul-api-gateway:0.1.0-techpreview
+        image: hashicorp/consul-api-gateway:0.1.0-beta
         name: consul-api-gateway-init
         resources: {}
         volumeMounts:

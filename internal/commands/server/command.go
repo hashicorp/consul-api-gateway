@@ -12,6 +12,7 @@ import (
 	"github.com/mitchellh/cli"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
 
@@ -35,13 +36,15 @@ type Command struct {
 	flagCAFile            string // CA File for CA for Consul server
 	flagCASecret          string // CA Secret for Consul server
 	flagCASecretNamespace string // CA Secret namespace for Consul server
-	flagConsulAddress     string // Consul server address
-	flagSDSServerHost     string // SDS server host
-	flagSDSServerPort     int    // SDS server port
-	flagMetricsPort       int    // Port for prometheus metrics
-	flagPprofPort         int    // Port for pprof profiling
-	flagK8sContext        string // context to use
-	flagK8sNamespace      string // namespace we're run in
+
+	flagConsulAddress string // Consul server address
+
+	flagSDSServerHost string // SDS server host
+	flagSDSServerPort int    // SDS server port
+	flagMetricsPort   int    // Port for prometheus metrics
+	flagPprofPort     int    // Port for pprof profiling
+	flagK8sContext    string // context to use
+	flagK8sNamespace  string // namespace we're run in
 
 	// Logging
 	flagLogLevel string
@@ -60,7 +63,7 @@ func (c *Command) init() {
 	c.flagSet = flag.NewFlagSet("", flag.ContinueOnError)
 	c.flagSet.StringVar(&c.flagCAFile, "ca-file", "", "Path to CA for Consul server.")
 	c.flagSet.StringVar(&c.flagCASecret, "ca-secret", "", "CA Secret for Consul server.")
-	c.flagSet.StringVar(&c.flagCASecretNamespace, "ca-secret-namespace", "", "CA Secret namespace for Consul server.")
+	c.flagSet.StringVar(&c.flagCASecretNamespace, "ca-secret-namespace", "default", "CA Secret namespace for Consul server.")
 	c.flagSet.StringVar(&c.flagConsulAddress, "consul-address", "", "Consul Address.")
 	c.flagSet.StringVar(&c.flagSDSServerHost, "sds-server-host", defaultSDSServerHost, "SDS Server Host.")
 	c.flagSet.StringVar(&c.flagK8sContext, "k8s-context", "", "Kubernetes context to use.")
@@ -93,38 +96,7 @@ func (c *Command) Run(args []string) int {
 		IncludeLocation: true,
 	}).Named("consul-api-gateway-server")
 
-	consulCfg := api.DefaultConfig()
 	cfg := k8s.Defaults()
-
-	if c.flagCAFile != "" {
-		consulCfg.TLSConfig.CAFile = c.flagCAFile
-		cfg.CACertFile = c.flagCAFile
-		consulCfg.Scheme = "https"
-	}
-
-	if c.flagCASecret != "" {
-		cfg.CACertSecret = c.flagCASecret
-		if c.flagCASecretNamespace != "" {
-			cfg.CACertSecretNamespace = c.flagCASecretNamespace
-		}
-
-		// if we're pulling the cert from a secret, then we override the location
-		// where we store it
-		file, err := ioutil.TempFile("", "consul-api-gateway")
-		if err != nil {
-			logger.Error("error creating the kubernetes controller", "error", err)
-			return 1
-		}
-		defer os.Remove(file.Name())
-		cfg.CACertFile = file.Name()
-		consulCfg.TLSConfig.CAFile = file.Name()
-		consulCfg.Scheme = "https"
-	}
-
-	if c.flagConsulAddress != "" {
-		consulCfg.Address = c.flagConsulAddress
-	}
-
 	restConfig, err := config.GetConfigWithContext(c.flagK8sContext)
 	if err != nil {
 		logger.Error("error getting kubernetes configuration", "error", err)
@@ -134,6 +106,43 @@ func (c *Command) Run(args []string) int {
 	cfg.SDSServerHost = c.flagSDSServerHost
 	cfg.SDSServerPort = c.flagSDSServerPort
 	cfg.Namespace = c.flagK8sNamespace
+
+	consulCfg := api.DefaultConfig()
+	if c.flagCAFile != "" {
+		consulCfg.TLSConfig.CAFile = c.flagCAFile
+	}
+
+	if c.flagCASecret != "" {
+		// if we're pulling the cert from a secret, then we override the location
+		// where we store it
+		file, err := ioutil.TempFile("", "consul-api-gateway")
+		if err != nil {
+			logger.Error("error creating the kubernetes controller", "error", err)
+			return 1
+		}
+		defer os.Remove(file.Name())
+		consulCfg.TLSConfig.CAFile = file.Name()
+
+		if err := utils.WriteSecretCertFile(restConfig, c.flagCASecret, file.Name(), c.flagCASecretNamespace); err != nil {
+			logger.Error("error creating the kubernetes controller", "error", err)
+			return 1
+		}
+	}
+	// CA file can be set by cli flag or 'CONSUL_CACERT' env var
+	if consulCfg.TLSConfig.CAFile != "" {
+		consulCfg.Scheme = "https"
+		consulCA, err := ioutil.ReadFile(consulCfg.TLSConfig.CAFile)
+		if err != nil {
+			logger.Error("error creating the kubernetes controller", "error", err)
+			return 1
+		}
+
+		cfg.CACert = string(consulCA)
+	}
+
+	if c.flagConsulAddress != "" {
+		consulCfg.Address = c.flagConsulAddress
+	}
 
 	return RunServer(ServerConfig{
 		Context:       context.Background(),

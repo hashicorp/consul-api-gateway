@@ -18,8 +18,8 @@ import (
 )
 
 const (
-	envoyImage            = "envoyproxy/envoy:v1.19-latest"
-	bootstrapJSONTemplate = `{
+	envoyImage                = "envoyproxy/envoy:v1.19-latest"
+	httpBootstrapJSONTemplate = `{
 		"admin": {
 			"access_log_path": "/dev/null",
 			"address": {
@@ -141,14 +141,120 @@ const (
 		}
 	}
 	`
+	tcpBootstrapJSONTemplate = `{
+		"admin": {
+			"access_log_path": "/dev/null",
+			"address": {
+				"socket_address": {
+					"address": "127.0.0.1",
+					"port_value": 19000
+				}
+			}
+		},
+		"node": {
+			"cluster": "{{ .ID }}",
+			"id": "{{ .ID }}"
+		},
+		"static_resources": {
+			"listeners": [{
+				"name": "static",
+				"address": {
+					"socket_address": {
+						"address": "127.0.0.1",
+						"port_value": 19001
+					}
+				},
+				"filter_chains": [{
+					"filters": [{
+						"name": "envoy.filters.network.direct_response",
+						"typed_config": {
+							"@type": "type.googleapis.com/envoy.extensions.filters.network.direct_response.v3.Config",
+							"response": {
+								"inline_string": "{{ .ID }}"
+							}
+						}
+					}]
+				}]
+			}],
+			"clusters": [
+				{
+					"name": "consul-server",
+					"ignore_health_on_host_removal": false,
+					"connect_timeout": "1s",
+					"type": "{{ .AddressType }}",
+					"transport_socket": {
+						"name": "tls",
+						"typed_config": {
+							"@type": "type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext",
+							"common_tls_context": {
+								"validation_context": {
+									"trusted_ca": {
+										"filename": "/ca/tls.crt"
+									}
+								}
+							}
+						}
+					},
+					"http2_protocol_options": {},
+					"loadAssignment": {
+						"clusterName": "consul-server",
+						"endpoints": [
+							{
+								"lbEndpoints": [
+									{
+										"endpoint": {
+											"address": {
+												"socket_address": {
+													"address": "{{ .ConsulAddress }}",
+													"port_value": {{ .ConsulXDSPort }}
+												}
+											}
+										}
+									}
+								]
+							}
+						]
+					}
+				}
+			]
+		},
+		"dynamic_resources": {
+			"lds_config": {
+				"ads": {},
+				"resource_api_version": "V3"
+			},
+			"cds_config": {
+				"ads": {},
+				"resource_api_version": "V3"
+			},
+			"ads_config": {
+				"api_type": "DELTA_GRPC",
+				"transport_api_version": "V3",
+				"grpc_services": {
+					"initial_metadata": [
+						{
+							"key": "x-consul-token",
+							"value": "{{ .Token }}"
+						}
+					],
+					"envoy_grpc": {
+						"cluster_name": "consul-server"
+					}
+				}
+			}
+		}
+	}
+	`
 )
 
 var (
-	bootstrapTemplate *template.Template
+	tcpBootstrapTemplate  *template.Template
+	httpBootstrapTemplate *template.Template
 )
 
 func init() {
-	bootstrapTemplate = template.Must(template.New("bootstrap").Parse(bootstrapJSONTemplate))
+	tcpBootstrapTemplate = template.Must(template.New("tcp-bootstrap").Parse(tcpBootstrapJSONTemplate))
+	httpBootstrapTemplate = template.Must(template.New("http-bootstrap").Parse(httpBootstrapJSONTemplate))
 }
 
 type bootstrapArgs struct {
@@ -159,9 +265,19 @@ type bootstrapArgs struct {
 	ConsulXDSPort int
 }
 
-// DeployMeshService deploys an envoy proxy with roughly the same logic that consul-k8s uses
+// DeployHTTPMeshService deploys an envoy proxy with roughly the same logic that consul-k8s uses
 // in its connect-inject registration
-func DeployMeshService(ctx context.Context, cfg *envconf.Config) (*core.Service, error) {
+func DeployHTTPMeshService(ctx context.Context, cfg *envconf.Config) (*core.Service, error) {
+	return deployMeshService(ctx, cfg, "http", httpBootstrapTemplate)
+}
+
+// DeployTCPMeshService deploys an envoy proxy with roughly the same logic that consul-k8s uses
+// in its connect-inject registration
+func DeployTCPMeshService(ctx context.Context, cfg *envconf.Config) (*core.Service, error) {
+	return deployMeshService(ctx, cfg, "tcp", tcpBootstrapTemplate)
+}
+
+func deployMeshService(ctx context.Context, cfg *envconf.Config, protocol string, template *template.Template) (*core.Service, error) {
 	servicePort := 8080
 	namespace := Namespace(ctx)
 	name := envconf.RandomName("mesh", 16)
@@ -173,7 +289,7 @@ func DeployMeshService(ctx context.Context, cfg *envconf.Config) (*core.Service,
 
 	resourcesClient := cfg.Client().Resources(namespace)
 
-	configMap, err := meshServiceConfigMap(name, namespace, proxyServiceName, token, consulAddress, consulPort)
+	configMap, err := meshServiceConfigMap(template, name, namespace, proxyServiceName, token, consulAddress, consulPort)
 	if err != nil {
 		return nil, err
 	}
@@ -233,7 +349,7 @@ func DeployMeshService(ctx context.Context, cfg *envconf.Config) (*core.Service,
 	_, _, err = client.ConfigEntries().Set(&api.ServiceConfigEntry{
 		Kind:     api.ServiceDefaults,
 		Name:     name,
-		Protocol: "http",
+		Protocol: protocol,
 	}, nil)
 	if err != nil {
 		return nil, err
@@ -262,8 +378,8 @@ func DeployMeshService(ctx context.Context, cfg *envconf.Config) (*core.Service,
 	return service, nil
 }
 
-func meshServiceConfigMap(name, namespace, proxyServiceName, token, consulAddress string, consulPort int) (*core.ConfigMap, error) {
-	config, err := meshServiceConfig(proxyServiceName, token, consulAddress, consulPort)
+func meshServiceConfigMap(template *template.Template, name, namespace, proxyServiceName, token, consulAddress string, consulPort int) (*core.ConfigMap, error) {
+	config, err := meshServiceConfig(template, proxyServiceName, token, consulAddress, consulPort)
 	if err != nil {
 		return nil, err
 	}
@@ -279,9 +395,9 @@ func meshServiceConfigMap(name, namespace, proxyServiceName, token, consulAddres
 	}, nil
 }
 
-func meshServiceConfig(name, token, consulAddress string, consulPort int) (string, error) {
-	var template bytes.Buffer
-	if err := bootstrapTemplate.Execute(&template, &bootstrapArgs{
+func meshServiceConfig(template *template.Template, name, token, consulAddress string, consulPort int) (string, error) {
+	var data bytes.Buffer
+	if err := template.Execute(&data, &bootstrapArgs{
 		ID:            name,
 		AddressType:   common.AddressTypeForAddress(consulAddress),
 		Token:         token,
@@ -290,7 +406,7 @@ func meshServiceConfig(name, token, consulAddress string, consulPort int) (strin
 	}); err != nil {
 		return "", err
 	}
-	return template.String(), nil
+	return data.String(), nil
 }
 
 func meshService(deployment *apps.Deployment, port int) *core.Service {

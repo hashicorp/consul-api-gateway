@@ -8,23 +8,26 @@ import (
 	"reflect"
 	"strings"
 
+	corev1 "k8s.io/api/core/v1"
+	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
+
 	"github.com/hashicorp/consul-api-gateway/internal/core"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/builder"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	"github.com/hashicorp/consul-api-gateway/internal/store"
 	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 	"github.com/hashicorp/go-hclog"
-	corev1 "k8s.io/api/core/v1"
-	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
 )
 
 type K8sGateway struct {
-	consulNamespace string
-	logger          hclog.Logger
-	client          gatewayclient.Client
-	gateway         *gw.Gateway
-	config          apigwv1alpha1.GatewayClassConfig
-	sdsConfig       apigwv1alpha1.SDSConfig
+	consulNamespace   string
+	logger            hclog.Logger
+	client            gatewayclient.Client
+	gateway           *gw.Gateway
+	config            apigwv1alpha1.GatewayClassConfig
+	deploymentBuilder builder.DeploymentBuilder
+	serviceBuilder    builder.ServiceBuilder
 
 	status    GatewayStatus
 	podReady  bool
@@ -36,7 +39,9 @@ var _ store.StatusTrackingGateway = &K8sGateway{}
 
 type K8sGatewayConfig struct {
 	ConsulNamespace string
-	SDSConfig       apigwv1alpha1.SDSConfig
+	ConsulCA        string
+	SDSHost         string
+	SDSPort         int
 	Config          apigwv1alpha1.GatewayClassConfig
 	Logger          hclog.Logger
 	Client          gatewayclient.Client
@@ -54,21 +59,29 @@ func NewK8sGateway(gateway *gw.Gateway, config K8sGatewayConfig) *K8sGateway {
 		listeners[k8sListener.ID()] = k8sListener
 	}
 
+	deployment := builder.NewGatewayDeployment(gateway)
+	deployment.WithSDS(config.SDSHost, config.SDSPort)
+	deployment.WithClassConfig(config.Config)
+	deployment.WithConsulCA(config.ConsulCA)
+	service := builder.NewGatewayService(gateway)
+	service.WithClassConfig(config.Config)
+
 	return &K8sGateway{
-		config:          config.Config,
-		sdsConfig:       config.SDSConfig,
-		consulNamespace: config.ConsulNamespace,
-		logger:          gatewayLogger,
-		client:          config.Client,
-		gateway:         gateway,
-		listeners:       listeners,
+		config:            config.Config,
+		deploymentBuilder: deployment,
+		serviceBuilder:    service,
+		consulNamespace:   config.ConsulNamespace,
+		logger:            gatewayLogger,
+		client:            config.Client,
+		gateway:           gateway,
+		listeners:         listeners,
 	}
 }
 
 func (g *K8sGateway) certificates() []string {
 	certificates := []string{}
 	for _, listener := range g.listeners {
-		certificates = append(certificates, listener.Certificates()...)
+		certificates = append(certificates, listener.Config().TLS.Certificates...)
 	}
 	return certificates
 }
@@ -274,11 +287,6 @@ func (g *K8sGateway) ShouldBind(route store.Route) bool {
 		return false
 	}
 
-	if !k8sRoute.IsValid() {
-		g.logger.Trace("route is invalid, should not bind", "route", route.ID())
-		return false
-	}
-
 	for _, ref := range k8sRoute.CommonRouteSpec().ParentRefs {
 		if namespacedName, isGateway := utils.ReferencesGateway(k8sRoute.GetNamespace(), ref); isGateway {
 			if utils.NamespacedName(g.gateway) == namespacedName {
@@ -286,7 +294,6 @@ func (g *K8sGateway) ShouldBind(route store.Route) bool {
 			}
 		}
 	}
-	g.logger.Trace("route does not reference gateway, should not bind", "route", route.ID())
 	return false
 }
 
@@ -370,7 +377,14 @@ func (g *K8sGateway) TrackSync(ctx context.Context, sync func() (bool, error)) e
 }
 
 func (g *K8sGateway) ensureDeploymentExists(ctx context.Context) error {
-	deployment := g.config.DeploymentFor(g.gateway, g.sdsConfig)
+	// Create service account for the gateway
+	if serviceAccount := g.config.ServiceAccountFor(g.gateway); serviceAccount != nil {
+		if err := g.client.EnsureServiceAccount(ctx, g.gateway, serviceAccount); err != nil {
+			return err
+		}
+	}
+
+	deployment := g.deploymentBuilder.Build()
 	mutated := deployment.DeepCopy()
 	if updated, err := g.client.CreateOrUpdateDeployment(ctx, mutated, func() error {
 		mutated = apigwv1alpha1.MergeDeployment(deployment, mutated)
@@ -387,7 +401,7 @@ func (g *K8sGateway) ensureDeploymentExists(ctx context.Context) error {
 	}
 
 	// Create service for the gateway
-	if service := g.config.ServiceFor(g.gateway); service != nil {
+	if service := g.serviceBuilder.Build(); service != nil {
 		mutated := service.DeepCopy()
 		if updated, err := g.client.CreateOrUpdateService(ctx, mutated, func() error {
 			mutated = apigwv1alpha1.MergeService(service, mutated)

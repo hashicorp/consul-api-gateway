@@ -12,7 +12,7 @@ const (
 	defaultListenerName = "default"
 )
 
-// boundListener wraps a lstener and its set of routes
+// boundListener wraps a listener and its set of routes
 type listenerState struct {
 	store.Listener
 
@@ -101,11 +101,11 @@ func (l *listenerState) Resolve() core.ResolvedListener {
 		routes = append(routes, route)
 	}
 	return core.ResolvedListener{
-		Name:         l.name,
-		Hostname:     l.hostname,
-		Port:         l.port,
-		Protocol:     l.protocol,
-		Certificates: l.Listener.Certificates(),
-		Routes:       routes,
+		Name:     l.name,
+		Hostname: l.hostname,
+		Port:     l.port,
+		Protocol: l.protocol,
+		TLS:      l.Listener.Config().TLS,
+		Routes:   routes,
 	}
 }

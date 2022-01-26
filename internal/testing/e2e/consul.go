@@ -24,7 +24,7 @@ import (
 )
 
 const (
-	consulImage          = "hashicorpdev/consul:581357c32"
+	consulImage          = "hashicorp/consul:1.11.2"
 	configTemplateString = `
 {
 	"log_level": "trace",
@@ -70,14 +70,17 @@ func init() {
 }
 
 type consulTestEnvironment struct {
-	ca           []byte
-	consulClient *api.Client
-	token        string
-	policy       *api.ACLPolicy
-	httpPort     int
-	grpcPort     int
-	extraPort    int
-	ip           string
+	ca                 []byte
+	consulClient       *api.Client
+	token              string
+	policy             *api.ACLPolicy
+	httpPort           int
+	grpcPort           int
+	extraHTTPPort      int
+	extraTCPPort       int
+	extraTCPTLSPort    int
+	extraTCPTLSPortTwo int
+	ip                 string
 }
 
 func CreateTestConsulContainer(name, namespace string) env.Func {
@@ -91,7 +94,10 @@ func CreateTestConsulContainer(name, namespace string) env.Func {
 		cluster := clusterVal.(*kindCluster)
 		httpsPort := cluster.httpsPort
 		grpcPort := cluster.grpcPort
-		extraPort := cluster.extraPort
+		extraTCPPort := cluster.extraTCPPort
+		extraTCPTLSPort := cluster.extraTCPTLSPort
+		extraTCPTLSPortTwo := cluster.extraTCPTLSPortTwo
+		extraHTTPPort := cluster.extraHTTPPort
 
 		rootCA, err := testing.GenerateSignedCertificate(testing.GenerateCertificateOptions{
 			IsCA: true,
@@ -175,12 +181,15 @@ func CreateTestConsulContainer(name, namespace string) env.Func {
 		}
 
 		env := &consulTestEnvironment{
-			ca:           rootCA.CertBytes,
-			consulClient: consulClient,
-			httpPort:     httpsPort,
-			grpcPort:     grpcPort,
-			extraPort:    extraPort,
-			ip:           ip,
+			ca:                 rootCA.CertBytes,
+			consulClient:       consulClient,
+			httpPort:           httpsPort,
+			grpcPort:           grpcPort,
+			extraHTTPPort:      extraHTTPPort,
+			extraTCPPort:       extraTCPPort,
+			extraTCPTLSPort:    extraTCPTLSPort,
+			extraTCPTLSPortTwo: extraTCPTLSPortTwo,
+			ip:                 ip,
 		}
 
 		return context.WithValue(ctx, consulTestContextKey, env), nil
@@ -380,6 +389,15 @@ func ConsulClient(ctx context.Context) *api.Client {
 	return consulEnvironment.(*consulTestEnvironment).consulClient
 }
 
+func ConsulCA(ctx context.Context) []byte {
+	consulEnvironment := ctx.Value(consulTestContextKey)
+	if consulEnvironment == nil {
+		panic("must run this with an integration test that has called CreateTestConsul")
+	}
+	return consulEnvironment.(*consulTestEnvironment).ca
+
+}
+
 func ConsulMasterToken(ctx context.Context) string {
 	consulEnvironment := ctx.Value(consulTestContextKey)
 	if consulEnvironment == nil {
@@ -404,12 +422,36 @@ func ConsulGRPCPort(ctx context.Context) int {
 	return consulEnvironment.(*consulTestEnvironment).grpcPort
 }
 
-func ExtraPort(ctx context.Context) int {
+func TCPPort(ctx context.Context) int {
 	consulEnvironment := ctx.Value(consulTestContextKey)
 	if consulEnvironment == nil {
 		panic("must run this with an integration test that has called CreateTestConsul")
 	}
-	return consulEnvironment.(*consulTestEnvironment).extraPort
+	return consulEnvironment.(*consulTestEnvironment).extraTCPPort
+}
+
+func TCPTLSPort(ctx context.Context) int {
+	consulEnvironment := ctx.Value(consulTestContextKey)
+	if consulEnvironment == nil {
+		panic("must run this with an integration test that has called CreateTestConsul")
+	}
+	return consulEnvironment.(*consulTestEnvironment).extraTCPTLSPort
+}
+
+func ExtraTCPTLSPort(ctx context.Context) int {
+	consulEnvironment := ctx.Value(consulTestContextKey)
+	if consulEnvironment == nil {
+		panic("must run this with an integration test that has called CreateTestConsul")
+	}
+	return consulEnvironment.(*consulTestEnvironment).extraTCPTLSPortTwo
+}
+
+func HTTPPort(ctx context.Context) int {
+	consulEnvironment := ctx.Value(consulTestContextKey)
+	if consulEnvironment == nil {
+		panic("must run this with an integration test that has called CreateTestConsul")
+	}
+	return consulEnvironment.(*consulTestEnvironment).extraHTTPPort
 }
 
 func ConsulHTTPPort(ctx context.Context) int {

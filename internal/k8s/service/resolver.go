@@ -97,7 +97,7 @@ func (r *ResolutionErrors) String() string {
 	}
 
 	if len(r.genericErrors) > 0 {
-		genericErrs := "k8s: "
+		genericErrs := ""
 		for i, err := range r.genericErrors {
 			if i != 0 {
 				genericErrs += ", "

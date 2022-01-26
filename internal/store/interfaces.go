@@ -45,7 +45,7 @@ type ListenerConfig struct {
 	Hostname string
 	Port     int
 	Protocol string
-	TLS      bool
+	TLS      core.TLSParams
 }
 
 // RouteTrackingListener is an optional extension
@@ -63,8 +63,8 @@ type RouteTrackingListener interface {
 type Listener interface {
 	ID() string
 	CanBind(route Route) (bool, error)
-	Certificates() []string
 	Config() ListenerConfig
+	IsValid() bool
 }
 
 // StatusTrackingRoute is an optional extension

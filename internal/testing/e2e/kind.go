@@ -40,8 +40,17 @@ nodes:
   - containerPort: {{ .GRPCPort }}
     hostPort: {{ .GRPCPort }}
     protocol: TCP
-  - containerPort: {{ .ExtraPort }}
-    hostPort: {{ .ExtraPort }}
+  - containerPort: {{ .ExtraTCPPort }}
+    hostPort: {{ .ExtraTCPPort }}
+    protocol: TCP
+  - containerPort: {{ .ExtraHTTPPort }}
+    hostPort: {{ .ExtraHTTPPort }}
+    protocol: TCP
+  - containerPort: {{ .ExtraTCPTLSPort }}
+    hostPort: {{ .ExtraTCPTLSPort }}
+    protocol: TCP
+  - containerPort: {{ .ExtraTCPTLSPortTwo }}
+    hostPort: {{ .ExtraTCPTLSPortTwo }}
     protocol: TCP
 `
 )
@@ -54,32 +63,50 @@ func init() {
 
 // based off github.com/kubernetes-sigs/e2e-framework/support/kind
 type kindCluster struct {
-	name        string
-	e           *gexe.Echo
-	kubecfgFile string
-	config      string
-	httpsPort   int
-	extraPort   int
-	grpcPort    int
+	name               string
+	e                  *gexe.Echo
+	kubecfgFile        string
+	config             string
+	httpsPort          int
+	grpcPort           int
+	extraHTTPPort      int
+	extraTCPPort       int
+	extraTCPTLSPort    int
+	extraTCPTLSPortTwo int
 }
 
 func newKindCluster(name string) *kindCluster {
-	ports := freeport.MustTake(3)
-	return &kindCluster{name: name, e: gexe.New(), httpsPort: ports[0], grpcPort: ports[1], extraPort: ports[2]}
+	ports := freeport.MustTake(6)
+	return &kindCluster{
+		name:               name,
+		e:                  gexe.New(),
+		httpsPort:          ports[0],
+		grpcPort:           ports[1],
+		extraHTTPPort:      ports[2],
+		extraTCPPort:       ports[3],
+		extraTCPTLSPort:    ports[4],
+		extraTCPTLSPortTwo: ports[5],
+	}
 }
 
 func (k *kindCluster) Create() (string, error) {
-	log.Println("Creating kind cluster ", k.name)
+	log.Println("Creating kind cluster", k.name)
 
 	var kindConfig bytes.Buffer
 	err := kindTemplate.Execute(&kindConfig, &struct {
-		HTTPSPort int
-		GRPCPort  int
-		ExtraPort int
+		HTTPSPort          int
+		GRPCPort           int
+		ExtraTCPPort       int
+		ExtraTCPTLSPort    int
+		ExtraTCPTLSPortTwo int
+		ExtraHTTPPort      int
 	}{
-		HTTPSPort: k.httpsPort,
-		GRPCPort:  k.grpcPort,
-		ExtraPort: k.extraPort,
+		HTTPSPort:          k.httpsPort,
+		GRPCPort:           k.grpcPort,
+		ExtraTCPPort:       k.extraTCPPort,
+		ExtraTCPTLSPort:    k.extraTCPTLSPort,
+		ExtraTCPTLSPortTwo: k.extraTCPTLSPortTwo,
+		ExtraHTTPPort:      k.extraHTTPPort,
 	})
 	if err != nil {
 		return "", err

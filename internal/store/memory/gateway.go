@@ -26,7 +26,7 @@ func newGatewayState(logger hclog.Logger, gateway store.Gateway, adapter core.Sy
 	gatewayLogger := logger.With("gateway.consul.namespace", id.ConsulNamespace, "gateway.consul.service", id.Service)
 	listeners := make(map[string]*listenerState)
 	for _, listener := range gateway.Listeners() {
-		for _, cert := range listener.Certificates() {
+		for _, cert := range listener.Config().TLS.Certificates {
 			secrets[cert] = struct{}{}
 		}
 		listeners[listener.ID()] = newListenerState(gatewayLogger, gateway, listener)
@@ -116,7 +116,9 @@ func (g *gatewayState) sync(ctx context.Context) error {
 func (g *gatewayState) Resolve() core.ResolvedGateway {
 	listeners := []core.ResolvedListener{}
 	for _, listener := range g.listeners {
-		listeners = append(listeners, listener.Resolve())
+		if listener.Listener.IsValid() {
+			listeners = append(listeners, listener.Resolve())
+		}
 	}
 	return core.ResolvedGateway{
 		ID:        g.ID(),
