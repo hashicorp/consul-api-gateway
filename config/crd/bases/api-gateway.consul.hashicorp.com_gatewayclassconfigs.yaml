@@ -84,6 +84,27 @@ spec:
                     - http
                     - https
                     type: string
+                  tlsMinVersion:
+                    description: The minimum TLS version to support for incoming connections.
+                    enum:
+                    - TLS_AUTO
+                    - TLSv1_0
+                    - TLSv1_1
+                    - TLSv1_2
+                    - TLSv1_3
+                    type: string
+                  tlsMaxVersion:
+                    description: The maximum TLS version to support for incoming connections.
+                    enum:
+                    - TLS_AUTO
+                    - TLSv1_0
+                    - TLSv1_1
+                    - TLSv1_2
+                    - TLSv1_3
+                    type: string
+                  tlsCipherSuites:
+                    description: A comma-delimited list of TLS cipher suites to suport for incoming connections.
+                    type: string
                 type: object
               copyAnnotations:
                 description: Annotation Information to copy to services or deployments
