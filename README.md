@@ -22,8 +22,7 @@ cluster. The Consul Helm chart must be version `0.40.0` or greater.  See the Con
 
 # Documentation
 
-The primary documentation, including installation instructions, is available on the Consul website:
-[https://www.consul.io/docs/api-gateway](https://www.consul.io/docs/api-gateway)
+The primary documentation, including installation instructions, is available on the [Consul documentation website](https://www.consul.io/docs/api-gateway).
 
 ## Configuring and Deploying API Gateways
 
