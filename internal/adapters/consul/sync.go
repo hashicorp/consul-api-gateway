@@ -291,6 +291,12 @@ func (a *ConsulSyncAdapter) Clear(ctx context.Context, id core.GatewayID) error 
 		}
 	}
 
+	// remove the ingress config entry first so that it doesn't throw errors
+	// when the defaults are removed due to protocol mismatches
+	if err := a.deleteConfigEntries(ctx, ingress); err != nil {
+		return fmt.Errorf("error removing ingress config entry: %w", err)
+	}
+
 	if err := a.deleteConfigEntries(ctx, removedRouters...); err != nil {
 		return fmt.Errorf("error removing service router config entries: %w", err)
 	}
@@ -299,10 +305,6 @@ func (a *ConsulSyncAdapter) Clear(ctx context.Context, id core.GatewayID) error 
 	}
 	if err := a.deleteConfigEntries(ctx, removedDefaults...); err != nil {
 		return fmt.Errorf("error removing service defaults config entries: %w", err)
-	}
-
-	if err := a.deleteConfigEntries(ctx, ingress); err != nil {
-		return fmt.Errorf("error removing ingress config entry: %w", err)
 	}
 
 	a.stopIntentionSyncForGateway(id)

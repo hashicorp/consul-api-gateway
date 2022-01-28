@@ -28,6 +28,7 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/k8s"
 	"github.com/hashicorp/consul-api-gateway/internal/testing/e2e"
 	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
+	"github.com/hashicorp/consul/api"
 )
 
 var (
@@ -477,6 +478,27 @@ func TestHTTPMeshService(t *testing.T) {
 			checkRoute(t, checkPort, "/v1", serviceFive.Name, nil, "after route deletion service five not routable in allotted time")
 
 			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionInSync), 30*time.Second, 1*time.Second, "gateway not synced in the allotted time")
+
+			client := e2e.ConsulClient(ctx)
+			require.Eventually(t, func() bool {
+				entry, _, err := client.ConfigEntries().Get(api.IngressGateway, gatewayName, nil)
+				if err != nil {
+					return false
+				}
+				return entry != nil
+			}, 30*time.Second, 1*time.Second, "no consul config entry found")
+
+			err = resources.Delete(ctx, gw)
+			require.NoError(t, err)
+
+			require.Eventually(t, func() bool {
+				_, _, err := client.ConfigEntries().Get(api.IngressGateway, gatewayName, nil)
+				if err == nil {
+					return false
+				}
+				return strings.Contains(err.Error(), "Unexpected response code: 404")
+			}, 30*time.Second, 1*time.Second, "consul config entry not cleaned up")
+
 			return ctx
 		})
 
