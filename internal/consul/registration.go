@@ -131,6 +131,15 @@ func (s *ServiceRegistry) register(ctx context.Context) error {
 			Interval:                       serviceCheckInterval,
 			DeregisterCriticalServiceAfter: serviceDeregistrationTime,
 		}},
+		Proxy: &api.AgentServiceConnectProxyConfig{
+			Config: map[string]interface{}{
+				"envoy_gateway_bind_addresses": map[string]interface{}{
+					"__global": map[string]interface{}{
+						"address": "0.0.0.0",
+					},
+				},
+			},
+		},
 	}
 
 	return s.consul.Agent().ServiceRegisterOpts(registration, (&api.ServiceRegisterOpts{}).WithContext(ctx))
