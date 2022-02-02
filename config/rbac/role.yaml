@@ -29,6 +29,7 @@ rules:
   - create
   - get
   - list
+  - update
   - watch
 - apiGroups:
   - coordination.k8s.io
@@ -98,6 +99,7 @@ rules:
   - create
   - get
   - list
+  - update
   - watch
 - apiGroups:
   - gateway.networking.k8s.io
