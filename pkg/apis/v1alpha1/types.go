@@ -62,6 +62,8 @@ type ConsulSpec struct {
 	// pod. If not specified, the pod will attempt to use a local agent on
 	// the host on which it is running.
 	Address string `json:"address,omitempty"`
+	// The location of a secret to mount with the Consul root CA.
+	CertificateAuthoritySecret string `json:"caSecret,omitempty"`
 	// The information about Consul's ports
 	PortSpec PortSpec `json:"ports,omitempty"`
 }
