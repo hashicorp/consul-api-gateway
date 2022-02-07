@@ -234,7 +234,7 @@ func (r *backendResolver) consulServiceForK8SService(ctx context.Context, namesp
 	}
 	if service == nil {
 		r.logger.Warn("kubernetes service not found")
-		return nil, NewK8sResolutionError("service not found")
+		return nil, NewK8sResolutionError(fmt.Sprintf("service %s not found", namespacedName))
 	}
 
 	// we do an inner retry since consul may take some time to sync
@@ -246,7 +246,7 @@ func (r *backendResolver) consulServiceForK8SService(ctx context.Context, namesp
 			return err
 		}
 		if resolved == nil {
-			return NewConsulResolutionError("consul service not found")
+			return NewConsulResolutionError(fmt.Sprintf("consul service %s not found", namespacedName))
 		}
 		return nil
 	}, backoff.WithContext(backoff.WithMaxRetries(backoff.NewConstantBackOff(1*time.Second), 30), ctx))
