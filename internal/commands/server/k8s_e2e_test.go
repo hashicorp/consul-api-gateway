@@ -526,6 +526,18 @@ func TestTCPMeshService(t *testing.T) {
 
 			resources := cfg.Client().Resources(namespace)
 
+			// create a MeshService to route to service four
+			meshServiceName := envconf.RandomName("meshsvc", 16)
+			require.NoError(t, resources.Create(ctx, &apigwv1alpha1.MeshService{
+				ObjectMeta: meta.ObjectMeta{
+					Name:      meshServiceName,
+					Namespace: namespace,
+				},
+				Spec: apigwv1alpha1.MeshServiceSpec{
+					Name: serviceFour.Name,
+				},
+			}))
+
 			gcc := &apigwv1alpha1.GatewayClassConfig{
 				ObjectMeta: meta.ObjectMeta{
 					Name: configName,
@@ -630,7 +642,9 @@ func TestTCPMeshService(t *testing.T) {
 			require.Eventually(t, tcpRouteStatusCheck(ctx, resources, gatewayName, routeOneName, namespace, routeRefErrors), 30*time.Second, 1*time.Second, "route status not set in allotted time")
 
 			// route 2
-			portFour := gateway.PortNumber(serviceFour.Spec.Ports[0].Port)
+			meshServiceGroup := gateway.Group(apigwv1alpha1.Group)
+			meshServiceKind := gateway.Kind(apigwv1alpha1.MeshServiceKind)
+			// this routes to service four
 			route := &gateway.TCPRoute{
 				ObjectMeta: meta.ObjectMeta{
 					Name:      routeTwoName,
@@ -645,8 +659,9 @@ func TestTCPMeshService(t *testing.T) {
 					Rules: []gateway.TCPRouteRule{{
 						BackendRefs: []gateway.BackendRef{{
 							BackendObjectReference: gateway.BackendObjectReference{
-								Name: gateway.ObjectName(serviceFour.Name),
-								Port: &portFour,
+								Group: &meshServiceGroup,
+								Kind:  &meshServiceKind,
+								Name:  gateway.ObjectName(meshServiceName),
 							},
 						}},
 					}},
@@ -665,6 +680,7 @@ func TestTCPMeshService(t *testing.T) {
 		}).
 		Assess("tls routing", func(ctx context.Context, t *testing.T, cfg *envconf.Config) context.Context {
 			serviceOne, err := e2e.DeployTCPMeshService(ctx, cfg)
+			require.NoError(t, err)
 			serviceTwo, err := e2e.DeployTCPMeshService(ctx, cfg)
 			require.NoError(t, err)
 

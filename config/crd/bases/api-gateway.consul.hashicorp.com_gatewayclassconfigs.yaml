@@ -64,10 +64,6 @@ spec:
                         description: The Consul namespace to use for authentication.
                         type: string
                     type: object
-                  caSecret:
-                    description: The location of a secret to mount with the Consul
-                      root CA.
-                    type: string
                   ports:
                     description: The information about Consul's ports
                     properties:

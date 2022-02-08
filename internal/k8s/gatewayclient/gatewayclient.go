@@ -34,6 +34,7 @@ type Client interface {
 	GetService(ctx context.Context, key types.NamespacedName) (*core.Service, error)
 	GetHTTPRoute(ctx context.Context, key types.NamespacedName) (*gateway.HTTPRoute, error)
 	GetTCPRoute(ctx context.Context, key types.NamespacedName) (*gateway.TCPRoute, error)
+	GetMeshService(ctx context.Context, key types.NamespacedName) (*apigwv1alpha1.MeshService, error)
 
 	// finalizer helpers
 
@@ -225,6 +226,17 @@ func (g *gatewayClient) GetTCPRoute(ctx context.Context, key types.NamespacedNam
 		return nil, NewK8sError(err)
 	}
 	return route, nil
+}
+
+func (g *gatewayClient) GetMeshService(ctx context.Context, key types.NamespacedName) (*apigwv1alpha1.MeshService, error) {
+	service := &apigwv1alpha1.MeshService{}
+	if err := g.Client.Get(ctx, key, service); err != nil {
+		if k8serrors.IsNotFound(err) {
+			return nil, nil
+		}
+		return nil, NewK8sError(err)
+	}
+	return service, nil
 }
 
 func (g *gatewayClient) EnsureFinalizer(ctx context.Context, object client.Object, finalizer string) (bool, error) {
