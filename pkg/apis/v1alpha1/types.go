@@ -143,8 +143,6 @@ type MeshService struct {
 type MeshServiceSpec struct {
 	// Name holds the service name for a consul service.
 	Name string `json:"name,omitempty"`
-	// Datacenter holds the datacenter information about a consul service
-	Datacenter string `json:"datacenter,omitempty"`
 }
 
 // +kubebuilder:object:root=true

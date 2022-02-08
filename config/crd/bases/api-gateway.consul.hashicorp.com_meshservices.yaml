@@ -37,10 +37,6 @@ spec:
           spec:
             description: Spec defines the desired state of MeshService.
             properties:
-              datacenter:
-                description: Datacenter holds the datacenter information about a consul
-                  service
-                type: string
               name:
                 description: Name holds the service name for a consul service.
                 type: string
