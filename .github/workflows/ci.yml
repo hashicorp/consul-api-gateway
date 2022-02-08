@@ -55,7 +55,7 @@ jobs:
         go generate ./...
         make ctrl-generate
         make ctrl-manifests
-        git diff --quiet || (echo 'Working tree is dirty' && exit 1)
+        git diff --quiet || (echo 'Working tree is dirty' && git status --porcelain && exit 1)
 
     - name: Test
       run: |
