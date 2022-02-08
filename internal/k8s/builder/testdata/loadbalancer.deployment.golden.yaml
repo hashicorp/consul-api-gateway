@@ -36,6 +36,7 @@ spec:
             -log-level info \
             -gateway-host "$(IP)" \
             -gateway-name test-loadbalancer \
+            -gateway-namespace test \
             -consul-http-address $(HOST_IP) \
             -consul-http-port 8500 \
             -consul-xds-port  8502 \
