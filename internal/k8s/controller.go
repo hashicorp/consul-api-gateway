@@ -53,9 +53,6 @@ func (c ConsulNamespaceConfig) Namespace(namespace string) string {
 	if c.MirrorKubernetesNamespaces {
 		return c.MirrorKubernetesNamespacePrefix + namespace
 	}
-	if c.ConsulDestinationNamespace == "" {
-		return "default"
-	}
 	return c.ConsulDestinationNamespace
 }
 
@@ -83,15 +80,13 @@ type Config struct {
 
 func Defaults() *Config {
 	return &Config{
-		CACert:              "",
-		SDSServerHost:       "consul-api-gateway-controller.default.svc.cluster.local",
-		SDSServerPort:       9090,
-		MetricsBindAddr:     ":8080",
-		HealthProbeBindAddr: ":8081",
-		WebhookPort:         8443,
-		ConsulNamespaceConfig: ConsulNamespaceConfig{
-			ConsulDestinationNamespace: "default",
-		},
+		CACert:                "",
+		SDSServerHost:         "consul-api-gateway-controller.default.svc.cluster.local",
+		SDSServerPort:         9090,
+		MetricsBindAddr:       ":8080",
+		HealthProbeBindAddr:   ":8081",
+		WebhookPort:           8443,
+		ConsulNamespaceConfig: ConsulNamespaceConfig{},
 	}
 }
 

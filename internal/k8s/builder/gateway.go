@@ -324,7 +324,9 @@ exec /bootstrap/consul-api-gateway exec -log-json \
   -log-level {{ .LogLevel }} \
   -gateway-host "{{ .GatewayHost }}" \
   -gateway-name {{ .GatewayName }} \
+{{- if .GatewayNamespace }}
   -gateway-namespace {{ .GatewayNamespace }} \
+{{- end }}
   -consul-http-address {{ .ConsulHTTPAddr }} \
   -consul-http-port {{ .ConsulHTTPPort }} \
   -consul-xds-port  {{ .ConsulGRPCPort }} \

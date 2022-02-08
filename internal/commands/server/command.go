@@ -79,7 +79,7 @@ func (c *Command) init() {
 
 	{
 		// Consul namespaces
-		c.flagSet.StringVar(&c.flagConsulDestinationNamespace, "consul-destination-namespace", "default", "Consul namespace to register gateway services.")
+		c.flagSet.StringVar(&c.flagConsulDestinationNamespace, "consul-destination-namespace", "", "Consul namespace to register gateway services.")
 		c.flagSet.BoolVar(&c.flagMirrorK8SNamespaces, "mirror-k8s-namespaces", false, "Register Consul gateway services based on Kubernetes namespace.")
 		c.flagSet.StringVar(&c.flagMirroringK8SPrefix, "mirror-k8s-namespace-prefix", "", "Namespace prefix for Consul services when mirroring Kubernetes namespaces.")
 	}
