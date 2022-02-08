@@ -152,14 +152,15 @@ func (k *Kubernetes) Start(ctx context.Context) error {
 	gwClient := gatewayclient.New(k.k8sManager.GetClient(), scheme, ControllerName)
 
 	reconcileManager := reconciler.NewReconcileManager(reconciler.ManagerConfig{
-		ControllerName: ControllerName,
-		Client:         gwClient,
-		Consul:         k.consul,
-		ConsulCA:       k.config.CACert,
-		SDSHost:        k.config.SDSServerHost,
-		SDSPort:        k.config.SDSServerPort,
-		Logger:         k.logger.Named("Reconciler"),
-		Store:          k.store,
+		ControllerName:        ControllerName,
+		Client:                gwClient,
+		Consul:                k.consul,
+		ConsulCA:              k.config.CACert,
+		SDSHost:               k.config.SDSServerHost,
+		SDSPort:               k.config.SDSServerPort,
+		Logger:                k.logger.Named("Reconciler"),
+		Store:                 k.store,
+		ConsulNamespaceMapper: k.config.ConsulNamespaceConfig.Namespace,
 	})
 
 	err := (&controllers.GatewayClassConfigReconciler{
