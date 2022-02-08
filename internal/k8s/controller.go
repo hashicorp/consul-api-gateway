@@ -43,6 +43,22 @@ func init() {
 	utilruntime.Must(gw.AddToScheme(scheme))
 }
 
+type ConsulNamespaceConfig struct {
+	ConsulDestinationNamespace      string
+	MirrorKubernetesNamespaces      bool
+	MirrorKubernetesNamespacePrefix string
+}
+
+func (c ConsulNamespaceConfig) Namespace(namespace string) string {
+	if c.MirrorKubernetesNamespaces {
+		return c.MirrorKubernetesNamespacePrefix + namespace
+	}
+	if c.ConsulDestinationNamespace == "" {
+		return "default"
+	}
+	return c.ConsulDestinationNamespace
+}
+
 type Kubernetes struct {
 	config     *Config
 	k8sManager ctrl.Manager
@@ -60,6 +76,9 @@ type Config struct {
 	WebhookPort         int
 	RestConfig          *rest.Config
 	Namespace           string
+
+	// ConsulNamespaceConfig
+	ConsulNamespaceConfig ConsulNamespaceConfig
 }
 
 func Defaults() *Config {
@@ -70,6 +89,9 @@ func Defaults() *Config {
 		MetricsBindAddr:     ":8080",
 		HealthProbeBindAddr: ":8081",
 		WebhookPort:         8443,
+		ConsulNamespaceConfig: ConsulNamespaceConfig{
+			ConsulDestinationNamespace: "default",
+		},
 	}
 }
 

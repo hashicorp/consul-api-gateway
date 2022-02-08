@@ -8,7 +8,9 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff"
+	"github.com/hashicorp/consul-api-gateway/internal/common"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
+	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
 	corev1 "k8s.io/api/core/v1"
@@ -186,13 +188,15 @@ type backendResolver struct {
 	client    gatewayclient.Client
 	consul    *api.Client
 	logger    hclog.Logger
+	mapper    common.ConsulNamespaceMapper
 }
 
-func NewBackendResolver(logger hclog.Logger, namespace string, client gatewayclient.Client, consul *api.Client) BackendResolver {
+func NewBackendResolver(logger hclog.Logger, namespace string, mapper common.ConsulNamespaceMapper, client gatewayclient.Client, consul *api.Client) BackendResolver {
 	return &backendResolver{
 		namespace: namespace,
 		client:    client,
 		consul:    consul,
+		mapper:    mapper,
 		logger:    logger,
 	}
 }
@@ -218,6 +222,9 @@ func (r *backendResolver) Resolve(ctx context.Context, ref gw.BackendObjectRefer
 			return nil, NewK8sResolutionError("service port must not be empty")
 		}
 		return r.consulServiceForK8SService(ctx, namespacedName)
+	case group == apigwv1alpha1.GroupVersion.Group && kind == "MeshService":
+		r.findConsulMeshService(namespacedName)
+		fallthrough
 	default:
 		return nil, NewResolutionError("unsupported reference type")
 	}
@@ -312,4 +319,11 @@ func (r *backendResolver) findGlobalCatalogService(service *corev1.Service) (*Re
 		}
 	}
 	return nil, nil
+}
+
+// this will resolve a service based on our future CRD
+func (r *backendResolver) findConsulMeshService(name types.NamespacedName) {
+	mapped := r.mapper(name.Namespace)
+
+	r.logger.Debug("resolving consul mesh service", "name", name.Name, "namespace", mapped)
 }
