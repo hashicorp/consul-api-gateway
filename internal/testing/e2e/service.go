@@ -283,7 +283,7 @@ func deployMeshService(ctx context.Context, cfg *envconf.Config, protocol string
 	name := envconf.RandomName("mesh", 16)
 	client := ConsulClient(ctx)
 	consulPort := ConsulGRPCPort(ctx)
-	token := ConsulMasterToken(ctx)
+	token := ConsulInitialManagementToken(ctx)
 	consulAddress := HostRoute(ctx)
 	proxyServiceName := name + "-proxy"
 

@@ -398,7 +398,7 @@ func ConsulCA(ctx context.Context) []byte {
 
 }
 
-func ConsulMasterToken(ctx context.Context) string {
+func ConsulInitialManagementToken(ctx context.Context) string {
 	consulEnvironment := ctx.Value(consulTestContextKey)
 	if consulEnvironment == nil {
 		panic("must run this with an integration test that has called CreateTestConsul")
@@ -474,7 +474,7 @@ func CreateConsulACLPolicy(ctx context.Context, cfg *envconf.Config) (context.Co
 	if err != nil {
 		return nil, err
 	}
-	log.Printf("Consul master token: %s", token.SecretID)
+	log.Printf("Consul initial management token: %s", token.SecretID)
 	policy, _, err := env.consulClient.ACL().PolicyCreate(adminPolicy(), &api.WriteOptions{
 		Token: token.SecretID,
 	})
