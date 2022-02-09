@@ -9,7 +9,6 @@ spec:
     consulAPIGateway: "consul-api-gateway:1"
   consul:
     scheme: https
-    caSecret: consul-ca-cert
     ports:
       http: 8501
       grpc: 8502
