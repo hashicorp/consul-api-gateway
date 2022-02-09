@@ -5,7 +5,7 @@ on:
   pull_request:
     branches: ["main", "release/**"]
 env:
-  GO_VERSION: '1.16'
+  GO_VERSION: '1.17'
   CONSUL_LICENSE: ${{ secrets.CONSUL_LICENSE }}
 jobs:
   lint:
@@ -75,10 +75,13 @@ jobs:
         path: ${{ env.TEST_RESULTS_DIR }}
 
   e2e:
-    name: e2e tests
+    name: e2e tests (consul-image=${{ matrix.consul-image }})
+    strategy:
+      matrix:
+        consul-image: ['hashicorp/consul:1.11.2', 'hashicorp/consul-enterprise:1.11.2-ent']
     runs-on: ubuntu-latest
     env:
-      TEST_RESULTS_DIR: /tmp/test-results/e2e
+      TEST_RESULTS_DIR: /tmp/test-results/e2e@${{ matrix.consul-image }}
     steps:
     - name: Checkout
       uses: actions/checkout@v2
@@ -102,6 +105,7 @@ jobs:
     - name: Test
       env:
         DOCKER_HOST_ROUTE: 172.17.0.1
+        E2E_APIGW_CONSUL_IMAGE: ${{ matrix.consul-image }}
       run: |
         mkdir -p $TEST_RESULTS_DIR/json
         gotestsum \
