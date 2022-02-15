@@ -116,6 +116,27 @@ func TestGatewayClassConfig(t *testing.T) {
 			client.EXPECT().GatewayClassesUsingConfig(gomock.Any(), gomock.Any()).Return(&gateway.GatewayClassList{}, nil)
 			client.EXPECT().EnsureFinalizer(gomock.Any(), gomock.Any(), gatewayClassConfigFinalizer).Return(true, nil)
 		},
+	}, {
+		name: "update-in-use",
+		expectationCB: func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager) {
+			gcUsing := gateway.GatewayClass{
+				ObjectMeta: meta.ObjectMeta{Name: "class"},
+				Spec: gateway.GatewayClassSpec{
+					ParametersRef: &gateway.ParametersReference{
+						Group: apigwv1alpha1.Group,
+						Kind:  apigwv1alpha1.GatewayClassConfigKind,
+						Name:  "config",
+					},
+				},
+			}
+
+			client.EXPECT().GetGatewayClassConfig(gomock.Any(), classConfigName).Return(&apigwv1alpha1.GatewayClassConfig{}, nil)
+			client.EXPECT().GatewayClassesUsingConfig(gomock.Any(), gomock.Any()).Return(&gateway.GatewayClassList{
+				Items: []gateway.GatewayClass{gcUsing},
+			}, nil)
+			reconciler.EXPECT().DeleteGatewayClass(gomock.Any(), gcUsing.Name).Return(nil)
+			client.EXPECT().EnsureFinalizer(gomock.Any(), gomock.Any(), gatewayClassConfigFinalizer).Return(true, nil)
+		},
 	}} {
 		t.Run(test.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
@@ -128,8 +149,9 @@ func TestGatewayClassConfig(t *testing.T) {
 			}
 
 			controller := &GatewayClassConfigReconciler{
-				Client: client,
-				Log:    hclog.NewNullLogger(),
+				Client:  client,
+				Log:     hclog.NewNullLogger(),
+				Manager: reconciler,
 			}
 			result, err := controller.Reconcile(context.Background(), reconcile.Request{
 				NamespacedName: classConfigName,
