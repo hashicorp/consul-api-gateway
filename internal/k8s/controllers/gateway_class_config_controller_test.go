@@ -12,6 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	gateway "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	"github.com/hashicorp/go-hclog"
 
@@ -105,12 +106,14 @@ func TestGatewayClassConfig(t *testing.T) {
 		err:  errExpected,
 		expectationCB: func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager) {
 			client.EXPECT().GetGatewayClassConfig(gomock.Any(), classConfigName).Return(&apigwv1alpha1.GatewayClassConfig{}, nil)
+			client.EXPECT().GatewayClassesUsingConfig(gomock.Any(), gomock.Any()).Return(&gateway.GatewayClassList{}, nil)
 			client.EXPECT().EnsureFinalizer(gomock.Any(), gomock.Any(), gatewayClassConfigFinalizer).Return(false, errExpected)
 		},
 	}, {
 		name: "create",
 		expectationCB: func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager) {
 			client.EXPECT().GetGatewayClassConfig(gomock.Any(), classConfigName).Return(&apigwv1alpha1.GatewayClassConfig{}, nil)
+			client.EXPECT().GatewayClassesUsingConfig(gomock.Any(), gomock.Any()).Return(&gateway.GatewayClassList{}, nil)
 			client.EXPECT().EnsureFinalizer(gomock.Any(), gomock.Any(), gatewayClassConfigFinalizer).Return(true, nil)
 		},
 	}} {

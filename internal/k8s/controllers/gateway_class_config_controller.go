@@ -64,6 +64,16 @@ func (r *GatewayClassConfigReconciler) Reconcile(ctx context.Context, req ctrl.R
 	}
 
 	// we're creating or updating
+
+	// evict any class that's referencing an updated config from cache
+	if using, err := r.Client.GatewayClassesUsingConfig(ctx, gcc); err == nil && len(using.Items) > 0 {
+		for _, gc := range using.Items {
+			if err := r.Manager.DeleteGatewayClass(ctx, gc.Name); err != nil {
+				logger.Warn("error evicting cached gateway class referencing config", "error", err)
+			}
+		}
+	}
+
 	if _, err := r.Client.EnsureFinalizer(ctx, gcc, gatewayClassConfigFinalizer); err != nil {
 		logger.Error("error adding gateway class config finalizer", "error", err)
 		return ctrl.Result{}, err
