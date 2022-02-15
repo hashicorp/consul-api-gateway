@@ -7,6 +7,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler"
 	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 	"github.com/hashicorp/go-hclog"
 )
@@ -17,8 +18,9 @@ const (
 
 // GatewayClassConfigReconciler reconciles a GatewayClassConfig object
 type GatewayClassConfigReconciler struct {
-	Client gatewayclient.Client
-	Log    hclog.Logger
+	Client  gatewayclient.Client
+	Log     hclog.Logger
+	Manager reconciler.ReconcileManager
 }
 
 //+kubebuilder:rbac:groups=api-gateway.consul.hashicorp.com,resources=gatewayclassconfigs,verbs=get;update;list;watch
