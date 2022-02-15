@@ -25,7 +25,7 @@ import (
 )
 
 const (
-	defaultConsulImage            = "hashicorp/consul:1.11.2"
+	defaultConsulImage            = "hashicorp/consul:1.11.3"
 	envvarConsulImage             = envvarPrefix + "CONSUL_IMAGE"
 	envvarConsulEnterpriseLicense = "CONSUL_LICENSE"
 	configTemplateString          = `
