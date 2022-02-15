@@ -44,7 +44,7 @@ createNginxIngress() {
 
 installConsul() {
   echo "Installing consul helm chart"
-  helm install consul hashicorp/consul --version 0.39.0 -f dev/config/helm/consul.yaml 2>&1 > /dev/null
+  helm install consul hashicorp/consul --version 0.40.0 -f dev/config/helm/consul.yaml 2>&1 > /dev/null
   echo "Waiting for consul to stabilize"
   sleep 10
   kubectl wait --for=condition=ready pod --selector=app=consul,component=server,release=consul --timeout=90s
