@@ -601,6 +601,24 @@ func gatewayConsulRole(namespace, policyID string) *api.ACLRole {
 }
 
 func adminPolicy() *api.ACLPolicy {
+	if IsEnterprise() {
+		return &api.ACLPolicy{
+			Name: "consul-api-gateway",
+			Rules: `
+	namespace_prefix "" {
+	acl = "write"
+	service_prefix "" { policy = "write" }
+	agent_prefix "" { policy = "write" }
+	session_prefix "" { policy = "write" }
+	}
+	node_prefix "" { policy = "write" }
+	event_prefix "" { policy = "write" }
+	query_prefix "" { policy = "write" }
+	operator = "write"
+	keyring = "write"
+	`,
+		}
+	}
 	return &api.ACLPolicy{
 		Name: "consul-api-gateway",
 		Rules: `
