@@ -6,6 +6,7 @@ package server
 import (
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -15,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	apps "k8s.io/api/apps/v1"
 	core "k8s.io/api/core/v1"
@@ -65,7 +67,7 @@ func TestGatewayBasic(t *testing.T) {
 			resources := cfg.Client().Resources(namespace)
 
 			gatewayName := envconf.RandomName("gw", 16)
-			_, gc := createGatewayClass(ctx, t, cfg)
+			gcc, gc := createGatewayClass(ctx, t, cfg)
 
 			require.Eventually(t, func() bool {
 				created := &gateway.GatewayClass{}
@@ -126,6 +128,8 @@ func TestGatewayBasic(t *testing.T) {
 				}
 				return false
 			}, 30*time.Second, 1*time.Second, "no gateway found in the allotted time")
+
+			checkGatewayConfigAnnotation(t, created, gcc)
 
 			// check for the service being registered
 			client := e2e.ConsulClient(ctx)
@@ -963,6 +967,19 @@ func createTCPRoute(ctx context.Context, t *testing.T, resources *resources.Reso
 
 	err := resources.Create(ctx, route)
 	require.NoError(t, err)
+}
+
+// checkGatewayConfigAnnotation verifies that the GatewayClassConfig was
+// correctly serialized into the expected annotation on the Gateway.
+func checkGatewayConfigAnnotation(t *testing.T, g *gateway.Gateway, gcc *apigwv1alpha1.GatewayClassConfig) {
+	t.Helper()
+
+	expectedCfg, err := json.Marshal(gcc.Spec)
+	require.NoError(t, err)
+
+	actualCfg, ok := g.Annotations[`api-gateway.consul.hashicorp.com/config`]
+	assert.True(t, ok)
+	assert.Equal(t, string(expectedCfg), actualCfg)
 }
 
 func checkRoute(t *testing.T, port int, path, expected string, headers map[string]string, message string) {
