@@ -8,6 +8,7 @@ import (
 	"html/template"
 	"log"
 	"net"
+	"os"
 
 	"github.com/cenkalti/backoff"
 	apps "k8s.io/api/apps/v1"
@@ -24,8 +25,10 @@ import (
 )
 
 const (
-	consulImage          = "hashicorp/consul:1.11.2"
-	configTemplateString = `
+	defaultConsulImage            = "hashicorp/consul:1.11.3"
+	envvarConsulImage             = envvarPrefix + "CONSUL_IMAGE"
+	envvarConsulEnterpriseLicense = "CONSUL_LICENSE"
+	configTemplateString          = `
 {
 	"log_level": "trace",
   "acl": {
@@ -62,7 +65,9 @@ type consulTestContext struct{}
 var (
 	consulTestContextKey = consulTestContext{}
 
-	configTemplate *template.Template
+	configTemplate   *template.Template
+	consulImage      = getEnvDefault(envvarConsulImage, defaultConsulImage)
+	consulEntLicense = os.Getenv(envvarConsulEnterpriseLicense)
 )
 
 func init() {
@@ -287,6 +292,13 @@ func consulDeployment(namespace string, httpsPort, grpcPort int) *apps.Deploymen
 	labels := map[string]string{
 		"deployment": "consul-test-server",
 	}
+	var env []core.EnvVar
+	if consulEntLicense != "" {
+		env = append(env, core.EnvVar{
+			Name:  envvarConsulEnterpriseLicense,
+			Value: consulEntLicense,
+		})
+	}
 	return &apps.Deployment{
 		ObjectMeta: meta.ObjectMeta{
 			Name:      "consul",
@@ -338,6 +350,7 @@ func consulDeployment(namespace string, httpsPort, grpcPort int) *apps.Deploymen
 						{
 							Name:  "consul",
 							Image: consulImage,
+							Env:   env,
 							Ports: []core.ContainerPort{{
 								Name:          "https",
 								Protocol:      "TCP",
@@ -398,7 +411,7 @@ func ConsulCA(ctx context.Context) []byte {
 
 }
 
-func ConsulMasterToken(ctx context.Context) string {
+func ConsulInitialManagementToken(ctx context.Context) string {
 	consulEnvironment := ctx.Value(consulTestContextKey)
 	if consulEnvironment == nil {
 		panic("must run this with an integration test that has called CreateTestConsul")
@@ -474,7 +487,7 @@ func CreateConsulACLPolicy(ctx context.Context, cfg *envconf.Config) (context.Co
 	if err != nil {
 		return nil, err
 	}
-	log.Printf("Consul master token: %s", token.SecretID)
+	log.Printf("Consul initial management token: %s", token.SecretID)
 	policy, _, err := env.consulClient.ACL().PolicyCreate(adminPolicy(), &api.WriteOptions{
 		Token: token.SecretID,
 	})

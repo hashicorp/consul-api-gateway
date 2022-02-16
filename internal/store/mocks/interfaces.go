@@ -251,20 +251,6 @@ func (mr *MockRouteTrackingListenerMockRecorder) CanBind(route interface{}) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CanBind", reflect.TypeOf((*MockRouteTrackingListener)(nil).CanBind), route)
 }
 
-// Certificates mocks base method.
-func (m *MockRouteTrackingListener) Certificates() []string {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Certificates")
-	ret0, _ := ret[0].([]string)
-	return ret0
-}
-
-// Certificates indicates an expected call of Certificates.
-func (mr *MockRouteTrackingListenerMockRecorder) Certificates() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Certificates", reflect.TypeOf((*MockRouteTrackingListener)(nil).Certificates))
-}
-
 // Config mocks base method.
 func (m *MockRouteTrackingListener) Config() store.ListenerConfig {
 	m.ctrl.T.Helper()
@@ -291,6 +277,20 @@ func (m *MockRouteTrackingListener) ID() string {
 func (mr *MockRouteTrackingListenerMockRecorder) ID() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ID", reflect.TypeOf((*MockRouteTrackingListener)(nil).ID))
+}
+
+// IsValid mocks base method.
+func (m *MockRouteTrackingListener) IsValid() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IsValid")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// IsValid indicates an expected call of IsValid.
+func (mr *MockRouteTrackingListenerMockRecorder) IsValid() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsValid", reflect.TypeOf((*MockRouteTrackingListener)(nil).IsValid))
 }
 
 // OnRouteAdded mocks base method.
@@ -355,20 +355,6 @@ func (mr *MockListenerMockRecorder) CanBind(route interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CanBind", reflect.TypeOf((*MockListener)(nil).CanBind), route)
 }
 
-// Certificates mocks base method.
-func (m *MockListener) Certificates() []string {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Certificates")
-	ret0, _ := ret[0].([]string)
-	return ret0
-}
-
-// Certificates indicates an expected call of Certificates.
-func (mr *MockListenerMockRecorder) Certificates() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Certificates", reflect.TypeOf((*MockListener)(nil).Certificates))
-}
-
 // Config mocks base method.
 func (m *MockListener) Config() store.ListenerConfig {
 	m.ctrl.T.Helper()
@@ -395,6 +381,20 @@ func (m *MockListener) ID() string {
 func (mr *MockListenerMockRecorder) ID() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ID", reflect.TypeOf((*MockListener)(nil).ID))
+}
+
+// IsValid mocks base method.
+func (m *MockListener) IsValid() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IsValid")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// IsValid indicates an expected call of IsValid.
+func (mr *MockListenerMockRecorder) IsValid() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsValid", reflect.TypeOf((*MockListener)(nil).IsValid))
 }
 
 // MockStatusTrackingRoute is a mock of StatusTrackingRoute interface.
