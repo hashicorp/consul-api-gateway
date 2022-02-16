@@ -56,5 +56,8 @@ func DockerImage(ctx context.Context) string {
 
 func ExtraDockerImages() []string {
 	images := os.Getenv(envvarExtraDockerImages)
-	return strings.Split(images, ",")
+	if images != "" {
+		return strings.Split(images, ",")
+	}
+	return nil
 }
