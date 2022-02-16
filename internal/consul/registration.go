@@ -161,3 +161,7 @@ func (s *ServiceRegistry) deregister(ctx context.Context) error {
 func (s *ServiceRegistry) ID() string {
 	return s.id
 }
+
+func (s *ServiceRegistry) Namespace() string {
+	return s.namespace
+}
