@@ -27,6 +27,7 @@ func SetUpStack(hostRoute string) env.Func {
 			CrossCompileProject,
 			BuildDockerImage,
 			CreateKindCluster(kindClusterName),
+			LoadKindDockerImage(kindClusterName),
 			envfuncs.CreateNamespace(namespace),
 			InstallGatewayCRDs,
 			CreateServiceAccount(namespace),
@@ -36,7 +37,6 @@ func SetUpStack(hostRoute string) env.Func {
 			CreateConsulNamespace,
 			InstallConsulAPIGatewayCRDs,
 			CreateTestGatewayServer(namespace),
-			LoadKindDockerImage(kindClusterName),
 		} {
 			ctx, err = f(ctx, cfg)
 			if err != nil {
