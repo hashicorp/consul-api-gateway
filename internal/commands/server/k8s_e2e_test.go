@@ -130,7 +130,9 @@ func TestGatewayBasic(t *testing.T) {
 			// check for the service being registered
 			client := e2e.ConsulClient(ctx)
 			require.Eventually(t, func() bool {
-				services, _, err := client.Catalog().Service(gatewayName, "", nil)
+				services, _, err := client.Catalog().Service(gatewayName, "", &api.QueryOptions{
+					Namespace: e2e.ConsulNamespace(ctx),
+				})
 				if err != nil {
 					return false
 				}
@@ -147,7 +149,9 @@ func TestGatewayBasic(t *testing.T) {
 			err = resources.Delete(ctx, created)
 			require.NoError(t, err)
 			require.Eventually(t, func() bool {
-				services, _, err := client.Catalog().Service(gatewayName, "", nil)
+				services, _, err := client.Catalog().Service(gatewayName, "", &api.QueryOptions{
+					Namespace: e2e.ConsulNamespace(ctx),
+				})
 				if err != nil {
 					return false
 				}
@@ -481,7 +485,9 @@ func TestHTTPMeshService(t *testing.T) {
 
 			client := e2e.ConsulClient(ctx)
 			require.Eventually(t, func() bool {
-				entry, _, err := client.ConfigEntries().Get(api.IngressGateway, gatewayName, nil)
+				entry, _, err := client.ConfigEntries().Get(api.IngressGateway, gatewayName, &api.QueryOptions{
+					Namespace: e2e.ConsulNamespace(ctx),
+				})
 				if err != nil {
 					return false
 				}
@@ -492,7 +498,9 @@ func TestHTTPMeshService(t *testing.T) {
 			require.NoError(t, err)
 
 			require.Eventually(t, func() bool {
-				_, _, err := client.ConfigEntries().Get(api.IngressGateway, gatewayName, nil)
+				_, _, err := client.ConfigEntries().Get(api.IngressGateway, gatewayName, &api.QueryOptions{
+					Namespace: e2e.ConsulNamespace(ctx),
+				})
 				if err == nil {
 					return false
 				}

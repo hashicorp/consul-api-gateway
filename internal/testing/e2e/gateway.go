@@ -56,6 +56,9 @@ func (p *gatewayTestEnvironment) run(ctx context.Context, namespace string, cfg 
 		SDSServerPort: 9090,
 		RestConfig:    cfg.Client().RESTConfig(),
 		CACert:        string(ConsulCA(ctx)),
+		ConsulNamespaceConfig: k8s.ConsulNamespaceConfig{
+			ConsulDestinationNamespace: ConsulNamespace(ctx),
+		},
 	})
 	if err != nil {
 		return err

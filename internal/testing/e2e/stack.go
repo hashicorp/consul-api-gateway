@@ -31,6 +31,7 @@ func SetUpStack(hostRoute string) env.Func {
 			InstallGatewayCRDs,
 			CreateServiceAccount(namespace),
 			CreateTestConsulContainer(kindClusterName, namespace),
+			CreateConsulNamespace,
 			CreateConsulACLPolicy,
 			CreateConsulAuthMethod(namespace),
 			InstallConsulAPIGatewayCRDs,

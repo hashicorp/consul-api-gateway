@@ -9,6 +9,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"strings"
 
 	"github.com/cenkalti/backoff"
 	apps "k8s.io/api/apps/v1"
@@ -85,6 +86,7 @@ type consulTestEnvironment struct {
 	extraTCPPort       int
 	extraTCPTLSPort    int
 	extraTCPTLSPortTwo int
+	namespace          string
 	ip                 string
 }
 
@@ -475,6 +477,14 @@ func ConsulHTTPPort(ctx context.Context) int {
 	return consulEnvironment.(*consulTestEnvironment).httpPort
 }
 
+func ConsulNamespace(ctx context.Context) string {
+	consulEnvironment := ctx.Value(consulTestContextKey)
+	if consulEnvironment == nil {
+		panic("must run this with an integration test that has called CreateTestConsul")
+	}
+	return consulEnvironment.(*consulTestEnvironment).namespace
+}
+
 func CreateConsulACLPolicy(ctx context.Context, cfg *envconf.Config) (context.Context, error) {
 	log.Print("Creating Consul ACL Policy")
 
@@ -528,6 +538,33 @@ func CreateConsulAuthMethod(namespace string) env.Func {
 		}
 		return ctx, nil
 	}
+}
+
+func IsEnterprise() bool {
+	return strings.HasSuffix(consulImage, "ent")
+}
+
+func CreateConsulNamespace(ctx context.Context, cfg *envconf.Config) (context.Context, error) {
+	if IsEnterprise() {
+		log.Print("Creating Consul Namespace")
+		namespace := envconf.RandomName("test", 16)
+
+		consulEnvironment := ctx.Value(consulTestContextKey)
+		if consulEnvironment == nil {
+			return ctx, nil
+		}
+		env := consulEnvironment.(*consulTestEnvironment)
+		_, _, err := env.consulClient.Namespaces().Create(&api.Namespace{
+			Name: namespace,
+		}, &api.WriteOptions{
+			Token: env.token,
+		})
+		if err != nil {
+			return nil, err
+		}
+		env.namespace = namespace
+	}
+	return ctx, nil
 }
 
 func gatewayConsulAuthMethod(name, token string, k8sConfig *rest.Config) *api.ACLAuthMethod {
