@@ -610,10 +610,10 @@ func adminPolicy() *api.ACLPolicy {
 	policy = "write"
 	service_prefix "" { policy = "write" }
 	session_prefix "" { policy = "write" }
+	node_prefix "" { policy = "read" }
 	}
-	agent_prefix "" { policy = "write" }
-	node_prefix "" { policy = "write" }
 	event_prefix "" { policy = "write" }
+	agent_prefix "" { policy = "write" }
 	query_prefix "" { policy = "write" }
 	operator = "write"
 	keyring = "write"
@@ -623,7 +623,7 @@ func adminPolicy() *api.ACLPolicy {
 	return &api.ACLPolicy{
 		Name: "consul-api-gateway",
 		Rules: `
-node_prefix "" { policy = "write" }
+node_prefix "" { policy = "read" }
 service_prefix "" { policy = "write" }
 agent_prefix "" { policy = "write" }
 event_prefix "" { policy = "write" }

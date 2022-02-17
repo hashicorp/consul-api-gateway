@@ -250,7 +250,8 @@ func TestHTTPMeshService(t *testing.T) {
 			require.NoError(t, err)
 			serviceTwo, err := e2e.DeployHTTPMeshService(ctx, cfg)
 			require.NoError(t, err)
-			serviceThree, err := e2e.DeployHTTPMeshService(ctx, cfg)
+			// register this service in a different consul namespace
+			serviceThree, err := e2e.DeployHTTPMeshService(ctx, cfg, e2e.ConsulNamespace(ctx))
 			require.NoError(t, err)
 			serviceFour, err := e2e.DeployHTTPMeshService(ctx, cfg)
 			require.NoError(t, err)

@@ -297,25 +297,46 @@ func (r *backendResolver) findGlobalCatalogService(service *corev1.Service) (*Re
 		r.logger.Trace("error retrieving nodes", "error", err)
 		return nil, err
 	}
+
+	var consulNamespaces []*api.Namespace
+	// the default namespace
+	namespaces := []string{""}
+	consulNamespaces, _, err = r.consul.Namespaces().List(nil)
+	if err != nil {
+		if !strings.Contains(err.Error(), "Unexpected response code: 404") {
+			r.logger.Trace("error retrieving namespaces", "error", err)
+			return nil, err
+		}
+		// we're dealing with an OSS version of Consul, skip namespaces other than the
+		// default namespace
+	} else {
+		for _, namespace := range consulNamespaces {
+			namespaces = append(namespaces, namespace.Name)
+		}
+	}
+
 	filter := fmt.Sprintf(`Meta[%q] == %q and Meta[%q] == %q and Kind != "connect-proxy"`, MetaKeyKubeServiceName, service.Name, MetaKeyKubeNS, service.Namespace)
 	for _, node := range nodes {
-		nodeWithServices, _, err := r.consul.Catalog().Node(node.Node, &api.QueryOptions{
-			Filter: filter,
-		})
-		if err != nil {
-			r.logger.Trace("error retrieving node services", "error", err, "node", node.Node)
-			return nil, err
-		}
-		if len(nodeWithServices.Services) == 0 {
-			continue
-		}
-		resolved, err := validateAgentConsulReference(nodeWithServices.Services, service)
-		if err != nil {
-			r.logger.Trace("error validating node services", "error", err, "node", node.Node)
-			return nil, err
-		}
-		if resolved != nil {
-			return resolved, nil
+		for _, namespace := range namespaces {
+			nodeWithServices, _, err := r.consul.Catalog().Node(node.Node, &api.QueryOptions{
+				Filter:    filter,
+				Namespace: namespace,
+			})
+			if err != nil {
+				r.logger.Trace("error retrieving node services", "error", err, "node", node.Node)
+				return nil, err
+			}
+			if len(nodeWithServices.Services) == 0 {
+				continue
+			}
+			resolved, err := validateAgentConsulReference(nodeWithServices.Services, service)
+			if err != nil {
+				r.logger.Trace("error validating node services", "error", err, "node", node.Node)
+				return nil, err
+			}
+			if resolved != nil {
+				return resolved, nil
+			}
 		}
 	}
 	return nil, nil
