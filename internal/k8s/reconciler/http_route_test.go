@@ -4,10 +4,11 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/hashicorp/consul-api-gateway/internal/k8s/service"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/types"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
+
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/service"
 )
 
 func TestHTTPRouteID(t *testing.T) {
@@ -26,7 +27,7 @@ func TestConvertHTTPRoute(t *testing.T) {
 	headerMatchType := gw.HeaderMatchExact
 	weight := int32(10)
 	protocol := "https"
-	hostname := gw.Hostname("example.com")
+	hostname := gw.PreciseHostname("example.com")
 	port := gw.PortNumber(8443)
 	statusCode := 302
 	for _, test := range []struct {
