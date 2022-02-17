@@ -59,6 +59,60 @@ func TestMain(m *testing.M) {
 	testenv.Run(m)
 }
 
+func TestGatewayWithClassConfigChange(t *testing.T) {
+	feature := features.New("gateway admission").
+		Assess("gateway behavior on class config change", func(ctx context.Context, t *testing.T, cfg *envconf.Config) context.Context {
+			namespace := e2e.Namespace(ctx)
+			resources := cfg.Client().Resources(namespace)
+
+			// Create a GatewayClassConfig
+			firstConfig, gc := createGatewayClass(ctx, t, cfg)
+			require.Eventually(t, gatewayClassStatusCheck(ctx, resources, gc.Name, namespace, conditionAccepted), 30*time.Second, 1*time.Second, "gatewayclass not accepted in the allotted time")
+
+			oldServiceType := *firstConfig.Spec.ServiceType
+
+			// Create a Gateway and wait for it to be ready
+			firstGatewayName := envconf.RandomName("gw", 16)
+			firstGateway := createGateway(ctx, t, cfg, firstGatewayName, gc)
+			require.Eventually(t, func() bool {
+				err := resources.Get(ctx, firstGatewayName, namespace, firstGateway)
+				return err == nil && conditionAccepted(firstGateway.Status.Conditions)
+			}, 60*time.Second, 1*time.Second, "no gateway found in the allotted time")
+			require.Eventually(t, gatewayStatusCheck(ctx, resources, firstGatewayName, namespace, conditionReady), 30*time.Second, 1*time.Second, "no gateway found in the allotted time")
+			checkGatewayConfigAnnotation(t, firstGateway, firstConfig)
+
+			// Modify GatewayClassConfig used for Gateway
+			secondConfig := &apigwv1alpha1.GatewayClassConfig{}
+			require.NoError(t, resources.Get(ctx, firstConfig.Name, namespace, secondConfig))
+
+			newServiceType := core.ServiceTypeLoadBalancer
+			require.NotEqual(t, newServiceType, oldServiceType)
+			secondConfig.Spec.ServiceType = &newServiceType
+			require.NoError(t, resources.Update(ctx, secondConfig))
+
+			// Create a second Gateway and wait for it to be ready
+			secondGatewayName := envconf.RandomName("gw", 16)
+			secondGateway := createGateway(ctx, t, cfg, secondGatewayName, gc)
+			require.Eventually(t, func() bool {
+				err := resources.Get(ctx, secondGatewayName, namespace, secondGateway)
+				return err == nil && conditionAccepted(secondGateway.Status.Conditions)
+			}, 30*time.Second, 1*time.Second, "no gateway found in the allotted time")
+			require.Eventually(t, gatewayStatusCheck(ctx, resources, secondGatewayName, namespace, conditionReady), 30*time.Second, 1*time.Second, "no gateway found in the allotted time")
+			checkGatewayConfigAnnotation(t, secondGateway, secondConfig)
+
+			// Verify that 1st Gateway retains initial GatewayClassConfig and 2nd Gateway retains updated GatewayClassConfig
+			checkGatewayConfigAnnotation(t, firstGateway, firstConfig)
+			checkGatewayConfigAnnotation(t, secondGateway, secondConfig)
+
+			assert.NoError(t, resources.Delete(ctx, firstGateway))
+			assert.NoError(t, resources.Delete(ctx, secondGateway))
+
+			return ctx
+		})
+
+	testenv.Test(t, feature.Feature())
+}
+
 func TestGatewayBasic(t *testing.T) {
 	feature := features.New("gateway admission").
 		Assess("basic admission and status updates", func(ctx context.Context, t *testing.T, cfg *envconf.Config) context.Context {
@@ -821,6 +875,17 @@ func gatewayStatusCheck(ctx context.Context, resources *resources.Resources, gat
 	}
 }
 
+func gatewayClassStatusCheck(ctx context.Context, resources *resources.Resources, gatewayClassName, namespace string, checkFn func([]meta.Condition) bool) func() bool {
+	return func() bool {
+		updated := &gateway.GatewayClass{}
+		if err := resources.Get(ctx, gatewayClassName, namespace, updated); err != nil {
+			return false
+		}
+
+		return checkFn(updated.Status.Conditions)
+	}
+}
+
 func listenerStatusCheck(ctx context.Context, resources *resources.Resources, gatewayName, namespace string, checkFn func([]meta.Condition) bool) func() bool {
 	return func() bool {
 		updated := &gateway.Gateway{}
@@ -864,6 +929,16 @@ func routeRefErrors(conditions []meta.Condition) bool {
 	return false
 }
 
+func conditionAccepted(conditions []meta.Condition) bool {
+	for _, condition := range conditions {
+		if condition.Type == "Accepted" ||
+			condition.Status == "True" {
+			return true
+		}
+	}
+	return false
+}
+
 func conditionReady(conditions []meta.Condition) bool {
 	for _, condition := range conditions {
 		if condition.Type == "Ready" &&
@@ -882,6 +957,41 @@ func conditionInSync(conditions []meta.Condition) bool {
 		}
 	}
 	return false
+}
+
+func createGateway(ctx context.Context, t *testing.T, cfg *envconf.Config, gatewayName string, gc *gateway.GatewayClass) *gateway.Gateway {
+	t.Helper()
+
+	namespace := e2e.Namespace(ctx)
+	gatewayNamespace := gateway.Namespace(namespace)
+
+	resources := cfg.Client().Resources(namespace)
+
+	gw := &gateway.Gateway{
+		ObjectMeta: meta.ObjectMeta{
+			Name:      gatewayName,
+			Namespace: namespace,
+		},
+		Spec: gateway.GatewaySpec{
+			GatewayClassName: gateway.ObjectName(gc.Name),
+			Listeners: []gateway.Listener{{
+				Name:     "https",
+				Port:     gateway.PortNumber(443),
+				Protocol: gateway.HTTPSProtocolType,
+				TLS: &gateway.GatewayTLSConfig{
+					CertificateRefs: []*gateway.SecretObjectReference{{
+						Name:      "consul-server-cert",
+						Namespace: &gatewayNamespace,
+					}},
+				},
+			}},
+		},
+	}
+
+	err := resources.Create(ctx, gw)
+	require.NoError(t, err)
+
+	return gw
 }
 
 func createGatewayClass(ctx context.Context, t *testing.T, cfg *envconf.Config) (*apigwv1alpha1.GatewayClassConfig, *gateway.GatewayClass) {
