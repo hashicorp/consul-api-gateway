@@ -12,10 +12,13 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	gateway "sigs.k8s.io/gateway-api/apis/v1alpha2"
+
+	"github.com/hashicorp/go-hclog"
 
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient/mocks"
+	reconcilerMocks "github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/mocks"
 	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
-	"github.com/hashicorp/go-hclog"
 )
 
 var (
@@ -37,22 +40,22 @@ func TestGatewayClassConfig(t *testing.T) {
 		name          string
 		err           error
 		result        reconcile.Result
-		expectationCB func(client *mocks.MockClient)
+		expectationCB func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager)
 	}{{
 		name: "get-error",
 		err:  errExpected,
-		expectationCB: func(client *mocks.MockClient) {
+		expectationCB: func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager) {
 			client.EXPECT().GetGatewayClassConfig(gomock.Any(), classConfigName).Return(nil, errExpected)
 		},
 	}, {
 		name: "deleted",
-		expectationCB: func(client *mocks.MockClient) {
+		expectationCB: func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager) {
 			client.EXPECT().GetGatewayClassConfig(gomock.Any(), classConfigName).Return(nil, nil)
 		},
 	}, {
 		name: "deleting-in-use-error",
 		err:  errExpected,
-		expectationCB: func(client *mocks.MockClient) {
+		expectationCB: func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager) {
 			now := meta.Now()
 			client.EXPECT().GetGatewayClassConfig(gomock.Any(), classConfigName).Return(&apigwv1alpha1.GatewayClassConfig{
 				ObjectMeta: meta.ObjectMeta{
@@ -64,7 +67,7 @@ func TestGatewayClassConfig(t *testing.T) {
 	}, {
 		name:   "deleting-in-use",
 		result: ctrl.Result{RequeueAfter: 10 * time.Second},
-		expectationCB: func(client *mocks.MockClient) {
+		expectationCB: func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager) {
 			now := meta.Now()
 			client.EXPECT().GetGatewayClassConfig(gomock.Any(), classConfigName).Return(&apigwv1alpha1.GatewayClassConfig{
 				ObjectMeta: meta.ObjectMeta{
@@ -76,7 +79,7 @@ func TestGatewayClassConfig(t *testing.T) {
 	}, {
 		name: "deleting-finalizer-error",
 		err:  errExpected,
-		expectationCB: func(client *mocks.MockClient) {
+		expectationCB: func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager) {
 			now := meta.Now()
 			client.EXPECT().GetGatewayClassConfig(gomock.Any(), classConfigName).Return(&apigwv1alpha1.GatewayClassConfig{
 				ObjectMeta: meta.ObjectMeta{
@@ -88,7 +91,7 @@ func TestGatewayClassConfig(t *testing.T) {
 		},
 	}, {
 		name: "deleting",
-		expectationCB: func(client *mocks.MockClient) {
+		expectationCB: func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager) {
 			now := meta.Now()
 			client.EXPECT().GetGatewayClassConfig(gomock.Any(), classConfigName).Return(&apigwv1alpha1.GatewayClassConfig{
 				ObjectMeta: meta.ObjectMeta{
@@ -101,14 +104,37 @@ func TestGatewayClassConfig(t *testing.T) {
 	}, {
 		name: "create-finalizer-error",
 		err:  errExpected,
-		expectationCB: func(client *mocks.MockClient) {
+		expectationCB: func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager) {
 			client.EXPECT().GetGatewayClassConfig(gomock.Any(), classConfigName).Return(&apigwv1alpha1.GatewayClassConfig{}, nil)
+			client.EXPECT().GatewayClassesUsingConfig(gomock.Any(), gomock.Any()).Return(&gateway.GatewayClassList{}, nil)
 			client.EXPECT().EnsureFinalizer(gomock.Any(), gomock.Any(), gatewayClassConfigFinalizer).Return(false, errExpected)
 		},
 	}, {
 		name: "create",
-		expectationCB: func(client *mocks.MockClient) {
+		expectationCB: func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager) {
 			client.EXPECT().GetGatewayClassConfig(gomock.Any(), classConfigName).Return(&apigwv1alpha1.GatewayClassConfig{}, nil)
+			client.EXPECT().GatewayClassesUsingConfig(gomock.Any(), gomock.Any()).Return(&gateway.GatewayClassList{}, nil)
+			client.EXPECT().EnsureFinalizer(gomock.Any(), gomock.Any(), gatewayClassConfigFinalizer).Return(true, nil)
+		},
+	}, {
+		name: "update-in-use",
+		expectationCB: func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager) {
+			gcUsing := gateway.GatewayClass{
+				ObjectMeta: meta.ObjectMeta{Name: "class"},
+				Spec: gateway.GatewayClassSpec{
+					ParametersRef: &gateway.ParametersReference{
+						Group: apigwv1alpha1.Group,
+						Kind:  apigwv1alpha1.GatewayClassConfigKind,
+						Name:  "config",
+					},
+				},
+			}
+
+			client.EXPECT().GetGatewayClassConfig(gomock.Any(), classConfigName).Return(&apigwv1alpha1.GatewayClassConfig{}, nil)
+			client.EXPECT().GatewayClassesUsingConfig(gomock.Any(), gomock.Any()).Return(&gateway.GatewayClassList{
+				Items: []gateway.GatewayClass{gcUsing},
+			}, nil)
+			reconciler.EXPECT().DeleteGatewayClass(gomock.Any(), gcUsing.Name).Return(nil)
 			client.EXPECT().EnsureFinalizer(gomock.Any(), gomock.Any(), gatewayClassConfigFinalizer).Return(true, nil)
 		},
 	}} {
@@ -117,13 +143,15 @@ func TestGatewayClassConfig(t *testing.T) {
 			defer ctrl.Finish()
 
 			client := mocks.NewMockClient(ctrl)
+			reconciler := reconcilerMocks.NewMockReconcileManager(ctrl)
 			if test.expectationCB != nil {
-				test.expectationCB(client)
+				test.expectationCB(client, reconciler)
 			}
 
 			controller := &GatewayClassConfigReconciler{
-				Client: client,
-				Log:    hclog.NewNullLogger(),
+				Client:  client,
+				Log:     hclog.NewNullLogger(),
+				Manager: reconciler,
 			}
 			result, err := controller.Reconcile(context.Background(), reconcile.Request{
 				NamespacedName: classConfigName,
