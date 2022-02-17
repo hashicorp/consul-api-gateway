@@ -73,7 +73,7 @@ func TestGatewayWithClassConfigChange(t *testing.T) {
 
 			// Create a Gateway and wait for it to be ready
 			firstGatewayName := envconf.RandomName("gw", 16)
-			firstGateway := createGateway(ctx, t, cfg, firstGatewayName, gc)
+			firstGateway := createGateway(ctx, t, cfg, firstGatewayName, gc, 443)
 			require.Eventually(t, func() bool {
 				err := resources.Get(ctx, firstGatewayName, namespace, firstGateway)
 				return err == nil && conditionAccepted(firstGateway.Status.Conditions)
@@ -92,7 +92,7 @@ func TestGatewayWithClassConfigChange(t *testing.T) {
 
 			// Create a second Gateway and wait for it to be ready
 			secondGatewayName := envconf.RandomName("gw", 16)
-			secondGateway := createGateway(ctx, t, cfg, secondGatewayName, gc)
+			secondGateway := createGateway(ctx, t, cfg, secondGatewayName, gc, 443)
 			require.Eventually(t, func() bool {
 				err := resources.Get(ctx, secondGatewayName, namespace, secondGateway)
 				return err == nil && conditionAccepted(secondGateway.Status.Conditions)
@@ -128,7 +128,7 @@ func TestGatewayBasic(t *testing.T) {
 				return err == nil && conditionAccepted(created.Status.Conditions)
 			}, 30*time.Second, 1*time.Second, "gatewayclass not accepted in the allotted time")
 
-			_ = createGateway(ctx, t, cfg, gatewayName, gc)
+			_ = createGateway(ctx, t, cfg, gatewayName, gc, 443)
 
 			require.Eventually(t, func() bool {
 				err := resources.Get(ctx, gatewayName, namespace, &apps.Deployment{})
@@ -185,7 +185,7 @@ func TestServiceListeners(t *testing.T) {
 			gatewayName := envconf.RandomName("gw", 16)
 			gcc, gc := createGatewayClass(ctx, t, cfg)
 
-			gw := createGateway(ctx, t, cfg, gatewayName, gc)
+			gw := createGateway(ctx, t, cfg, gatewayName, gc, 443)
 
 			require.Eventually(t, func() bool {
 				service := &core.Service{}
@@ -299,7 +299,7 @@ func TestHTTPMeshService(t *testing.T) {
 			err = resources.Create(ctx, gc)
 			require.NoError(t, err)
 
-			gw := createGateway(ctx, t, cfg, gatewayName, gc)
+			gw := createGateway(ctx, t, cfg, gatewayName, gc, gateway.PortNumber(e2e.HTTPPort(ctx)))
 			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionReady), 30*time.Second, 1*time.Second, "no gateway found in the allotted time")
 
 			// route 1
@@ -873,7 +873,7 @@ func conditionInSync(conditions []meta.Condition) bool {
 	return false
 }
 
-func createGateway(ctx context.Context, t *testing.T, cfg *envconf.Config, gatewayName string, gc *gateway.GatewayClass) *gateway.Gateway {
+func createGateway(ctx context.Context, t *testing.T, cfg *envconf.Config, gatewayName string, gc *gateway.GatewayClass, listenerPort gateway.PortNumber) *gateway.Gateway {
 	t.Helper()
 
 	namespace := e2e.Namespace(ctx)
@@ -890,7 +890,7 @@ func createGateway(ctx context.Context, t *testing.T, cfg *envconf.Config, gatew
 			GatewayClassName: gateway.ObjectName(gc.Name),
 			Listeners: []gateway.Listener{{
 				Name:     "https",
-				Port:     gateway.PortNumber(443),
+				Port:     listenerPort,
 				Protocol: gateway.HTTPSProtocolType,
 				TLS: &gateway.GatewayTLSConfig{
 					CertificateRefs: []*gateway.SecretObjectReference{{
