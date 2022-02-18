@@ -259,6 +259,21 @@ func (mr *MockClientMockRecorder) GetHTTPRoute(ctx, key interface{}) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHTTPRoute", reflect.TypeOf((*MockClient)(nil).GetHTTPRoute), ctx, key)
 }
 
+// GetMeshService mocks base method.
+func (m *MockClient) GetMeshService(ctx context.Context, key types.NamespacedName) (*v1alpha1.MeshService, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetMeshService", ctx, key)
+	ret0, _ := ret[0].(*v1alpha1.MeshService)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetMeshService indicates an expected call of GetMeshService.
+func (mr *MockClientMockRecorder) GetMeshService(ctx, key interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMeshService", reflect.TypeOf((*MockClient)(nil).GetMeshService), ctx, key)
+}
+
 // GetSecret mocks base method.
 func (m *MockClient) GetSecret(ctx context.Context, key types.NamespacedName) (*v10.Secret, error) {
 	m.ctrl.T.Helper()

@@ -4,3 +4,4 @@ kind: Kustomization
 resources:
 - github.com/kubernetes-sigs/gateway-api/config/crd?ref=v0.4.1
 - bases/api-gateway.consul.hashicorp.com_gatewayclassconfigs.yaml
+- bases/api-gateway.consul.hashicorp.com_meshservices.yaml

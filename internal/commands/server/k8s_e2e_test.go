@@ -497,7 +497,8 @@ func TestTCPMeshService(t *testing.T) {
 			require.NoError(t, err)
 			serviceThree, err := e2e.DeployTCPMeshService(ctx, cfg)
 			require.NoError(t, err)
-			serviceFour, err := e2e.DeployTCPMeshService(ctx, cfg)
+			// register this in the proper Consul namespace so that we can map and resolve it as a MeshService
+			serviceFour, err := e2e.DeployTCPMeshService(ctx, cfg, e2e.ConsulNamespace(ctx))
 			require.NoError(t, err)
 
 			namespace := e2e.Namespace(ctx)
@@ -508,6 +509,18 @@ func TestTCPMeshService(t *testing.T) {
 			routeTwoName := envconf.RandomName("route", 16)
 
 			resources := cfg.Client().Resources(namespace)
+
+			// create a MeshService to route to service four
+			meshServiceName := envconf.RandomName("meshsvc", 16)
+			require.NoError(t, resources.Create(ctx, &apigwv1alpha1.MeshService{
+				ObjectMeta: meta.ObjectMeta{
+					Name:      meshServiceName,
+					Namespace: namespace,
+				},
+				Spec: apigwv1alpha1.MeshServiceSpec{
+					Name: serviceFour.Name,
+				},
+			}))
 
 			gcc := &apigwv1alpha1.GatewayClassConfig{
 				ObjectMeta: meta.ObjectMeta{
@@ -613,7 +626,9 @@ func TestTCPMeshService(t *testing.T) {
 			require.Eventually(t, tcpRouteStatusCheck(ctx, resources, gatewayName, routeOneName, namespace, routeRefErrors), checkTimeout, checkInterval, "route status not set in allotted time")
 
 			// route 2
-			portFour := gateway.PortNumber(serviceFour.Spec.Ports[0].Port)
+			meshServiceGroup := gateway.Group(apigwv1alpha1.Group)
+			meshServiceKind := gateway.Kind(apigwv1alpha1.MeshServiceKind)
+			// this routes to service four
 			route := &gateway.TCPRoute{
 				ObjectMeta: meta.ObjectMeta{
 					Name:      routeTwoName,
@@ -628,8 +643,9 @@ func TestTCPMeshService(t *testing.T) {
 					Rules: []gateway.TCPRouteRule{{
 						BackendRefs: []gateway.BackendRef{{
 							BackendObjectReference: gateway.BackendObjectReference{
-								Name: gateway.ObjectName(serviceFour.Name),
-								Port: &portFour,
+								Group: &meshServiceGroup,
+								Kind:  &meshServiceKind,
+								Name:  gateway.ObjectName(meshServiceName),
 							},
 						}},
 					}},
@@ -648,6 +664,7 @@ func TestTCPMeshService(t *testing.T) {
 		}).
 		Assess("tls routing", func(ctx context.Context, t *testing.T, cfg *envconf.Config) context.Context {
 			serviceOne, err := e2e.DeployTCPMeshService(ctx, cfg)
+			require.NoError(t, err)
 			serviceTwo, err := e2e.DeployTCPMeshService(ctx, cfg)
 			require.NoError(t, err)
 

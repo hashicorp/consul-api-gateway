@@ -28,6 +28,7 @@ import (
 //+kubebuilder:rbac:groups=core,resources=configmaps/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=core,resources=events,verbs=create;patch
 //+kubebuilder:rbac:groups=coordination.k8s.io,resources=leases,verbs=create;get;list;update
+//+kubebuilder:rbac:groups=api-gateway.consul.hashicorp.com,resources=meshservices,verbs=get;list;watch
 
 var (
 	scheme = runtime.NewScheme()

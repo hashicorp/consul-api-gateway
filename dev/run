@@ -72,6 +72,7 @@ setupAuthMethod() {
 
 installAPIGatewayCRDs() {
   kubectl apply -f config/crd/bases/api-gateway.consul.hashicorp.com_gatewayclassconfigs.yaml
+  kubectl apply -f config/crd/bases/api-gateway.consul.hashicorp.com_meshservices.yaml
 }
 
 buildAPIGateway() {
