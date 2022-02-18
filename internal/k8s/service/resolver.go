@@ -353,7 +353,7 @@ func (r *backendResolver) consulServiceForMeshService(ctx context.Context, names
 	if service == nil {
 		return nil,
 			NewConsulResolutionError(fmt.Sprintf(
-				"kubernetes mesh service object (%q, %q) not found", namespacedName.Name, namespacedName.Namespace,
+				"kubernetes mesh service object %s not found", namespacedName,
 			))
 	}
 
