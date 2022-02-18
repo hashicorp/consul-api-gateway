@@ -15,6 +15,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	gateway "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
@@ -233,6 +234,53 @@ func TestRemoveFinalizer(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Len(t, gatewayclass.Finalizers, 0)
+}
+
+func TestGatewayClassesUsingConfig(t *testing.T) {
+	t.Parallel()
+
+	gatewayClient := newTestClient(&gateway.GatewayClassList{
+		Items: []gateway.GatewayClass{
+			{
+				ObjectMeta: meta.ObjectMeta{Name: "gatewayclass1"},
+				Spec: gateway.GatewayClassSpec{
+					ParametersRef: &gateway.ParametersReference{
+						Group: apigwv1alpha1.Group,
+						Kind:  apigwv1alpha1.GatewayClassConfigKind,
+						Name:  "gatewayclassconfig",
+					},
+				},
+			},
+			{
+				ObjectMeta: meta.ObjectMeta{Name: "gatewayclass2"},
+				Spec: gateway.GatewayClassSpec{
+					ParametersRef: &gateway.ParametersReference{
+						Group: apigwv1alpha1.Group,
+						Kind:  apigwv1alpha1.GatewayClassConfigKind,
+						Name:  "gatewayclassconfig",
+					},
+				},
+			},
+		},
+	})
+
+	using, err := gatewayClient.GatewayClassesUsingConfig(context.Background(), &apigwv1alpha1.GatewayClassConfig{
+		ObjectMeta: meta.ObjectMeta{
+			Name: "gatewayclassconfig",
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, using.Items, 2)
+	assert.Equal(t, "gatewayclass1", using.Items[0].Name)
+	assert.Equal(t, "gatewayclass2", using.Items[1].Name)
+
+	using, err = gatewayClient.GatewayClassesUsingConfig(context.Background(), &apigwv1alpha1.GatewayClassConfig{
+		ObjectMeta: meta.ObjectMeta{
+			Name: "othergatewayclassconfig",
+		},
+	})
+	require.NoError(t, err)
+	assert.Empty(t, using.Items)
 }
 
 func TestGatewayClassConfigInUse(t *testing.T) {

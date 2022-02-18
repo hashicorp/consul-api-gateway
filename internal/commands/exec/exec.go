@@ -214,9 +214,8 @@ func login(config ExecConfig) (*api.Client, string, error) {
 
 	// Now update the client so that it will read the ACL token we just fetched.
 	config.ConsulConfig.Token = token
-	consulConfig := &config.ConsulConfig
-	consulConfig.Namespace = config.GatewayConfig.Namespace
-	newClient, err := api.NewClient(consulConfig)
+	config.ConsulConfig.Namespace = config.GatewayConfig.Namespace
+	newClient, err := api.NewClient(&config.ConsulConfig)
 	if err != nil {
 		return nil, "", fmt.Errorf("error updating client connection with token: %w", err)
 	}

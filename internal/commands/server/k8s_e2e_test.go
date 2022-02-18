@@ -1,11 +1,9 @@
-//go:build e2e
-// +build e2e
-
 package server
 
 import (
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -15,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	apps "k8s.io/api/apps/v1"
 	core "k8s.io/api/core/v1"
@@ -32,9 +31,10 @@ import (
 )
 
 var (
-	testenv      env.Environment
-	hostRoute    string
-	timeoutCheck = 1 * time.Minute
+	testenv       env.Environment
+	hostRoute     string
+	checkTimeout  = 1 * time.Minute
+	checkInterval = 1 * time.Second
 )
 
 func init() {
@@ -58,75 +58,89 @@ func TestMain(m *testing.M) {
 	testenv.Run(m)
 }
 
+func TestGatewayWithClassConfigChange(t *testing.T) {
+	feature := features.New("gateway admission").
+		Assess("gateway behavior on class config change", func(ctx context.Context, t *testing.T, cfg *envconf.Config) context.Context {
+			namespace := e2e.Namespace(ctx)
+			resources := cfg.Client().Resources(namespace)
+
+			// Create a GatewayClassConfig
+			firstConfig, gc := createGatewayClass(ctx, t, cfg)
+			require.Eventually(t, gatewayClassStatusCheck(ctx, resources, gc.Name, namespace, conditionAccepted), 30*time.Second, checkInterval, "gatewayclass not accepted in the allotted time")
+
+			oldServiceType := *firstConfig.Spec.ServiceType
+
+			// Create a Gateway and wait for it to be ready
+			firstGatewayName := envconf.RandomName("gw", 16)
+			firstGateway := createGateway(ctx, t, cfg, firstGatewayName, gc, 443)
+			require.Eventually(t, func() bool {
+				err := resources.Get(ctx, firstGatewayName, namespace, firstGateway)
+				return err == nil && conditionAccepted(firstGateway.Status.Conditions)
+			}, 60*time.Second, checkInterval, "no gateway found in the allotted time")
+			require.Eventually(t, gatewayStatusCheck(ctx, resources, firstGatewayName, namespace, conditionReady), 30*time.Second, checkInterval, "no gateway found in the allotted time")
+			checkGatewayConfigAnnotation(t, firstGateway, firstConfig)
+
+			// Modify GatewayClassConfig used for Gateway
+			secondConfig := &apigwv1alpha1.GatewayClassConfig{}
+			require.NoError(t, resources.Get(ctx, firstConfig.Name, namespace, secondConfig))
+
+			newServiceType := core.ServiceTypeLoadBalancer
+			require.NotEqual(t, newServiceType, oldServiceType)
+			secondConfig.Spec.ServiceType = &newServiceType
+			require.NoError(t, resources.Update(ctx, secondConfig))
+
+			// Create a second Gateway and wait for it to be ready
+			secondGatewayName := envconf.RandomName("gw", 16)
+			secondGateway := createGateway(ctx, t, cfg, secondGatewayName, gc, 443)
+			require.Eventually(t, func() bool {
+				err := resources.Get(ctx, secondGatewayName, namespace, secondGateway)
+				return err == nil && conditionAccepted(secondGateway.Status.Conditions)
+			}, 30*time.Second, checkInterval, "no gateway found in the allotted time")
+			require.Eventually(t, gatewayStatusCheck(ctx, resources, secondGatewayName, namespace, conditionReady), 30*time.Second, checkInterval, "no gateway found in the allotted time")
+			checkGatewayConfigAnnotation(t, secondGateway, secondConfig)
+
+			// Verify that 1st Gateway retains initial GatewayClassConfig and 2nd Gateway retains updated GatewayClassConfig
+			checkGatewayConfigAnnotation(t, firstGateway, firstConfig)
+			checkGatewayConfigAnnotation(t, secondGateway, secondConfig)
+
+			assert.NoError(t, resources.Delete(ctx, firstGateway))
+			assert.NoError(t, resources.Delete(ctx, secondGateway))
+
+			return ctx
+		})
+
+	testenv.Test(t, feature.Feature())
+}
+
 func TestGatewayBasic(t *testing.T) {
 	feature := features.New("gateway admission").
 		Assess("basic admission and status updates", func(ctx context.Context, t *testing.T, cfg *envconf.Config) context.Context {
 			namespace := e2e.Namespace(ctx)
-			gatewayNamespace := gateway.Namespace(namespace)
 			resources := cfg.Client().Resources(namespace)
 
 			gatewayName := envconf.RandomName("gw", 16)
-			_, gc := createGatewayClass(ctx, t, cfg)
+			gcc, gc := createGatewayClass(ctx, t, cfg)
 
 			require.Eventually(t, func() bool {
 				created := &gateway.GatewayClass{}
-				if err := resources.Get(ctx, gc.Name, "", created); err != nil {
-					return false
-				}
+				err := resources.Get(ctx, gc.Name, "", created)
+				return err == nil && conditionAccepted(created.Status.Conditions)
+			}, checkTimeout, checkInterval, "gatewayclass not accepted in the allotted time")
 
-				for _, condition := range created.Status.Conditions {
-					if condition.Type == "Accepted" ||
-						condition.Status == "True" {
-						return true
-					}
-				}
-				return false
-			}, timeoutCheck, 1*time.Second, "gatewayclass not accepted in the allotted time")
-
-			gw := &gateway.Gateway{
-				ObjectMeta: meta.ObjectMeta{
-					Name:      gatewayName,
-					Namespace: namespace,
-				},
-				Spec: gateway.GatewaySpec{
-					GatewayClassName: gateway.ObjectName(gc.Name),
-					Listeners: []gateway.Listener{{
-						Name:     "https",
-						Port:     gateway.PortNumber(443),
-						Protocol: gateway.HTTPSProtocolType,
-						TLS: &gateway.GatewayTLSConfig{
-							CertificateRefs: []*gateway.SecretObjectReference{{
-								Name:      "consul-server-cert",
-								Namespace: &gatewayNamespace,
-							}},
-						},
-					}},
-				},
-			}
-			err := resources.Create(ctx, gw)
-			require.NoError(t, err)
+			_ = createGateway(ctx, t, cfg, gatewayName, gc, 443)
 
 			require.Eventually(t, func() bool {
-				deployment := &apps.Deployment{}
-				if err := resources.Get(ctx, gatewayName, namespace, deployment); err != nil {
-					return false
-				}
-				return true
-			}, timeoutCheck, 1*time.Second, "no deployment found in the allotted time")
+				err := resources.Get(ctx, gatewayName, namespace, &apps.Deployment{})
+				return err == nil
+			}, checkTimeout, checkInterval, "no deployment found in the allotted time")
 
 			created := &gateway.Gateway{}
 			require.Eventually(t, func() bool {
-				if err := resources.Get(ctx, gatewayName, namespace, created); err != nil {
-					return false
-				}
-				for _, condition := range created.Status.Conditions {
-					if condition.Type == "Accepted" ||
-						condition.Status == "True" {
-						return true
-					}
-				}
-				return false
-			}, timeoutCheck, 1*time.Second, "no gateway found in the allotted time")
+				err := resources.Get(ctx, gatewayName, namespace, created)
+				return err == nil && conditionAccepted(created.Status.Conditions)
+			}, checkTimeout, checkInterval, "no gateway found in the allotted time")
+
+			checkGatewayConfigAnnotation(t, created, gcc)
 
 			// check for the service being registered
 			client := e2e.ConsulClient(ctx)
@@ -143,11 +157,11 @@ func TestGatewayBasic(t *testing.T) {
 				service := services[0]
 				status := service.Checks.AggregatedStatus()
 				return status == "passing"
-			}, timeoutCheck, 1*time.Second, "no healthy consul service found in the allotted time")
+			}, checkTimeout, checkInterval, "no healthy consul service found in the allotted time")
 
-			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionReady), timeoutCheck, 1*time.Second, "no gateway found in the allotted time")
+			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionReady), checkTimeout, checkInterval, "no gateway found in the allotted time")
 
-			err = resources.Delete(ctx, created)
+			err := resources.Delete(ctx, created)
 			require.NoError(t, err)
 			require.Eventually(t, func() bool {
 				services, _, err := client.Catalog().Service(gatewayName, "", &api.QueryOptions{
@@ -157,7 +171,7 @@ func TestGatewayBasic(t *testing.T) {
 					return false
 				}
 				return len(services) == 0
-			}, timeoutCheck, 1*time.Second, "consul service not deregistered in the allotted time")
+			}, checkTimeout, checkInterval, "consul service not deregistered in the allotted time")
 
 			return ctx
 		})
@@ -169,34 +183,12 @@ func TestServiceListeners(t *testing.T) {
 	feature := features.New("service updates").
 		Assess("port exposure for updated listeners", func(ctx context.Context, t *testing.T, cfg *envconf.Config) context.Context {
 			namespace := e2e.Namespace(ctx)
-			gatewayNamespace := gateway.Namespace(namespace)
 			resources := cfg.Client().Resources(namespace)
 
 			gatewayName := envconf.RandomName("gw", 16)
 			gcc, gc := createGatewayClass(ctx, t, cfg)
 
-			gw := &gateway.Gateway{
-				ObjectMeta: meta.ObjectMeta{
-					Name:      gatewayName,
-					Namespace: namespace,
-				},
-				Spec: gateway.GatewaySpec{
-					GatewayClassName: gateway.ObjectName(gc.Name),
-					Listeners: []gateway.Listener{{
-						Name:     "https",
-						Port:     gateway.PortNumber(443),
-						Protocol: gateway.HTTPSProtocolType,
-						TLS: &gateway.GatewayTLSConfig{
-							CertificateRefs: []*gateway.SecretObjectReference{{
-								Name:      "consul-server-cert",
-								Namespace: &gatewayNamespace,
-							}},
-						},
-					}},
-				},
-			}
-			err := resources.Create(ctx, gw)
-			require.NoError(t, err)
+			gw := createGateway(ctx, t, cfg, gatewayName, gc, 443)
 
 			require.Eventually(t, func() bool {
 				service := &core.Service{}
@@ -208,10 +200,10 @@ func TestServiceListeners(t *testing.T) {
 				}
 				port := service.Spec.Ports[0]
 				return port.Port == 443
-			}, timeoutCheck, 1*time.Second, "no service found in the allotted time")
+			}, checkTimeout, checkInterval, "no service found in the allotted time")
 
 			// update the class config to ensure our config snapshot works
-			err = resources.Get(ctx, gcc.Name, gcc.Namespace, gcc)
+			err := resources.Get(ctx, gcc.Name, gcc.Namespace, gcc)
 			require.NoError(t, err)
 			serviceType := core.ServiceTypeLoadBalancer
 			gcc.Spec.ServiceType = &serviceType
@@ -235,7 +227,7 @@ func TestServiceListeners(t *testing.T) {
 				require.Equal(t, core.ServiceTypeNodePort, service.Spec.Type)
 				port := service.Spec.Ports[0]
 				return port.Port == 444
-			}, timeoutCheck, 1*time.Second, "service not updated in the allotted time")
+			}, checkTimeout, checkInterval, "service not updated in the allotted time")
 
 			return ctx
 		})
@@ -266,7 +258,6 @@ func TestHTTPMeshService(t *testing.T) {
 			routeTwoName := envconf.RandomName("route", 16)
 			routeThreeName := envconf.RandomName("route", 16)
 
-			gatewayNamespace := gateway.Namespace(namespace)
 			resources := cfg.Client().Resources(namespace)
 
 			gcc := &apigwv1alpha1.GatewayClassConfig{
@@ -312,29 +303,8 @@ func TestHTTPMeshService(t *testing.T) {
 			err = resources.Create(ctx, gc)
 			require.NoError(t, err)
 
-			gw := &gateway.Gateway{
-				ObjectMeta: meta.ObjectMeta{
-					Name:      gatewayName,
-					Namespace: namespace,
-				},
-				Spec: gateway.GatewaySpec{
-					GatewayClassName: gateway.ObjectName(gc.Name),
-					Listeners: []gateway.Listener{{
-						Name:     "https",
-						Port:     gateway.PortNumber(e2e.HTTPPort(ctx)),
-						Protocol: gateway.HTTPSProtocolType,
-						TLS: &gateway.GatewayTLSConfig{
-							CertificateRefs: []*gateway.SecretObjectReference{{
-								Name:      "consul-server-cert",
-								Namespace: &gatewayNamespace,
-							}},
-						},
-					}},
-				},
-			}
-			err = resources.Create(ctx, gw)
-			require.NoError(t, err)
-			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionReady), timeoutCheck, 1*time.Second, "no gateway found in the allotted time")
+			gw := createGateway(ctx, t, cfg, gatewayName, gc, gateway.PortNumber(e2e.HTTPPort(ctx)))
+			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionReady), checkTimeout, checkInterval, "no gateway found in the allotted time")
 
 			// route 1
 			port := gateway.PortNumber(serviceOne.Spec.Ports[0].Port)
@@ -483,7 +453,7 @@ func TestHTTPMeshService(t *testing.T) {
 			checkRoute(t, checkPort, "/v1", serviceFour.Name, nil, "after route deletion service four not routable in allotted time")
 			checkRoute(t, checkPort, "/v1", serviceFive.Name, nil, "after route deletion service five not routable in allotted time")
 
-			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionInSync), timeoutCheck, 1*time.Second, "gateway not synced in the allotted time")
+			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionInSync), checkTimeout, checkInterval, "gateway not synced in the allotted time")
 
 			client := e2e.ConsulClient(ctx)
 			require.Eventually(t, func() bool {
@@ -494,7 +464,7 @@ func TestHTTPMeshService(t *testing.T) {
 					return false
 				}
 				return entry != nil
-			}, timeoutCheck, 1*time.Second, "no consul config entry found")
+			}, checkTimeout, checkInterval, "no consul config entry found")
 
 			err = resources.Delete(ctx, gw)
 			require.NoError(t, err)
@@ -507,7 +477,7 @@ func TestHTTPMeshService(t *testing.T) {
 					return false
 				}
 				return strings.Contains(err.Error(), "Unexpected response code: 404")
-			}, timeoutCheck, 1*time.Second, "consul config entry not cleaned up")
+			}, checkTimeout, checkInterval, "consul config entry not cleaned up")
 
 			return ctx
 		})
@@ -595,7 +565,7 @@ func TestTCPMeshService(t *testing.T) {
 			}
 			err = resources.Create(ctx, gw)
 			require.NoError(t, err)
-			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionReady), timeoutCheck, 1*time.Second, "no gateway found in the allotted time")
+			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionReady), checkTimeout, checkInterval, "no gateway found in the allotted time")
 
 			// route 1
 			portOne := gateway.PortNumber(serviceOne.Spec.Ports[0].Port)
@@ -637,7 +607,7 @@ func TestTCPMeshService(t *testing.T) {
 			err = resources.Create(ctx, routeOne)
 			require.NoError(t, err)
 
-			require.Eventually(t, tcpRouteStatusCheck(ctx, resources, gatewayName, routeOneName, namespace, routeRefErrors), timeoutCheck, 1*time.Second, "route status not set in allotted time")
+			require.Eventually(t, tcpRouteStatusCheck(ctx, resources, gatewayName, routeOneName, namespace, routeRefErrors), checkTimeout, checkInterval, "route status not set in allotted time")
 
 			// route 2
 			portFour := gateway.PortNumber(serviceFour.Spec.Ports[0].Port)
@@ -670,7 +640,7 @@ func TestTCPMeshService(t *testing.T) {
 			// only service 4 should be routable as we don't support routes with multiple rules or backend refs for TCP
 			checkTCPRoute(t, checkPort, serviceFour.Name, "service four not routable in allotted time")
 
-			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionInSync), timeoutCheck, 1*time.Second, "gateway not synced in the allotted time")
+			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionInSync), checkTimeout, checkInterval, "gateway not synced in the allotted time")
 			return ctx
 		}).
 		Assess("tls routing", func(ctx context.Context, t *testing.T, cfg *envconf.Config) context.Context {
@@ -774,7 +744,7 @@ func TestTCPMeshService(t *testing.T) {
 			}
 			err = resources.Create(ctx, gw)
 			require.NoError(t, err)
-			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionReady), timeoutCheck, 1*time.Second, "no gateway found in the allotted time")
+			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionReady), checkTimeout, checkInterval, "no gateway found in the allotted time")
 
 			createTCPRoute(ctx, t, resources, namespace, gatewayName, gateway.SectionName(listenerOneName), routeOneName, serviceOne.Name, gateway.PortNumber(serviceOne.Spec.Ports[0].Port))
 			createTCPRoute(ctx, t, resources, namespace, gatewayName, gateway.SectionName(listenerTwoName), routeTwoName, serviceTwo.Name, gateway.PortNumber(serviceTwo.Spec.Ports[0].Port))
@@ -806,9 +776,9 @@ func TestTCPMeshService(t *testing.T) {
 				MaxVersion:         tls.VersionTLS11,
 			}, serviceTwo.Name, "service not routable in allotted time")
 
-			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionInSync), timeoutCheck, 1*time.Second, "gateway not synced in the allotted time")
+			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionInSync), checkTimeout, checkInterval, "gateway not synced in the allotted time")
 
-			require.Eventually(t, listenerStatusCheck(ctx, resources, gatewayName, namespace, conditionReady), timeoutCheck, 1*time.Second, "listeners not ready in the allotted time")
+			require.Eventually(t, listenerStatusCheck(ctx, resources, gatewayName, namespace, conditionReady), checkTimeout, checkInterval, "listeners not ready in the allotted time")
 
 			return ctx
 		})
@@ -820,6 +790,17 @@ func gatewayStatusCheck(ctx context.Context, resources *resources.Resources, gat
 	return func() bool {
 		updated := &gateway.Gateway{}
 		if err := resources.Get(ctx, gatewayName, namespace, updated); err != nil {
+			return false
+		}
+
+		return checkFn(updated.Status.Conditions)
+	}
+}
+
+func gatewayClassStatusCheck(ctx context.Context, resources *resources.Resources, gatewayClassName, namespace string, checkFn func([]meta.Condition) bool) func() bool {
+	return func() bool {
+		updated := &gateway.GatewayClass{}
+		if err := resources.Get(ctx, gatewayClassName, namespace, updated); err != nil {
 			return false
 		}
 
@@ -870,6 +851,16 @@ func routeRefErrors(conditions []meta.Condition) bool {
 	return false
 }
 
+func conditionAccepted(conditions []meta.Condition) bool {
+	for _, condition := range conditions {
+		if condition.Type == "Accepted" ||
+			condition.Status == "True" {
+			return true
+		}
+	}
+	return false
+}
+
 func conditionReady(conditions []meta.Condition) bool {
 	for _, condition := range conditions {
 		if condition.Type == "Ready" &&
@@ -888,6 +879,41 @@ func conditionInSync(conditions []meta.Condition) bool {
 		}
 	}
 	return false
+}
+
+func createGateway(ctx context.Context, t *testing.T, cfg *envconf.Config, gatewayName string, gc *gateway.GatewayClass, listenerPort gateway.PortNumber) *gateway.Gateway {
+	t.Helper()
+
+	namespace := e2e.Namespace(ctx)
+	gatewayNamespace := gateway.Namespace(namespace)
+
+	resources := cfg.Client().Resources(namespace)
+
+	gw := &gateway.Gateway{
+		ObjectMeta: meta.ObjectMeta{
+			Name:      gatewayName,
+			Namespace: namespace,
+		},
+		Spec: gateway.GatewaySpec{
+			GatewayClassName: gateway.ObjectName(gc.Name),
+			Listeners: []gateway.Listener{{
+				Name:     "https",
+				Port:     listenerPort,
+				Protocol: gateway.HTTPSProtocolType,
+				TLS: &gateway.GatewayTLSConfig{
+					CertificateRefs: []*gateway.SecretObjectReference{{
+						Name:      "consul-server-cert",
+						Namespace: &gatewayNamespace,
+					}},
+				},
+			}},
+		},
+	}
+
+	err := resources.Create(ctx, gw)
+	require.NoError(t, err)
+
+	return gw
 }
 
 func createGatewayClass(ctx context.Context, t *testing.T, cfg *envconf.Config) (*apigwv1alpha1.GatewayClassConfig, *gateway.GatewayClass) {
@@ -975,6 +1001,19 @@ func createTCPRoute(ctx context.Context, t *testing.T, resources *resources.Reso
 	require.NoError(t, err)
 }
 
+// checkGatewayConfigAnnotation verifies that the GatewayClassConfig was
+// correctly serialized into the expected annotation on the Gateway.
+func checkGatewayConfigAnnotation(t *testing.T, g *gateway.Gateway, gcc *apigwv1alpha1.GatewayClassConfig) {
+	t.Helper()
+
+	expectedCfg, err := json.Marshal(gcc.Spec)
+	require.NoError(t, err)
+
+	actualCfg, ok := g.Annotations[`api-gateway.consul.hashicorp.com/config`]
+	assert.True(t, ok)
+	assert.Equal(t, string(expectedCfg), actualCfg)
+}
+
 func checkRoute(t *testing.T, port int, path, expected string, headers map[string]string, message string) {
 	t.Helper()
 
@@ -1011,7 +1050,7 @@ func checkRoute(t *testing.T, port int, path, expected string, headers map[strin
 		}
 
 		return strings.HasPrefix(string(data), expected)
-	}, timeoutCheck, 1*time.Second, message)
+	}, checkTimeout, checkInterval, message)
 }
 
 func checkTCPRoute(t *testing.T, port int, expected string, message string) {
@@ -1030,7 +1069,7 @@ func checkTCPRoute(t *testing.T, port int, expected string, message string) {
 			return false
 		}
 		return strings.HasPrefix(string(data), expected)
-	}, timeoutCheck, 1*time.Second, message)
+	}, checkTimeout, checkInterval, message)
 }
 
 func checkTCPTLSRoute(t *testing.T, port int, config *tls.Config, expected string, message string) {
@@ -1053,5 +1092,5 @@ func checkTCPTLSRoute(t *testing.T, port int, config *tls.Config, expected strin
 		}
 
 		return strings.HasPrefix(string(data), expected)
-	}, timeoutCheck, 1*time.Second, message)
+	}, checkTimeout, checkInterval, message)
 }
