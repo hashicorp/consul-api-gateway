@@ -161,7 +161,6 @@ func (c *Command) Run(args []string) int {
 	cfg.ConsulNamespaceConfig = k8s.ConsulNamespaceConfig{
 		ConsulDestinationNamespace:      c.flagConsulDestinationNamespace,
 		MirrorKubernetesNamespaces:      c.flagMirrorK8SNamespaces,
-		MirrorKubernetesNamespacePrefix: c.flagMirroringK8SPrefix,
 		MirrorKubernetesNamespacePrefix: c.flagMirrorK8SNamespacePrefix,
 	}
 
