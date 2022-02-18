@@ -36,6 +36,7 @@ spec:
             -log-level info \
             -gateway-host "$(IP)" \
             -gateway-name test-static-mapping \
+            -gateway-namespace test \
             -consul-http-address host.docker.internal \
             -consul-http-port 443 \
             -consul-xds-port  8502 \

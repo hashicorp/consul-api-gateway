@@ -8,7 +8,9 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff"
+	"github.com/hashicorp/consul-api-gateway/internal/common"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
+	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
 	corev1 "k8s.io/api/core/v1"
@@ -186,13 +188,15 @@ type backendResolver struct {
 	client    gatewayclient.Client
 	consul    *api.Client
 	logger    hclog.Logger
+	mapper    common.ConsulNamespaceMapper
 }
 
-func NewBackendResolver(logger hclog.Logger, namespace string, client gatewayclient.Client, consul *api.Client) BackendResolver {
+func NewBackendResolver(logger hclog.Logger, namespace string, mapper common.ConsulNamespaceMapper, client gatewayclient.Client, consul *api.Client) BackendResolver {
 	return &backendResolver{
 		namespace: namespace,
 		client:    client,
 		consul:    consul,
+		mapper:    mapper,
 		logger:    logger,
 	}
 }
@@ -218,6 +222,9 @@ func (r *backendResolver) Resolve(ctx context.Context, ref gw.BackendObjectRefer
 			return nil, NewK8sResolutionError("service port must not be empty")
 		}
 		return r.consulServiceForK8SService(ctx, namespacedName)
+	case group == apigwv1alpha1.GroupVersion.Group && kind == "MeshService":
+		r.findConsulMeshService(namespacedName)
+		fallthrough
 	default:
 		return nil, NewResolutionError("unsupported reference type")
 	}
@@ -290,26 +297,54 @@ func (r *backendResolver) findGlobalCatalogService(service *corev1.Service) (*Re
 		r.logger.Trace("error retrieving nodes", "error", err)
 		return nil, err
 	}
+
+	var consulNamespaces []*api.Namespace
+	// the default namespace
+	namespaces := []string{""}
+	consulNamespaces, _, err = r.consul.Namespaces().List(nil)
+	if err != nil {
+		if !strings.Contains(err.Error(), "Unexpected response code: 404") {
+			r.logger.Trace("error retrieving namespaces", "error", err)
+			return nil, err
+		}
+		// we're dealing with an OSS version of Consul, skip namespaces other than the
+		// default namespace
+	} else {
+		for _, namespace := range consulNamespaces {
+			namespaces = append(namespaces, namespace.Name)
+		}
+	}
+
 	filter := fmt.Sprintf(`Meta[%q] == %q and Meta[%q] == %q and Kind != "connect-proxy"`, MetaKeyKubeServiceName, service.Name, MetaKeyKubeNS, service.Namespace)
 	for _, node := range nodes {
-		nodeWithServices, _, err := r.consul.Catalog().Node(node.Node, &api.QueryOptions{
-			Filter: filter,
-		})
-		if err != nil {
-			r.logger.Trace("error retrieving node services", "error", err, "node", node.Node)
-			return nil, err
-		}
-		if len(nodeWithServices.Services) == 0 {
-			continue
-		}
-		resolved, err := validateAgentConsulReference(nodeWithServices.Services, service)
-		if err != nil {
-			r.logger.Trace("error validating node services", "error", err, "node", node.Node)
-			return nil, err
-		}
-		if resolved != nil {
-			return resolved, nil
+		for _, namespace := range namespaces {
+			nodeWithServices, _, err := r.consul.Catalog().Node(node.Node, &api.QueryOptions{
+				Filter:    filter,
+				Namespace: namespace,
+			})
+			if err != nil {
+				r.logger.Trace("error retrieving node services", "error", err, "node", node.Node)
+				return nil, err
+			}
+			if len(nodeWithServices.Services) == 0 {
+				continue
+			}
+			resolved, err := validateAgentConsulReference(nodeWithServices.Services, service)
+			if err != nil {
+				r.logger.Trace("error validating node services", "error", err, "node", node.Node)
+				return nil, err
+			}
+			if resolved != nil {
+				return resolved, nil
+			}
 		}
 	}
 	return nil, nil
+}
+
+// this will resolve a service based on our future CRD
+func (r *backendResolver) findConsulMeshService(name types.NamespacedName) {
+	mapped := r.mapper(name.Namespace)
+
+	r.logger.Debug("resolving consul mesh service", "name", name.Name, "namespace", mapped)
 }

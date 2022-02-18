@@ -75,7 +75,7 @@ func RunExec(config ExecConfig) (ret int) {
 	}()
 
 	// First do the ACL Login, if necessary.
-	consulClient := config.ConsulClient
+	var consulClient *api.Client
 	var token string
 	var err error
 	if config.AuthConfig.Method != "" {
@@ -86,6 +86,14 @@ func RunExec(config ExecConfig) (ret int) {
 			return 1
 		}
 		config.Logger.Trace("consul login complete")
+	} else {
+		consulConfig := &config.ConsulConfig
+		consulConfig.Namespace = config.GatewayConfig.Namespace
+		consulClient, err = api.NewClient(consulConfig)
+		if err != nil {
+			config.Logger.Error("error reinitializing consul client", "error", err)
+			return 1
+		}
 	}
 
 	registry := consul.NewServiceRegistry(
@@ -119,6 +127,7 @@ func RunExec(config ExecConfig) (ret int) {
 		config.Logger.Named("envoy-manager"),
 		envoy.ManagerConfig{
 			ID:                registry.ID(),
+			Namespace:         registry.Namespace(),
 			ConsulCA:          config.EnvoyConfig.CACertificateFile,
 			ConsulAddress:     config.EnvoyConfig.XDSAddress,
 			ConsulXDSPort:     config.EnvoyConfig.XDSPort,
@@ -205,6 +214,7 @@ func login(config ExecConfig) (*api.Client, string, error) {
 
 	// Now update the client so that it will read the ACL token we just fetched.
 	config.ConsulConfig.Token = token
+	config.ConsulConfig.Namespace = config.GatewayConfig.Namespace
 	newClient, err := api.NewClient(&config.ConsulConfig)
 	if err != nil {
 		return nil, "", fmt.Errorf("error updating client connection with token: %w", err)

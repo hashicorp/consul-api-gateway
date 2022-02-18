@@ -31,7 +31,10 @@ const (
 		},
 		"node": {
 			"cluster": "{{ .ID }}",
-			"id": "{{ .ID }}"
+			"id": "{{ .ID }}",
+			"metadata": {
+				"namespace": "{{if ne .Namespace ""}}{{ .Namespace }}{{else}}default{{end}}"
+			}
 		},
 		"static_resources": {
 			"listeners": [{
@@ -153,7 +156,10 @@ const (
 		},
 		"node": {
 			"cluster": "{{ .ID }}",
-			"id": "{{ .ID }}"
+			"id": "{{ .ID }}",
+			"metadata": {
+				"namespace": "{{if ne .Namespace ""}}{{ .Namespace }}{{else}}default{{end}}"
+			}
 		},
 		"static_resources": {
 			"listeners": [{
@@ -259,6 +265,7 @@ func init() {
 
 type bootstrapArgs struct {
 	ID            string
+	Namespace     string
 	AddressType   string
 	ConsulAddress string
 	Token         string
@@ -267,17 +274,21 @@ type bootstrapArgs struct {
 
 // DeployHTTPMeshService deploys an envoy proxy with roughly the same logic that consul-k8s uses
 // in its connect-inject registration
-func DeployHTTPMeshService(ctx context.Context, cfg *envconf.Config) (*core.Service, error) {
-	return deployMeshService(ctx, cfg, "http", httpBootstrapTemplate)
+func DeployHTTPMeshService(ctx context.Context, cfg *envconf.Config, consulNamespace ...string) (*core.Service, error) {
+	return deployMeshService(ctx, cfg, "http", httpBootstrapTemplate, consulNamespace...)
 }
 
 // DeployTCPMeshService deploys an envoy proxy with roughly the same logic that consul-k8s uses
 // in its connect-inject registration
-func DeployTCPMeshService(ctx context.Context, cfg *envconf.Config) (*core.Service, error) {
-	return deployMeshService(ctx, cfg, "tcp", tcpBootstrapTemplate)
+func DeployTCPMeshService(ctx context.Context, cfg *envconf.Config, consulNamespace ...string) (*core.Service, error) {
+	return deployMeshService(ctx, cfg, "tcp", tcpBootstrapTemplate, consulNamespace...)
 }
 
-func deployMeshService(ctx context.Context, cfg *envconf.Config, protocol string, template *template.Template) (*core.Service, error) {
+func deployMeshService(ctx context.Context, cfg *envconf.Config, protocol string, template *template.Template, consulNamespaces ...string) (*core.Service, error) {
+	consulNamespace := ""
+	if len(consulNamespaces) != 0 {
+		consulNamespace = consulNamespaces[0]
+	}
 	servicePort := 8080
 	namespace := Namespace(ctx)
 	name := envconf.RandomName("mesh", 16)
@@ -289,7 +300,7 @@ func deployMeshService(ctx context.Context, cfg *envconf.Config, protocol string
 
 	resourcesClient := cfg.Client().Resources(namespace)
 
-	configMap, err := meshServiceConfigMap(template, name, namespace, proxyServiceName, token, consulAddress, consulPort)
+	configMap, err := meshServiceConfigMap(template, name, namespace, consulNamespace, proxyServiceName, token, consulAddress, consulPort)
 	if err != nil {
 		return nil, err
 	}
@@ -332,9 +343,10 @@ func deployMeshService(ctx context.Context, cfg *envconf.Config, protocol string
 	}
 
 	registration := &api.AgentServiceRegistration{
-		ID:   name,
-		Name: name,
-		Port: 19001,
+		ID:        name,
+		Name:      name,
+		Namespace: consulNamespace,
+		Port:      19001,
 		Meta: map[string]string{
 			serviceResolver.MetaKeyKubeServiceName: name,
 			serviceResolver.MetaKeyKubeNS:          namespace,
@@ -347,19 +359,21 @@ func deployMeshService(ctx context.Context, cfg *envconf.Config, protocol string
 	}
 
 	_, _, err = client.ConfigEntries().Set(&api.ServiceConfigEntry{
-		Kind:     api.ServiceDefaults,
-		Name:     name,
-		Protocol: protocol,
+		Kind:      api.ServiceDefaults,
+		Name:      name,
+		Namespace: consulNamespace,
+		Protocol:  protocol,
 	}, nil)
 	if err != nil {
 		return nil, err
 	}
 
 	proxyRegistration := &api.AgentServiceRegistration{
-		Kind: api.ServiceKind(api.ServiceKindConnectProxy),
-		ID:   proxyServiceName,
-		Name: proxyServiceName,
-		Port: servicePort,
+		Kind:      api.ServiceKind(api.ServiceKindConnectProxy),
+		ID:        proxyServiceName,
+		Name:      proxyServiceName,
+		Namespace: consulNamespace,
+		Port:      servicePort,
 		Meta: map[string]string{
 			serviceResolver.MetaKeyKubeServiceName: name,
 			serviceResolver.MetaKeyKubeNS:          namespace,
@@ -378,8 +392,8 @@ func deployMeshService(ctx context.Context, cfg *envconf.Config, protocol string
 	return service, nil
 }
 
-func meshServiceConfigMap(template *template.Template, name, namespace, proxyServiceName, token, consulAddress string, consulPort int) (*core.ConfigMap, error) {
-	config, err := meshServiceConfig(template, proxyServiceName, token, consulAddress, consulPort)
+func meshServiceConfigMap(template *template.Template, name, namespace, consulNamespace, proxyServiceName, token, consulAddress string, consulPort int) (*core.ConfigMap, error) {
+	config, err := meshServiceConfig(template, proxyServiceName, consulNamespace, token, consulAddress, consulPort)
 	if err != nil {
 		return nil, err
 	}
@@ -395,10 +409,11 @@ func meshServiceConfigMap(template *template.Template, name, namespace, proxySer
 	}, nil
 }
 
-func meshServiceConfig(template *template.Template, name, token, consulAddress string, consulPort int) (string, error) {
+func meshServiceConfig(template *template.Template, name, consulNamespace, token, consulAddress string, consulPort int) (string, error) {
 	var data bytes.Buffer
 	if err := template.Execute(&data, &bootstrapArgs{
 		ID:            name,
+		Namespace:     consulNamespace,
 		AddressType:   common.AddressTypeForAddress(consulAddress),
 		Token:         token,
 		ConsulAddress: consulAddress,

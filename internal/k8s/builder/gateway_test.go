@@ -51,6 +51,7 @@ func (g *gatewayTestConfig) EncodeDeployment() runtime.Object {
 	b.WithSDS("consul-api-gateway-controller.default.svc.cluster.local", 9090)
 	b.WithClassConfig(*g.gatewayClassConfig)
 	b.WithConsulCA("CONSUL_CA_MOCKED")
+	b.WithConsulGatewayNamespace("test")
 	return b.Build()
 }
 

@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 	"path"
+	"strings"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
@@ -16,6 +18,10 @@ import (
 type dockerImageContext struct{}
 
 var dockerImageContextKey = dockerImageContext{}
+
+const (
+	envvarExtraDockerImages = envvarPrefix + "DOCKER_IMAGES"
+)
 
 func BuildDockerImage(ctx context.Context, cfg *envconf.Config) (context.Context, error) {
 	log.Print("Building docker image")
@@ -46,4 +52,12 @@ func DockerImage(ctx context.Context) string {
 		panic("must run this with an integration test that has called BuildDockerImage")
 	}
 	return image.(string)
+}
+
+func ExtraDockerImages() []string {
+	images := os.Getenv(envvarExtraDockerImages)
+	if images != "" {
+		return strings.Split(images, ",")
+	}
+	return nil
 }

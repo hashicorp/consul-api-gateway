@@ -24,6 +24,7 @@ var (
 
 type bootstrapArgs struct {
 	ID            string
+	Namespace     string
 	ConsulCA      string
 	ConsulAddress string
 	ConsulXDSPort int
@@ -42,6 +43,7 @@ func init() {
 // ManagerConfig configures a Manager
 type ManagerConfig struct {
 	ID                string
+	Namespace         string
 	ConsulCA          string
 	ConsulAddress     string
 	ConsulXDSPort     int
@@ -109,6 +111,7 @@ func (m *Manager) RenderBootstrap(sdsConfig string) error {
 	if err := bootstrapTemplate.Execute(&bootstrapConfig, &bootstrapArgs{
 		SDSCluster:    sdsConfig,
 		ID:            m.ID,
+		Namespace:     m.Namespace,
 		ConsulCA:      m.ConsulCA,
 		ConsulAddress: m.ConsulAddress,
 		ConsulXDSPort: m.ConsulXDSPort,
@@ -133,7 +136,10 @@ const bootstrapJSONTemplate = `{
   },
   "node": {
     "cluster": "{{ .ID }}",
-    "id": "{{ .ID }}"
+    "id": "{{ .ID }}",
+    "metadata": {
+      "namespace": "{{if ne .Namespace ""}}{{ .Namespace }}{{else}}default{{end}}"
+    }
   },
   "static_resources": {
     "clusters": [

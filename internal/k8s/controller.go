@@ -43,6 +43,19 @@ func init() {
 	utilruntime.Must(gw.AddToScheme(scheme))
 }
 
+type ConsulNamespaceConfig struct {
+	ConsulDestinationNamespace      string
+	MirrorKubernetesNamespaces      bool
+	MirrorKubernetesNamespacePrefix string
+}
+
+func (c ConsulNamespaceConfig) Namespace(namespace string) string {
+	if c.MirrorKubernetesNamespaces {
+		return c.MirrorKubernetesNamespacePrefix + namespace
+	}
+	return c.ConsulDestinationNamespace
+}
+
 type Kubernetes struct {
 	config     *Config
 	k8sManager ctrl.Manager
@@ -60,16 +73,20 @@ type Config struct {
 	WebhookPort         int
 	RestConfig          *rest.Config
 	Namespace           string
+
+	// ConsulNamespaceConfig
+	ConsulNamespaceConfig ConsulNamespaceConfig
 }
 
 func Defaults() *Config {
 	return &Config{
-		CACert:              "",
-		SDSServerHost:       "consul-api-gateway-controller.default.svc.cluster.local",
-		SDSServerPort:       9090,
-		MetricsBindAddr:     ":8080",
-		HealthProbeBindAddr: ":8081",
-		WebhookPort:         8443,
+		CACert:                "",
+		SDSServerHost:         "consul-api-gateway-controller.default.svc.cluster.local",
+		SDSServerPort:         9090,
+		MetricsBindAddr:       ":8080",
+		HealthProbeBindAddr:   ":8081",
+		WebhookPort:           8443,
+		ConsulNamespaceConfig: ConsulNamespaceConfig{},
 	}
 }
 
@@ -130,14 +147,15 @@ func (k *Kubernetes) Start(ctx context.Context) error {
 	gwClient := gatewayclient.New(k.k8sManager.GetClient(), scheme, ControllerName)
 
 	reconcileManager := reconciler.NewReconcileManager(reconciler.ManagerConfig{
-		ControllerName: ControllerName,
-		Client:         gwClient,
-		Consul:         k.consul,
-		ConsulCA:       k.config.CACert,
-		SDSHost:        k.config.SDSServerHost,
-		SDSPort:        k.config.SDSServerPort,
-		Logger:         k.logger.Named("Reconciler"),
-		Store:          k.store,
+		ControllerName:        ControllerName,
+		Client:                gwClient,
+		Consul:                k.consul,
+		ConsulCA:              k.config.CACert,
+		SDSHost:               k.config.SDSServerHost,
+		SDSPort:               k.config.SDSServerPort,
+		Logger:                k.logger.Named("Reconciler"),
+		Store:                 k.store,
+		ConsulNamespaceMapper: k.config.ConsulNamespaceConfig.Namespace,
 	})
 
 	err := (&controllers.GatewayClassConfigReconciler{
