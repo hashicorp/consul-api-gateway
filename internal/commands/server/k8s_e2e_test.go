@@ -497,7 +497,7 @@ func TestTCPMeshService(t *testing.T) {
 			require.NoError(t, err)
 			serviceThree, err := e2e.DeployTCPMeshService(ctx, cfg)
 			require.NoError(t, err)
-			serviceFour, err := e2e.DeployTCPMeshService(ctx, cfg)
+			serviceFour, err := e2e.DeployTCPMeshService(ctx, cfg, e2e.ConsulNamespace(ctx))
 			require.NoError(t, err)
 
 			namespace := e2e.Namespace(ctx)
@@ -652,6 +652,8 @@ func TestTCPMeshService(t *testing.T) {
 			}
 			err = resources.Create(ctx, route)
 			require.NoError(t, err)
+
+			time.Sleep(30 * time.Minute)
 
 			checkPort := e2e.TCPPort(ctx)
 
