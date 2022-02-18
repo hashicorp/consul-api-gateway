@@ -654,8 +654,6 @@ func TestTCPMeshService(t *testing.T) {
 			err = resources.Create(ctx, route)
 			require.NoError(t, err)
 
-			time.Sleep(30 * time.Minute)
-
 			checkPort := e2e.TCPPort(ctx)
 
 			// only service 4 should be routable as we don't support routes with multiple rules or backend refs for TCP
