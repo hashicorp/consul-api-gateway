@@ -49,7 +49,6 @@ type Command struct {
 	// Consul namespaces
 	flagConsulDestinationNamespace string
 	flagMirrorK8SNamespaces        bool
-	flagMirroringK8SPrefix         string
 	flagMirrorK8SNamespacePrefix   string
 
 	// Logging
