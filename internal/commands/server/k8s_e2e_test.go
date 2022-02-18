@@ -497,6 +497,7 @@ func TestTCPMeshService(t *testing.T) {
 			require.NoError(t, err)
 			serviceThree, err := e2e.DeployTCPMeshService(ctx, cfg)
 			require.NoError(t, err)
+			// register this in the proper Consul namespace so that we can map and resolve it as a MeshService
 			serviceFour, err := e2e.DeployTCPMeshService(ctx, cfg, e2e.ConsulNamespace(ctx))
 			require.NoError(t, err)
 
