@@ -34,5 +34,5 @@ require (
 	k8s.io/klog/v2 v2.10.0
 	sigs.k8s.io/controller-runtime v0.9.6
 	sigs.k8s.io/e2e-framework v0.0.3
-	sigs.k8s.io/gateway-api v0.4.0
+	sigs.k8s.io/gateway-api v0.4.1
 )

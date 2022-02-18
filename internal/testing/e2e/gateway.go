@@ -38,7 +38,7 @@ func (p *gatewayTestEnvironment) run(ctx context.Context, namespace string, cfg 
 	consulClient := ConsulClient(ctx)
 
 	// this should go away once we implement auth in the server bootup
-	consulClient.AddHeader("x-consul-token", ConsulMasterToken(ctx))
+	consulClient.AddHeader("x-consul-token", ConsulInitialManagementToken(ctx))
 
 	nullLogger := hclog.Default()
 	nullLogger.SetLevel(hclog.Trace)
@@ -56,6 +56,9 @@ func (p *gatewayTestEnvironment) run(ctx context.Context, namespace string, cfg 
 		SDSServerPort: 9090,
 		RestConfig:    cfg.Client().RESTConfig(),
 		CACert:        string(ConsulCA(ctx)),
+		ConsulNamespaceConfig: k8s.ConsulNamespaceConfig{
+			ConsulDestinationNamespace: ConsulNamespace(ctx),
+		},
 	})
 	if err != nil {
 		return err

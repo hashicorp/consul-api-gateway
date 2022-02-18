@@ -160,8 +160,9 @@ func (k *Kubernetes) Start(ctx context.Context) error {
 	})
 
 	err := (&controllers.GatewayClassConfigReconciler{
-		Client: gwClient,
-		Log:    k.logger.Named("GatewayClassConfig"),
+		Client:  gwClient,
+		Log:     k.logger.Named("GatewayClassConfig"),
+		Manager: reconcileManager,
 	}).SetupWithManager(k.k8sManager)
 	if err != nil {
 		return fmt.Errorf("failed to create gateway class config controller: %w", err)

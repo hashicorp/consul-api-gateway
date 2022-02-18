@@ -227,19 +227,31 @@ func LoadKindDockerImage(clusterName string) env.Func {
 	return func(ctx context.Context, cfg *envconf.Config) (context.Context, error) {
 		log.Println("Loading docker image into kind cluster")
 
-		image := DockerImage(ctx)
+		if err := loadImage(ctx, clusterName, DockerImage(ctx)); err != nil {
+			return nil, err
+		}
 
-		var stdout, stderr bytes.Buffer
-		timeoutContext, cancel := context.WithTimeout(ctx, 20*time.Second)
-		defer cancel()
-
-		cmd := exec.CommandContext(timeoutContext, "kind", "load", "docker-image", image, image, "--name", clusterName)
-		cmd.Stderr = &stderr
-		cmd.Stdout = &stdout
-		if err := cmd.Run(); err != nil {
-			return nil, errors.New(stderr.String())
+		for _, image := range ExtraDockerImages() {
+			log.Printf("Loading additional docker image:%s into kind cluster", image)
+			if err := loadImage(ctx, clusterName, image); err != nil {
+				return nil, err
+			}
 		}
 
 		return ctx, nil
 	}
+}
+
+func loadImage(ctx context.Context, clusterName, image string) error {
+	var stdout, stderr bytes.Buffer
+	timeoutContext, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(timeoutContext, "kind", "load", "docker-image", image, image, "--name", clusterName)
+	cmd.Stderr = &stderr
+	cmd.Stdout = &stdout
+	if err := cmd.Run(); err != nil {
+		return errors.New(stderr.String())
+	}
+	return nil
 }

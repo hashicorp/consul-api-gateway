@@ -10,7 +10,10 @@
   },
   "node": {
     "cluster": "",
-    "id": ""
+    "id": "",
+    "metadata": {
+      "namespace": "default"
+    }
   },
   "static_resources": {
     "clusters": [

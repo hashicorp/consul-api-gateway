@@ -63,7 +63,11 @@ func NewK8sGateway(gateway *gw.Gateway, config K8sGatewayConfig) *K8sGateway {
 	deployment.WithSDS(config.SDSHost, config.SDSPort)
 	deployment.WithClassConfig(config.Config)
 	deployment.WithConsulCA(config.ConsulCA)
+<<<<<<< HEAD
 	deployment.WithGatewayNamespace(config.ConsulNamespace)
+=======
+	deployment.WithConsulGatewayNamespace(config.ConsulNamespace)
+>>>>>>> ee0f33fcdbabc1b0fdfffd14d81093428d363f9c
 	service := builder.NewGatewayService(gateway)
 	service.WithClassConfig(config.Config)
 

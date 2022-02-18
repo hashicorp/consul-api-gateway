@@ -2,10 +2,15 @@ package e2e
 
 import (
 	"context"
+	"os"
 
 	"sigs.k8s.io/e2e-framework/pkg/env"
 	"sigs.k8s.io/e2e-framework/pkg/envconf"
 	"sigs.k8s.io/e2e-framework/pkg/envfuncs"
+)
+
+const (
+	envvarPrefix = "E2E_APIGW_"
 )
 
 func SetUpStack(hostRoute string) env.Func {
@@ -22,15 +27,16 @@ func SetUpStack(hostRoute string) env.Func {
 			CrossCompileProject,
 			BuildDockerImage,
 			CreateKindCluster(kindClusterName),
+			LoadKindDockerImage(kindClusterName),
 			envfuncs.CreateNamespace(namespace),
 			InstallGatewayCRDs,
 			CreateServiceAccount(namespace),
 			CreateTestConsulContainer(kindClusterName, namespace),
 			CreateConsulACLPolicy,
 			CreateConsulAuthMethod(namespace),
+			CreateConsulNamespace,
 			InstallConsulAPIGatewayCRDs,
 			CreateTestGatewayServer(namespace),
-			LoadKindDockerImage(kindClusterName),
 		} {
 			ctx, err = f(ctx, cfg)
 			if err != nil {
@@ -68,4 +74,11 @@ func SetHostRoute(ctx context.Context, hostRoute string) context.Context {
 
 func HostRoute(ctx context.Context) string {
 	return ctx.Value(hostRouteContextKey).(string)
+}
+
+func getEnvDefault(envvar, defaultVal string) string {
+	if val := os.Getenv(envvar); val != "" {
+		return val
+	}
+	return defaultVal
 }

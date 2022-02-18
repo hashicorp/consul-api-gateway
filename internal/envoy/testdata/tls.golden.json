@@ -10,7 +10,10 @@
   },
   "node": {
     "cluster": "feaf6c11-f46f-4869-ba53-b0cc07f09659",
-    "id": "feaf6c11-f46f-4869-ba53-b0cc07f09659"
+    "id": "feaf6c11-f46f-4869-ba53-b0cc07f09659",
+    "metadata": {
+      "namespace": "default"
+    }
   },
   "static_resources": {
     "clusters": [

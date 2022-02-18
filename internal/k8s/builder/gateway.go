@@ -80,12 +80,21 @@ func filterAnnotations(annotations map[string]string, allowed []string) map[stri
 }
 
 type GatewayDeploymentBuilder struct {
+<<<<<<< HEAD
 	gateway          *gw.Gateway
 	gatewayNamespace string
 	gwConfig         *v1alpha1.GatewayClassConfig
 	sdsHost          string
 	sdsPort          int
 	consulCAData     string
+=======
+	gateway                *gw.Gateway
+	gwConfig               *v1alpha1.GatewayClassConfig
+	sdsHost                string
+	sdsPort                int
+	consulCAData           string
+	consulGatewayNamespace string
+>>>>>>> ee0f33fcdbabc1b0fdfffd14d81093428d363f9c
 }
 
 func NewGatewayDeployment(gw *gw.Gateway) *GatewayDeploymentBuilder {
@@ -105,8 +114,13 @@ func (b *GatewayDeploymentBuilder) WithConsulCA(caData string) {
 	b.consulCAData = caData
 }
 
+<<<<<<< HEAD
 func (b *GatewayDeploymentBuilder) WithGatewayNamespace(namespace string) {
 	b.gatewayNamespace = namespace
+=======
+func (b *GatewayDeploymentBuilder) WithConsulGatewayNamespace(namespace string) {
+	b.consulGatewayNamespace = namespace
+>>>>>>> ee0f33fcdbabc1b0fdfffd14d81093428d363f9c
 }
 
 func (b *GatewayDeploymentBuilder) Validate() error {
@@ -216,7 +230,11 @@ func (b *GatewayDeploymentBuilder) execCommand() []string {
 		LogLevel:         orDefault(b.gwConfig.Spec.LogLevel, defaultLogLevel),
 		GatewayHost:      "$(IP)",
 		GatewayName:      b.gateway.Name,
+<<<<<<< HEAD
 		GatewayNamespace: b.gatewayNamespace,
+=======
+		GatewayNamespace: b.consulGatewayNamespace,
+>>>>>>> ee0f33fcdbabc1b0fdfffd14d81093428d363f9c
 		SDSHost:          b.sdsHost,
 		SDSPort:          b.sdsPort,
 	}

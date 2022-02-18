@@ -40,6 +40,7 @@ type Client interface {
 
 	GatewayClassInUse(ctx context.Context, gc *gateway.GatewayClass) (bool, error)
 	GatewayClassConfigInUse(ctx context.Context, gcc *apigwv1alpha1.GatewayClassConfig) (bool, error)
+	GatewayClassesUsingConfig(ctx context.Context, gcc *apigwv1alpha1.GatewayClassConfig) (*gateway.GatewayClassList, error)
 	RemoveFinalizer(ctx context.Context, object client.Object, finalizer string) (bool, error)
 	EnsureFinalizer(ctx context.Context, object client.Object, finalizer string) (bool, error)
 
@@ -85,25 +86,53 @@ func New(client client.Client, scheme *runtime.Scheme, controllerName string) Cl
 	}
 }
 
+// gatewayClassUsesConfig determines whether a given GatewayClass references a
+// given GatewayClassConfig. Since these resources are scoped to the cluster,
+// namespace is not considered.
+func gatewayClassUsesConfig(gc gateway.GatewayClass, gcc *apigwv1alpha1.GatewayClassConfig) bool {
+	paramaterRef := gc.Spec.ParametersRef
+	return paramaterRef != nil &&
+		paramaterRef.Group == apigwv1alpha1.Group &&
+		paramaterRef.Kind == apigwv1alpha1.GatewayClassConfigKind &&
+		paramaterRef.Name == gcc.Name
+}
+
+// GatewayClassConfigInUse determines whether any GatewayClass in the cluster
+// references the provided GatewayClassConfig.
 func (g *gatewayClient) GatewayClassConfigInUse(ctx context.Context, gcc *apigwv1alpha1.GatewayClassConfig) (bool, error) {
 	list := &gateway.GatewayClassList{}
 	if err := g.List(ctx, list); err != nil {
 		return false, NewK8sError(err)
 	}
-	for _, gc := range list.Items {
-		paramaterRef := gc.Spec.ParametersRef
-		if paramaterRef != nil &&
-			paramaterRef.Group == apigwv1alpha1.Group &&
-			paramaterRef.Kind == apigwv1alpha1.GatewayClassConfigKind &&
-			paramaterRef.Name == gcc.Name {
 
-			// no need to check on namespaces since we're cluster-scoped
+	for _, gc := range list.Items {
+		if gatewayClassUsesConfig(gc, gcc) {
 			return true, nil
 		}
 	}
+
 	return false, nil
 }
 
+// GatewayClassesUsingConfig returns the list of all GatewayClasses in the
+// cluster that reference the provided GatewayClassConfig.
+func (g *gatewayClient) GatewayClassesUsingConfig(ctx context.Context, gcc *apigwv1alpha1.GatewayClassConfig) (*gateway.GatewayClassList, error) {
+	list, filteredList := &gateway.GatewayClassList{}, &gateway.GatewayClassList{}
+	if err := g.List(ctx, list); err != nil {
+		return nil, NewK8sError(err)
+	}
+
+	for _, gc := range list.Items {
+		if gatewayClassUsesConfig(gc, gcc) {
+			filteredList.Items = append(filteredList.Items, gc)
+		}
+	}
+
+	return filteredList, nil
+}
+
+// GatewayClassInUse determines whether any Gateway in the cluster
+// references the provided GatewayClass.
 func (g *gatewayClient) GatewayClassInUse(ctx context.Context, gc *gateway.GatewayClass) (bool, error) {
 	list := &gateway.GatewayList{}
 	if err := g.List(ctx, list); err != nil {

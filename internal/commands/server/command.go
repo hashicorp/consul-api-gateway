@@ -50,6 +50,7 @@ type Command struct {
 	flagConsulDestinationNamespace string
 	flagMirrorK8SNamespaces        bool
 	flagMirroringK8SPrefix         string
+	flagMirrorK8SNamespacePrefix   string
 
 	// Logging
 	flagLogLevel string
@@ -80,8 +81,8 @@ func (c *Command) init() {
 	{
 		// Consul namespaces
 		c.flagSet.StringVar(&c.flagConsulDestinationNamespace, "consul-destination-namespace", "", "Consul namespace to register gateway services.")
-		c.flagSet.BoolVar(&c.flagMirrorK8SNamespaces, "mirror-k8s-namespaces", false, "Register Consul gateway services based on Kubernetes namespace.")
-		c.flagSet.StringVar(&c.flagMirroringK8SPrefix, "mirror-k8s-namespace-prefix", "", "Namespace prefix for Consul services when mirroring Kubernetes namespaces.")
+		c.flagSet.BoolVar(&c.flagMirrorK8SNamespaces, "mirroring-k8s", false, "Register Consul gateway services based on Kubernetes namespace.")
+		c.flagSet.StringVar(&c.flagMirrorK8SNamespacePrefix, "mirroring-k8s-prefix", "", "Namespace prefix for Consul services when mirroring Kubernetes namespaces.")
 	}
 
 	{
@@ -161,6 +162,7 @@ func (c *Command) Run(args []string) int {
 		ConsulDestinationNamespace:      c.flagConsulDestinationNamespace,
 		MirrorKubernetesNamespaces:      c.flagMirrorK8SNamespaces,
 		MirrorKubernetesNamespacePrefix: c.flagMirroringK8SPrefix,
+		MirrorKubernetesNamespacePrefix: c.flagMirrorK8SNamespacePrefix,
 	}
 
 	return RunServer(ServerConfig{

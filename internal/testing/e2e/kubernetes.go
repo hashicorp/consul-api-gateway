@@ -25,7 +25,7 @@ type k8sTokenContext struct{}
 
 var k8sTokenContextKey = k8sTokenContext{}
 
-const gatewayCRDs = "github.com/kubernetes-sigs/gateway-api/config/crd?ref=v0.4.0"
+const gatewayCRDs = "github.com/kubernetes-sigs/gateway-api/config/crd?ref=v0.4.1"
 
 func InstallGatewayCRDs(ctx context.Context, cfg *envconf.Config) (context.Context, error) {
 	log.Print("Installing Gateway CRDs")

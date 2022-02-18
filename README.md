@@ -1,4 +1,9 @@
-# Consul API Gateway [![CI Status](https://github.com/hashicorp/consul-api-gateway/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/hashicorp/consul-api-gateway/actions/workflows/ci.yml?query=branch%3Amain) [![Discuss](https://img.shields.io/badge/discuss-consul--api--gateway-dc477d?logo=consul)](https://discuss.hashicorp.com/c/consul)
+<h1>
+  <img src="./assets/logo.svg" align="left" height="46px" alt="Consul logo"/>
+  <span>Consul API Gateway</span>
+</h1>
+
+[![CI Status](https://github.com/hashicorp/consul-api-gateway/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/hashicorp/consul-api-gateway/actions/workflows/ci.yml?query=branch%3Amain) [![Discuss](https://img.shields.io/badge/discuss-consul--api--gateway-dc477d?logo=consul)](https://discuss.hashicorp.com/c/consul)
 
 # Overview
 

@@ -8,6 +8,8 @@ import (
 	"html/template"
 	"log"
 	"net"
+	"os"
+	"strings"
 
 	"github.com/cenkalti/backoff"
 	apps "k8s.io/api/apps/v1"
@@ -24,8 +26,10 @@ import (
 )
 
 const (
-	consulImage          = "hashicorp/consul:1.11.2"
-	configTemplateString = `
+	defaultConsulImage            = "hashicorp/consul:1.11.3"
+	envvarConsulImage             = envvarPrefix + "CONSUL_IMAGE"
+	envvarConsulEnterpriseLicense = "CONSUL_LICENSE"
+	configTemplateString          = `
 {
 	"log_level": "trace",
   "acl": {
@@ -62,7 +66,9 @@ type consulTestContext struct{}
 var (
 	consulTestContextKey = consulTestContext{}
 
-	configTemplate *template.Template
+	configTemplate   *template.Template
+	consulImage      = getEnvDefault(envvarConsulImage, defaultConsulImage)
+	consulEntLicense = os.Getenv(envvarConsulEnterpriseLicense)
 )
 
 func init() {
@@ -80,6 +86,7 @@ type consulTestEnvironment struct {
 	extraTCPPort       int
 	extraTCPTLSPort    int
 	extraTCPTLSPortTwo int
+	namespace          string
 	ip                 string
 }
 
@@ -287,6 +294,13 @@ func consulDeployment(namespace string, httpsPort, grpcPort int) *apps.Deploymen
 	labels := map[string]string{
 		"deployment": "consul-test-server",
 	}
+	var env []core.EnvVar
+	if consulEntLicense != "" {
+		env = append(env, core.EnvVar{
+			Name:  envvarConsulEnterpriseLicense,
+			Value: consulEntLicense,
+		})
+	}
 	return &apps.Deployment{
 		ObjectMeta: meta.ObjectMeta{
 			Name:      "consul",
@@ -338,6 +352,7 @@ func consulDeployment(namespace string, httpsPort, grpcPort int) *apps.Deploymen
 						{
 							Name:  "consul",
 							Image: consulImage,
+							Env:   env,
 							Ports: []core.ContainerPort{{
 								Name:          "https",
 								Protocol:      "TCP",
@@ -398,7 +413,7 @@ func ConsulCA(ctx context.Context) []byte {
 
 }
 
-func ConsulMasterToken(ctx context.Context) string {
+func ConsulInitialManagementToken(ctx context.Context) string {
 	consulEnvironment := ctx.Value(consulTestContextKey)
 	if consulEnvironment == nil {
 		panic("must run this with an integration test that has called CreateTestConsul")
@@ -462,6 +477,14 @@ func ConsulHTTPPort(ctx context.Context) int {
 	return consulEnvironment.(*consulTestEnvironment).httpPort
 }
 
+func ConsulNamespace(ctx context.Context) string {
+	consulEnvironment := ctx.Value(consulTestContextKey)
+	if consulEnvironment == nil {
+		panic("must run this with an integration test that has called CreateTestConsul")
+	}
+	return consulEnvironment.(*consulTestEnvironment).namespace
+}
+
 func CreateConsulACLPolicy(ctx context.Context, cfg *envconf.Config) (context.Context, error) {
 	log.Print("Creating Consul ACL Policy")
 
@@ -474,7 +497,7 @@ func CreateConsulACLPolicy(ctx context.Context, cfg *envconf.Config) (context.Co
 	if err != nil {
 		return nil, err
 	}
-	log.Printf("Consul master token: %s", token.SecretID)
+	log.Printf("Consul initial management token: %s", token.SecretID)
 	policy, _, err := env.consulClient.ACL().PolicyCreate(adminPolicy(), &api.WriteOptions{
 		Token: token.SecretID,
 	})
@@ -517,6 +540,33 @@ func CreateConsulAuthMethod(namespace string) env.Func {
 	}
 }
 
+func IsEnterprise() bool {
+	return strings.HasSuffix(consulImage, "ent")
+}
+
+func CreateConsulNamespace(ctx context.Context, cfg *envconf.Config) (context.Context, error) {
+	if IsEnterprise() {
+		log.Print("Creating Consul Namespace")
+		namespace := envconf.RandomName("test", 16)
+
+		consulEnvironment := ctx.Value(consulTestContextKey)
+		if consulEnvironment == nil {
+			return ctx, nil
+		}
+		env := consulEnvironment.(*consulTestEnvironment)
+		_, _, err := env.consulClient.Namespaces().Create(&api.Namespace{
+			Name: namespace,
+		}, &api.WriteOptions{
+			Token: env.token,
+		})
+		if err != nil {
+			return nil, err
+		}
+		env.namespace = namespace
+	}
+	return ctx, nil
+}
+
 func gatewayConsulAuthMethod(name, token string, k8sConfig *rest.Config) *api.ACLAuthMethod {
 	return &api.ACLAuthMethod{
 		Type: "kubernetes",
@@ -551,18 +601,37 @@ func gatewayConsulRole(namespace, policyID string) *api.ACLRole {
 }
 
 func adminPolicy() *api.ACLPolicy {
+	if IsEnterprise() {
+		return &api.ACLPolicy{
+			Name: "consul-api-gateway",
+			Rules: `
+	namespace_prefix "" {
+		acl = "write"
+		policy = "write"
+		service_prefix "" { policy = "write" }
+		session_prefix "" { policy = "write" }
+		node_prefix "" { policy = "read" }
+	}
+	event_prefix "" { policy = "write" }
+	agent_prefix "" { policy = "write" }
+	query_prefix "" { policy = "write" }
+	operator = "write"
+	keyring = "write"
+	`,
+		}
+	}
 	return &api.ACLPolicy{
 		Name: "consul-api-gateway",
 		Rules: `
-node_prefix "" { policy = "write" }
-service_prefix "" { policy = "write" }
-agent_prefix "" { policy = "write" }
-event_prefix "" { policy = "write" }
-query_prefix "" { policy = "write" }
-session_prefix "" { policy = "write" }
-operator = "write"
-acl = "write"
-keyring = "write"
+	node_prefix "" { policy = "read" }
+	service_prefix "" { policy = "write" }
+	agent_prefix "" { policy = "write" }
+	event_prefix "" { policy = "write" }
+	query_prefix "" { policy = "write" }
+	session_prefix "" { policy = "write" }
+	operator = "write"
+	acl = "write"
+	keyring = "write"
 `,
 	}
 }

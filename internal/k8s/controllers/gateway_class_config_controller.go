@@ -7,6 +7,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler"
 	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 	"github.com/hashicorp/go-hclog"
 )
@@ -17,8 +18,9 @@ const (
 
 // GatewayClassConfigReconciler reconciles a GatewayClassConfig object
 type GatewayClassConfigReconciler struct {
-	Client gatewayclient.Client
-	Log    hclog.Logger
+	Client  gatewayclient.Client
+	Log     hclog.Logger
+	Manager reconciler.ReconcileManager
 }
 
 //+kubebuilder:rbac:groups=api-gateway.consul.hashicorp.com,resources=gatewayclassconfigs,verbs=get;update;list;watch
@@ -62,6 +64,16 @@ func (r *GatewayClassConfigReconciler) Reconcile(ctx context.Context, req ctrl.R
 	}
 
 	// we're creating or updating
+
+	// evict any class that's referencing an updated config from cache
+	if using, err := r.Client.GatewayClassesUsingConfig(ctx, gcc); err == nil && len(using.Items) > 0 {
+		for _, gc := range using.Items {
+			if err := r.Manager.DeleteGatewayClass(ctx, gc.Name); err != nil {
+				logger.Warn("error evicting cached gateway class referencing config", "error", err)
+			}
+		}
+	}
+
 	if _, err := r.Client.EnsureFinalizer(ctx, gcc, gatewayClassConfigFinalizer); err != nil {
 		logger.Error("error adding gateway class config finalizer", "error", err)
 		return ctrl.Result{}, err

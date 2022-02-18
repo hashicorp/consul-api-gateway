@@ -57,6 +57,7 @@ func (a *ConsulSyncAdapter) deleteConfigEntries(ctx context.Context, entries ...
 	options := &api.WriteOptions{}
 	var result error
 	for _, entry := range entries {
+		options.Namespace = entry.GetNamespace()
 		if _, err := a.consul.ConfigEntries().Delete(entry.GetKind(), entry.GetName(), options.WithContext(ctx)); err != nil {
 			result = multierror.Append(result, err)
 		}

@@ -15,7 +15,7 @@ import (
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
 )
 
-func testNamspaceMapper(namespace string) string {
+func testNamespaceMapper(namespace string) string {
 	return "test"
 }
 
@@ -63,7 +63,7 @@ func TestUpsertGateway(t *testing.T) {
 		Client:                client,
 		Logger:                hclog.NewNullLogger(),
 		Store:                 store,
-		ConsulNamespaceMapper: testNamspaceMapper,
+		ConsulNamespaceMapper: testNamespaceMapper,
 	})
 
 	inner := &gw.Gateway{}
@@ -106,7 +106,7 @@ func TestUpsertHTTPRoute(t *testing.T) {
 		Client:                client,
 		Logger:                hclog.NewNullLogger(),
 		Store:                 store,
-		ConsulNamespaceMapper: testNamspaceMapper,
+		ConsulNamespaceMapper: testNamespaceMapper,
 	})
 
 	expected := errors.New("expected")
@@ -169,7 +169,7 @@ func TestUpsertTCPRoute(t *testing.T) {
 		Client:                client,
 		Logger:                hclog.NewNullLogger(),
 		Store:                 store,
-		ConsulNamespaceMapper: testNamspaceMapper,
+		ConsulNamespaceMapper: testNamespaceMapper,
 	})
 
 	client.EXPECT().IsManagedRoute(gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil)
@@ -189,7 +189,7 @@ func TestUpsertTLSRoute(t *testing.T) {
 		Client:                client,
 		Logger:                hclog.NewNullLogger(),
 		Store:                 store,
-		ConsulNamespaceMapper: testNamspaceMapper,
+		ConsulNamespaceMapper: testNamespaceMapper,
 	})
 
 	client.EXPECT().IsManagedRoute(gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil)
@@ -213,7 +213,7 @@ func TestDeleteGateway(t *testing.T) {
 	manager := NewReconcileManager(ManagerConfig{
 		Logger:                hclog.NewNullLogger(),
 		Store:                 store,
-		ConsulNamespaceMapper: testNamspaceMapper,
+		ConsulNamespaceMapper: testNamespaceMapper,
 	})
 
 	expected := errors.New("expected")
@@ -235,7 +235,7 @@ func TestDeleteHTTPRoute(t *testing.T) {
 	manager := NewReconcileManager(ManagerConfig{
 		Logger:                hclog.NewNullLogger(),
 		Store:                 store,
-		ConsulNamespaceMapper: testNamspaceMapper,
+		ConsulNamespaceMapper: testNamespaceMapper,
 	})
 
 	expected := errors.New("expected")
@@ -257,7 +257,7 @@ func TestDeleteTCPRoute(t *testing.T) {
 	manager := NewReconcileManager(ManagerConfig{
 		Logger:                hclog.NewNullLogger(),
 		Store:                 store,
-		ConsulNamespaceMapper: testNamspaceMapper,
+		ConsulNamespaceMapper: testNamespaceMapper,
 	})
 
 	expected := errors.New("expected")
@@ -279,7 +279,7 @@ func TestDeleteTLSRoute(t *testing.T) {
 	manager := NewReconcileManager(ManagerConfig{
 		Logger:                hclog.NewNullLogger(),
 		Store:                 store,
-		ConsulNamespaceMapper: testNamspaceMapper,
+		ConsulNamespaceMapper: testNamespaceMapper,
 	})
 
 	expected := errors.New("expected")
