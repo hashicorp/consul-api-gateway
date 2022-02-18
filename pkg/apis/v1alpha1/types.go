@@ -141,7 +141,7 @@ type MeshService struct {
 
 // MeshServiceSpec specifies the 'spec' of the MeshService CRD.
 type MeshServiceSpec struct {
-	// Name holds the service name for a consul service.
+	// Name holds the service name for a Consul service.
 	Name string `json:"name,omitempty"`
 }
 

@@ -38,7 +38,7 @@ spec:
             description: Spec defines the desired state of MeshService.
             properties:
               name:
-                description: Name holds the service name for a consul service.
+                description: Name holds the service name for a Consul service.
                 type: string
             type: object
         type: object
