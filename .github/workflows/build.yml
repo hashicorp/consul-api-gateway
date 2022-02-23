@@ -70,6 +70,7 @@ jobs:
     env:
       GOOS: ${{ matrix.goos }}
       GOARCH: ${{ matrix.goarch }}
+      LD_FLAGS: ${{ needs.set-ld-flags.outputs.ldflags }}
 
     steps:
       - uses: actions/checkout@v2
