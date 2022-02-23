@@ -126,6 +126,6 @@ Supported features are marked with a grey checkbox
         - [x] *ServiceNotFound* weren't able to find the referenced Kubernetes service
         - [x] *ConsulServiceNotFound* weren't able to find the referenced Consul mesh service
 
-- [ ] TCPRoute - TODO
+- [x] TCPRoute - we are limited by Consul's ability to only route to a single TCP-based upstream, so TCP-based Gateway listeners only support a single TCPRoute with a single rule with a single backend, otherwise either the TCPRoute is considered invalid or the Gateway status is set as having conflicting routes.
 - [ ] TLSRoute - TODO
 - [x] UDPRoute *not supported*
