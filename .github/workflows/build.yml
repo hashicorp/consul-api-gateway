@@ -57,7 +57,7 @@ jobs:
           -X \'$project/internal/version.GitDescribe=v$(make version base=1)\'""
 
   build:
-    needs: get-product-version
+    needs: [get-product-version, set-ld-flags]
     runs-on: ubuntu-latest
     strategy:
       matrix:
