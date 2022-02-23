@@ -23,7 +23,7 @@ The Consul API Gateway must be installed on a Kubernetes cluster with the [Consu
 mesh deployed on it. The installed version of Consul must be `v1.11.2` or greater.
 
 The Consul Helm chart must be used, with specific settings, to install Consul on the Kubernetes
-cluster. The Consul Helm chart must be version `0.40.0` or greater.  See the Consul API Gateway documentation for the required settings.
+cluster. The Consul Helm chart must be version `0.41.0` or greater.  See the Consul API Gateway documentation for the required settings.
 
 # Documentation
 
