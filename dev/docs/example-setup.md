@@ -48,7 +48,7 @@ We'll need to enable the HashiCorp Helm repo and install the latest Consul chart
 
 ```bash
 helm repo add hashicorp https://helm.releases.hashicorp.com
-cat <<EOF | helm install consul hashicorp/consul --version 0.39.0 -f -
+cat <<EOF | helm install consul hashicorp/consul --version 0.41.0 -f -
 global:
   name: consul
   image: "hashicorp/consul:1.11.3"
@@ -72,8 +72,8 @@ We have provided a set of `kustomize` manifests for installing the Consul API Ga
 Apply them to your cluster using the following commands.
 
 ```bash
-kubectl apply -k "github.com/hashicorp/consul-api-gateway/config/crd?ref=v0.1.0-beta"
-kubectl apply -k "github.com/hashicorp/consul-api-gateway/config?ref=v0.1.0-beta"
+kubectl apply -k "github.com/hashicorp/consul-api-gateway/config/crd?ref=v0.1.0"
+kubectl apply -k "github.com/hashicorp/consul-api-gateway/config?ref=v0.1.0"
 ```
 
 ## Installing the demo Gateway and Mesh Service

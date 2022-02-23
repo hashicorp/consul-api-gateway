@@ -2,7 +2,7 @@
 Below is a list of the Kubernetes Gateway API features supported in the current release of the
 Consul API Gateway.
 
-Consul API Gateway version: **v0.1.0-beta**
+Consul API Gateway version: **v0.1.0**
 Suppoorted K8s Gateway API version: **v1alpha2**
 
 Supported features are marked with a grey checkbox
