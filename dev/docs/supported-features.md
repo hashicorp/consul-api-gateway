@@ -29,7 +29,7 @@ Supported features are marked with a grey checkbox
       - [ ] Protocols
         - [x] HTTP
         - [x] HTTPS
-        - [ ] TCP
+        - [x] TCP
         - [ ] TLS
         - [x] UDP *not supported*
       - [ ] Hostname matching
