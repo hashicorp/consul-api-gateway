@@ -153,9 +153,15 @@ func (s *ServiceRegistry) Deregister(ctx context.Context) error {
 }
 
 func (s *ServiceRegistry) deregister(ctx context.Context) error {
-	return s.consul.Agent().ServiceDeregisterOpts(s.id, (&api.QueryOptions{}).WithContext(ctx))
+	return s.consul.Agent().ServiceDeregisterOpts(s.id, (&api.QueryOptions{
+		Namespace: s.namespace,
+	}).WithContext(ctx))
 }
 
 func (s *ServiceRegistry) ID() string {
 	return s.id
+}
+
+func (s *ServiceRegistry) Namespace() string {
+	return s.namespace
 }

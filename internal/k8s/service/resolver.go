@@ -8,7 +8,9 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff"
+	"github.com/hashicorp/consul-api-gateway/internal/common"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
+	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
 	corev1 "k8s.io/api/core/v1"
@@ -186,13 +188,15 @@ type backendResolver struct {
 	client    gatewayclient.Client
 	consul    *api.Client
 	logger    hclog.Logger
+	mapper    common.ConsulNamespaceMapper
 }
 
-func NewBackendResolver(logger hclog.Logger, namespace string, client gatewayclient.Client, consul *api.Client) BackendResolver {
+func NewBackendResolver(logger hclog.Logger, namespace string, mapper common.ConsulNamespaceMapper, client gatewayclient.Client, consul *api.Client) BackendResolver {
 	return &backendResolver{
 		namespace: namespace,
 		client:    client,
 		consul:    consul,
+		mapper:    mapper,
 		logger:    logger,
 	}
 }
@@ -218,6 +222,8 @@ func (r *backendResolver) Resolve(ctx context.Context, ref gw.BackendObjectRefer
 			return nil, NewK8sResolutionError("service port must not be empty")
 		}
 		return r.consulServiceForK8SService(ctx, namespacedName)
+	case group == apigwv1alpha1.GroupVersion.Group && kind == apigwv1alpha1.MeshServiceKind:
+		return r.consulServiceForMeshService(ctx, namespacedName)
 	default:
 		return nil, NewResolutionError("unsupported reference type")
 	}
@@ -234,7 +240,7 @@ func (r *backendResolver) consulServiceForK8SService(ctx context.Context, namesp
 	}
 	if service == nil {
 		r.logger.Warn("kubernetes service not found")
-		return nil, NewK8sResolutionError("service not found")
+		return nil, NewK8sResolutionError(fmt.Sprintf("service %s not found", namespacedName))
 	}
 
 	// we do an inner retry since consul may take some time to sync
@@ -246,7 +252,7 @@ func (r *backendResolver) consulServiceForK8SService(ctx context.Context, namesp
 			return err
 		}
 		if resolved == nil {
-			return NewConsulResolutionError("consul service not found")
+			return NewConsulResolutionError(fmt.Sprintf("consul service %s not found", namespacedName))
 		}
 		return nil
 	}, backoff.WithContext(backoff.WithMaxRetries(backoff.NewConstantBackOff(1*time.Second), 30), ctx))
@@ -290,26 +296,128 @@ func (r *backendResolver) findGlobalCatalogService(service *corev1.Service) (*Re
 		r.logger.Trace("error retrieving nodes", "error", err)
 		return nil, err
 	}
+
+	var consulNamespaces []*api.Namespace
+	// the default namespace
+	namespaces := []string{""}
+	consulNamespaces, _, err = r.consul.Namespaces().List(nil)
+	if err != nil {
+		if !strings.Contains(err.Error(), "Unexpected response code: 404") {
+			r.logger.Trace("error retrieving namespaces", "error", err)
+			return nil, err
+		}
+		// we're dealing with an OSS version of Consul, skip namespaces other than the
+		// default namespace
+	} else {
+		for _, namespace := range consulNamespaces {
+			namespaces = append(namespaces, namespace.Name)
+		}
+	}
+
 	filter := fmt.Sprintf(`Meta[%q] == %q and Meta[%q] == %q and Kind != "connect-proxy"`, MetaKeyKubeServiceName, service.Name, MetaKeyKubeNS, service.Namespace)
 	for _, node := range nodes {
-		nodeWithServices, _, err := r.consul.Catalog().Node(node.Node, &api.QueryOptions{
-			Filter: filter,
-		})
-		if err != nil {
-			r.logger.Trace("error retrieving node services", "error", err, "node", node.Node)
-			return nil, err
-		}
-		if len(nodeWithServices.Services) == 0 {
-			continue
-		}
-		resolved, err := validateAgentConsulReference(nodeWithServices.Services, service)
-		if err != nil {
-			r.logger.Trace("error validating node services", "error", err, "node", node.Node)
-			return nil, err
-		}
-		if resolved != nil {
-			return resolved, nil
+		for _, namespace := range namespaces {
+			nodeWithServices, _, err := r.consul.Catalog().Node(node.Node, &api.QueryOptions{
+				Filter:    filter,
+				Namespace: namespace,
+			})
+			if err != nil {
+				r.logger.Trace("error retrieving node services", "error", err, "node", node.Node)
+				return nil, err
+			}
+			if len(nodeWithServices.Services) == 0 {
+				continue
+			}
+			resolved, err := validateAgentConsulReference(nodeWithServices.Services, service)
+			if err != nil {
+				r.logger.Trace("error validating node services", "error", err, "node", node.Node)
+				return nil, err
+			}
+			if resolved != nil {
+				return resolved, nil
+			}
 		}
 	}
 	return nil, nil
+}
+
+func (r *backendResolver) consulServiceForMeshService(ctx context.Context, namespacedName types.NamespacedName) (*ResolvedReference, error) {
+	var err error
+	var resolved *ResolvedReference
+
+	service, err := r.client.GetMeshService(ctx, namespacedName)
+	if err != nil {
+		r.logger.Trace("error retrieving mesh service", "error", err, "name", namespacedName.Name, "namespace", namespacedName.Namespace)
+		return nil, err
+	}
+	if service == nil {
+		return nil,
+			NewConsulResolutionError(fmt.Sprintf(
+				"kubernetes mesh service object %s not found", namespacedName,
+			))
+	}
+
+	// we do an inner retry since consul may take some time to sync
+	err = backoff.Retry(func() error {
+		r.logger.Trace("attempting to resolve global catalog service")
+		resolved, err = r.findCatalogService(service)
+		if err != nil {
+			r.logger.Trace("error resolving global catalog reference", "error", err)
+			return err
+		}
+		if resolved == nil {
+			return NewConsulResolutionError(fmt.Sprintf("consul service %s not found", namespacedName))
+		}
+		return nil
+	}, backoff.WithContext(backoff.WithMaxRetries(backoff.NewConstantBackOff(1*time.Second), 30), ctx))
+	if err != nil {
+		r.logger.Error("could not resolve consul service", "error", err)
+		return nil, err
+	}
+	return resolved, nil
+}
+
+func (r *backendResolver) findCatalogService(service *apigwv1alpha1.MeshService) (*ResolvedReference, error) {
+	consulNamespace := r.mapper(service.Namespace)
+	consulName := service.Spec.Name
+	services, _, err := r.consul.Catalog().Service(consulName, "", &api.QueryOptions{
+		Namespace: consulNamespace,
+	})
+	if err != nil {
+		r.logger.Trace("error resolving consul service reference", "error", err)
+		return nil, err
+	}
+	if len(services) == 0 {
+		return nil, NewConsulResolutionError(fmt.Sprintf("consul service (%s, %s) not found", consulNamespace, consulName))
+	}
+	resolved, err := validateCatalogConsulReference(services, service)
+	if err != nil {
+		r.logger.Trace("error validating consul services", "error", err)
+		return nil, err
+	}
+	return resolved, nil
+}
+
+func validateCatalogConsulReference(services []*api.CatalogService, object client.Object) (*ResolvedReference, error) {
+	serviceName := ""
+	serviceNamespace := ""
+	for _, service := range services {
+		if serviceName == "" {
+			serviceName = service.ServiceName
+		}
+		if serviceNamespace == "" {
+			serviceNamespace = service.Namespace
+		}
+		if service.ServiceName != serviceName || service.Namespace != serviceNamespace {
+			return nil,
+				NewConsulResolutionError(fmt.Sprintf(
+					"must have a single service map to a kubernetes service, found - (%q, %q) and (%q, %q)",
+					serviceNamespace, serviceName, service.Namespace, service.ServiceName,
+				))
+		}
+	}
+	return NewConsulServiceReference(object, &ConsulService{
+		Name:      serviceName,
+		Namespace: serviceNamespace,
+	}), nil
 }

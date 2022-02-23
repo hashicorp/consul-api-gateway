@@ -46,6 +46,11 @@ type Command struct {
 	flagK8sContext    string // context to use
 	flagK8sNamespace  string // namespace we're run in
 
+	// Consul namespaces
+	flagConsulDestinationNamespace string
+	flagMirrorK8SNamespaces        bool
+	flagMirrorK8SNamespacePrefix   string
+
 	// Logging
 	flagLogLevel string
 	flagLogJSON  bool
@@ -71,6 +76,14 @@ func (c *Command) init() {
 	c.flagSet.IntVar(&c.flagSDSServerPort, "sds-server-port", defaultSDSServerPort, "SDS Server Port.")
 	c.flagSet.IntVar(&c.flagMetricsPort, "metrics-port", 0, "Metrics port, if not set, metrics are not enabled.")
 	c.flagSet.IntVar(&c.flagPprofPort, "pprof-port", 0, "Go pprof port, if not set, profiling is not enabled.")
+
+	{
+		// Consul namespaces
+		c.flagSet.StringVar(&c.flagConsulDestinationNamespace, "consul-destination-namespace", "", "Consul namespace to register gateway services.")
+		c.flagSet.BoolVar(&c.flagMirrorK8SNamespaces, "mirroring-k8s", false, "Register Consul gateway services based on Kubernetes namespace.")
+		c.flagSet.StringVar(&c.flagMirrorK8SNamespacePrefix, "mirroring-k8s-prefix", "", "Namespace prefix for Consul services when mirroring Kubernetes namespaces.")
+	}
+
 	{
 		// Logging
 		c.flagSet.StringVar(&c.flagLogLevel, "log-level", "info",
@@ -142,6 +155,12 @@ func (c *Command) Run(args []string) int {
 
 	if c.flagConsulAddress != "" {
 		consulCfg.Address = c.flagConsulAddress
+	}
+
+	cfg.ConsulNamespaceConfig = k8s.ConsulNamespaceConfig{
+		ConsulDestinationNamespace:      c.flagConsulDestinationNamespace,
+		MirrorKubernetesNamespaces:      c.flagMirrorK8SNamespaces,
+		MirrorKubernetesNamespacePrefix: c.flagMirrorK8SNamespacePrefix,
 	}
 
 	return RunServer(ServerConfig{

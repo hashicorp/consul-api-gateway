@@ -11,6 +11,7 @@ import (
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
 
+	"github.com/hashicorp/consul-api-gateway/internal/common"
 	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/service"
@@ -52,6 +53,8 @@ type GatewayReconcileManager struct {
 	store          store.Store
 	gatewayClasses *K8sGatewayClasses
 
+	consulNamespaceMapper common.ConsulNamespaceMapper
+
 	namespaceMap map[types.NamespacedName]string
 	// guards the above map
 	mutex sync.RWMutex
@@ -60,28 +63,30 @@ type GatewayReconcileManager struct {
 var _ ReconcileManager = &GatewayReconcileManager{}
 
 type ManagerConfig struct {
-	ControllerName string
-	Client         gatewayclient.Client
-	Consul         *api.Client
-	ConsulCA       string
-	SDSHost        string
-	SDSPort        int
-	Store          store.Store
-	Logger         hclog.Logger
+	ControllerName        string
+	Client                gatewayclient.Client
+	Consul                *api.Client
+	ConsulCA              string
+	SDSHost               string
+	SDSPort               int
+	Store                 store.Store
+	Logger                hclog.Logger
+	ConsulNamespaceMapper common.ConsulNamespaceMapper
 }
 
 func NewReconcileManager(config ManagerConfig) *GatewayReconcileManager {
 	return &GatewayReconcileManager{
-		controllerName: config.ControllerName,
-		logger:         config.Logger,
-		client:         config.Client,
-		consul:         config.Consul,
-		consulCA:       config.ConsulCA,
-		sdsHost:        config.SDSHost,
-		sdsPort:        config.SDSPort,
-		gatewayClasses: NewK8sGatewayClasses(config.Logger.Named("gatewayclasses"), config.Client),
-		namespaceMap:   make(map[types.NamespacedName]string),
-		store:          config.Store,
+		controllerName:        config.ControllerName,
+		logger:                config.Logger,
+		client:                config.Client,
+		consul:                config.Consul,
+		consulCA:              config.ConsulCA,
+		sdsHost:               config.SDSHost,
+		sdsPort:               config.SDSPort,
+		gatewayClasses:        NewK8sGatewayClasses(config.Logger.Named("gatewayclasses"), config.Client),
+		namespaceMap:          make(map[types.NamespacedName]string),
+		consulNamespaceMapper: config.ConsulNamespaceMapper,
+		store:                 config.Store,
 	}
 }
 
@@ -154,8 +159,8 @@ func (m *GatewayReconcileManager) UpsertGateway(ctx context.Context, g *gw.Gatew
 		return m.client.Update(ctx, g)
 	}
 
-	// TODO: do real namespace mapping
-	consulNamespace := ""
+	consulNamespace := m.consulNamespaceMapper(g.GetNamespace())
+
 	m.namespaceMap[utils.NamespacedName(g)] = consulNamespace
 	gateway := NewK8sGateway(g, K8sGatewayConfig{
 		ConsulNamespace: consulNamespace,
@@ -198,7 +203,7 @@ func (m *GatewayReconcileManager) upsertRoute(ctx context.Context, r Route, id s
 		ControllerName: m.controllerName,
 		Logger:         m.logger,
 		Client:         m.client,
-		Resolver:       service.NewBackendResolver(m.logger, r.GetNamespace(), m.client, m.consul),
+		Resolver:       service.NewBackendResolver(m.logger, r.GetNamespace(), m.consulNamespaceMapper, m.client, m.consul),
 	})
 
 	managed, err := m.deleteUnmanagedRoute(ctx, route, id)

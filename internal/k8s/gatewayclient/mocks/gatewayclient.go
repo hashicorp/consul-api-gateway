@@ -168,6 +168,21 @@ func (mr *MockClientMockRecorder) GatewayClassInUse(ctx, gc interface{}) *gomock
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GatewayClassInUse", reflect.TypeOf((*MockClient)(nil).GatewayClassInUse), ctx, gc)
 }
 
+// GatewayClassesUsingConfig mocks base method.
+func (m *MockClient) GatewayClassesUsingConfig(ctx context.Context, gcc *v1alpha1.GatewayClassConfig) (*v1alpha2.GatewayClassList, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GatewayClassesUsingConfig", ctx, gcc)
+	ret0, _ := ret[0].(*v1alpha2.GatewayClassList)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GatewayClassesUsingConfig indicates an expected call of GatewayClassesUsingConfig.
+func (mr *MockClientMockRecorder) GatewayClassesUsingConfig(ctx, gcc interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GatewayClassesUsingConfig", reflect.TypeOf((*MockClient)(nil).GatewayClassesUsingConfig), ctx, gcc)
+}
+
 // GetConfigForGatewayClassName mocks base method.
 func (m *MockClient) GetConfigForGatewayClassName(ctx context.Context, name string) (v1alpha1.GatewayClassConfig, bool, error) {
 	m.ctrl.T.Helper()
@@ -242,6 +257,21 @@ func (m *MockClient) GetHTTPRoute(ctx context.Context, key types.NamespacedName)
 func (mr *MockClientMockRecorder) GetHTTPRoute(ctx, key interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHTTPRoute", reflect.TypeOf((*MockClient)(nil).GetHTTPRoute), ctx, key)
+}
+
+// GetMeshService mocks base method.
+func (m *MockClient) GetMeshService(ctx context.Context, key types.NamespacedName) (*v1alpha1.MeshService, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetMeshService", ctx, key)
+	ret0, _ := ret[0].(*v1alpha1.MeshService)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetMeshService indicates an expected call of GetMeshService.
+func (mr *MockClientMockRecorder) GetMeshService(ctx, key interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMeshService", reflect.TypeOf((*MockClient)(nil).GetMeshService), ctx, key)
 }
 
 // GetSecret mocks base method.

@@ -40,6 +40,7 @@ spec:
             -log-level info \
             -gateway-host "$(IP)" \
             -gateway-name tls-cert-test \
+            -gateway-namespace test \
             -consul-http-address $(HOST_IP) \
             -consul-http-port 8500 \
             -consul-xds-port  8502 \
@@ -55,7 +56,7 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: status.hostIP
-        image: envoyproxy/envoy:v1.19-latest
+        image: envoyproxy/envoy:v1.20-latest
         name: consul-api-gateway
         ports:
         - containerPort: 20000
@@ -81,7 +82,7 @@ spec:
         - cp
         - /bin/consul-api-gateway
         - /bootstrap/consul-api-gateway
-        image: hashicorp/consul-api-gateway:0.1.0-beta
+        image: hashicorp/consul-api-gateway:0.1.0
         name: consul-api-gateway-init
         resources: {}
         volumeMounts:

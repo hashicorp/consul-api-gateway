@@ -26,7 +26,7 @@ func init() {
 }
 
 const (
-	defaultEnvoyImage     = "envoyproxy/envoy:v1.19-latest"
+	defaultEnvoyImage     = "envoyproxy/envoy:v1.20-latest"
 	defaultLogLevel       = "info"
 	defaultConsulAddress  = "$(HOST_IP)"
 	defaultConsulHTTPPort = "8500"
