@@ -48,7 +48,7 @@ We'll need to enable the HashiCorp Helm repo and install the latest Consul chart
 
 ```bash
 helm repo add hashicorp https://helm.releases.hashicorp.com
-cat <<EOF | helm install consul hashicorp/consul --version 0.41.0 -f -
+cat <<EOF | helm install consul hashicorp/consul --version 0.41.1 -f -
 global:
   name: consul
   image: "hashicorp/consul:1.11.3"
