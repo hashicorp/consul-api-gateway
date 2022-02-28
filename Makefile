@@ -47,9 +47,10 @@ test:
 .PHONY: ctrl-test
 ENVTEST_ASSETS_DIR=$(shell pwd)/testbin
 ctrl-test: ctrl-generate ctrl-manifests
-	mkdir -p ${ENVTEST_ASSETS_DIR}
-	test -f ${ENVTEST_ASSETS_DIR}/setup-envtest.sh || curl -sSLo ${ENVTEST_ASSETS_DIR}/setup-envtest.sh https://raw.githubusercontent.com/kubernetes-sigs/controller-runtime/master/hack/setup-envtest.sh
-	source ${ENVTEST_ASSETS_DIR}/setup-envtest.sh; fetch_envtest_tools $(ENVTEST_ASSETS_DIR); setup_envtest_env $(ENVTEST_ASSETS_DIR); go test ./...
+ifeq (, $(shell which setup-envtest))
+	@go install sigs.k8s.io/controller-runtime/tools/setup-envtest@latest
+endif
+	setup-envtest use
 
 # Generate manifests e.g. CRD, RBAC etc.
 .PHONY: ctrl-manifests
