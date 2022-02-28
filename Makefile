@@ -50,6 +50,12 @@ endif
 test:
 	go test ./...
 
+.PHONY: changelog
+changelog:
+
+.PHONY: changelog-entry
+changelog-entry:
+
 # Run controller tests
 .PHONY: ctrl-test
 ENVTEST_ASSETS_DIR=$(shell pwd)/testbin
