@@ -1,3 +1,9 @@
+## UNRELEASED
+
+BUG FIXES:
+
+ * Apply namespace selector for allowed routes to the route's namespace instead of the route itself [[GH-119](https://github.com/hashicorp/consul-api-gateway/pull/119)]
+
 ## 0.1.0 (February 23, 2022)
 
 * Initial release of Consul API Gateway
