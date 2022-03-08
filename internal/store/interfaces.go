@@ -62,7 +62,7 @@ type RouteTrackingListener interface {
 // listener.
 type Listener interface {
 	ID() string
-	CanBind(route Route) (bool, error)
+	CanBind(ctx context.Context, route Route) (bool, error)
 	Config() ListenerConfig
 	IsValid() bool
 }

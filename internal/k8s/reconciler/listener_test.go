@@ -6,16 +6,17 @@ import (
 	"testing"
 
 	"github.com/golang/mock/gomock"
-	"github.com/hashicorp/consul-api-gateway/internal/core"
-	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient/mocks"
-	"github.com/hashicorp/consul-api-gateway/internal/store"
-	storeMocks "github.com/hashicorp/consul-api-gateway/internal/store/mocks"
-	"github.com/hashicorp/go-hclog"
 	"github.com/stretchr/testify/require"
 	k8s "k8s.io/api/core/v1"
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
+
+	"github.com/hashicorp/consul-api-gateway/internal/core"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient/mocks"
+	"github.com/hashicorp/consul-api-gateway/internal/store"
+	storeMocks "github.com/hashicorp/consul-api-gateway/internal/store/mocks"
+	"github.com/hashicorp/go-hclog"
 )
 
 func TestListenerID(t *testing.T) {
@@ -378,7 +379,7 @@ func TestListenerCanBind(t *testing.T) {
 	listener := NewK8sListener(&gw.Gateway{}, gw.Listener{}, K8sListenerConfig{
 		Logger: hclog.NewNullLogger(),
 	})
-	canBind, err := listener.CanBind(storeMocks.NewMockRoute(nil))
+	canBind, err := listener.CanBind(context.Background(), storeMocks.NewMockRoute(nil))
 	require.NoError(t, err)
 	require.False(t, canBind)
 
@@ -386,7 +387,7 @@ func TestListenerCanBind(t *testing.T) {
 	listener = NewK8sListener(&gw.Gateway{}, gw.Listener{}, K8sListenerConfig{
 		Logger: hclog.NewNullLogger(),
 	})
-	canBind, err = listener.CanBind(NewK8sRoute(&gw.HTTPRoute{}, K8sRouteConfig{
+	canBind, err = listener.CanBind(context.Background(), NewK8sRoute(&gw.HTTPRoute{}, K8sRouteConfig{
 		Logger: hclog.NewNullLogger(),
 	}))
 	require.NoError(t, err)
@@ -400,7 +401,7 @@ func TestListenerCanBind(t *testing.T) {
 	}, gw.Listener{}, K8sListenerConfig{
 		Logger: hclog.NewNullLogger(),
 	})
-	canBind, err = listener.CanBind(NewK8sRoute(&gw.HTTPRoute{
+	canBind, err = listener.CanBind(context.Background(), NewK8sRoute(&gw.HTTPRoute{
 		Spec: gw.HTTPRouteSpec{
 			CommonRouteSpec: gw.CommonRouteSpec{
 				ParentRefs: []gw.ParentRef{{
@@ -423,7 +424,7 @@ func TestListenerCanBind(t *testing.T) {
 		Logger: hclog.NewNullLogger(),
 	})
 	listener.status.Ready.Invalid = errors.New("invalid")
-	canBind, err = listener.CanBind(NewK8sRoute(&gw.HTTPRoute{
+	canBind, err = listener.CanBind(context.Background(), NewK8sRoute(&gw.HTTPRoute{
 		Spec: gw.HTTPRouteSpec{
 			CommonRouteSpec: gw.CommonRouteSpec{
 				ParentRefs: []gw.ParentRef{{
@@ -459,7 +460,7 @@ func TestListenerCanBind_RouteKind(t *testing.T) {
 		Logger: hclog.NewNullLogger(),
 	})
 	require.NoError(t, listener.Validate(context.Background()))
-	canBind, err := listener.CanBind(NewK8sRoute(&gw.UDPRoute{
+	canBind, err := listener.CanBind(context.Background(), NewK8sRoute(&gw.UDPRoute{
 		TypeMeta: routeMeta,
 		Spec: gw.UDPRouteSpec{
 			CommonRouteSpec: gw.CommonRouteSpec{
@@ -485,7 +486,7 @@ func TestListenerCanBind_RouteKind(t *testing.T) {
 		Logger: hclog.NewNullLogger(),
 	})
 	listener.supportedKinds = supportedProtocols[gw.HTTPProtocolType]
-	_, err = listener.CanBind(NewK8sRoute(&gw.UDPRoute{
+	_, err = listener.CanBind(context.Background(), NewK8sRoute(&gw.UDPRoute{
 		TypeMeta: routeMeta,
 		Spec: gw.UDPRouteSpec{
 			CommonRouteSpec: gw.CommonRouteSpec{
@@ -532,7 +533,7 @@ func TestListenerCanBind_AllowedNamespaces(t *testing.T) {
 		Logger: hclog.NewNullLogger(),
 	})
 	listener.supportedKinds = supportedProtocols[gw.HTTPProtocolType]
-	_, err := listener.CanBind(NewK8sRoute(&gw.HTTPRoute{
+	_, err := listener.CanBind(context.Background(), NewK8sRoute(&gw.HTTPRoute{
 		TypeMeta: routeMeta,
 		Spec: gw.HTTPRouteSpec{
 			CommonRouteSpec: gw.CommonRouteSpec{
@@ -547,7 +548,7 @@ func TestListenerCanBind_AllowedNamespaces(t *testing.T) {
 		Logger: hclog.NewNullLogger(),
 	}))
 	require.Error(t, err)
-	canBind, err := listener.CanBind(NewK8sRoute(&gw.HTTPRoute{
+	canBind, err := listener.CanBind(context.Background(), NewK8sRoute(&gw.HTTPRoute{
 		TypeMeta: routeMeta,
 		Spec: gw.HTTPRouteSpec{
 			CommonRouteSpec: gw.CommonRouteSpec{
@@ -586,7 +587,7 @@ func TestListenerCanBind_AllowedNamespaces(t *testing.T) {
 		Logger: hclog.NewNullLogger(),
 	})
 	listener.supportedKinds = supportedProtocols[gw.HTTPProtocolType]
-	_, err = listener.CanBind(NewK8sRoute(&gw.HTTPRoute{
+	_, err = listener.CanBind(context.Background(), NewK8sRoute(&gw.HTTPRoute{
 		TypeMeta: routeMeta,
 		Spec: gw.HTTPRouteSpec{
 			CommonRouteSpec: gw.CommonRouteSpec{
@@ -601,7 +602,7 @@ func TestListenerCanBind_AllowedNamespaces(t *testing.T) {
 		Logger: hclog.NewNullLogger(),
 	}))
 	require.Error(t, err)
-	_, err = listener.CanBind(NewK8sRoute(&gw.HTTPRoute{
+	_, err = listener.CanBind(context.Background(), NewK8sRoute(&gw.HTTPRoute{
 		TypeMeta: routeMeta,
 		Spec: gw.HTTPRouteSpec{
 			CommonRouteSpec: gw.CommonRouteSpec{
@@ -640,7 +641,7 @@ func TestListenerCanBind_HostnameMatch(t *testing.T) {
 		Logger: hclog.NewNullLogger(),
 	})
 	listener.supportedKinds = supportedProtocols[gw.HTTPProtocolType]
-	_, err := listener.CanBind(NewK8sRoute(&gw.HTTPRoute{
+	_, err := listener.CanBind(context.Background(), NewK8sRoute(&gw.HTTPRoute{
 		TypeMeta: routeMeta,
 		Spec: gw.HTTPRouteSpec{
 			CommonRouteSpec: gw.CommonRouteSpec{
@@ -656,7 +657,7 @@ func TestListenerCanBind_HostnameMatch(t *testing.T) {
 	}))
 	require.Error(t, err)
 
-	canBind, err := listener.CanBind(NewK8sRoute(&gw.HTTPRoute{
+	canBind, err := listener.CanBind(context.Background(), NewK8sRoute(&gw.HTTPRoute{
 		TypeMeta: routeMeta,
 		Spec: gw.HTTPRouteSpec{
 			CommonRouteSpec: gw.CommonRouteSpec{
@@ -688,7 +689,7 @@ func TestListenerCanBind_NameMatch(t *testing.T) {
 	}, K8sListenerConfig{
 		Logger: hclog.NewNullLogger(),
 	})
-	canBind, err := listener.CanBind(NewK8sRoute(&gw.HTTPRoute{
+	canBind, err := listener.CanBind(context.Background(), NewK8sRoute(&gw.HTTPRoute{
 		Spec: gw.HTTPRouteSpec{
 			CommonRouteSpec: gw.CommonRouteSpec{
 				ParentRefs: []gw.ParentRef{{

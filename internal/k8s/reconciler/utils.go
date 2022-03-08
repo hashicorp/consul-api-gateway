@@ -85,7 +85,7 @@ func routeKindIsAllowedForListener(kinds []gw.RouteGroupKind, route *K8sRoute) b
 
 // routeAllowedForListenerNamespaces determines whether the route is allowed
 // to bind to the Gateway based on the AllowedRoutes namespace selectors.
-func routeAllowedForListenerNamespaces(gatewayNS string, allowedRoutes *gw.AllowedRoutes, route *K8sRoute, c gatewayclient.Client) (bool, error) {
+func routeAllowedForListenerNamespaces(ctx context.Context, gatewayNS string, allowedRoutes *gw.AllowedRoutes, route *K8sRoute, c gatewayclient.Client) (bool, error) {
 	var namespaceSelector *gw.RouteNamespaces
 	if allowedRoutes != nil {
 		// check gateway namespace
@@ -109,7 +109,6 @@ func routeAllowedForListenerNamespaces(gatewayNS string, allowedRoutes *gw.Allow
 		}
 
 		// retrieve the route's namespace and determine whether selector matches
-		// TODO: Pipe context.Context in from the calling function(s)
 		namespace, err := c.GetNamespace(context.TODO(), types.NamespacedName{Name: route.GetNamespace()})
 		if err != nil {
 			return false, fmt.Errorf("error retrieving namespace for route: %w", err)

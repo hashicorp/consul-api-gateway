@@ -310,7 +310,7 @@ func (l *K8sListener) Config() store.ListenerConfig {
 // on the gateway the return value is nil, if not,
 // an error specifying why the route cannot bind
 // is returned.
-func (l *K8sListener) CanBind(route store.Route) (bool, error) {
+func (l *K8sListener) CanBind(ctx context.Context, route store.Route) (bool, error) {
 	k8sRoute, ok := route.(*K8sRoute)
 	if !ok {
 		l.logger.Error("route is not a known type")
@@ -323,7 +323,7 @@ func (l *K8sListener) CanBind(route store.Route) (bool, error) {
 			expected := utils.NamespacedName(l.gateway)
 			l.logger.Trace("checking gateway match", "expected", expected.String(), "found", namespacedName.String())
 			if expected == namespacedName {
-				canBind, err := l.canBind(ref, k8sRoute)
+				canBind, err := l.canBind(ctx, ref, k8sRoute)
 				if err != nil {
 					return false, err
 				}
@@ -336,7 +336,7 @@ func (l *K8sListener) CanBind(route store.Route) (bool, error) {
 	return false, nil
 }
 
-func (l *K8sListener) canBind(ref gw.ParentRef, route *K8sRoute) (bool, error) {
+func (l *K8sListener) canBind(ctx context.Context, ref gw.ParentRef, route *K8sRoute) (bool, error) {
 	if l.status.Ready.HasError() {
 		l.logger.Trace("listener not ready, unable to bind", "route", route.ID())
 		return false, nil
@@ -356,7 +356,7 @@ func (l *K8sListener) canBind(ref gw.ParentRef, route *K8sRoute) (bool, error) {
 			return false, nil
 		}
 
-		allowed, err := routeAllowedForListenerNamespaces(l.gateway.Namespace, l.listener.AllowedRoutes, route, l.client)
+		allowed, err := routeAllowedForListenerNamespaces(ctx, l.gateway.Namespace, l.listener.AllowedRoutes, route, l.client)
 		if err != nil {
 			return false, fmt.Errorf("error checking listener namespaces: %w", err)
 		}
