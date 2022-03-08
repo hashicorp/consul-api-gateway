@@ -51,7 +51,7 @@ helm repo add hashicorp https://helm.releases.hashicorp.com
 cat <<EOF | helm install consul hashicorp/consul --version 0.41.1 -f -
 global:
   name: consul
-  image: "hashicorp/consul:1.11.3"
+  image: "hashicorp/consul:1.11.4"
   tls:
     enabled: true
 connectInject:
@@ -111,7 +111,7 @@ with the following commands:
 
 ```bash
 mkdir -p demo-deployment/example
-cat <<EOF > demo-deployment/example/kustomization.yaml 
+cat <<EOF > demo-deployment/example/kustomization.yaml
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
