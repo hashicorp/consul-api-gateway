@@ -1,13 +1,19 @@
 package reconciler
 
 import (
+	"context"
 	"testing"
 
-	"github.com/hashicorp/go-hclog"
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
+	core "k8s.io/api/core/v1"
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
+
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient/mocks"
+	"github.com/hashicorp/go-hclog"
 )
 
 func TestRouteMatchesListener(t *testing.T) {
@@ -85,9 +91,14 @@ func TestRouteKindIsAllowedForListener(t *testing.T) {
 func TestRouteAllowedForListenerNamespaces(t *testing.T) {
 	t.Parallel()
 
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	client := mocks.NewMockClient(ctrl)
+
 	// same
 	same := gw.NamespacesFromSame
-	allowed, err := routeAllowedForListenerNamespaces("expected", &gw.AllowedRoutes{
+
+	allowed, err := routeAllowedForListenerNamespaces(context.Background(), "expected", &gw.AllowedRoutes{
 		Namespaces: &gw.RouteNamespaces{
 			From: &same,
 		},
@@ -97,10 +108,11 @@ func TestRouteAllowedForListenerNamespaces(t *testing.T) {
 		},
 	}, K8sRouteConfig{
 		Logger: hclog.NewNullLogger(),
-	}))
+	}), client)
 	require.NoError(t, err)
 	require.True(t, allowed)
-	allowed, err = routeAllowedForListenerNamespaces("expected", &gw.AllowedRoutes{
+
+	allowed, err = routeAllowedForListenerNamespaces(context.Background(), "expected", &gw.AllowedRoutes{
 		Namespaces: &gw.RouteNamespaces{
 			From: &same,
 		},
@@ -110,13 +122,13 @@ func TestRouteAllowedForListenerNamespaces(t *testing.T) {
 		},
 	}, K8sRouteConfig{
 		Logger: hclog.NewNullLogger(),
-	}))
+	}), client)
 	require.NoError(t, err)
 	require.False(t, allowed)
 
 	// all
 	all := gw.NamespacesFromAll
-	allowed, err = routeAllowedForListenerNamespaces("expected", &gw.AllowedRoutes{
+	allowed, err = routeAllowedForListenerNamespaces(context.Background(), "expected", &gw.AllowedRoutes{
 		Namespaces: &gw.RouteNamespaces{
 			From: &all,
 		},
@@ -126,13 +138,18 @@ func TestRouteAllowedForListenerNamespaces(t *testing.T) {
 		},
 	}, K8sRouteConfig{
 		Logger: hclog.NewNullLogger(),
-	}))
+	}), client)
 	require.NoError(t, err)
 	require.True(t, allowed)
 
 	// selector
 	selector := gw.NamespacesFromSelector
-	allowed, err = routeAllowedForListenerNamespaces("expected", &gw.AllowedRoutes{
+
+	matchingNamespace := &core.Namespace{ObjectMeta: meta.ObjectMeta{Labels: map[string]string{"label": "test"}}}
+	invalidNamespace := &core.Namespace{ObjectMeta: meta.ObjectMeta{Labels: map[string]string{}}}
+
+	client.EXPECT().GetNamespace(context.Background(), types.NamespacedName{Name: "expected"}).Return(invalidNamespace, nil).Times(1)
+	allowed, err = routeAllowedForListenerNamespaces(context.Background(), "expected", &gw.AllowedRoutes{
 		Namespaces: &gw.RouteNamespaces{
 			From: &selector,
 			Selector: &meta.LabelSelector{
@@ -147,11 +164,12 @@ func TestRouteAllowedForListenerNamespaces(t *testing.T) {
 		},
 	}, K8sRouteConfig{
 		Logger: hclog.NewNullLogger(),
-	}))
+	}), client)
 	require.NoError(t, err)
 	require.False(t, allowed)
 
-	allowed, err = routeAllowedForListenerNamespaces("expected", &gw.AllowedRoutes{
+	client.EXPECT().GetNamespace(context.Background(), types.NamespacedName{Name: "expected"}).Return(matchingNamespace, nil).Times(1)
+	allowed, err = routeAllowedForListenerNamespaces(context.Background(), "expected", &gw.AllowedRoutes{
 		Namespaces: &gw.RouteNamespaces{
 			From: &selector,
 			Selector: &meta.LabelSelector{
@@ -164,17 +182,17 @@ func TestRouteAllowedForListenerNamespaces(t *testing.T) {
 		ObjectMeta: meta.ObjectMeta{
 			Namespace: "expected",
 			Labels: map[string]string{
-				"label":                       "test",
 				"kubernetes.io/metadata.name": "expected",
 			},
 		},
 	}, K8sRouteConfig{
 		Logger: hclog.NewNullLogger(),
-	}))
+	}), client)
 	require.NoError(t, err)
 	require.True(t, allowed)
 
-	allowed, err = routeAllowedForListenerNamespaces("expected", &gw.AllowedRoutes{
+	client.EXPECT().GetNamespace(context.Background(), types.NamespacedName{Name: "expected"}).Return(matchingNamespace, nil).Times(1)
+	allowed, err = routeAllowedForListenerNamespaces(context.Background(), "expected", &gw.AllowedRoutes{
 		Namespaces: &gw.RouteNamespaces{
 			From: &selector,
 			Selector: &meta.LabelSelector{
@@ -186,17 +204,14 @@ func TestRouteAllowedForListenerNamespaces(t *testing.T) {
 	}, NewK8sRoute(&gw.HTTPRoute{
 		ObjectMeta: meta.ObjectMeta{
 			Namespace: "expected",
-			Labels: map[string]string{
-				"label": "test",
-			},
 		},
 	}, K8sRouteConfig{
 		Logger: hclog.NewNullLogger(),
-	}))
+	}), client)
 	require.NoError(t, err)
 	require.True(t, allowed)
 
-	_, err = routeAllowedForListenerNamespaces("expected", &gw.AllowedRoutes{
+	_, err = routeAllowedForListenerNamespaces(context.Background(), "expected", &gw.AllowedRoutes{
 		Namespaces: &gw.RouteNamespaces{
 			From: &selector,
 			Selector: &meta.LabelSelector{
@@ -212,12 +227,12 @@ func TestRouteAllowedForListenerNamespaces(t *testing.T) {
 		},
 	}, K8sRouteConfig{
 		Logger: hclog.NewNullLogger(),
-	}))
+	}), client)
 	require.Error(t, err)
 
 	// unknown
 	unknown := gw.FromNamespaces("unknown")
-	allowed, err = routeAllowedForListenerNamespaces("expected", &gw.AllowedRoutes{
+	allowed, err = routeAllowedForListenerNamespaces(context.Background(), "expected", &gw.AllowedRoutes{
 		Namespaces: &gw.RouteNamespaces{
 			From: &unknown,
 		},
@@ -227,7 +242,7 @@ func TestRouteAllowedForListenerNamespaces(t *testing.T) {
 		},
 	}, K8sRouteConfig{
 		Logger: hclog.NewNullLogger(),
-	}))
+	}), client)
 	require.NoError(t, err)
 	require.False(t, allowed)
 }
