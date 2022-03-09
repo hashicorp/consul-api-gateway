@@ -32,6 +32,10 @@ then it dramatically lowers the chances it'll get fixed.
 * Aim to respond promptly to any questions made by the maintainers on your 
 issue. Stale issues may be closed.
 
+* Please vote on issues by adding a 👍 [reaction](https://blog.github.com/2016-03-10-add-reactions-to-pull-requests-issues-and-comments/) to the original issue to help the community and maintainers prioritize this request. Searching for pre-existing feature requests helps us consolidate datapoints for identical requirements into a single place.
+
+* Please do not leave "+1" or other comments that do not add relevant new information or questions, they generate extra noise for issue followers and do not help prioritize the request.
+
 ## Developing
 
 If you make any changes to the code, please run `make fmt` to automatically format the code according to Go standards.
