@@ -109,7 +109,7 @@ func routeAllowedForListenerNamespaces(ctx context.Context, gatewayNS string, al
 		}
 
 		// retrieve the route's namespace and determine whether selector matches
-		namespace, err := c.GetNamespace(context.TODO(), types.NamespacedName{Name: route.GetNamespace()})
+		namespace, err := c.GetNamespace(ctx, types.NamespacedName{Name: route.GetNamespace()})
 		if err != nil {
 			return false, fmt.Errorf("error retrieving namespace for route: %w", err)
 		}
