@@ -35,6 +35,7 @@ type GatewayReconciler struct {
 //+kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways/finalizers,verbs=update
+//+kubebuilder:rbac:groups=core,resources=namespaces,verbs=get;list;watch
 //+kubebuilder:rbac:groups=core,resources=pods,verbs=list;watch
 //+kubebuilder:rbac:groups=apps,resources=deployments,verbs=list;get;create;update;watch
 //+kubebuilder:rbac:groups=core,resources=services,verbs=list;get;create;update;watch
