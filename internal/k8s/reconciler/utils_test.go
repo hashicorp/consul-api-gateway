@@ -145,7 +145,12 @@ func TestRouteAllowedForListenerNamespaces(t *testing.T) {
 	// selector
 	selector := gw.NamespacesFromSelector
 
-	matchingNamespace := &core.Namespace{ObjectMeta: meta.ObjectMeta{Labels: map[string]string{"label": "test"}}}
+	matchingNamespace := &core.Namespace{
+		ObjectMeta: meta.ObjectMeta{
+			Labels: map[string]string{
+				"label":                       "test",
+				"kubernetes.io/metadata.name": "expected",
+			}}}
 	invalidNamespace := &core.Namespace{ObjectMeta: meta.ObjectMeta{Labels: map[string]string{}}}
 
 	client.EXPECT().GetNamespace(context.Background(), types.NamespacedName{Name: "expected"}).Return(invalidNamespace, nil).Times(1)
@@ -167,29 +172,6 @@ func TestRouteAllowedForListenerNamespaces(t *testing.T) {
 	}), client)
 	require.NoError(t, err)
 	require.False(t, allowed)
-
-	client.EXPECT().GetNamespace(context.Background(), types.NamespacedName{Name: "expected"}).Return(matchingNamespace, nil).Times(1)
-	allowed, err = routeAllowedForListenerNamespaces(context.Background(), "expected", &gw.AllowedRoutes{
-		Namespaces: &gw.RouteNamespaces{
-			From: &selector,
-			Selector: &meta.LabelSelector{
-				MatchLabels: map[string]string{
-					"label": "test",
-				},
-			},
-		},
-	}, NewK8sRoute(&gw.HTTPRoute{
-		ObjectMeta: meta.ObjectMeta{
-			Namespace: "expected",
-			Labels: map[string]string{
-				"kubernetes.io/metadata.name": "expected",
-			},
-		},
-	}, K8sRouteConfig{
-		Logger: hclog.NewNullLogger(),
-	}), client)
-	require.NoError(t, err)
-	require.True(t, allowed)
 
 	client.EXPECT().GetNamespace(context.Background(), types.NamespacedName{Name: "expected"}).Return(matchingNamespace, nil).Times(1)
 	allowed, err = routeAllowedForListenerNamespaces(context.Background(), "expected", &gw.AllowedRoutes{
