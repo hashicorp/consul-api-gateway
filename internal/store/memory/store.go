@@ -193,7 +193,7 @@ func (s *Store) UpsertRoute(ctx context.Context, route store.Route) error {
 
 		// bind to gateways
 		for _, gateway := range s.gateways {
-			gateway.TryBind(route)
+			gateway.TryBind(ctx, route)
 		}
 	}
 
@@ -231,7 +231,7 @@ func (s *Store) UpsertGateway(ctx context.Context, gateway store.Gateway) error 
 
 		// bind routes to this gateway
 		for _, route := range s.routes {
-			updated.TryBind(route)
+			updated.TryBind(ctx, route)
 		}
 
 		if found && reflect.DeepEqual(current.Resolve(), updated.Resolve()) {

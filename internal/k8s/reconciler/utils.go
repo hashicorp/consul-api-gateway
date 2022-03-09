@@ -1,6 +1,7 @@
 package reconciler
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"reflect"
@@ -9,7 +10,10 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	klabels "k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/types"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
+
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 )
 
 const (
@@ -79,14 +83,16 @@ func routeKindIsAllowedForListener(kinds []gw.RouteGroupKind, route *K8sRoute) b
 	return false
 }
 
-func routeAllowedForListenerNamespaces(gatewayNS string, allowedRoutes *gw.AllowedRoutes, route *K8sRoute) (bool, error) {
+// routeAllowedForListenerNamespaces determines whether the route is allowed
+// to bind to the Gateway based on the AllowedRoutes namespace selectors.
+func routeAllowedForListenerNamespaces(ctx context.Context, gatewayNS string, allowedRoutes *gw.AllowedRoutes, route *K8sRoute, c gatewayclient.Client) (bool, error) {
 	var namespaceSelector *gw.RouteNamespaces
 	if allowedRoutes != nil {
 		// check gateway namespace
 		namespaceSelector = allowedRoutes.Namespaces
 	}
 
-	// set default is namespace selector is nil
+	// set default if namespace selector is nil
 	from := gw.NamespacesFromSame
 	if namespaceSelector != nil && namespaceSelector.From != nil && *namespaceSelector.From != "" {
 		from = *namespaceSelector.From
@@ -97,12 +103,18 @@ func routeAllowedForListenerNamespaces(gatewayNS string, allowedRoutes *gw.Allow
 	case gw.NamespacesFromSame:
 		return gatewayNS == route.GetNamespace(), nil
 	case gw.NamespacesFromSelector:
-		ns, err := metav1.LabelSelectorAsSelector(namespaceSelector.Selector)
+		namespaceSelector, err := metav1.LabelSelectorAsSelector(namespaceSelector.Selector)
 		if err != nil {
-			return false, fmt.Errorf("error parsing label selector: %v", err)
+			return false, fmt.Errorf("error parsing label selector: %w", err)
 		}
 
-		return ns.Matches(toNamespaceSet(route.GetNamespace(), route.GetLabels())), nil
+		// retrieve the route's namespace and determine whether selector matches
+		namespace, err := c.GetNamespace(ctx, types.NamespacedName{Name: route.GetNamespace()})
+		if err != nil {
+			return false, fmt.Errorf("error retrieving namespace for route: %w", err)
+		}
+
+		return namespaceSelector.Matches(toNamespaceSet(namespace.GetName(), namespace.GetLabels())), nil
 	}
 	return false, nil
 }

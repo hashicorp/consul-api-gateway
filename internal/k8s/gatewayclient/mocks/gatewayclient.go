@@ -274,6 +274,21 @@ func (mr *MockClientMockRecorder) GetMeshService(ctx, key interface{}) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMeshService", reflect.TypeOf((*MockClient)(nil).GetMeshService), ctx, key)
 }
 
+// GetNamespace mocks base method.
+func (m *MockClient) GetNamespace(ctx context.Context, key types.NamespacedName) (*v10.Namespace, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetNamespace", ctx, key)
+	ret0, _ := ret[0].(*v10.Namespace)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetNamespace indicates an expected call of GetNamespace.
+func (mr *MockClientMockRecorder) GetNamespace(ctx, key interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNamespace", reflect.TypeOf((*MockClient)(nil).GetNamespace), ctx, key)
+}
+
 // GetSecret mocks base method.
 func (m *MockClient) GetSecret(ctx context.Context, key types.NamespacedName) (*v10.Secret, error) {
 	m.ctrl.T.Helper()

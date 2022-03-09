@@ -237,18 +237,18 @@ func (m *MockRouteTrackingListener) EXPECT() *MockRouteTrackingListenerMockRecor
 }
 
 // CanBind mocks base method.
-func (m *MockRouteTrackingListener) CanBind(route store.Route) (bool, error) {
+func (m *MockRouteTrackingListener) CanBind(ctx context.Context, route store.Route) (bool, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CanBind", route)
+	ret := m.ctrl.Call(m, "CanBind", ctx, route)
 	ret0, _ := ret[0].(bool)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CanBind indicates an expected call of CanBind.
-func (mr *MockRouteTrackingListenerMockRecorder) CanBind(route interface{}) *gomock.Call {
+func (mr *MockRouteTrackingListenerMockRecorder) CanBind(ctx, route interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CanBind", reflect.TypeOf((*MockRouteTrackingListener)(nil).CanBind), route)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CanBind", reflect.TypeOf((*MockRouteTrackingListener)(nil).CanBind), ctx, route)
 }
 
 // Config mocks base method.
@@ -341,18 +341,18 @@ func (m *MockListener) EXPECT() *MockListenerMockRecorder {
 }
 
 // CanBind mocks base method.
-func (m *MockListener) CanBind(route store.Route) (bool, error) {
+func (m *MockListener) CanBind(ctx context.Context, route store.Route) (bool, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CanBind", route)
+	ret := m.ctrl.Call(m, "CanBind", ctx, route)
 	ret0, _ := ret[0].(bool)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CanBind indicates an expected call of CanBind.
-func (mr *MockListenerMockRecorder) CanBind(route interface{}) *gomock.Call {
+func (mr *MockListenerMockRecorder) CanBind(ctx, route interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CanBind", reflect.TypeOf((*MockListener)(nil).CanBind), route)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CanBind", reflect.TypeOf((*MockListener)(nil).CanBind), ctx, route)
 }
 
 // Config mocks base method.
