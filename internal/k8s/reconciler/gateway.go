@@ -384,7 +384,6 @@ func (g *K8sGateway) Status() gw.GatewayStatus {
 		})
 	}
 
-	// TODO: set addresses based off of pod/service lookup (is this our now addressed?)
 	return gw.GatewayStatus{
 		Addresses:  addresses,
 		Conditions: conditions,
