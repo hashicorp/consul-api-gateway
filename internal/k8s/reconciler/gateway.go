@@ -30,10 +30,11 @@ type K8sGateway struct {
 	deploymentBuilder builder.DeploymentBuilder
 	serviceBuilder    builder.ServiceBuilder
 
-	status    GatewayStatus
-	podReady  bool
-	addresses []string
-	listeners map[string]*K8sListener
+	status       GatewayStatus
+	podReady     bool
+	serviceReady bool
+	addresses    []string
+	listeners    map[string]*K8sListener
 }
 
 var _ store.StatusTrackingGateway = &K8sGateway{}
@@ -171,11 +172,16 @@ func (g *K8sGateway) validateGatewayIP(ctx context.Context) error {
 
 		switch service.Spec.Type {
 		case corev1.ServiceTypeLoadBalancer:
+			if len(updated.Status.LoadBalancer.Ingress) > 0 {
+				g.serviceReady = true
+			}
+
 			for _, ingress := range updated.Status.LoadBalancer.Ingress {
 				g.addresses = append(g.addresses, ingress.IP)
 			}
 		case corev1.ServiceTypeClusterIP:
 			if updated.Spec.ClusterIP != "" {
+				g.serviceReady = true
 				g.addresses = append(g.addresses, updated.Spec.ClusterIP)
 			}
 		}
@@ -311,6 +317,9 @@ func (g *K8sGateway) isEqual(other *K8sGateway) bool {
 	if g.podReady != other.podReady {
 		return false
 	}
+	if g.serviceReady != other.serviceReady {
+		return false
+	}
 	if !reflect.DeepEqual(g.addresses, other.addresses) {
 		return false
 	}
@@ -350,7 +359,7 @@ func (g *K8sGateway) Status() gw.GatewayStatus {
 
 	if listenersInvalid {
 		g.status.Ready.ListenersNotValid = errors.New("gateway listeners not valid")
-	} else if !g.podReady || !listenersReady {
+	} else if !g.podReady || !g.serviceReady || !listenersReady {
 		g.status.Ready.ListenersNotReady = errors.New("gateway listeners not ready")
 	} else if len(g.gateway.Spec.Addresses) != 0 {
 		g.status.Ready.AddressNotAssigned = errors.New("gateway does not support requesting addresses")
@@ -366,7 +375,7 @@ func (g *K8sGateway) Status() gw.GatewayStatus {
 	}
 
 	ipType := gw.IPAddressType
-	addresses := []gw.GatewayAddress{}
+	addresses := make([]gw.GatewayAddress, 0, len(g.addresses))
 	for _, address := range g.addresses {
 		addresses = append(addresses, gw.GatewayAddress{
 			Type:  &ipType,
@@ -374,7 +383,7 @@ func (g *K8sGateway) Status() gw.GatewayStatus {
 		})
 	}
 
-	// TODO: set addresses based off of pod/service lookup
+	// TODO: set addresses based off of pod/service lookup (is this our now addressed?)
 	return gw.GatewayStatus{
 		Addresses:  addresses,
 		Conditions: conditions,
