@@ -158,37 +158,37 @@ func (g *K8sGateway) validateListenerConflicts() {
 func (g *K8sGateway) validateGatewayIP(ctx context.Context) error {
 	service := g.serviceBuilder.Build()
 
+	updated, err := g.client.GetService(ctx, types.NamespacedName{Namespace: service.Namespace, Name: service.Name})
+	if err != nil {
+		return err
+	}
+
+	if updated == nil {
+		g.status.Scheduled.NotReconciled = errors.New("service not found")
+		return nil
+	}
+
 	switch service.Spec.Type {
-	case corev1.ServiceTypeLoadBalancer, corev1.ServiceTypeClusterIP:
-		updated, err := g.client.GetService(ctx, types.NamespacedName{Namespace: service.Namespace, Name: service.Name})
-		if err != nil {
-			return err
+	case corev1.ServiceTypeLoadBalancer:
+		if len(updated.Status.LoadBalancer.Ingress) > 0 {
+			g.serviceReady = true
 		}
 
-		if updated == nil {
-			g.status.Scheduled.NotReconciled = errors.New("service not found")
-			return nil
+		for _, ingress := range updated.Status.LoadBalancer.Ingress {
+			g.addresses = append(g.addresses, ingress.IP)
 		}
-
-		switch service.Spec.Type {
-		case corev1.ServiceTypeLoadBalancer:
-			if len(updated.Status.LoadBalancer.Ingress) > 0 {
-				g.serviceReady = true
-			}
-
-			for _, ingress := range updated.Status.LoadBalancer.Ingress {
-				g.addresses = append(g.addresses, ingress.IP)
-			}
-		case corev1.ServiceTypeClusterIP:
-			if updated.Spec.ClusterIP != "" {
-				g.serviceReady = true
-				g.addresses = append(g.addresses, updated.Spec.ClusterIP)
-			}
+	case corev1.ServiceTypeClusterIP:
+		if updated.Spec.ClusterIP != "" {
+			g.serviceReady = true
+			g.addresses = append(g.addresses, updated.Spec.ClusterIP)
 		}
 	case corev1.ServiceTypeNodePort:
-		// TODO NodePorts do not always behave the same. A node in standard k8s
-		//  has a public IP address; however, this is not the case in kind.
+		// TODO NodePorts do not always behave the same. A node may have a
+		//   public IP address or it may not. Nodes in kind do not. In addition,
+		//   addresses are assumed type v1alpha2.IPAddressType today, but a node
+		//   requires a port that doesn't match the Gateway listener.
 		g.serviceReady = true
+		g.addresses = append(g.addresses, `127.0.0.1`)
 	default:
 		return fmt.Errorf("unsupported service type: %s", service.Spec.Type)
 	}
