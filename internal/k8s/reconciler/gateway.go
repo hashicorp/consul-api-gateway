@@ -170,11 +170,8 @@ func (g *K8sGateway) validateGatewayIP(ctx context.Context) error {
 
 	switch service.Spec.Type {
 	case corev1.ServiceTypeLoadBalancer:
-		if len(updated.Status.LoadBalancer.Ingress) > 0 {
-			g.serviceReady = true
-		}
-
 		for _, ingress := range updated.Status.LoadBalancer.Ingress {
+			g.serviceReady = true
 			g.addresses = append(g.addresses, ingress.IP)
 		}
 	case corev1.ServiceTypeClusterIP:
