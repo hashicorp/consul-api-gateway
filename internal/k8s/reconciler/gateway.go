@@ -186,8 +186,9 @@ func (g *K8sGateway) validateGatewayIP(ctx context.Context) error {
 			}
 		}
 	case corev1.ServiceTypeNodePort:
-		// TODO
-		break
+		// TODO NodePorts do not always behave the same. A node in standard k8s
+		//  has a public IP address; however, this is not the case in kind.
+		g.serviceReady = true
 	default:
 		return fmt.Errorf("unsupported service type: %s", service.Spec.Type)
 	}
