@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/types"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	"github.com/hashicorp/consul-api-gateway/internal/core"
@@ -95,6 +96,10 @@ func (g *K8sGateway) Validate(ctx context.Context) error {
 		return err
 	}
 
+	if err := g.validateGatewayIP(ctx); err != nil {
+		return err
+	}
+
 	for _, listener := range g.listeners {
 		if err := listener.Validate(ctx); err != nil {
 			return err
@@ -149,6 +154,41 @@ func (g *K8sGateway) validateListenerConflicts() {
 	}
 }
 
+func (g *K8sGateway) validateGatewayIP(ctx context.Context) error {
+	service := g.serviceBuilder.Build()
+
+	switch service.Spec.Type {
+	case corev1.ServiceTypeLoadBalancer, corev1.ServiceTypeClusterIP:
+		updated, err := g.client.GetService(ctx, types.NamespacedName{Namespace: service.Namespace, Name: service.Name})
+		if err != nil {
+			return err
+		}
+
+		if updated == nil {
+			g.status.Scheduled.NotReconciled = errors.New("service not found")
+			return nil
+		}
+
+		switch service.Spec.Type {
+		case corev1.ServiceTypeLoadBalancer:
+			for _, ingress := range updated.Status.LoadBalancer.Ingress {
+				g.addresses = append(g.addresses, ingress.IP)
+			}
+		case corev1.ServiceTypeClusterIP:
+			if updated.Spec.ClusterIP != "" {
+				g.addresses = append(g.addresses, updated.Spec.ClusterIP)
+			}
+		}
+	case corev1.ServiceTypeNodePort:
+		// TODO
+		break
+	default:
+		return fmt.Errorf("unsupported service type: %s", service.Spec.Type)
+	}
+
+	return nil
+}
+
 func (g *K8sGateway) validatePods(ctx context.Context) error {
 	pod, err := g.client.PodWithLabels(ctx, utils.LabelsForGateway(g.gateway))
 	if err != nil {
@@ -164,10 +204,6 @@ func (g *K8sGateway) validatePodConditions(pod *corev1.Pod) {
 	if pod == nil {
 		g.status.Scheduled.NotReconciled = errors.New("pod not found")
 		return
-	}
-
-	if pod.Status.PodIP != "" {
-		g.addresses = append(g.addresses, pod.Status.PodIP)
 	}
 
 	switch pod.Status.Phase {
