@@ -189,6 +189,7 @@ func (g *K8sGateway) validateGatewayIP(ctx context.Context) error {
 
 		if pod == nil {
 			g.status.Scheduled.NotReconciled = errors.New("pod not found")
+			return nil
 		}
 
 		if pod.Status.HostIP != "" {

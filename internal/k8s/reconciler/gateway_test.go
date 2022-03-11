@@ -7,6 +7,12 @@ import (
 	"testing"
 
 	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	core "k8s.io/api/core/v1"
+	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
+	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
+
 	internalCore "github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient/mocks"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/service"
@@ -14,10 +20,6 @@ import (
 	storeMocks "github.com/hashicorp/consul-api-gateway/internal/store/mocks"
 	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 	"github.com/hashicorp/go-hclog"
-	"github.com/stretchr/testify/require"
-	core "k8s.io/api/core/v1"
-	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
-	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
 )
 
 func TestGatewayValidate(t *testing.T) {
@@ -28,7 +30,6 @@ func TestGatewayValidate(t *testing.T) {
 	client := mocks.NewMockClient(ctrl)
 
 	hostname := gw.Hostname("*")
-	serviceType := core.ServiceTypeNodePort
 	gateway := NewK8sGateway(&gw.Gateway{
 		Spec: gw.GatewaySpec{
 			Listeners: []gw.Listener{{
@@ -47,20 +48,20 @@ func TestGatewayValidate(t *testing.T) {
 		Client: client,
 		Config: apigwv1alpha1.GatewayClassConfig{
 			Spec: apigwv1alpha1.GatewayClassConfigSpec{
-				ServiceType: &serviceType,
+				ServiceType: serviceType(core.ServiceTypeNodePort),
 			},
 		},
 	})
 	client.EXPECT().GetSecret(gomock.Any(), gomock.Any()).Return(nil, nil)
-	client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(nil, nil)
+	client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(nil, nil).Times(2)
 	require.NoError(t, gateway.Validate(context.Background()))
 
 	expected := errors.New("expected")
-	client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(nil, nil)
+	client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(nil, nil).Times(2)
 	client.EXPECT().GetSecret(gomock.Any(), gomock.Any()).Return(nil, expected)
 	require.True(t, errors.Is(gateway.Validate(context.Background()), expected))
 
-	client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(nil, expected)
+	client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(nil, expected).Times(1)
 	require.True(t, errors.Is(gateway.Validate(context.Background()), expected))
 }
 
@@ -88,9 +89,14 @@ func TestGatewayValidate_ListenerProtocolConflicts(t *testing.T) {
 			Output: io.Discard,
 			Level:  hclog.Trace,
 		}),
+		Config: apigwv1alpha1.GatewayClassConfig{
+			Spec: apigwv1alpha1.GatewayClassConfigSpec{
+				ServiceType: serviceType(core.ServiceTypeNodePort),
+			},
+		},
 		Client: client,
 	})
-	client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(nil, nil)
+	client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(nil, nil).Times(2)
 	require.NoError(t, gateway.Validate(context.Background()))
 	require.Equal(t, ListenerConditionReasonProtocolConflict, gateway.listeners["1"].status.Conflicted.Condition(0).Reason)
 	require.Equal(t, ListenerConditionReasonProtocolConflict, gateway.listeners["2"].status.Conflicted.Condition(0).Reason)
@@ -124,9 +130,14 @@ func TestGatewayValidate_ListenerHostnameConflicts(t *testing.T) {
 			Output: io.Discard,
 			Level:  hclog.Trace,
 		}),
+		Config: apigwv1alpha1.GatewayClassConfig{
+			Spec: apigwv1alpha1.GatewayClassConfigSpec{
+				ServiceType: serviceType(core.ServiceTypeNodePort),
+			},
+		},
 		Client: client,
 	})
-	client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(nil, nil)
+	client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(nil, nil).Times(2)
 	require.NoError(t, gateway.Validate(context.Background()))
 	require.Equal(t, ListenerConditionReasonHostnameConflict, gateway.listeners["1"].status.Conflicted.Condition(0).Reason)
 	require.Equal(t, ListenerConditionReasonHostnameConflict, gateway.listeners["2"].status.Conflicted.Condition(0).Reason)
@@ -148,22 +159,31 @@ func TestGatewayValidate_Pods(t *testing.T) {
 			Output: io.Discard,
 			Level:  hclog.Trace,
 		}),
+		Config: apigwv1alpha1.GatewayClassConfig{
+			Spec: apigwv1alpha1.GatewayClassConfigSpec{
+				ServiceType: serviceType(core.ServiceTypeNodePort),
+			},
+		},
 		Client: client,
 	})
+
+	// Pod has no/unknown status
 	client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(&core.Pod{
 		Status: core.PodStatus{},
-	}, nil)
+	}, nil).Times(2)
 	require.NoError(t, gateway.Validate(context.Background()))
 	require.Equal(t, GatewayConditionReasonUnknown, gateway.status.Scheduled.Condition(0).Reason)
 
+	// Pod has pending status
 	client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(&core.Pod{
 		Status: core.PodStatus{
 			Phase: core.PodPending,
 		},
-	}, nil)
+	}, nil).Times(2)
 	require.NoError(t, gateway.Validate(context.Background()))
 	require.Equal(t, GatewayConditionReasonNotReconciled, gateway.status.Scheduled.Condition(0).Reason)
 
+	// Pod is marked as unschedulable
 	client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(&core.Pod{
 		Status: core.PodStatus{
 			Phase: core.PodPending,
@@ -173,10 +193,11 @@ func TestGatewayValidate_Pods(t *testing.T) {
 				Reason: "Unschedulable",
 			}},
 		},
-	}, nil)
+	}, nil).Times(2)
 	require.NoError(t, gateway.Validate(context.Background()))
-	require.Equal(t, GatewayConditionReasonNoResources, gateway.status.Scheduled.Condition(0).Reason)
+	assert.Equal(t, GatewayConditionReasonNoResources, gateway.status.Scheduled.Condition(0).Reason)
 
+	// Pod has running status and is marked ready
 	client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(&core.Pod{
 		Status: core.PodStatus{
 			Phase: core.PodRunning,
@@ -185,25 +206,27 @@ func TestGatewayValidate_Pods(t *testing.T) {
 				Status: core.ConditionTrue,
 			}},
 		},
-	}, nil)
+	}, nil).Times(2)
 	require.NoError(t, gateway.Validate(context.Background()))
-	require.True(t, gateway.podReady)
+	assert.True(t, gateway.podReady)
 
+	// Pod has succeeded status
 	client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(&core.Pod{
 		Status: core.PodStatus{
 			Phase: core.PodSucceeded,
 		},
-	}, nil)
+	}, nil).Times(2)
 	require.NoError(t, gateway.Validate(context.Background()))
-	require.Equal(t, GatewayConditionReasonPodFailed, gateway.status.Scheduled.Condition(0).Reason)
+	assert.Equal(t, GatewayConditionReasonPodFailed, gateway.status.Scheduled.Condition(0).Reason)
 
+	// Pod has failed status
 	client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(&core.Pod{
 		Status: core.PodStatus{
 			Phase: core.PodFailed,
 		},
-	}, nil)
+	}, nil).Times(2)
 	require.NoError(t, gateway.Validate(context.Background()))
-	require.Equal(t, GatewayConditionReasonPodFailed, gateway.status.Scheduled.Condition(0).Reason)
+	assert.Equal(t, GatewayConditionReasonPodFailed, gateway.status.Scheduled.Condition(0).Reason)
 }
 
 func TestGatewayID(t *testing.T) {
@@ -252,6 +275,7 @@ func TestGatewayListeners(t *testing.T) {
 func TestGatewayOutputStatus(t *testing.T) {
 	t.Parallel()
 
+	// Pending listener
 	gateway := NewK8sGateway(&gw.Gateway{
 		Spec: gw.GatewaySpec{
 			Listeners: []gw.Listener{{
@@ -264,8 +288,9 @@ func TestGatewayOutputStatus(t *testing.T) {
 	gateway.addresses = []string{"127.0.0.1"}
 	gateway.listeners["1"].status.Ready.Pending = errors.New("pending")
 	require.Len(t, gateway.Status().Addresses, 1)
-	require.Equal(t, GatewayConditionReasonListenersNotReady, gateway.status.Ready.Condition(0).Reason)
+	assert.Equal(t, GatewayConditionReasonListenersNotReady, gateway.status.Ready.Condition(0).Reason)
 
+	// Service ready, pods not
 	gateway = NewK8sGateway(&gw.Gateway{
 		Spec: gw.GatewaySpec{
 			Listeners: []gw.Listener{{
@@ -275,10 +300,29 @@ func TestGatewayOutputStatus(t *testing.T) {
 	}, K8sGatewayConfig{
 		Logger: hclog.NewNullLogger(),
 	})
+	gateway.podReady = false
+	gateway.serviceReady = true
 	gateway.listeners["1"].status.Ready.Invalid = errors.New("invalid")
 	require.Len(t, gateway.Status().Listeners, 1)
-	require.Equal(t, GatewayConditionReasonListenersNotValid, gateway.status.Ready.Condition(0).Reason)
+	assert.Equal(t, GatewayConditionReasonListenersNotValid, gateway.status.Ready.Condition(0).Reason)
 
+	// Pods ready, service not
+	gateway = NewK8sGateway(&gw.Gateway{
+		Spec: gw.GatewaySpec{
+			Listeners: []gw.Listener{{
+				Name: gw.SectionName("1"),
+			}},
+		},
+	}, K8sGatewayConfig{
+		Logger: hclog.NewNullLogger(),
+	})
+	gateway.podReady = true
+	gateway.serviceReady = false
+	gateway.listeners["1"].status.Ready.Invalid = errors.New("invalid")
+	require.Len(t, gateway.Status().Listeners, 1)
+	assert.Equal(t, GatewayConditionReasonListenersNotValid, gateway.status.Ready.Condition(0).Reason)
+
+	// Pods + service ready
 	gateway = NewK8sGateway(&gw.Gateway{
 		Spec: gw.GatewaySpec{
 			Listeners: []gw.Listener{{
@@ -290,8 +334,9 @@ func TestGatewayOutputStatus(t *testing.T) {
 		Logger: hclog.NewNullLogger(),
 	})
 	gateway.podReady = true
+	gateway.serviceReady = true
 	require.Len(t, gateway.Status().Listeners, 1)
-	require.Equal(t, GatewayConditionReasonAddressNotAssigned, gateway.status.Ready.Condition(0).Reason)
+	assert.Equal(t, GatewayConditionReasonAddressNotAssigned, gateway.status.Ready.Condition(0).Reason)
 
 	gateway = NewK8sGateway(&gw.Gateway{
 		Spec: gw.GatewaySpec{
@@ -499,4 +544,8 @@ func TestGatewayShouldBind(t *testing.T) {
 	require.False(t, gateway.ShouldBind(NewK8sRoute(&gw.HTTPRoute{}, K8sRouteConfig{
 		Logger: hclog.NewNullLogger(),
 	})))
+}
+
+func serviceType(v core.ServiceType) *core.ServiceType {
+	return &v
 }
