@@ -157,6 +157,9 @@ func (g *K8sGateway) validateListenerConflicts() {
 
 func (g *K8sGateway) validateGatewayIP(ctx context.Context) error {
 	service := g.serviceBuilder.Build()
+	if service == nil {
+		return nil
+	}
 
 	switch service.Spec.Type {
 	case corev1.ServiceTypeLoadBalancer, corev1.ServiceTypeClusterIP:
