@@ -158,34 +158,43 @@ func (g *K8sGateway) validateListenerConflicts() {
 func (g *K8sGateway) validateGatewayIP(ctx context.Context) error {
 	service := g.serviceBuilder.Build()
 
-	updated, err := g.client.GetService(ctx, types.NamespacedName{Namespace: service.Namespace, Name: service.Name})
-	if err != nil {
-		return err
-	}
-
-	if updated == nil {
-		g.status.Scheduled.NotReconciled = errors.New("service not found")
-		return nil
-	}
-
 	switch service.Spec.Type {
-	case corev1.ServiceTypeLoadBalancer:
-		for _, ingress := range updated.Status.LoadBalancer.Ingress {
-			g.serviceReady = true
-			g.addresses = append(g.addresses, ingress.IP)
+	case corev1.ServiceTypeLoadBalancer, corev1.ServiceTypeClusterIP:
+		updated, err := g.client.GetService(ctx, types.NamespacedName{Namespace: service.Namespace, Name: service.Name})
+		if err != nil {
+			return err
 		}
-	case corev1.ServiceTypeClusterIP:
-		if updated.Spec.ClusterIP != "" {
-			g.serviceReady = true
-			g.addresses = append(g.addresses, updated.Spec.ClusterIP)
+
+		if updated == nil {
+			g.status.Scheduled.NotReconciled = errors.New("service not found")
+			return nil
+		}
+
+		if service.Spec.Type == corev1.ServiceTypeLoadBalancer {
+			for _, ingress := range updated.Status.LoadBalancer.Ingress {
+				g.serviceReady = true
+				g.addresses = append(g.addresses, ingress.IP)
+			}
+		} else if service.Spec.Type == corev1.ServiceTypeClusterIP {
+			if updated.Spec.ClusterIP != "" {
+				g.serviceReady = true
+				g.addresses = append(g.addresses, updated.Spec.ClusterIP)
+			}
 		}
 	case corev1.ServiceTypeNodePort:
-		// TODO NodePorts do not always behave the same. A node may have a
-		//   public IP address or it may not. Nodes in kind do not. In addition,
-		//   addresses are assumed type v1alpha2.IPAddressType today, but a node
-		//   requires a port that doesn't match the Gateway listener.
-		g.serviceReady = true
-		g.addresses = append(g.addresses, `127.0.0.1`)
+		pod, err := g.client.PodWithLabels(ctx, utils.LabelsForGateway(g.gateway))
+		if err != nil {
+			return err
+		}
+
+		if pod == nil {
+			g.status.Scheduled.NotReconciled = errors.New("pod not found")
+		}
+
+		if pod.Status.HostIP != "" {
+			g.serviceReady = true
+			g.addresses = append(g.addresses, pod.Status.HostIP)
+		}
 	default:
 		return fmt.Errorf("unsupported service type: %s", service.Spec.Type)
 	}
