@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"html/template"
+	"io/ioutil"
 	"log"
 	"net"
 	"os"
@@ -26,10 +27,11 @@ import (
 )
 
 const (
-	defaultConsulImage            = "hashicorp/consul:1.11.4"
-	envvarConsulImage             = envvarPrefix + "CONSUL_IMAGE"
-	envvarConsulEnterpriseLicense = "CONSUL_LICENSE"
-	configTemplateString          = `
+	defaultConsulImage                = "hashicorp/consul:1.11.4"
+	envvarConsulImage                 = envvarPrefix + "CONSUL_IMAGE"
+	envvarConsulEnterpriseLicense     = "CONSUL_LICENSE"
+	envvarConsulEnterpriseLicensePath = "CONSUL_LICENSE_PATH"
+	configTemplateString              = `
 {
 	"log_level": "trace",
   "acl": {
@@ -68,11 +70,16 @@ var (
 
 	configTemplate   *template.Template
 	consulImage      = getEnvDefault(envvarConsulImage, defaultConsulImage)
-	consulEntLicense = os.Getenv(envvarConsulEnterpriseLicense)
+	consulEntLicense = ""
 )
 
 func init() {
 	configTemplate = template.Must(template.New("config").Parse(configTemplateString))
+	var err error
+	consulEntLicense, err = loadLicense("")
+	if err != nil {
+		panic(err)
+	}
 }
 
 type consulTestEnvironment struct {
@@ -634,4 +641,28 @@ func adminPolicy() *api.ACLPolicy {
 	keyring = "write"
 `,
 	}
+}
+
+func loadLicense(path string) (string, error) {
+	// attempt to load the license from the env var holding a
+	// signed license
+	if license := os.Getenv(envvarConsulEnterpriseLicense); license != "" {
+		return license, nil
+	}
+
+	// override the license path using the env var
+	if licensePath := os.Getenv(envvarConsulEnterpriseLicensePath); licensePath != "" {
+		path = licensePath
+	}
+
+	// read the license from the path
+	if path != "" {
+		license, err := ioutil.ReadFile(path)
+		if err != nil {
+			return "", fmt.Errorf("error reading from license file %q: %w", path, err)
+		}
+		return string(license), nil
+	}
+
+	return "", nil
 }
