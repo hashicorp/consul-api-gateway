@@ -3,6 +3,7 @@ package reconciler
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"testing"
 
@@ -63,6 +64,112 @@ func TestGatewayValidate(t *testing.T) {
 
 	client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(nil, expected).Times(1)
 	require.True(t, errors.Is(gateway.Validate(context.Background()), expected))
+}
+
+func TestGatewayValidateGatewayIP(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	client := mocks.NewMockClient(ctrl)
+
+	hostname := gw.Hostname("*")
+
+	gwDef := &gw.Gateway{
+		Spec: gw.GatewaySpec{
+			Listeners: []gw.Listener{{
+				Hostname: &hostname,
+				Protocol: gw.HTTPSProtocolType,
+				TLS: &gw.GatewayTLSConfig{
+					CertificateRefs: []*gw.SecretObjectReference{{}},
+				},
+			}},
+		},
+	}
+
+	pod := &core.Pod{
+		Status: core.PodStatus{
+			HostIP: "1.1.1.1",
+			PodIP:  "2.2.2.2",
+		},
+	}
+
+	svc := &core.Service{
+		Spec: core.ServiceSpec{
+			ClusterIP: "3.3.3.3",
+		},
+		Status: core.ServiceStatus{
+			LoadBalancer: core.LoadBalancerStatus{
+				Ingress: []core.LoadBalancerIngress{
+					{
+						IP: "4.4.4.4",
+					},
+				},
+			},
+		},
+	}
+
+	for _, tc := range []struct {
+		// What IP address do we expect the Gateway to be assigned?
+		expectedIP string
+
+		// Should the mock client expect a request for the Service?
+		// If false, the mock client expects a request for the Pod instead.
+		expectedIPFromSvc bool
+
+		// What serviceType should the gateway be configured for?
+		serviceType *core.ServiceType
+	}{
+		{
+			expectedIP:        pod.Status.PodIP,
+			expectedIPFromSvc: false,
+			serviceType:       nil,
+		},
+		{
+			expectedIP:        pod.Status.HostIP,
+			expectedIPFromSvc: false,
+			serviceType:       serviceType(core.ServiceTypeNodePort),
+		},
+		{
+			expectedIP:        svc.Status.LoadBalancer.Ingress[0].IP,
+			expectedIPFromSvc: true,
+			serviceType:       serviceType(core.ServiceTypeLoadBalancer),
+		},
+		{
+			expectedIP:        svc.Spec.ClusterIP,
+			expectedIPFromSvc: true,
+			serviceType:       serviceType(core.ServiceTypeClusterIP),
+		},
+	} {
+		name := "Service type <nil>"
+		if tc.serviceType != nil {
+			name = fmt.Sprintf("Service type %s", *tc.serviceType)
+		}
+
+		t.Run(name, func(t *testing.T) {
+			gateway := NewK8sGateway(gwDef, K8sGatewayConfig{
+				Logger: hclog.NewNullLogger(),
+				Client: client,
+				Config: apigwv1alpha1.GatewayClassConfig{
+					Spec: apigwv1alpha1.GatewayClassConfigSpec{
+						ServiceType: tc.serviceType,
+					},
+				},
+			})
+
+			if tc.expectedIPFromSvc {
+				client.EXPECT().GetService(gomock.Any(), gomock.Any()).Return(svc, nil)
+			} else {
+				client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(pod, nil)
+			}
+			assert.NoError(t, gateway.validateGatewayIP(context.Background()))
+
+			require.Len(t, gateway.addresses, 1)
+			assert.Equal(t, tc.expectedIP, gateway.addresses[0])
+
+			assert.True(t, gateway.serviceReady)
+		})
+	}
 }
 
 func TestGatewayValidate_ListenerProtocolConflicts(t *testing.T) {
