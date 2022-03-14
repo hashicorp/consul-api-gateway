@@ -7,7 +7,7 @@ labels: bug
 
 <!--- 
 
-IMPORTANT: If you are having problems installing the Consul API Gateway, before filing an issue, make sure you have followed the documented installation procedure detailed at https://www.consul.io/docs/api-gateway/api-gateway-usage#installation.
+IMPORTANT: If you are having problems installing the Consul API Gateway, before filing an issue, please ensure you have followed each step of the documented installation procedure detailed at https://www.consul.io/docs/api-gateway/api-gateway-usage#installation.
 
 When filing a bug, please include the following headings if possible. Any example text in this template can be deleted.
 
