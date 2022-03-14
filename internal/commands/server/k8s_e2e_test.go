@@ -71,7 +71,7 @@ func TestGatewayWithClassConfigChange(t *testing.T) {
 			firstConfig, gc := createGatewayClass(ctx, t, cfg)
 			require.Eventually(t, gatewayClassStatusCheck(ctx, resources, gc.Name, namespace, conditionAccepted), 30*time.Second, checkInterval, "gatewayclass not accepted in the allotted time")
 
-			oldServiceType := *firstConfig.Spec.ServiceType
+			oldUseHostPorts := firstConfig.Spec.UseHostPorts
 
 			// Create a Gateway and wait for it to be ready
 			firstGatewayName := envconf.RandomName("gw", 16)
@@ -87,9 +87,8 @@ func TestGatewayWithClassConfigChange(t *testing.T) {
 			secondConfig := &apigwv1alpha1.GatewayClassConfig{}
 			require.NoError(t, resources.Get(ctx, firstConfig.Name, namespace, secondConfig))
 
-			newServiceType := core.ServiceTypeLoadBalancer
-			require.NotEqual(t, newServiceType, oldServiceType)
-			secondConfig.Spec.ServiceType = &newServiceType
+			newUseHostPorts := !oldUseHostPorts
+			secondConfig.Spec.UseHostPorts = newUseHostPorts
 			require.NoError(t, resources.Update(ctx, secondConfig))
 
 			// Create a second Gateway and wait for it to be ready
@@ -189,7 +188,7 @@ func TestServiceListeners(t *testing.T) {
 			resources := cfg.Client().Resources(namespace)
 
 			gatewayName := envconf.RandomName("gw", 16)
-			gcc, gc := createGatewayClass(ctx, t, cfg)
+			_, gc := createGatewayClass(ctx, t, cfg)
 
 			gw := createGateway(ctx, t, cfg, gatewayName, gc, 443)
 
@@ -205,16 +204,9 @@ func TestServiceListeners(t *testing.T) {
 				return port.Port == 443
 			}, checkTimeout, checkInterval, "no service found in the allotted time")
 
-			// update the class config to ensure our config snapshot works
-			err := resources.Get(ctx, gcc.Name, gcc.Namespace, gcc)
-			require.NoError(t, err)
-			serviceType := core.ServiceTypeLoadBalancer
-			gcc.Spec.ServiceType = &serviceType
-			err = resources.Update(ctx, gcc)
+			err := resources.Get(ctx, gatewayName, namespace, gw)
 			require.NoError(t, err)
 
-			err = resources.Get(ctx, gatewayName, namespace, gw)
-			require.NoError(t, err)
 			gw.Spec.Listeners[0].Port = 444
 			err = resources.Update(ctx, gw)
 			require.NoError(t, err)
@@ -271,6 +263,7 @@ func TestHTTPMeshService(t *testing.T) {
 					ImageSpec: apigwv1alpha1.ImageSpec{
 						ConsulAPIGateway: e2e.DockerImage(ctx),
 					},
+					ServiceType:  serviceType(core.ServiceTypeNodePort),
 					UseHostPorts: true,
 					LogLevel:     "trace",
 					ConsulSpec: apigwv1alpha1.ConsulSpec{
@@ -530,6 +523,7 @@ func TestTCPMeshService(t *testing.T) {
 					ImageSpec: apigwv1alpha1.ImageSpec{
 						ConsulAPIGateway: e2e.DockerImage(ctx),
 					},
+					ServiceType:  serviceType(core.ServiceTypeNodePort),
 					UseHostPorts: true,
 					LogLevel:     "trace",
 					ConsulSpec: apigwv1alpha1.ConsulSpec{
@@ -690,6 +684,7 @@ func TestTCPMeshService(t *testing.T) {
 					ImageSpec: apigwv1alpha1.ImageSpec{
 						ConsulAPIGateway: e2e.DockerImage(ctx),
 					},
+					ServiceType:  serviceType(core.ServiceTypeNodePort),
 					UseHostPorts: true,
 					LogLevel:     "trace",
 					ConsulSpec: apigwv1alpha1.ConsulSpec{
@@ -942,7 +937,6 @@ func createGatewayClass(ctx context.Context, t *testing.T, cfg *envconf.Config) 
 	namespace := e2e.Namespace(ctx)
 	configName := envconf.RandomName("gcc", 16)
 	className := envconf.RandomName("gc", 16)
-	serviceType := core.ServiceTypeNodePort
 
 	resources := cfg.Client().Resources(namespace)
 
@@ -954,7 +948,7 @@ func createGatewayClass(ctx context.Context, t *testing.T, cfg *envconf.Config) 
 			ImageSpec: apigwv1alpha1.ImageSpec{
 				ConsulAPIGateway: e2e.DockerImage(ctx),
 			},
-			ServiceType: &serviceType,
+			ServiceType: serviceType(core.ServiceTypeNodePort),
 			ConsulSpec: apigwv1alpha1.ConsulSpec{
 				Address: hostRoute,
 				Scheme:  "https",
@@ -1113,4 +1107,8 @@ func checkTCPTLSRoute(t *testing.T, port int, config *tls.Config, expected strin
 
 		return strings.HasPrefix(string(data), expected)
 	}, checkTimeout, checkInterval, message)
+}
+
+func serviceType(v core.ServiceType) *core.ServiceType {
+	return &v
 }
