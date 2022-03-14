@@ -155,35 +155,19 @@ func (g *K8sGateway) validateListenerConflicts() {
 	}
 }
 
+// validateGatewayIP ensures that the appropriate IP addresses are assigned to the
+// Gateway.
 func (g *K8sGateway) validateGatewayIP(ctx context.Context) error {
 	service := g.serviceBuilder.Build()
 	if service == nil {
-		return nil
+		return g.assignGatewayIPFromPod(ctx)
 	}
 
 	switch service.Spec.Type {
-	case corev1.ServiceTypeLoadBalancer, corev1.ServiceTypeClusterIP:
-		updated, err := g.client.GetService(ctx, types.NamespacedName{Namespace: service.Namespace, Name: service.Name})
-		if err != nil {
-			return err
-		}
-
-		if updated == nil {
-			g.status.Scheduled.NotReconciled = errors.New("service not found")
-			return nil
-		}
-
-		if service.Spec.Type == corev1.ServiceTypeLoadBalancer {
-			for _, ingress := range updated.Status.LoadBalancer.Ingress {
-				g.serviceReady = true
-				g.addresses = append(g.addresses, ingress.IP)
-			}
-		} else if service.Spec.Type == corev1.ServiceTypeClusterIP {
-			if updated.Spec.ClusterIP != "" {
-				g.serviceReady = true
-				g.addresses = append(g.addresses, updated.Spec.ClusterIP)
-			}
-		}
+	case corev1.ServiceTypeLoadBalancer:
+		return g.assignGatewayIPFromServiceIngress(ctx, service)
+	case corev1.ServiceTypeClusterIP:
+		return g.assignGatewayIPFromService(ctx, service)
 	case corev1.ServiceTypeNodePort:
 		/* For serviceType: NodePort, there isn't a consistent way to guarantee access to the
 		 * service from outside the k8s cluster. For now, we're putting the IP address of the
@@ -192,22 +176,94 @@ func (g *K8sGateway) validateGatewayIP(ctx context.Context) error {
 		 * cluster (in the case of Kind) or open firewall rules (in the case of GKE) in order to
 		 * access the gateway from outside the cluster.
 		 */
-		pod, err := g.client.PodWithLabels(ctx, utils.LabelsForGateway(g.gateway))
-		if err != nil {
-			return err
-		}
-
-		if pod == nil {
-			g.status.Scheduled.NotReconciled = errors.New("pod not found")
-			return nil
-		}
-
-		if pod.Status.HostIP != "" {
-			g.serviceReady = true
-			g.addresses = append(g.addresses, pod.Status.HostIP)
-		}
+		return g.assignGatewayIPFromPodHost(ctx)
 	default:
 		return fmt.Errorf("unsupported service type: %s", service.Spec.Type)
+	}
+}
+
+// assignGatewayIPFromServiceIngress retrieves the external load balancer
+// ingress IP for the Service and assigns it to the Gateway
+func (g *K8sGateway) assignGatewayIPFromServiceIngress(ctx context.Context, service *corev1.Service) error {
+	updated, err := g.client.GetService(ctx, types.NamespacedName{Namespace: service.Namespace, Name: service.Name})
+	if err != nil {
+		return err
+	}
+
+	if updated == nil {
+		g.status.Scheduled.NotReconciled = errors.New("service not found")
+		return nil
+	}
+
+	for _, ingress := range updated.Status.LoadBalancer.Ingress {
+		g.serviceReady = true
+		g.addresses = append(g.addresses, ingress.IP)
+	}
+
+	return nil
+}
+
+// assignGatewayIPFromService retrieves the internal cluster IP for the
+// Service and assigns it to the Gateway
+func (g *K8sGateway) assignGatewayIPFromService(ctx context.Context, service *corev1.Service) error {
+	updated, err := g.client.GetService(ctx, types.NamespacedName{Namespace: service.Namespace, Name: service.Name})
+	if err != nil {
+		return err
+	}
+
+	if updated == nil {
+		g.status.Scheduled.NotReconciled = errors.New("service not found")
+		return nil
+	}
+
+	if updated.Spec.ClusterIP != "" {
+		g.serviceReady = true
+		g.addresses = append(g.addresses, updated.Spec.ClusterIP)
+	}
+
+	return nil
+}
+
+// assignGatewayIPFromPod retrieves the internal IP for the Pod and assigns
+// it to the Gateway.
+func (g *K8sGateway) assignGatewayIPFromPod(ctx context.Context) error {
+	pod, err := g.client.PodWithLabels(ctx, utils.LabelsForGateway(g.gateway))
+	if err != nil {
+		return err
+	}
+
+	if pod == nil {
+		g.status.Scheduled.NotReconciled = errors.New("pod not found")
+		return nil
+	}
+
+	if pod.Status.PodIP != "" {
+		g.serviceReady = true
+		g.addresses = append(g.addresses, pod.Status.PodIP)
+	}
+
+	return nil
+}
+
+// assignGatewayIPFromPodHost retrieves the (potentially) externally accessible
+// IP address for the host that the Pod is running on and assigns it to the Gateway.
+// This IP address is not always externally accessible and may require additional
+// work by the practitioner such as port-forwarding or opening firewall rules to make
+// it externally accessible.
+func (g *K8sGateway) assignGatewayIPFromPodHost(ctx context.Context) error {
+	pod, err := g.client.PodWithLabels(ctx, utils.LabelsForGateway(g.gateway))
+	if err != nil {
+		return err
+	}
+
+	if pod == nil {
+		g.status.Scheduled.NotReconciled = errors.New("pod not found")
+		return nil
+	}
+
+	if pod.Status.HostIP != "" {
+		g.serviceReady = true
+		g.addresses = append(g.addresses, pod.Status.HostIP)
 	}
 
 	return nil
