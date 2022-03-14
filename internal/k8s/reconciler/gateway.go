@@ -185,6 +185,13 @@ func (g *K8sGateway) validateGatewayIP(ctx context.Context) error {
 			}
 		}
 	case corev1.ServiceTypeNodePort:
+		/* For serviceType: NodePort, there isn't a consistent way to guarantee access to the
+		 * service from outside the k8s cluster. For now, we're putting the IP address of the
+		 * nodes that the gateway pods are running on.
+		 * The practitioner will have to understand that they may need to port forward into the
+		 * cluster (in the case of Kind) or open firewall rules (in the case of GKE) in order to
+		 * access the gateway from outside the cluster.
+		 */
 		pod, err := g.client.PodWithLabels(ctx, utils.LabelsForGateway(g.gateway))
 		if err != nil {
 			return err
