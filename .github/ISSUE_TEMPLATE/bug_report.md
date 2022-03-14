@@ -5,7 +5,13 @@ labels: bug
 
 ---
 
-<!--- When filing a bug, please include the following headings if possible. Any example text in this template can be deleted. --->
+<!--- 
+
+IMPORTANT: If you are having problems installing the Consul API Gateway, before filing an issue, please ensure you have followed each step of the documented installation procedure detailed at https://www.consul.io/docs/api-gateway/api-gateway-usage#installation.
+
+When filing a bug, please include the following headings if possible. Any example text in this template can be deleted.
+
+--->
 
 ### Overview of the Issue
 
