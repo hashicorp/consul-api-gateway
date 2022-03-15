@@ -3,6 +3,7 @@
 BUG FIXES:
 
  * Apply namespace selector for allowed routes to the route's namespace instead of the route itself [[GH-119](https://github.com/hashicorp/consul-api-gateway/pull/119)]
+ * Fix http route merging to make sure we merge routes that reference the same hostname [[GH-126](https://github.com/hashicorp/consul-api-gateway/pull/126)]
 
 ## 0.1.0 (February 23, 2022)
 
