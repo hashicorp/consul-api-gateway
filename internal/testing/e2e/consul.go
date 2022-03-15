@@ -88,6 +88,7 @@ type consulTestEnvironment struct {
 	token              string
 	policy             *api.ACLPolicy
 	httpPort           int
+	httpFlattenedPort  int
 	grpcPort           int
 	extraHTTPPort      int
 	extraTCPPort       int
@@ -107,6 +108,7 @@ func CreateTestConsulContainer(name, namespace string) env.Func {
 		}
 		cluster := clusterVal.(*kindCluster)
 		httpsPort := cluster.httpsPort
+		httpFlattenedPort := cluster.httpsFlattenedPort
 		grpcPort := cluster.grpcPort
 		extraTCPPort := cluster.extraTCPPort
 		extraTCPTLSPort := cluster.extraTCPTLSPort
@@ -198,6 +200,7 @@ func CreateTestConsulContainer(name, namespace string) env.Func {
 			ca:                 rootCA.CertBytes,
 			consulClient:       consulClient,
 			httpPort:           httpsPort,
+			httpFlattenedPort:  httpFlattenedPort,
 			grpcPort:           grpcPort,
 			extraHTTPPort:      extraHTTPPort,
 			extraTCPPort:       extraTCPPort,
@@ -474,6 +477,14 @@ func HTTPPort(ctx context.Context) int {
 		panic("must run this with an integration test that has called CreateTestConsul")
 	}
 	return consulEnvironment.(*consulTestEnvironment).extraHTTPPort
+}
+
+func HTTPFlattenedPort(ctx context.Context) int {
+	consulEnvironment := ctx.Value(consulTestContextKey)
+	if consulEnvironment == nil {
+		panic("must run this with an integration test that has called CreateTestConsul")
+	}
+	return consulEnvironment.(*consulTestEnvironment).httpFlattenedPort
 }
 
 func ConsulHTTPPort(ctx context.Context) int {

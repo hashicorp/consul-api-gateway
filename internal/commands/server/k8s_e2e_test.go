@@ -230,6 +230,169 @@ func TestServiceListeners(t *testing.T) {
 	testenv.Test(t, feature.Feature())
 }
 
+func TestHTTPRouteFlattening(t *testing.T) {
+	feature := features.New("http service route flattening").
+		Assess("basic routing", func(ctx context.Context, t *testing.T, cfg *envconf.Config) context.Context {
+			serviceOne, err := e2e.DeployHTTPMeshService(ctx, cfg)
+			require.NoError(t, err)
+			serviceTwo, err := e2e.DeployHTTPMeshService(ctx, cfg)
+			require.NoError(t, err)
+
+			namespace := e2e.Namespace(ctx)
+			configName := envconf.RandomName("gcc", 16)
+			className := envconf.RandomName("gc", 16)
+			gatewayName := envconf.RandomName("gw", 16)
+			routeOneName := envconf.RandomName("route", 16)
+			routeTwoName := envconf.RandomName("route", 16)
+
+			prefixMatch := gateway.PathMatchPathPrefix
+			headerMatch := gateway.HeaderMatchExact
+
+			resources := cfg.Client().Resources(namespace)
+
+			gcc := &apigwv1alpha1.GatewayClassConfig{
+				ObjectMeta: meta.ObjectMeta{
+					Name: configName,
+				},
+				Spec: apigwv1alpha1.GatewayClassConfigSpec{
+					ImageSpec: apigwv1alpha1.ImageSpec{
+						ConsulAPIGateway: e2e.DockerImage(ctx),
+					},
+					UseHostPorts: true,
+					LogLevel:     "trace",
+					ConsulSpec: apigwv1alpha1.ConsulSpec{
+						Address: hostRoute,
+						Scheme:  "https",
+						PortSpec: apigwv1alpha1.PortSpec{
+							GRPC: e2e.ConsulGRPCPort(ctx),
+							HTTP: e2e.ConsulHTTPPort(ctx),
+						},
+						AuthSpec: apigwv1alpha1.AuthSpec{
+							Method:  "consul-api-gateway",
+							Account: "consul-api-gateway",
+						},
+					},
+				},
+			}
+			err = resources.Create(ctx, gcc)
+			require.NoError(t, err)
+
+			gc := &gateway.GatewayClass{
+				ObjectMeta: meta.ObjectMeta{
+					Name: className,
+				},
+				Spec: gateway.GatewayClassSpec{
+					ControllerName: k8s.ControllerName,
+					ParametersRef: &gateway.ParametersReference{
+						Group: apigwv1alpha1.Group,
+						Kind:  apigwv1alpha1.GatewayClassConfigKind,
+						Name:  configName,
+					},
+				},
+			}
+			err = resources.Create(ctx, gc)
+			require.NoError(t, err)
+
+			checkPort := e2e.HTTPFlattenedPort(ctx)
+			gw := createGateway(ctx, t, cfg, gatewayName, gc, gateway.PortNumber(checkPort))
+			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionReady), checkTimeout, checkInterval, "no gateway found in the allotted time")
+
+			port := gateway.PortNumber(serviceOne.Spec.Ports[0].Port)
+			path := "/"
+			route := &gateway.HTTPRoute{
+				ObjectMeta: meta.ObjectMeta{
+					Name:      routeOneName,
+					Namespace: namespace,
+				},
+				Spec: gateway.HTTPRouteSpec{
+					CommonRouteSpec: gateway.CommonRouteSpec{
+						ParentRefs: []gateway.ParentRef{{
+							Name: gateway.ObjectName(gatewayName),
+						}},
+					},
+					Hostnames: []gateway.Hostname{"test.foo", "test.example"},
+					Rules: []gateway.HTTPRouteRule{{
+						Matches: []gateway.HTTPRouteMatch{{
+							Path: &gateway.HTTPPathMatch{
+								Type:  &prefixMatch,
+								Value: &path,
+							},
+						}},
+						BackendRefs: []gateway.HTTPBackendRef{{
+							BackendRef: gateway.BackendRef{
+								BackendObjectReference: gateway.BackendObjectReference{
+									Name: gateway.ObjectName(serviceOne.Name),
+									Port: &port,
+								},
+							},
+						}},
+					}},
+				},
+			}
+			err = resources.Create(ctx, route)
+			require.NoError(t, err)
+
+			port = gateway.PortNumber(serviceTwo.Spec.Ports[0].Port)
+			path = "/v2"
+			route = &gateway.HTTPRoute{
+				ObjectMeta: meta.ObjectMeta{
+					Name:      routeTwoName,
+					Namespace: namespace,
+				},
+				Spec: gateway.HTTPRouteSpec{
+					CommonRouteSpec: gateway.CommonRouteSpec{
+						ParentRefs: []gateway.ParentRef{{
+							Name: gateway.ObjectName(gatewayName),
+						}},
+					},
+					Hostnames: []gateway.Hostname{"test.foo"},
+					Rules: []gateway.HTTPRouteRule{{
+						Matches: []gateway.HTTPRouteMatch{{
+							Path: &gateway.HTTPPathMatch{
+								Type:  &prefixMatch,
+								Value: &path,
+							},
+						}, {
+							Headers: []gateway.HTTPHeaderMatch{{
+								Type:  &headerMatch,
+								Name:  gateway.HTTPHeaderName("x-v2"),
+								Value: "v2",
+							}},
+						}},
+						BackendRefs: []gateway.HTTPBackendRef{{
+							BackendRef: gateway.BackendRef{
+								BackendObjectReference: gateway.BackendObjectReference{
+									Name: gateway.ObjectName(serviceTwo.Name),
+									Port: &port,
+								},
+							},
+						}},
+					}},
+				},
+			}
+			err = resources.Create(ctx, route)
+			require.NoError(t, err)
+
+			checkRoute(t, checkPort, "/v2/test", serviceTwo.Name, map[string]string{
+				"Host": "test.foo",
+			}, "service two not routable in allotted time")
+			checkRoute(t, checkPort, "/", serviceOne.Name, map[string]string{
+				"Host": "test.foo",
+			}, "service one not routable in allotted time")
+			checkRoute(t, checkPort, "/", serviceTwo.Name, map[string]string{
+				"Host": "test.foo",
+				"x-v2": "v2",
+			}, "service two with headers is not routable in allotted time")
+
+			err = resources.Delete(ctx, gw)
+			require.NoError(t, err)
+
+			return ctx
+		})
+
+	testenv.Test(t, feature.Feature())
+}
+
 func TestHTTPMeshService(t *testing.T) {
 	feature := features.New("mesh service routing").
 		Assess("basic routing", func(ctx context.Context, t *testing.T, cfg *envconf.Config) context.Context {

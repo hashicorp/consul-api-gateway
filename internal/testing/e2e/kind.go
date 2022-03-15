@@ -37,6 +37,9 @@ nodes:
   - containerPort: {{ .HTTPSPort }}
     hostPort: {{ .HTTPSPort }}
     protocol: TCP
+  - containerPort: {{ .HTTPSFlattenedPort }}
+    hostPort: {{ .HTTPSFlattenedPort }}
+    protocol: TCP
   - containerPort: {{ .GRPCPort }}
     hostPort: {{ .GRPCPort }}
     protocol: TCP
@@ -68,6 +71,7 @@ type kindCluster struct {
 	kubecfgFile        string
 	config             string
 	httpsPort          int
+	httpsFlattenedPort int
 	grpcPort           int
 	extraHTTPPort      int
 	extraTCPPort       int
@@ -76,16 +80,17 @@ type kindCluster struct {
 }
 
 func newKindCluster(name string) *kindCluster {
-	ports := freeport.MustTake(6)
+	ports := freeport.MustTake(7)
 	return &kindCluster{
 		name:               name,
 		e:                  gexe.New(),
 		httpsPort:          ports[0],
-		grpcPort:           ports[1],
-		extraHTTPPort:      ports[2],
-		extraTCPPort:       ports[3],
-		extraTCPTLSPort:    ports[4],
-		extraTCPTLSPortTwo: ports[5],
+		httpsFlattenedPort: ports[1],
+		grpcPort:           ports[2],
+		extraHTTPPort:      ports[3],
+		extraTCPPort:       ports[4],
+		extraTCPTLSPort:    ports[5],
+		extraTCPTLSPortTwo: ports[6],
 	}
 }
 
@@ -95,6 +100,7 @@ func (k *kindCluster) Create() (string, error) {
 	var kindConfig bytes.Buffer
 	err := kindTemplate.Execute(&kindConfig, &struct {
 		HTTPSPort          int
+		HTTPSFlattenedPort int
 		GRPCPort           int
 		ExtraTCPPort       int
 		ExtraTCPTLSPort    int
@@ -102,6 +108,7 @@ func (k *kindCluster) Create() (string, error) {
 		ExtraHTTPPort      int
 	}{
 		HTTPSPort:          k.httpsPort,
+		HTTPSFlattenedPort: k.httpsFlattenedPort,
 		GRPCPort:           k.grpcPort,
 		ExtraTCPPort:       k.extraTCPPort,
 		ExtraTCPTLSPort:    k.extraTCPTLSPort,

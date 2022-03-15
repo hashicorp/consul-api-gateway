@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"sort"
 	"sync"
 	"time"
 
@@ -99,34 +98,21 @@ func routeDiscoveryChain(route core.ResolvedRoute) (*api.IngressService, *api.Se
 	}
 }
 
-func mergeHTTPRoutes(gateway core.ResolvedGateway, routes []core.ResolvedRoute) []core.ResolvedRoute {
-	merged := map[string]core.HTTPRoute{}
+func flattenHTTPRoutes(gateway core.ResolvedGateway, resolved []core.ResolvedRoute) []core.ResolvedRoute {
+	merged := newflattenedRouteMap()
 	unmerged := []core.ResolvedRoute{}
-	for _, route := range routes {
+	for _, route := range resolved {
 		switch route.GetType() {
 		case core.ResolvedHTTPRouteType:
-			httpRoute := route.(core.HTTPRoute)
-			key := hostsKey(httpRoute.Hostnames)
-			if found, ok := merged[key]; ok {
-				found.Name = gateway.ID.Service + "-merged-" + key
-				found.Namespace = gateway.ID.ConsulNamespace
-				found.Rules = append(found.Rules, httpRoute.Rules...)
-				sort.SliceStable(found.Rules, func(i, j int) bool {
-					return compareHTTPRules(found.Rules[i], found.Rules[j])
-				})
-				merged[key] = found
-			} else {
-				merged[key] = httpRoute
-			}
+			merged.flatten(route.(core.HTTPRoute))
 		default:
 			unmerged = append(unmerged, route)
 		}
 	}
 
-	for _, route := range merged {
+	for _, route := range merged.constructRoutes(gateway) {
 		unmerged = append(unmerged, route)
 	}
-
 	return unmerged
 }
 
@@ -151,7 +137,7 @@ func filterTCPRoutes(routes []core.ResolvedRoute) []core.ResolvedRoute {
 }
 
 func mergeRoutes(gateway core.ResolvedGateway, routes []core.ResolvedRoute) []core.ResolvedRoute {
-	routes = mergeHTTPRoutes(gateway, routes)
+	routes = flattenHTTPRoutes(gateway, routes)
 	return filterTCPRoutes(routes)
 }
 
