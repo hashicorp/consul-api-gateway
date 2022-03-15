@@ -208,7 +208,7 @@ func httpRouteMatchToServiceRouteHTTPMatch(match core.HTTPMatch) *api.ServiceRou
 	return &consulMatch
 }
 
-func hostsKey(hosts []string) string {
+func hostsKey(hosts ...string) string {
 	sort.Strings(hosts)
 	hostsHash := crc32.NewIEEE()
 	for _, h := range hosts {
@@ -219,10 +219,7 @@ func hostsKey(hosts []string) string {
 	return strconv.FormatUint(uint64(hostsHash.Sum32()), 16)
 }
 
-func compareHTTPRules(ruleA, ruleB core.HTTPRouteRule) bool {
-	matchesA := ruleA.Matches
-	matchesB := ruleB.Matches
-
+func compareHTTPRules(ruleA, ruleB core.HTTPMatch) bool {
 	// this tries to implement some of the logic specified by the K8S gateway API spec
 
 	// Proxy or Load Balancer routing configuration generated from HTTPRoutes MUST prioritize
@@ -234,21 +231,13 @@ func compareHTTPRules(ruleA, ruleB core.HTTPRouteRule) bool {
 	// Header matches.
 	// Query param matches.
 
-	var longestPathMatchA int
-	for _, match := range matchesA {
-		pathLength := len(match.Path.Value)
-		if longestPathMatchA < pathLength {
-			longestPathMatchA = pathLength
-		}
+	if len(ruleA.Path.Value) != len(ruleB.Path.Value) {
+		return len(ruleA.Path.Value) > len(ruleB.Path.Value)
 	}
-	var longestPathMatchB int
-	for _, match := range matchesB {
-		pathLength := len(match.Path.Value)
-		if longestPathMatchB < pathLength {
-			longestPathMatchB = pathLength
-		}
+	if len(ruleA.Headers) != len(ruleB.Headers) {
+		return len(ruleA.Headers) > len(ruleB.Headers)
 	}
-	return longestPathMatchA > longestPathMatchB
+	return len(ruleA.Query) > len(ruleB.Query)
 }
 
 func httpServiceDefault(entry api.ConfigEntry, meta map[string]string) *api.ServiceConfigEntry {
@@ -259,4 +248,75 @@ func httpServiceDefault(entry api.ConfigEntry, meta map[string]string) *api.Serv
 		Protocol:  "http",
 		Meta:      meta,
 	}
+}
+
+type flattenedRoute struct {
+	match    core.HTTPMatch
+	filters  []core.HTTPFilter
+	services []core.HTTPService
+}
+
+type flattenedRouteMap struct {
+	flattenedRoutesByHostname map[string][]flattenedRoute
+}
+
+func newflattenedRouteMap() *flattenedRouteMap {
+	return &flattenedRouteMap{
+		flattenedRoutesByHostname: map[string][]flattenedRoute{},
+	}
+}
+
+func (f *flattenedRouteMap) flatten(route core.HTTPRoute) {
+	for _, host := range route.Hostnames {
+		found, ok := f.flattenedRoutesByHostname[host]
+		if !ok {
+			found = []flattenedRoute{}
+		}
+		for _, rule := range route.Rules {
+			if len(rule.Matches) == 0 {
+				rule.Matches = []core.HTTPMatch{{
+					Path: core.HTTPPathMatch{
+						Type:  core.HTTPPathMatchPrefixType,
+						Value: "/",
+					},
+				}}
+			}
+			for _, match := range rule.Matches {
+				found = append(found, flattenedRoute{
+					match:    match,
+					filters:  rule.Filters,
+					services: rule.Services,
+				})
+			}
+		}
+		f.flattenedRoutesByHostname[host] = found
+	}
+}
+
+func (f *flattenedRouteMap) constructRoutes(gateway core.ResolvedGateway) []core.HTTPRoute {
+	coreRoutes := []core.HTTPRoute{}
+	for hostname, routes := range f.flattenedRoutesByHostname {
+		sort.SliceStable(routes, func(i, j int) bool {
+			return compareHTTPRules(routes[i].match, routes[j].match)
+		})
+		rules := []core.HTTPRouteRule{}
+		for _, match := range routes {
+			rules = append(rules, core.HTTPRouteRule{
+				Matches:  []core.HTTPMatch{match.match},
+				Filters:  match.filters,
+				Services: match.services,
+			})
+		}
+		name := gateway.ID.Service + "-" + hostsKey(hostname)
+		coreRoutes = append(coreRoutes, core.HTTPRoute{
+			CommonRoute: core.CommonRoute{
+				Name:      name,
+				Namespace: gateway.ID.ConsulNamespace,
+				Meta:      gateway.Meta,
+			},
+			Hostnames: []string{hostname},
+			Rules:     rules,
+		})
+	}
+	return coreRoutes
 }
