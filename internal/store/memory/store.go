@@ -106,7 +106,7 @@ func (s *Store) syncGateways(ctx context.Context, gateways ...*gatewayState) err
 			return s.syncGateway(ctx, gateway)
 		})
 	}
-	if err := syncGroup.Wait(); err != nil {
+	if err := syncGroup.Wait().ErrorOrNil(); err != nil {
 		s.logger.Error("error syncing gateways", "error", err)
 		return err
 	}
@@ -124,7 +124,7 @@ func (s *Store) syncRouteStatuses(ctx context.Context) error {
 			})
 		}
 	}
-	if err := syncGroup.Wait(); err != nil {
+	if err := syncGroup.Wait().ErrorOrNil(); err != nil {
 		s.logger.Error("error syncing route statuses", "error", err)
 		return err
 	}
@@ -152,7 +152,7 @@ func (s *Store) sync(ctx context.Context, gateways ...*gatewayState) error {
 	syncGroup.Go(func() error {
 		return s.syncRouteStatuses(ctx)
 	})
-	if err := syncGroup.Wait(); err != nil {
+	if err := syncGroup.Wait().ErrorOrNil(); err != nil {
 		return err
 	}
 	return nil
