@@ -374,6 +374,9 @@ func (g *K8sGateway) Compare(other store.Gateway) store.CompareResult {
 }
 
 func (g *K8sGateway) isEqual(other *K8sGateway) bool {
+	if !reflect.DeepEqual(g.gateway.Annotations, other.gateway.Annotations) {
+		return false
+	}
 	if !reflect.DeepEqual(g.gateway.Spec, other.gateway.Spec) {
 		return false
 	}
@@ -383,9 +386,6 @@ func (g *K8sGateway) isEqual(other *K8sGateway) bool {
 
 	// check other things that may affect the pending status updates
 	if !reflect.DeepEqual(g.certificates(), other.certificates()) {
-		return false
-	}
-	if !reflect.DeepEqual(g.Listeners(), other.Listeners()) {
 		return false
 	}
 	if !conditionEqual(g.status.Scheduled.Condition(g.gateway.Generation), other.status.Scheduled.Condition(g.gateway.Generation)) {
