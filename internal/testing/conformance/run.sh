@@ -4,6 +4,7 @@ git clone --depth 1 git@github.com:kubernetes-sigs/gateway-api
 cp kustomization.yaml proxydefaults.yaml gateway-api/conformance/
 cd gateway-api/conformance/
 kubectl kustomize ./ --output ./base/manifests.yaml
+kubectl apply -f ./base/manifests.yaml
 
 # TODO Right now, the conformance tests don't pass because they assume the route will work
 #   as soon as the HTTPRoute has parent(s) listed; however, we sync resources into Consul/Envoy
