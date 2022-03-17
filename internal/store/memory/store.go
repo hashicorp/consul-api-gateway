@@ -219,11 +219,7 @@ func (s *Store) UpsertGateway(ctx context.Context, gateway store.Gateway) error 
 
 	current, found := s.gateways[id]
 
-	switch current.Compare(gateway) {
-	case store.CompareResultInvalid, store.CompareResultNewer:
-		// we have an invalid or old route, ignore it
-		return nil
-	case store.CompareResultNotEqual:
+	if current.ShouldUpdate(gateway) {
 		s.logger.Trace("detected gateway state change", "service", id.Service, "namespace", id.ConsulNamespace)
 		updated := newGatewayState(s.logger, gateway, s.adapter)
 

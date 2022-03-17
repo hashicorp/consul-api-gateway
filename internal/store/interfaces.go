@@ -33,7 +33,7 @@ type StatusTrackingGateway interface {
 type Gateway interface {
 	ID() core.GatewayID
 	Meta() map[string]string
-	Compare(other Gateway) CompareResult
+	ShouldUpdate(other Gateway) bool
 	Listeners() []Listener
 	ShouldBind(route Route) bool
 }

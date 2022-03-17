@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"reflect"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
@@ -352,59 +351,21 @@ func (g *K8sGateway) Listeners() []store.Listener {
 	return listeners
 }
 
-func (g *K8sGateway) Compare(other store.Gateway) store.CompareResult {
+func (g *K8sGateway) ShouldUpdate(other store.Gateway) bool {
 	if other == nil {
-		return store.CompareResultInvalid
+		return false
 	}
+
 	if g == nil {
-		return store.CompareResultNotEqual
+		return true
 	}
 
-	if otherGateway, ok := other.(*K8sGateway); ok {
-		if utils.ResourceVersionGreater(g.gateway.ResourceVersion, otherGateway.gateway.ResourceVersion) {
-			return store.CompareResultNewer
-		}
-
-		if !g.isEqual(otherGateway) {
-			return store.CompareResultNotEqual
-		}
-		return store.CompareResultEqual
-	}
-	return store.CompareResultInvalid
-}
-
-func (g *K8sGateway) isEqual(other *K8sGateway) bool {
-	if !reflect.DeepEqual(g.gateway.Annotations, other.gateway.Annotations) {
-		return false
-	}
-	if !reflect.DeepEqual(g.gateway.Spec, other.gateway.Spec) {
-		return false
-	}
-	if !gatewayStatusEqual(g.gateway.Status, other.gateway.Status) {
+	otherGateway, ok := other.(*K8sGateway)
+	if !ok {
 		return false
 	}
 
-	// check other things that may affect the pending status updates
-	if !reflect.DeepEqual(g.certificates(), other.certificates()) {
-		return false
-	}
-	if !reflect.DeepEqual(g.Listeners(), other.Listeners()) {
-		return false
-	}
-	if !conditionEqual(g.status.Scheduled.Condition(g.gateway.Generation), other.status.Scheduled.Condition(g.gateway.Generation)) {
-		return false
-	}
-	if g.podReady != other.podReady {
-		return false
-	}
-	if g.serviceReady != other.serviceReady {
-		return false
-	}
-	if !reflect.DeepEqual(g.addresses, other.addresses) {
-		return false
-	}
-
-	return true
+	return utils.ResourceVersionLesser(g.gateway.ResourceVersion, otherGateway.gateway.ResourceVersion)
 }
 
 func (g *K8sGateway) ShouldBind(route store.Route) bool {

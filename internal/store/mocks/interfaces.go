@@ -36,20 +36,6 @@ func (m *MockStatusTrackingGateway) EXPECT() *MockStatusTrackingGatewayMockRecor
 	return m.recorder
 }
 
-// Compare mocks base method.
-func (m *MockStatusTrackingGateway) Compare(other store.Gateway) store.CompareResult {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Compare", other)
-	ret0, _ := ret[0].(store.CompareResult)
-	return ret0
-}
-
-// Compare indicates an expected call of Compare.
-func (mr *MockStatusTrackingGatewayMockRecorder) Compare(other interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Compare", reflect.TypeOf((*MockStatusTrackingGateway)(nil).Compare), other)
-}
-
 // ID mocks base method.
 func (m *MockStatusTrackingGateway) ID() core.GatewayID {
 	m.ctrl.T.Helper()
@@ -106,6 +92,20 @@ func (mr *MockStatusTrackingGatewayMockRecorder) ShouldBind(route interface{}) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ShouldBind", reflect.TypeOf((*MockStatusTrackingGateway)(nil).ShouldBind), route)
 }
 
+// ShouldUpdate mocks base method.
+func (m *MockStatusTrackingGateway) ShouldUpdate(other store.Gateway) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ShouldUpdate", other)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// ShouldUpdate indicates an expected call of ShouldUpdate.
+func (mr *MockStatusTrackingGatewayMockRecorder) ShouldUpdate(other interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ShouldUpdate", reflect.TypeOf((*MockStatusTrackingGateway)(nil).ShouldUpdate), other)
+}
+
 // TrackSync mocks base method.
 func (m *MockStatusTrackingGateway) TrackSync(ctx context.Context, sync func() (bool, error)) error {
 	m.ctrl.T.Helper()
@@ -141,20 +141,6 @@ func NewMockGateway(ctrl *gomock.Controller) *MockGateway {
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockGateway) EXPECT() *MockGatewayMockRecorder {
 	return m.recorder
-}
-
-// Compare mocks base method.
-func (m *MockGateway) Compare(other store.Gateway) store.CompareResult {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Compare", other)
-	ret0, _ := ret[0].(store.CompareResult)
-	return ret0
-}
-
-// Compare indicates an expected call of Compare.
-func (mr *MockGatewayMockRecorder) Compare(other interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Compare", reflect.TypeOf((*MockGateway)(nil).Compare), other)
 }
 
 // ID mocks base method.
@@ -211,6 +197,20 @@ func (m *MockGateway) ShouldBind(route store.Route) bool {
 func (mr *MockGatewayMockRecorder) ShouldBind(route interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ShouldBind", reflect.TypeOf((*MockGateway)(nil).ShouldBind), route)
+}
+
+// ShouldUpdate mocks base method.
+func (m *MockGateway) ShouldUpdate(other store.Gateway) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ShouldUpdate", other)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// ShouldUpdate indicates an expected call of ShouldUpdate.
+func (mr *MockGatewayMockRecorder) ShouldUpdate(other interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ShouldUpdate", reflect.TypeOf((*MockGateway)(nil).ShouldUpdate), other)
 }
 
 // MockRouteTrackingListener is a mock of RouteTrackingListener interface.
