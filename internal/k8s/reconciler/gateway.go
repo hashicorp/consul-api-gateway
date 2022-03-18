@@ -365,7 +365,7 @@ func (g *K8sGateway) ShouldUpdate(other store.Gateway) bool {
 		return false
 	}
 
-	return utils.ResourceVersionLesser(g.gateway.ResourceVersion, otherGateway.gateway.ResourceVersion)
+	return !utils.ResourceVersionGreater(g.gateway.ResourceVersion, otherGateway.gateway.ResourceVersion)
 }
 
 func (g *K8sGateway) ShouldBind(route store.Route) bool {

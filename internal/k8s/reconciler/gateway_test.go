@@ -559,7 +559,7 @@ func TestGatewayShouldUpdate(t *testing.T) {
 	// Have equal resource version
 	gateway.gateway.ObjectMeta.ResourceVersion = `0`
 	other.gateway.ObjectMeta.ResourceVersion = `0`
-	assert.False(t, gateway.ShouldUpdate(other))
+	assert.True(t, gateway.ShouldUpdate(other))
 
 	// Have greater resource version
 	gateway.gateway.ObjectMeta.ResourceVersion = `1`
