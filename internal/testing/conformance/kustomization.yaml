@@ -1,0 +1,31 @@
+# This file contains the additional resources and the patches for existing resources necessary
+# to run the conformance tests from https://github.com/kubernetes-sigs/gateway-api against
+# Consul API Gateway.
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ./base/manifests.yaml
+  - ./proxydefaults.yaml
+
+patches:
+  # Set the gatewayClassName for each Gateway; otherwise, patching will bork
+  # the {GATEWAY_CLASS_NAME} placeholder used in gateway-api's base resources
+  # https://github.com/kubernetes-sigs/gateway-api/blob/b10e7fb502d407fe31ff9984648ec48ba6fe73bc/conformance/base/manifests.yaml#L22
+  - patch: |-
+      - op: replace
+        path: "/spec/gatewayClassName"
+        value: "consul-api-gateway"
+    target:
+      kind: Gateway
+  # Add connect-inject annotations to each Deployment. This is required due to
+  # containerPort not being defined on Deployments upstream. Though containerPort
+  # is optional, Consul relies on it as a default value in the absence of a
+  # connect-service-port annotation.
+  - patch: |-
+      - op: add
+        path: "/spec/template/metadata/annotations"
+        value: {'consul.hashicorp.com/connect-inject': 'true', 'consul.hashicorp.com/connect-service-port': '3000'}
+    target:
+      kind: Deployment
