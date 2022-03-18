@@ -78,15 +78,15 @@ func (g *gatewayState) TryBind(ctx context.Context, route store.Route) {
 	}
 }
 
-func (g *gatewayState) Compare(other store.Gateway) store.CompareResult {
+func (g *gatewayState) ShouldUpdate(other store.Gateway) bool {
 	if other == nil {
-		return store.CompareResultInvalid
+		return false
 	}
 	if g == nil {
-		return store.CompareResultNotEqual
+		return true
 	}
 
-	return g.Gateway.Compare(other)
+	return g.Gateway.ShouldUpdate(other)
 }
 
 func (g *gatewayState) Sync(ctx context.Context) (bool, error) {

@@ -17,7 +17,6 @@ import (
 	internalCore "github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient/mocks"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/service"
-	"github.com/hashicorp/consul-api-gateway/internal/store"
 	storeMocks "github.com/hashicorp/consul-api-gateway/internal/store/mocks"
 	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 	"github.com/hashicorp/go-hclog"
@@ -546,78 +545,48 @@ func TestGatewayTrackSync(t *testing.T) {
 	}))
 }
 
-func TestGatewayCompare(t *testing.T) {
+func TestGatewayShouldUpdate(t *testing.T) {
 	t.Parallel()
 
 	gateway := NewK8sGateway(&gw.Gateway{}, K8sGatewayConfig{
 		Logger: hclog.NewNullLogger(),
 	})
+
 	other := NewK8sGateway(&gw.Gateway{}, K8sGatewayConfig{
 		Logger: hclog.NewNullLogger(),
 	})
-	require.Equal(t, store.CompareResultEqual, gateway.Compare(other))
-	require.Equal(t, store.CompareResultInvalid, gateway.Compare(nil))
-	require.Equal(t, store.CompareResultInvalid, gateway.Compare(storeMocks.NewMockGateway(nil)))
+
+	// Have equal resource version
+	gateway.gateway.ObjectMeta.ResourceVersion = `0`
+	other.gateway.ObjectMeta.ResourceVersion = `0`
+	assert.True(t, gateway.ShouldUpdate(other))
+
+	// Have greater resource version
+	gateway.gateway.ObjectMeta.ResourceVersion = `1`
+	other.gateway.ObjectMeta.ResourceVersion = `0`
+	assert.False(t, gateway.ShouldUpdate(other))
+
+	// Have lesser resource version
+	gateway.gateway.ObjectMeta.ResourceVersion = `0`
+	other.gateway.ObjectMeta.ResourceVersion = `1`
+	assert.True(t, gateway.ShouldUpdate(other))
+
+	// Have non-numeric resource version
+	gateway.gateway.ObjectMeta.ResourceVersion = `a`
+	other.gateway.ObjectMeta.ResourceVersion = `0`
+	assert.True(t, gateway.ShouldUpdate(other))
+
+	// Other gateway non-numeric resource version
+	gateway.gateway.ObjectMeta.ResourceVersion = `0`
+	other.gateway.ObjectMeta.ResourceVersion = `a`
+	assert.False(t, gateway.ShouldUpdate(other))
+
+	// Other gateway nil
+	assert.False(t, gateway.ShouldUpdate(nil))
+
+	// Have nil gateway
 	gateway = nil
-	require.Equal(t, store.CompareResultNotEqual, gateway.Compare(other))
-
-	gateway = NewK8sGateway(&gw.Gateway{
-		ObjectMeta: meta.ObjectMeta{
-			ResourceVersion: "1",
-		},
-	}, K8sGatewayConfig{
-		Logger: hclog.NewNullLogger(),
-	})
-	other = NewK8sGateway(&gw.Gateway{
-		ObjectMeta: meta.ObjectMeta{
-			ResourceVersion: "0",
-		},
-	}, K8sGatewayConfig{
-		Logger: hclog.NewNullLogger(),
-	})
-	require.Equal(t, store.CompareResultNewer, gateway.Compare(other))
-
-	gateway.gateway.ObjectMeta.ResourceVersion = "0"
-	gateway.gateway.Spec.GatewayClassName = "other"
-	require.Equal(t, store.CompareResultNotEqual, gateway.Compare(other))
-
-	gateway.gateway.Spec.GatewayClassName = ""
-	gateway.gateway.Status.Conditions = []meta.Condition{{}}
-	require.Equal(t, store.CompareResultNotEqual, gateway.Compare(other))
-
-	gateway = NewK8sGateway(&gw.Gateway{
-		Spec: gw.GatewaySpec{
-			Listeners: []gw.Listener{{
-				Name: gw.SectionName("1"),
-			}},
-		},
-	}, K8sGatewayConfig{
-		Logger: hclog.NewNullLogger(),
-	})
-	other = NewK8sGateway(&gw.Gateway{
-		Spec: gw.GatewaySpec{
-			Listeners: []gw.Listener{{
-				Name: gw.SectionName("1"),
-			}},
-		},
-	}, K8sGatewayConfig{
-		Logger: hclog.NewNullLogger(),
-	})
-	gateway.listeners["1"].tls.Certificates = []string{"other"}
-	require.Equal(t, store.CompareResultNotEqual, gateway.Compare(other))
-
-	gateway.listeners["1"].tls.Certificates = []string{}
-	gateway.status.Scheduled.Unknown = errors.New("")
-	require.Equal(t, store.CompareResultNotEqual, gateway.Compare(other))
-
-	gateway.status.Scheduled.Unknown = nil
-	gateway.podReady = true
-	other.podReady = false
-	require.Equal(t, store.CompareResultNotEqual, gateway.Compare(other))
-
-	other.podReady = true
-	gateway.addresses = []string{""}
-	require.Equal(t, store.CompareResultNotEqual, gateway.Compare(other))
+	assert.True(t, gateway.ShouldUpdate(other))
 }
 
 func TestGatewayShouldBind(t *testing.T) {

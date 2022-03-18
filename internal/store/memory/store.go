@@ -219,26 +219,25 @@ func (s *Store) UpsertGateway(ctx context.Context, gateway store.Gateway) error 
 
 	current, found := s.gateways[id]
 
-	switch current.Compare(gateway) {
-	case store.CompareResultInvalid, store.CompareResultNewer:
-		// we have an invalid or old route, ignore it
+	if !current.ShouldUpdate(gateway) {
+		// No-op
 		return nil
-	case store.CompareResultNotEqual:
-		s.logger.Trace("detected gateway state change", "service", id.Service, "namespace", id.ConsulNamespace)
-		updated := newGatewayState(s.logger, gateway, s.adapter)
+	}
 
-		s.gateways[id] = updated
+	s.logger.Trace("detected gateway state change", "service", id.Service, "namespace", id.ConsulNamespace)
+	updated := newGatewayState(s.logger, gateway, s.adapter)
 
-		// bind routes to this gateway
-		for _, route := range s.routes {
-			updated.TryBind(ctx, route)
-		}
+	s.gateways[id] = updated
 
-		if found && reflect.DeepEqual(current.Resolve(), updated.Resolve()) {
-			// we have the exact same render tree, mark the gateway as already synced
-			for _, listener := range updated.listeners {
-				listener.MarkSynced()
-			}
+	// bind routes to this gateway
+	for _, route := range s.routes {
+		updated.TryBind(ctx, route)
+	}
+
+	if found && reflect.DeepEqual(current.Resolve(), updated.Resolve()) {
+		// we have the exact same render tree, mark the gateway as already synced
+		for _, listener := range updated.listeners {
+			listener.MarkSynced()
 		}
 	}
 
