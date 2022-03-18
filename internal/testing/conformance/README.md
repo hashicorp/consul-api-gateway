@@ -43,7 +43,7 @@ repo and copy our patches into the `conformance` subdirectory:
     cp kustomization.yaml proxydefaults.yaml gateway-api/conformance/
     ```
 
-4. make your way into the `conformance` directory, then patch and install the base resources:
+3. make your way into the `conformance` directory, then patch and install the base resources:
 
     ```shell
     cd gateway-api/conformance/
@@ -51,19 +51,21 @@ repo and copy our patches into the `conformance` subdirectory:
     kubectl apply -f manifests.yaml --validate=false
     ```
 
-5. install the test-specific resources (adjust name appropriately):
+4. install the test-specific resources (adjust name appropriately):
 
     ```shell
     kubectl apply -f tests/httproute-matching.yaml
     ```
 
-6. modify the last line of `conformance_test.go` that passes the list of tests to include only the test that you want to run:
+5. modify the last line of `conformance_test.go` that passes the list of tests to include only the test that you want to run:
 
     ```go
     cSuite.Run(t, []suite.ConformanceTest{tests.HTTPRouteMatchingAcrossRoutes})
     ```
 
-7. run the test:
+6. run the test:
     ```shell
-    go test ./ --gateway-class consul-api-gateway
+    go test ./ --gateway-class consul-api-gateway --cleanup=0
     ```
+
+7. repeat steps 4-6 for other tests
