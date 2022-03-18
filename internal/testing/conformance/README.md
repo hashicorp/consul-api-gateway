@@ -34,8 +34,10 @@ To run a particular conformance test, you need to:
 
 1. Create a GKE cluster (or any other standard Kubernetes cluster) and install Consul + Consul API Gateway.
      The [usage docs](https://www.consul.io/docs/api-gateway/api-gateway-usage#installation) explain how to do this.
+
 2. clone the [kubernetes-sigs/gateway-api](https://github.com/kubernetes-sigs/gateway-api)
 repo and make your way into the `conformance` subdirectory
+
 3. install the base resources:
 
    ```shell
