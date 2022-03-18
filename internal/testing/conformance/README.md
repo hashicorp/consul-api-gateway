@@ -36,27 +36,34 @@ To run a particular conformance test, you need to:
      The [usage docs](https://www.consul.io/docs/api-gateway/api-gateway-usage#installation) explain how to do this.
 
 2. clone the [kubernetes-sigs/gateway-api](https://github.com/kubernetes-sigs/gateway-api)
-repo and make your way into the `conformance` subdirectory
+repo and copy our patches into the `conformance` subdirectory:
 
-3. install the base resources:
+    ```shell
+    git clone --depth 1 git@github.com:kubernetes-sigs/gateway-api
+    cp kustomization.yaml proxydefaults.yaml gateway-api/conformance/
+    ```
 
-   ```shell
+4. make your way into the `conformance` directory, then patch and install the base resources:
+
+    ```shell
+    cd gateway-api/conformance/
+    kubectl kustomize ./ --output ./base/manifests.yaml
     kubectl apply -f manifests.yaml --validate=false
     ```
 
-4. install the test-specific resources (adjust name appropriately):
+5. install the test-specific resources (adjust name appropriately):
 
     ```shell
     kubectl apply -f tests/httproute-matching.yaml
     ```
 
-5. modify the last line of `conformance_test.go` that passes the list of tests to include only the test that you want to run:
+6. modify the last line of `conformance_test.go` that passes the list of tests to include only the test that you want to run:
 
     ```go
     cSuite.Run(t, []suite.ConformanceTest{tests.HTTPRouteMatchingAcrossRoutes})
     ```
 
-6. run the test:
+7. run the test:
     ```shell
     go test ./ --gateway-class consul-api-gateway
     ```
