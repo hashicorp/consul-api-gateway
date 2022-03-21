@@ -71,7 +71,7 @@ func RunServer(config ServerConfig) int {
 	}
 
 	store := memory.NewStore(memory.StoreConfig{
-		Adapter: consulAdapters.NewConsulSyncAdapter(config.Logger.Named("consul-adapter"), consulClient),
+		Adapter: consulAdapters.NewSyncAdapter(config.Logger.Named("consul-adapter"), consulClient),
 		Logger:  config.Logger.Named("state"),
 	})
 

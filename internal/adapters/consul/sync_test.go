@@ -10,11 +10,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/hashicorp/consul-api-gateway/internal/common"
 	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/consul/sdk/testutil"
-	"github.com/stretchr/testify/require"
 )
 
 var (
@@ -168,7 +169,7 @@ func TestConsulSyncAdapter_Sync(t *testing.T) {
 	consul, err := api.NewClient(cfg)
 	require.NoError(t, err)
 
-	adapter := NewConsulSyncAdapter(testutil.Logger(t), consul)
+	adapter := NewSyncAdapter(testutil.Logger(t), consul)
 
 	route := core.NewTCPRouteBuilder().
 		WithName("tcp-default/route1").
