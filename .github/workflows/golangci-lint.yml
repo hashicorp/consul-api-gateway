@@ -1,0 +1,29 @@
+name: golangci-lint
+on:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  golangci:
+    name: golangci-lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-go@v2
+      - uses: actions/checkout@v2
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v2
+        with:
+          version: v1.45.0
+          args: |
+            --disable-all \
+            --timeout 10m \
+            --enable gofmt \
+            --enable gosimple \
+            --enable govet \
+            --enable ineffassign \
+            --enable staticcheck \
+            --enable unparam \
+            --enable unconvert \
+            --verbose
+          skip-pkg-cache: true
+          skip-build-cache: true
