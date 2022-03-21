@@ -99,7 +99,7 @@ func routeDiscoveryChain(route core.ResolvedRoute) (*api.IngressService, *api.Se
 }
 
 func flattenHTTPRoutes(gateway core.ResolvedGateway, resolved []core.ResolvedRoute) []core.ResolvedRoute {
-	merged := newflattenedRouteMap()
+	merged := newFlattenedRouteMap()
 	unmerged := []core.ResolvedRoute{}
 	for _, route := range resolved {
 		switch route.GetType() {
