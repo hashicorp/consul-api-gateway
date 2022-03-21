@@ -21,4 +21,5 @@ linters-settings:
     simplify: true
 
 run:
+  concurrency: 2
   timeout: 10m
