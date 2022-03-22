@@ -104,13 +104,13 @@ func flattenHTTPRoutes(gateway core.ResolvedGateway, resolved []core.ResolvedRou
 	for _, route := range resolved {
 		switch route.GetType() {
 		case core.ResolvedHTTPRouteType:
-			consolidator.addRoute(route.(core.HTTPRoute))
+			consolidator.add(route.(core.HTTPRoute))
 		default:
 			unmerged = append(unmerged, route)
 		}
 	}
 
-	for _, route := range consolidator.consolidateRoutes(gateway) {
+	for _, route := range consolidator.consolidate(gateway) {
 		unmerged = append(unmerged, route)
 	}
 	return unmerged

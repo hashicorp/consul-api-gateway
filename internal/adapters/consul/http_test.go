@@ -45,9 +45,9 @@ func TestRouteConsolidator(t *testing.T) {
 		},
 	}
 
-	c.addRoute(route1)
-	c.addRoute(route2)
-	routes := c.consolidateRoutes(g)
+	c.add(route1)
+	c.add(route2)
+	routes := c.consolidate(g)
 
 	// We should have 2 routes, each w/ one hostname
 	require.Len(t, routes, 2)

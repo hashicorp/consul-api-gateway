@@ -270,11 +270,11 @@ func newRouteConsolidator() *routeConsolidator {
 	}
 }
 
-// addRoute takes a new route and flattens its rule matches out per hostname.
+// add takes a new route and flattens its rule matches out per hostname.
 // This is required since a single route can specify multiple hostnames, and a
 // single hostname can be specified in multiple routes. Routing for a given
 // hostname must behave based on the aggregate of all rules that apply to it.
-func (f *routeConsolidator) addRoute(route core.HTTPRoute) {
+func (f *routeConsolidator) add(route core.HTTPRoute) {
 	for _, host := range route.Hostnames {
 		matches, ok := f.matchesByHostname[host]
 		if !ok {
@@ -282,7 +282,7 @@ func (f *routeConsolidator) addRoute(route core.HTTPRoute) {
 		}
 
 		for _, rule := range route.Rules {
-			// If a rule has no matches defined, addRoute default match
+			// If a rule has no matches defined, add default match
 			if len(rule.Matches) == 0 {
 				rule.Matches = []core.HTTPMatch{{
 					Path: core.HTTPPathMatch{
@@ -306,9 +306,9 @@ func (f *routeConsolidator) addRoute(route core.HTTPRoute) {
 	}
 }
 
-// consolidateRoutes combines all rules into the shortest possible list of routes
+// consolidate combines all rules into the shortest possible list of routes
 // with one route per hostname containing all rules for that hostname.
-func (f *routeConsolidator) consolidateRoutes(gateway core.ResolvedGateway) []core.HTTPRoute {
+func (f *routeConsolidator) consolidate(gateway core.ResolvedGateway) []core.HTTPRoute {
 	var routes []core.HTTPRoute
 
 	for hostname, rules := range f.matchesByHostname {
