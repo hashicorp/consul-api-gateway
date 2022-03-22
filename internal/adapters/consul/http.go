@@ -221,7 +221,7 @@ func hostsKey(hosts ...string) string {
 	return strconv.FormatUint(uint64(hostsHash.Sum32()), 16)
 }
 
-// compareHTTPRules implements some of the order of precedence for routes specified by the K8s Gateway API spec.
+// compareHTTPRules implements the non-hostname order of precedence for routes specified by the K8s Gateway API spec.
 // https://gateway-api.sigs.k8s.io/v1alpha2/references/spec/#gateway.networking.k8s.io/v1alpha2.HTTPRouteRule
 //
 // Ordering prefers matches based on the largest number of:
@@ -231,6 +231,9 @@ func hostsKey(hosts ...string) string {
 //   3. characters in a matching path
 //   4. header matches
 //   5. query param matches
+//
+// The hostname-specific comparison (1+2) occur in Envoy outside of our control:
+// https://github.com/envoyproxy/envoy/blob/5c4d4bd957f9402eca80bef82e7cc3ae714e04b4/source/common/router/config_impl.cc#L1645-L1682
 func compareHTTPRules(ruleA, ruleB core.HTTPMatch) bool {
 	if len(ruleA.Path.Value) != len(ruleB.Path.Value) {
 		return len(ruleA.Path.Value) > len(ruleB.Path.Value)
