@@ -99,18 +99,18 @@ func routeDiscoveryChain(route core.ResolvedRoute) (*api.IngressService, *api.Se
 }
 
 func flattenHTTPRoutes(gateway core.ResolvedGateway, resolved []core.ResolvedRoute) []core.ResolvedRoute {
-	merged := newFlattenedRouteMap()
+	consolidator := newRouteConsolidator()
 	unmerged := []core.ResolvedRoute{}
 	for _, route := range resolved {
 		switch route.GetType() {
 		case core.ResolvedHTTPRouteType:
-			merged.flatten(route.(core.HTTPRoute))
+			consolidator.addRoute(route.(core.HTTPRoute))
 		default:
 			unmerged = append(unmerged, route)
 		}
 	}
 
-	for _, route := range merged.constructRoutes(gateway) {
+	for _, route := range consolidator.consolidateRoutes(gateway) {
 		unmerged = append(unmerged, route)
 	}
 	return unmerged

@@ -251,36 +251,35 @@ func httpServiceDefault(entry api.ConfigEntry, meta map[string]string) *api.Serv
 	}
 }
 
-type flattenedRoute struct {
+type hostnameMatch struct {
 	match    core.HTTPMatch
 	filters  []core.HTTPFilter
 	services []core.HTTPService
 }
 
-type flattenedRouteMap struct {
-	flattenedRoutesByHostname map[string][]flattenedRoute
+type routeConsolidator struct {
+	matchesByHostname map[string][]hostnameMatch
 }
 
-func newFlattenedRouteMap() *flattenedRouteMap {
-	return &flattenedRouteMap{
-		flattenedRoutesByHostname: map[string][]flattenedRoute{},
+func newRouteConsolidator() *routeConsolidator {
+	return &routeConsolidator{
+		matchesByHostname: map[string][]hostnameMatch{},
 	}
 }
 
-// flatten takes a new route and flattens its routing rules out per hostname.
+// addRoute takes a new route and flattens its rule matches out per hostname.
 // This is required since a single route can specify multiple hostnames, and a
 // single hostname can be specified in multiple routes. Routing for a given
 // hostname must behave based on the aggregate of all rules that apply to it.
-func (f *flattenedRouteMap) flatten(route core.HTTPRoute) {
+func (f *routeConsolidator) addRoute(route core.HTTPRoute) {
 	for _, host := range route.Hostnames {
-		routesForHost, ok := f.flattenedRoutesByHostname[host]
+		matches, ok := f.matchesByHostname[host]
 		if !ok {
-			routesForHost = []flattenedRoute{}
+			matches = []hostnameMatch{}
 		}
 
-		// Add one route for each match of each rule
 		for _, rule := range route.Rules {
-			// If a rule has no matches defined, add default match
+			// If a rule has no matches defined, addRoute default match
 			if len(rule.Matches) == 0 {
 				rule.Matches = []core.HTTPMatch{{
 					Path: core.HTTPPathMatch{
@@ -290,9 +289,9 @@ func (f *flattenedRouteMap) flatten(route core.HTTPRoute) {
 				}}
 			}
 
-			// Add one new rule for each hostname+rule+match combination
+			// Add all matches for this rule to the list for this hostname
 			for _, match := range rule.Matches {
-				routesForHost = append(routesForHost, flattenedRoute{
+				matches = append(matches, hostnameMatch{
 					match:    match,
 					filters:  rule.Filters,
 					services: rule.Services,
@@ -300,16 +299,16 @@ func (f *flattenedRouteMap) flatten(route core.HTTPRoute) {
 			}
 		}
 
-		f.flattenedRoutesByHostname[host] = routesForHost
+		f.matchesByHostname[host] = matches
 	}
 }
 
-// constructRoutes consolidates all flattened route matching rules into the shortest possible
-// list of routes with one route per hostname containing all rules for that hostname.
-func (f *flattenedRouteMap) constructRoutes(gateway core.ResolvedGateway) []core.HTTPRoute {
+// consolidateRoutes combines all rules into the shortest possible list of routes
+// with one route per hostname containing all rules for that hostname.
+func (f *routeConsolidator) consolidateRoutes(gateway core.ResolvedGateway) []core.HTTPRoute {
 	var routes []core.HTTPRoute
 
-	for hostname, rules := range f.flattenedRoutesByHostname {
+	for hostname, rules := range f.matchesByHostname {
 		// Create route for this hostname
 		route := core.HTTPRoute{
 			CommonRoute: core.CommonRoute{
