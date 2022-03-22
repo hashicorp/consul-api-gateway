@@ -22,14 +22,16 @@ func TestRouteConsolidator(t *testing.T) {
 		},
 	}
 
+	basePathMatch := core.HTTPMatch{Path: core.HTTPPathMatch{Type: core.HTTPPathMatchPrefixType, Value: "/"}}
+	v1HeaderMatch := core.HTTPMatch{Headers: []core.HTTPHeaderMatch{{Name: "version", Value: "one"}}}
+	v2PathMatch := core.HTTPMatch{Path: core.HTTPPathMatch{Type: core.HTTPPathMatchPrefixType, Value: "/v2"}}
+	v2HeaderMatch := core.HTTPMatch{Headers: []core.HTTPHeaderMatch{{Name: "version", Value: "two"}}}
+
 	route1 := core.HTTPRoute{
 		Hostnames: []string{`example.com`, `example.net`},
 		Rules: []core.HTTPRouteRule{
 			{
-				Matches: []core.HTTPMatch{
-					{Path: core.HTTPPathMatch{Type: core.HTTPPathMatchPrefixType, Value: "/"}},
-					{Headers: []core.HTTPHeaderMatch{{Name: "version", Value: "one"}}},
-				},
+				Matches: []core.HTTPMatch{basePathMatch, v1HeaderMatch},
 			},
 		},
 	}
@@ -38,10 +40,7 @@ func TestRouteConsolidator(t *testing.T) {
 		Hostnames: []string{`example.com`},
 		Rules: []core.HTTPRouteRule{
 			{
-				Matches: []core.HTTPMatch{
-					{Path: core.HTTPPathMatch{Type: core.HTTPPathMatchPrefixType, Value: "/v2"}},
-					{Headers: []core.HTTPHeaderMatch{{Name: "version", Value: "two"}}},
-				},
+				Matches: []core.HTTPMatch{v2PathMatch, v2HeaderMatch},
 			},
 		},
 	}
@@ -63,26 +62,14 @@ func TestRouteConsolidator(t *testing.T) {
 	// example.net has a subset of example.com's matches
 	assert.Equal(t, "example.net", netRoute.Hostnames[0])
 	require.Len(t, netRoute.Rules, 2)
-
-	require.Len(t, comRoute.Rules[1].Matches, 1)
-	assert.Equal(t, comRoute.Rules[1].Matches[0].Path, core.HTTPPathMatch{Type: core.HTTPPathMatchPrefixType, Value: "/"})
-
-	require.Len(t, comRoute.Rules[2].Matches, 1)
-	assert.Equal(t, comRoute.Rules[2].Matches[0].Headers, []core.HTTPHeaderMatch{{Name: "version", Value: "one"}})
+	assert.Equal(t, []core.HTTPMatch{basePathMatch}, comRoute.Rules[1].Matches)
+	assert.Equal(t, []core.HTTPMatch{v1HeaderMatch}, comRoute.Rules[2].Matches)
 
 	// example.com has a couple of extra matches
 	assert.Equal(t, "example.com", comRoute.Hostnames[0])
 	require.Len(t, comRoute.Rules, 4)
-
-	require.Len(t, comRoute.Rules[0].Matches, 1)
-	assert.Equal(t, comRoute.Rules[0].Matches[0].Path, core.HTTPPathMatch{Type: core.HTTPPathMatchPrefixType, Value: "/v2"})
-
-	require.Len(t, comRoute.Rules[1].Matches, 1)
-	assert.Equal(t, comRoute.Rules[1].Matches[0].Path, core.HTTPPathMatch{Type: core.HTTPPathMatchPrefixType, Value: "/"})
-
-	require.Len(t, comRoute.Rules[2].Matches, 1)
-	assert.Equal(t, comRoute.Rules[2].Matches[0].Headers, []core.HTTPHeaderMatch{{Name: "version", Value: "one"}})
-
-	require.Len(t, comRoute.Rules[3].Matches, 1)
-	assert.Equal(t, comRoute.Rules[3].Matches[0].Headers, []core.HTTPHeaderMatch{{Name: "version", Value: "two"}})
+	assert.Equal(t, []core.HTTPMatch{v2PathMatch}, comRoute.Rules[0].Matches)
+	assert.Equal(t, []core.HTTPMatch{basePathMatch}, comRoute.Rules[1].Matches)
+	assert.Equal(t, []core.HTTPMatch{v1HeaderMatch}, comRoute.Rules[2].Matches)
+	assert.Equal(t, []core.HTTPMatch{v2HeaderMatch}, comRoute.Rules[3].Matches)
 }
