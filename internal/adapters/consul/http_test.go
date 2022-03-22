@@ -9,6 +9,8 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/core"
 )
 
+// TestRouteConsolidator verifies that various combinations of hostnames and rules
+// are consolidated into a list with one route per hostname and all rules for hostname.
 func TestRouteConsolidator(t *testing.T) {
 	c := newRouteConsolidator()
 
@@ -25,20 +27,8 @@ func TestRouteConsolidator(t *testing.T) {
 		Rules: []core.HTTPRouteRule{
 			{
 				Matches: []core.HTTPMatch{
-					{
-						Path: core.HTTPPathMatch{
-							Type:  core.HTTPPathMatchPrefixType,
-							Value: "/",
-						},
-					},
-					{
-						Headers: []core.HTTPHeaderMatch{
-							{
-								Name:  "version",
-								Value: "one",
-							},
-						},
-					},
+					{Path: core.HTTPPathMatch{Type: core.HTTPPathMatchPrefixType, Value: "/"}},
+					{Headers: []core.HTTPHeaderMatch{{Name: "version", Value: "one"}}},
 				},
 			},
 		},
@@ -49,20 +39,8 @@ func TestRouteConsolidator(t *testing.T) {
 		Rules: []core.HTTPRouteRule{
 			{
 				Matches: []core.HTTPMatch{
-					{
-						Path: core.HTTPPathMatch{
-							Type:  core.HTTPPathMatchPrefixType,
-							Value: "/v2",
-						},
-					},
-					{
-						Headers: []core.HTTPHeaderMatch{
-							{
-								Name:  "version",
-								Value: "two",
-							},
-						},
-					},
+					{Path: core.HTTPPathMatch{Type: core.HTTPPathMatchPrefixType, Value: "/v2"}},
+					{Headers: []core.HTTPHeaderMatch{{Name: "version", Value: "two"}}},
 				},
 			},
 		},
