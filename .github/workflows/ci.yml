@@ -113,3 +113,42 @@ jobs:
         --jsonfile $TEST_RESULTS_DIR/json/go-test-race.log \
         --junitfile $TEST_RESULTS_DIR/gotestsum-report.xml -- \
         -tags e2e ./internal/commands/server
+  conformance:
+    name: conformance tests (consul-image=${{ matrix.consul-image }})
+    strategy:
+      matrix:
+        consul-image: ['hashicorp/consul:1.11.4', 'hashicorp/consul-enterprise:1.11.4-ent']
+    runs-on: ubuntu-latest
+    env:
+      TEST_RESULTS_DIR: /tmp/test-results/e2e@${{ matrix.consul-image }}
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+
+    - name: Install Dependencies
+      run: |
+        curl -L https://kind.sigs.k8s.io/dl/v0.11.1/kind-linux-amd64 -o ./kind
+        chmod +x ./kind
+        mv ./kind /usr/local/bin/kind
+        curl -L https://dl.k8s.io/release/v1.22.0/bin/linux/amd64/kubectl -o ./kubectl
+        chmod +x ./kubectl
+        mv ./kubectl /usr/local/bin/kubectl
+        curl -L https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv4.4.0/kustomize_v4.4.0_linux_amd64.tar.gz -o kustomize_v4.4.0_linux_amd64.tar.gz
+        tar xvzf kustomize_v4.4.0_linux_amd64.tar.gz
+        mv kustomize /usr/local/bin/kustomize
+        rm kustomize_v4.4.0_linux_amd64.tar.gz
+    - uses: ./.github/actions/goenv
+      with:
+        go-version: ${{ env.GO_VERSION }}
+
+    - name: Test
+      env:
+        DOCKER_HOST_ROUTE: 172.17.0.1
+        E2E_APIGW_CONSUL_IMAGE: ${{ matrix.consul-image }}
+      run: |
+        mkdir -p $TEST_RESULTS_DIR/json
+        gotestsum \
+        --format=short-verbose \
+        --jsonfile $TEST_RESULTS_DIR/json/go-test-race.log \
+        --junitfile $TEST_RESULTS_DIR/gotestsum-report.xml -- \
+        -tags conformance ./testing/conformance
