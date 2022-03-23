@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log"
+	"os"
 
 	"github.com/cenkalti/backoff"
 	core "k8s.io/api/core/v1"
@@ -14,8 +16,10 @@ import (
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
+	"sigs.k8s.io/e2e-framework/klient"
 	"sigs.k8s.io/e2e-framework/pkg/env"
 	"sigs.k8s.io/e2e-framework/pkg/envconf"
 	gateway "sigs.k8s.io/gateway-api/apis/v1alpha2"
@@ -57,27 +61,32 @@ func InstallGatewayCRDs(ctx context.Context, cfg *envconf.Config) (context.Conte
 	return ctx, nil
 }
 
-func CreateServiceAccount(namespace string) env.Func {
+func CreateServiceAccount(namespace, accountName, clusterRolePath string) env.Func {
 	return func(ctx context.Context, cfg *envconf.Config) (context.Context, error) {
 		log.Print("Creating service account")
 
-		if err := cfg.Client().Resources().Create(ctx, serviceAccount(namespace)); err != nil {
+		if err := cfg.Client().Resources().Create(ctx, serviceAccount(namespace, accountName)); err != nil {
 			return nil, err
 		}
-		if err := cfg.Client().Resources().Create(ctx, serviceClusterRole(namespace)); err != nil {
+		clusterRole, err := serviceClusterRole(namespace, accountName, clusterRolePath)
+		if err != nil {
 			return nil, err
 		}
-		if err := cfg.Client().Resources().Create(ctx, serviceClusterRoleTokenBinding(namespace)); err != nil {
+		if err := cfg.Client().Resources().Create(ctx, clusterRole); err != nil {
 			return nil, err
 		}
-		if err := cfg.Client().Resources().Create(ctx, serviceClusterRoleAuthBinding(namespace)); err != nil {
+		// Used for Consul auth-method login in deployments
+		if err := cfg.Client().Resources().Create(ctx, serviceClusterRoleTokenBinding(namespace, accountName)); err != nil {
+			return nil, err
+		}
+		if err := cfg.Client().Resources().Create(ctx, serviceClusterRoleAuthBinding(namespace, accountName)); err != nil {
 			return nil, err
 		}
 
 		var secretName string
-		err := backoff.Retry(func() error {
+		err = backoff.Retry(func() error {
 			account := &core.ServiceAccount{}
-			if err := cfg.Client().Resources().Get(ctx, "consul-api-gateway", namespace, account); err != nil {
+			if err := cfg.Client().Resources().Get(ctx, accountName, namespace, account); err != nil {
 				return err
 			}
 			if len(account.Secrets) == 0 {
@@ -107,19 +116,61 @@ func K8sServiceToken(ctx context.Context) string {
 	return token.(string)
 }
 
-func serviceAccount(namespace string) *core.ServiceAccount {
+func serviceAccount(namespace string, accountName string) *core.ServiceAccount {
 	return &core.ServiceAccount{
 		ObjectMeta: meta.ObjectMeta{
-			Name:      "consul-api-gateway",
+			Name:      accountName,
 			Namespace: namespace,
 		},
 	}
 }
 
-func serviceClusterRole(namespace string) *rbac.ClusterRole {
+func loadConfigFromFilePath(filePath string, object interface{}, objectIsValid func() bool) error {
+	//load from path
+	fileBytes, err := os.ReadFile(filePath)
+	if err != nil {
+		return err
+	}
+
+	decoder := yaml.NewYAMLOrJSONDecoder(bytes.NewReader(fileBytes), len(fileBytes))
+
+	for !errors.Is(err, io.EOF) {
+		if err != nil {
+			return err
+		}
+		err = decoder.Decode(object)
+		if objectIsValid() {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("unable to load valid k8s object from filepath: %s", filePath)
+}
+
+func serviceClusterRole(namespace string, accountName, clusterRolePath string) (*rbac.ClusterRole, error) {
+	if clusterRolePath != "" {
+		clusterRole := &rbac.ClusterRole{}
+
+		err := loadConfigFromFilePath(clusterRolePath, clusterRole, func() bool {
+			return len(clusterRole.Rules) > 0
+		})
+		if err != nil {
+			return nil, err
+		}
+		if len(clusterRole.Rules) == 0 {
+			return nil, errors.New("unable to load valid clusterrole from " + clusterRolePath)
+		}
+
+		//update name and namespaces to match the test
+		clusterRole.Name = accountName + "-auth"
+		clusterRole.Namespace = namespace
+		return clusterRole, nil
+
+	}
+
 	return &rbac.ClusterRole{
 		ObjectMeta: meta.ObjectMeta{
-			Name:      "consul-api-gateway-auth",
+			Name:      accountName + "-auth",
 			Namespace: namespace,
 		},
 		Rules: []rbac.PolicyRule{
@@ -129,13 +180,13 @@ func serviceClusterRole(namespace string) *rbac.ClusterRole {
 				Verbs:     []string{"get"},
 			},
 		},
-	}
+	}, nil
 }
 
-func serviceClusterRoleTokenBinding(namespace string) *rbac.ClusterRoleBinding {
+func serviceClusterRoleTokenBinding(namespace string, accountName string) *rbac.ClusterRoleBinding {
 	return &rbac.ClusterRoleBinding{
 		ObjectMeta: meta.ObjectMeta{
-			Name:      "consul-api-gateway-tokenreview-binding",
+			Name:      accountName + "-tokenreview-binding",
 			Namespace: namespace,
 		},
 		RoleRef: rbac.RoleRef{
@@ -146,28 +197,28 @@ func serviceClusterRoleTokenBinding(namespace string) *rbac.ClusterRoleBinding {
 		Subjects: []rbac.Subject{
 			{
 				Kind:      "ServiceAccount",
-				Name:      "consul-api-gateway",
+				Name:      accountName,
 				Namespace: namespace,
 			},
 		},
 	}
 }
 
-func serviceClusterRoleAuthBinding(namespace string) *rbac.ClusterRoleBinding {
+func serviceClusterRoleAuthBinding(namespace, accountName string) *rbac.ClusterRoleBinding {
 	return &rbac.ClusterRoleBinding{
 		ObjectMeta: meta.ObjectMeta{
-			Name:      "consul-api-gateway-auth-binding",
+			Name:      accountName + "-auth-binding",
 			Namespace: namespace,
 		},
 		RoleRef: rbac.RoleRef{
 			APIGroup: "rbac.authorization.k8s.io",
 			Kind:     "ClusterRole",
-			Name:     "consul-api-gateway-auth",
+			Name:     accountName + "-auth",
 		},
 		Subjects: []rbac.Subject{
 			{
 				Kind:      "ServiceAccount",
-				Name:      "consul-api-gateway",
+				Name:      accountName,
 				Namespace: namespace,
 			},
 		},
@@ -191,4 +242,35 @@ func readCRDs(data []byte) ([]client.Object, error) {
 		}
 	}
 	return crds, nil
+}
+
+func serviceAccountClient(ctx context.Context, client klient.Client, account, namespace string) (klient.Client, error) {
+	serviceAccount := core.ServiceAccount{}
+	if err := client.Resources().Get(ctx, account, namespace, &serviceAccount); err != nil {
+		return nil, err
+	}
+	if len(serviceAccount.Secrets) == 0 {
+		return nil, errors.New("can't find secret")
+	}
+	secretName := serviceAccount.Secrets[0].Name
+	token := core.Secret{}
+	if err := client.Resources().Get(ctx, secretName, namespace, &token); err != nil {
+		return nil, err
+	}
+	tokenData, found := token.Data["token"]
+	if !found {
+		return nil, errors.New("token not found")
+	}
+
+	config := rest.CopyConfig(client.RESTConfig())
+	tlsConfig := client.RESTConfig().TLSClientConfig
+
+	config.BearerToken = string(tokenData)
+	// overwrite the TLS config so we're not using cert-based auth
+	config.TLSClientConfig = rest.TLSClientConfig{
+		ServerName: tlsConfig.ServerName,
+		CAFile:     tlsConfig.CAFile,
+		CAData:     tlsConfig.CAData,
+	}
+	return klient.New(config)
 }
