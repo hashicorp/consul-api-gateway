@@ -29,12 +29,18 @@ type gatewayTestContext struct{}
 var gatewayTestContextKey = gatewayTestContext{}
 
 type gatewayTestEnvironment struct {
-	cancel    func()
-	group     *errgroup.Group
-	directory string
+	cancel             func()
+	group              *errgroup.Group
+	directory          string
+	serviceAccountName string
 }
 
 func (p *gatewayTestEnvironment) run(ctx context.Context, namespace string, cfg *envconf.Config) error {
+	serviceAccountClient, err := serviceAccountClient(ctx, cfg.Client(), p.serviceAccountName, namespace)
+	if err != nil {
+		return err
+	}
+
 	consulClient := ConsulClient(ctx)
 
 	// this should go away once we implement auth in the server bootup
@@ -45,7 +51,7 @@ func (p *gatewayTestEnvironment) run(ctx context.Context, namespace string, cfg 
 	// nullLogger := hclog.NewNullLogger()
 
 	secretClient := envoy.NewMultiSecretClient()
-	k8sSecretClient, err := k8s.NewK8sSecretClient(nullLogger, cfg.Client().RESTConfig())
+	k8sSecretClient, err := k8s.NewK8sSecretClient(nullLogger, serviceAccountClient.RESTConfig())
 	if err != nil {
 		return err
 	}
@@ -54,7 +60,7 @@ func (p *gatewayTestEnvironment) run(ctx context.Context, namespace string, cfg 
 	controller, err := k8s.New(nullLogger, &k8s.Config{
 		SDSServerHost: HostRoute(ctx),
 		SDSServerPort: 9090,
-		RestConfig:    cfg.Client().RESTConfig(),
+		RestConfig:    serviceAccountClient.RESTConfig(),
 		CACert:        string(ConsulCA(ctx)),
 		ConsulNamespaceConfig: k8s.ConsulNamespaceConfig{
 			ConsulDestinationNamespace: ConsulNamespace(ctx),
@@ -78,7 +84,7 @@ func (p *gatewayTestEnvironment) run(ctx context.Context, namespace string, cfg 
 	certManager := consul.NewCertManager(
 		nullLogger,
 		consulClient,
-		"consul-api-gateway-controller-test",
+		"consul-api-gateway",
 		certManagerOptions,
 	)
 
@@ -123,7 +129,8 @@ func CreateTestGatewayServer(namespace string) env.Func {
 			return nil, err
 		}
 		env := &gatewayTestEnvironment{
-			directory: tmpdir,
+			serviceAccountName: "consul-api-gateway",
+			directory:          tmpdir,
 		}
 		if err := env.run(ctx, namespace, cfg); err != nil {
 			return nil, err
