@@ -151,4 +151,4 @@ jobs:
         --format=short-verbose \
         --jsonfile $TEST_RESULTS_DIR/json/go-test-race.log \
         --junitfile $TEST_RESULTS_DIR/gotestsum-report.xml -- \
-        -tags conformance ./testing/conformance
+        -tags conformance ./internal/testing/conformance
