@@ -208,7 +208,7 @@ func (s *Store) UpsertGateway(ctx context.Context, gateway store.Gateway, update
 
 	current, found := s.gateways[id]
 
-	if updateConditionFn != nil && !updateConditionFn(current) {
+	if updateConditionFn != nil && !updateConditionFn(current.Gateway) {
 		// No-op
 		return nil
 	}
