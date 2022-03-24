@@ -92,13 +92,13 @@ func (g *K8sGateway) validateListenerConflicts() {
 		if len(merged.protocols) > 1 {
 			conflict := fmt.Errorf("listeners have conflicting protocols for port: %s", setToCSV(merged.protocols))
 			for _, listener := range merged.listeners {
-				listener.status.Conflicted.ProtocolConflict = conflict
+				listener.ListenerState.Status.Conflicted.ProtocolConflict = conflict
 			}
 		}
 		if len(merged.hostnames) > 1 {
 			conflict := fmt.Errorf("listeners have conflicting hostnames for port: %s", setToCSV(merged.protocols))
 			for _, listener := range merged.listeners {
-				listener.status.Conflicted.HostnameConflict = conflict
+				listener.ListenerState.Status.Conflicted.HostnameConflict = conflict
 			}
 		}
 	}
@@ -339,10 +339,10 @@ func (g *K8sGateway) Status() gw.GatewayStatus {
 	listenersReady := true
 	listenersInvalid := false
 	for _, listener := range g.listeners {
-		if listener.status.Ready.Pending != nil {
+		if listener.ListenerState.Status.Ready.Pending != nil {
 			listenersReady = false
 		}
-		if listener.status.Ready.Invalid != nil {
+		if listener.ListenerState.Status.Ready.Invalid != nil {
 			listenersInvalid = true
 		}
 		listenerStatuses = append(listenerStatuses, listener.Status())

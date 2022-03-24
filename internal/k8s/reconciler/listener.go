@@ -12,7 +12,6 @@ import (
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	"github.com/hashicorp/consul-api-gateway/internal/common"
-	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	"github.com/hashicorp/consul-api-gateway/internal/store"
@@ -45,16 +44,13 @@ const (
 )
 
 type K8sListener struct {
+	ListenerState
+
 	consulNamespace string
 	logger          hclog.Logger
 	gateway         *gw.Gateway
 	listener        gw.Listener
 	client          gatewayclient.Client
-
-	status         ListenerStatus
-	tls            core.TLSParams
-	routeCount     int32
-	supportedKinds []gw.RouteGroupKind
 }
 
 var _ store.RouteTrackingListener = &K8sListener{}
@@ -89,9 +85,9 @@ func (l *K8sListener) Validate(ctx context.Context) error {
 		return err
 	}
 
-	if l.status.Ready.Invalid == nil && !l.status.Valid() {
+	if l.ListenerState.Status.Ready.Invalid == nil && !l.ListenerState.Status.Valid() {
 		// set the listener as invalid if any other statuses are not valid
-		l.status.Ready.Invalid = errors.New("listener is in an invalid state")
+		l.ListenerState.Status.Ready.Invalid = errors.New("listener is in an invalid state")
 	}
 
 	return nil
@@ -103,18 +99,18 @@ func (l *K8sListener) validateTLS(ctx context.Context) error {
 		if l.Config().TLS.Enabled {
 			// we are using a protocol that requires TLS but has no TLS
 			// configured
-			l.status.Ready.Invalid = errors.New("tls configuration required for the given protocol")
+			l.ListenerState.Status.Ready.Invalid = errors.New("tls configuration required for the given protocol")
 		}
 		return nil
 	}
 
 	if l.listener.TLS.Mode != nil && *l.listener.TLS.Mode == gw.TLSModePassthrough {
-		l.status.Ready.Invalid = errors.New("tls passthrough not supported")
+		l.ListenerState.Status.Ready.Invalid = errors.New("tls passthrough not supported")
 		return nil
 	}
 
 	if len(l.listener.TLS.CertificateRefs) == 0 {
-		l.status.ResolvedRefs.InvalidCertificateRef = errors.New("certificate reference must be set")
+		l.ListenerState.Status.ResolvedRefs.InvalidCertificateRef = errors.New("certificate reference must be set")
 		return nil
 	}
 
@@ -126,9 +122,9 @@ func (l *K8sListener) validateTLS(ctx context.Context) error {
 		if !errors.As(err, &certificateErr) {
 			return err
 		}
-		l.status.ResolvedRefs.InvalidCertificateRef = certificateErr
+		l.ListenerState.Status.ResolvedRefs.InvalidCertificateRef = certificateErr
 	} else {
-		l.tls.Certificates = []string{resource}
+		l.ListenerState.TLS.Certificates = []string{resource}
 	}
 
 	if l.listener.TLS.Options != nil {
@@ -138,27 +134,27 @@ func (l *K8sListener) validateTLS(ctx context.Context) error {
 
 		if tlsMinVersion != "" {
 			if _, ok := supportedTlsVersions[string(tlsMinVersion)]; !ok {
-				l.status.Ready.Invalid = errors.New("unrecognized TLS min version")
+				l.ListenerState.Status.Ready.Invalid = errors.New("unrecognized TLS min version")
 				return nil
 			}
 
 			if tlsCipherSuitesStr != "" {
 				if _, ok := tlsVersionsWithConfigurableCipherSuites[string(tlsMinVersion)]; !ok {
-					l.status.Ready.Invalid = errors.New("configuring TLS cipher suites is only supported for TLS 1.2 and earlier")
+					l.ListenerState.Status.Ready.Invalid = errors.New("configuring TLS cipher suites is only supported for TLS 1.2 and earlier")
 					return nil
 				}
 			}
 
-			l.tls.MinVersion = string(tlsMinVersion)
+			l.ListenerState.TLS.MinVersion = string(tlsMinVersion)
 		}
 
 		if tlsMaxVersion != "" {
 			if _, ok := supportedTlsVersions[string(tlsMaxVersion)]; !ok {
-				l.status.Ready.Invalid = errors.New("unrecognized TLS max version")
+				l.ListenerState.Status.Ready.Invalid = errors.New("unrecognized TLS max version")
 				return nil
 			}
 
-			l.tls.MaxVersion = string(tlsMaxVersion)
+			l.ListenerState.TLS.MaxVersion = string(tlsMaxVersion)
 		}
 
 		if tlsCipherSuitesStr != "" {
@@ -172,13 +168,13 @@ func (l *K8sListener) validateTLS(ctx context.Context) error {
 			// validate each cipher suite in array
 			for _, c := range tlsCipherSuites {
 				if ok := common.SupportedTLSCipherSuite(c); !ok {
-					l.status.Ready.Invalid = fmt.Errorf("unrecognized or unsupported TLS cipher suite: %s", c)
+					l.ListenerState.Status.Ready.Invalid = fmt.Errorf("unrecognized or unsupported TLS cipher suite: %s", c)
 					return nil
 				}
 			}
 
 			// set cipher suites on listener TLS params
-			l.tls.CipherSuites = tlsCipherSuites
+			l.ListenerState.TLS.CipherSuites = tlsCipherSuites
 		}
 	}
 
@@ -208,20 +204,19 @@ func (l *K8sListener) validateUnsupported() {
 	// but that's the weirdness of the spec
 	if len(l.gateway.Spec.Addresses) > 0 {
 		// we dnn't support address binding
-		l.status.Detached.UnsupportedAddress = errors.New("specified addresses are not supported")
+		l.ListenerState.Status.Detached.UnsupportedAddress = errors.New("specified addresses are not supported")
 	}
 }
 
 func (l *K8sListener) validateProtocols() {
-	supportedKinds, found := supportedProtocols[l.listener.Protocol]
-	if !found {
-		l.status.Detached.UnsupportedProtocol = fmt.Errorf("unsupported protocol: %s", l.listener.Protocol)
+	supportedKinds := supportedKindsFor(l.listener.Protocol)
+	if len(supportedKinds) == 0 {
+		l.ListenerState.Status.Detached.UnsupportedProtocol = fmt.Errorf("unsupported protocol: %s", l.listener.Protocol)
 	}
-	l.supportedKinds = supportedKinds
 	if l.listener.AllowedRoutes != nil {
 		remainderKinds := kindsNotInSet(l.listener.AllowedRoutes.Kinds, supportedKinds)
 		if len(remainderKinds) != 0 {
-			l.status.ResolvedRefs.InvalidRouteKinds = fmt.Errorf("listener has unsupported kinds: %v", remainderKinds)
+			l.ListenerState.Status.ResolvedRefs.InvalidRouteKinds = fmt.Errorf("listener has unsupported kinds: %v", remainderKinds)
 		}
 	}
 }
@@ -294,14 +289,14 @@ func (l *K8sListener) Config() store.ListenerConfig {
 	protocol, tls := utils.ProtocolToConsul(l.listener.Protocol)
 
 	// Update listener TLS config to specify whether TLS is required by the protocol
-	l.tls.Enabled = tls
+	l.ListenerState.TLS.Enabled = tls
 
 	return store.ListenerConfig{
 		Name:     name,
 		Hostname: hostname,
 		Port:     int(l.listener.Port),
 		Protocol: protocol,
-		TLS:      l.tls,
+		TLS:      l.ListenerState.TLS,
 	}
 }
 
@@ -337,7 +332,7 @@ func (l *K8sListener) CanBind(ctx context.Context, route store.Route) (bool, err
 }
 
 func (l *K8sListener) canBind(ctx context.Context, ref gw.ParentRef, route *K8sRoute) (bool, error) {
-	if l.status.Ready.HasError() {
+	if l.ListenerState.Status.Ready.HasError() {
 		l.logger.Trace("listener not ready, unable to bind", "route", route.ID())
 		return false, nil
 	}
@@ -348,7 +343,7 @@ func (l *K8sListener) canBind(ctx context.Context, ref gw.ParentRef, route *K8sR
 	// meaning if we must attach, but cannot, it's an error
 	allowed, must := routeMatchesListener(l.listener.Name, ref.SectionName)
 	if allowed {
-		if !routeKindIsAllowedForListener(l.supportedKinds, route) {
+		if !routeKindIsAllowedForListener(supportedKindsFor(l.listener.Protocol), route) {
 			l.logger.Trace("route kind not allowed for listener", "route", route.ID())
 			if must {
 				return false, NewBindErrorRouteKind("route kind not allowed for listener")
@@ -388,36 +383,40 @@ func (l *K8sListener) canBind(ctx context.Context, ref gw.ParentRef, route *K8sR
 }
 
 func (l *K8sListener) OnRouteAdded(_ store.Route) {
-	atomic.AddInt32(&l.routeCount, 1)
+	atomic.AddInt32(&l.ListenerState.RouteCount, 1)
 }
 
 func (l *K8sListener) OnRouteRemoved(_ string) {
-	atomic.AddInt32(&l.routeCount, -1)
+	atomic.AddInt32(&l.ListenerState.RouteCount, -1)
 }
 
 func (l *K8sListener) Status() gw.ListenerStatus {
-	routeCount := atomic.LoadInt32(&l.routeCount)
+	routeCount := atomic.LoadInt32(&l.ListenerState.RouteCount)
 	if l.listener.Protocol == gw.TCPProtocolType {
 		if routeCount > 1 {
-			l.status.Conflicted.RouteConflict = errors.New("only a single TCP route can be bound to a TCP listener")
+			l.ListenerState.Status.Conflicted.RouteConflict = errors.New("only a single TCP route can be bound to a TCP listener")
 		} else {
-			l.status.Conflicted.RouteConflict = nil
+			l.ListenerState.Status.Conflicted.RouteConflict = nil
 		}
 	}
 	return gw.ListenerStatus{
 		Name:           l.listener.Name,
-		SupportedKinds: l.supportedKinds,
+		SupportedKinds: supportedKindsFor(l.listener.Protocol),
 		AttachedRoutes: routeCount,
-		Conditions:     l.status.Conditions(l.gateway.Generation),
+		Conditions:     l.ListenerState.Status.Conditions(l.gateway.Generation),
 	}
 }
 
 func (l *K8sListener) IsValid() bool {
-	routeCount := atomic.LoadInt32(&l.routeCount)
+	routeCount := atomic.LoadInt32(&l.ListenerState.RouteCount)
 	if l.listener.Protocol == gw.TCPProtocolType {
 		if routeCount > 1 {
 			return false
 		}
 	}
-	return l.status.Valid()
+	return l.ListenerState.Status.Valid()
+}
+
+func supportedKindsFor(protocol gw.ProtocolType) []gw.RouteGroupKind {
+	return supportedProtocols[protocol]
 }

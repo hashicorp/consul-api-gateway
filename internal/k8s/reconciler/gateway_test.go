@@ -209,8 +209,8 @@ func TestGatewayValidate_ListenerProtocolConflicts(t *testing.T) {
 	})
 	client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(nil, nil).Times(2)
 	require.NoError(t, gateway.Validate(context.Background()))
-	require.Equal(t, ListenerConditionReasonProtocolConflict, gateway.listeners["1"].status.Conflicted.Condition(0).Reason)
-	require.Equal(t, ListenerConditionReasonProtocolConflict, gateway.listeners["2"].status.Conflicted.Condition(0).Reason)
+	require.Equal(t, ListenerConditionReasonProtocolConflict, gateway.listeners["1"].ListenerState.Status.Conflicted.Condition(0).Reason)
+	require.Equal(t, ListenerConditionReasonProtocolConflict, gateway.listeners["2"].ListenerState.Status.Conflicted.Condition(0).Reason)
 }
 
 func TestGatewayValidate_ListenerHostnameConflicts(t *testing.T) {
@@ -251,8 +251,8 @@ func TestGatewayValidate_ListenerHostnameConflicts(t *testing.T) {
 	})
 	client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(nil, nil).Times(2)
 	require.NoError(t, gateway.Validate(context.Background()))
-	require.Equal(t, ListenerConditionReasonHostnameConflict, gateway.listeners["1"].status.Conflicted.Condition(0).Reason)
-	require.Equal(t, ListenerConditionReasonHostnameConflict, gateway.listeners["2"].status.Conflicted.Condition(0).Reason)
+	require.Equal(t, ListenerConditionReasonHostnameConflict, gateway.listeners["1"].ListenerState.Status.Conflicted.Condition(0).Reason)
+	require.Equal(t, ListenerConditionReasonHostnameConflict, gateway.listeners["2"].ListenerState.Status.Conflicted.Condition(0).Reason)
 }
 
 func TestGatewayValidate_Pods(t *testing.T) {
@@ -413,7 +413,7 @@ func TestGatewayOutputStatus(t *testing.T) {
 		},
 	})
 	gateway.addresses = []string{"127.0.0.1"}
-	gateway.listeners["1"].status.Ready.Pending = errors.New("pending")
+	gateway.listeners["1"].ListenerState.Status.Ready.Pending = errors.New("pending")
 	require.Len(t, gateway.Status().Addresses, 1)
 	assert.Equal(t, GatewayConditionReasonListenersNotReady, gateway.status.Ready.Condition(0).Reason)
 
@@ -429,7 +429,7 @@ func TestGatewayOutputStatus(t *testing.T) {
 	})
 	gateway.podReady = false
 	gateway.serviceReady = true
-	gateway.listeners["1"].status.Ready.Invalid = errors.New("invalid")
+	gateway.listeners["1"].ListenerState.Status.Ready.Invalid = errors.New("invalid")
 	require.Len(t, gateway.Status().Listeners, 1)
 	assert.Equal(t, GatewayConditionReasonListenersNotValid, gateway.status.Ready.Condition(0).Reason)
 
@@ -445,7 +445,7 @@ func TestGatewayOutputStatus(t *testing.T) {
 	})
 	gateway.podReady = true
 	gateway.serviceReady = false
-	gateway.listeners["1"].status.Ready.Invalid = errors.New("invalid")
+	gateway.listeners["1"].ListenerState.Status.Ready.Invalid = errors.New("invalid")
 	require.Len(t, gateway.Status().Listeners, 1)
 	assert.Equal(t, GatewayConditionReasonListenersNotValid, gateway.status.Ready.Condition(0).Reason)
 

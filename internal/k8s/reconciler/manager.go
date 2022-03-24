@@ -42,13 +42,8 @@ type ReconcileManager interface {
 // GatewayReconcileManager manages a GatewayReconciler for each Gateway and is the interface by which Consul operations
 // should be invoked in a kubernetes controller.
 type GatewayReconcileManager struct {
-	controllerName string
-	logger         hclog.Logger
-	client         gatewayclient.Client
-	consul         *api.Client
-	consulCA       string
-	sdsHost        string
-	sdsPort        int
+	logger hclog.Logger
+	client gatewayclient.Client
 
 	store          store.Store
 	gatewayClasses *K8sGatewayClasses
@@ -77,13 +72,8 @@ type ManagerConfig struct {
 
 func NewReconcileManager(config ManagerConfig) *GatewayReconcileManager {
 	return &GatewayReconcileManager{
-		controllerName: config.ControllerName,
-		logger:         config.Logger,
-		client:         config.Client,
-		consul:         config.Consul,
-		consulCA:       config.ConsulCA,
-		sdsHost:        config.SDSHost,
-		sdsPort:        config.SDSPort,
+		logger: config.Logger,
+		client: config.Client,
 		Factory: NewFactory(FactoryConfig{
 			ControllerName: config.ControllerName,
 			ConsulCA:       config.ConsulCA,
