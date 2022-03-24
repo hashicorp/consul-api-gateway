@@ -383,13 +383,15 @@ func TestListenerCanBind(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, canBind)
 
+	factory := NewFactory(FactoryConfig{
+		Logger: hclog.NewNullLogger(),
+	})
+
 	// no match
 	listener = NewK8sListener(&gw.Gateway{}, gw.Listener{}, K8sListenerConfig{
 		Logger: hclog.NewNullLogger(),
 	})
-	canBind, err = listener.CanBind(context.Background(), NewK8sRoute(&gw.HTTPRoute{}, K8sRouteConfig{
-		Logger: hclog.NewNullLogger(),
-	}))
+	canBind, err = listener.CanBind(context.Background(), factory.NewRoute(&gw.HTTPRoute{}))
 	require.NoError(t, err)
 	require.False(t, canBind)
 
@@ -401,7 +403,7 @@ func TestListenerCanBind(t *testing.T) {
 	}, gw.Listener{}, K8sListenerConfig{
 		Logger: hclog.NewNullLogger(),
 	})
-	canBind, err = listener.CanBind(context.Background(), NewK8sRoute(&gw.HTTPRoute{
+	canBind, err = listener.CanBind(context.Background(), factory.NewRoute(&gw.HTTPRoute{
 		Spec: gw.HTTPRouteSpec{
 			CommonRouteSpec: gw.CommonRouteSpec{
 				ParentRefs: []gw.ParentRef{{
@@ -409,8 +411,6 @@ func TestListenerCanBind(t *testing.T) {
 				}},
 			},
 		},
-	}, K8sRouteConfig{
-		Logger: hclog.NewNullLogger(),
 	}))
 	require.NoError(t, err)
 	require.True(t, canBind)
@@ -424,7 +424,7 @@ func TestListenerCanBind(t *testing.T) {
 		Logger: hclog.NewNullLogger(),
 	})
 	listener.status.Ready.Invalid = errors.New("invalid")
-	canBind, err = listener.CanBind(context.Background(), NewK8sRoute(&gw.HTTPRoute{
+	canBind, err = listener.CanBind(context.Background(), factory.NewRoute(&gw.HTTPRoute{
 		Spec: gw.HTTPRouteSpec{
 			CommonRouteSpec: gw.CommonRouteSpec{
 				ParentRefs: []gw.ParentRef{{
@@ -432,8 +432,6 @@ func TestListenerCanBind(t *testing.T) {
 				}},
 			},
 		},
-	}, K8sRouteConfig{
-		Logger: hclog.NewNullLogger(),
 	}))
 	require.NoError(t, err)
 	require.False(t, canBind)
@@ -450,6 +448,10 @@ func TestListenerCanBind_RouteKind(t *testing.T) {
 	})
 	name := gw.SectionName("listener")
 
+	factory := NewFactory(FactoryConfig{
+		Logger: hclog.NewNullLogger(),
+	})
+
 	listener := NewK8sListener(&gw.Gateway{
 		ObjectMeta: meta.ObjectMeta{
 			Name: "gateway",
@@ -460,7 +462,7 @@ func TestListenerCanBind_RouteKind(t *testing.T) {
 		Logger: hclog.NewNullLogger(),
 	})
 	require.NoError(t, listener.Validate(context.Background()))
-	canBind, err := listener.CanBind(context.Background(), NewK8sRoute(&gw.UDPRoute{
+	canBind, err := listener.CanBind(context.Background(), factory.NewRoute(&gw.UDPRoute{
 		TypeMeta: routeMeta,
 		Spec: gw.UDPRouteSpec{
 			CommonRouteSpec: gw.CommonRouteSpec{
@@ -469,8 +471,6 @@ func TestListenerCanBind_RouteKind(t *testing.T) {
 				}},
 			},
 		},
-	}, K8sRouteConfig{
-		Logger: hclog.NewNullLogger(),
 	}))
 	require.NoError(t, err)
 	require.False(t, canBind)
@@ -486,7 +486,7 @@ func TestListenerCanBind_RouteKind(t *testing.T) {
 		Logger: hclog.NewNullLogger(),
 	})
 	listener.supportedKinds = supportedProtocols[gw.HTTPProtocolType]
-	_, err = listener.CanBind(context.Background(), NewK8sRoute(&gw.UDPRoute{
+	_, err = listener.CanBind(context.Background(), factory.NewRoute(&gw.UDPRoute{
 		TypeMeta: routeMeta,
 		Spec: gw.UDPRouteSpec{
 			CommonRouteSpec: gw.CommonRouteSpec{
@@ -496,8 +496,6 @@ func TestListenerCanBind_RouteKind(t *testing.T) {
 				}},
 			},
 		},
-	}, K8sRouteConfig{
-		Logger: hclog.NewNullLogger(),
 	}))
 	require.Error(t, err)
 }
@@ -514,6 +512,10 @@ func TestListenerCanBind_AllowedNamespaces(t *testing.T) {
 		Group:   gw.GroupVersion.Group,
 		Version: gw.GroupVersion.Version,
 		Kind:    "HTTPRoute",
+	})
+
+	factory := NewFactory(FactoryConfig{
+		Logger: hclog.NewNullLogger(),
 	})
 
 	listener := NewK8sListener(&gw.Gateway{
@@ -533,7 +535,7 @@ func TestListenerCanBind_AllowedNamespaces(t *testing.T) {
 		Logger: hclog.NewNullLogger(),
 	})
 	listener.supportedKinds = supportedProtocols[gw.HTTPProtocolType]
-	_, err := listener.CanBind(context.Background(), NewK8sRoute(&gw.HTTPRoute{
+	_, err := listener.CanBind(context.Background(), factory.NewRoute(&gw.HTTPRoute{
 		TypeMeta: routeMeta,
 		Spec: gw.HTTPRouteSpec{
 			CommonRouteSpec: gw.CommonRouteSpec{
@@ -544,11 +546,9 @@ func TestListenerCanBind_AllowedNamespaces(t *testing.T) {
 				}},
 			},
 		},
-	}, K8sRouteConfig{
-		Logger: hclog.NewNullLogger(),
 	}))
 	require.Error(t, err)
-	canBind, err := listener.CanBind(context.Background(), NewK8sRoute(&gw.HTTPRoute{
+	canBind, err := listener.CanBind(context.Background(), factory.NewRoute(&gw.HTTPRoute{
 		TypeMeta: routeMeta,
 		Spec: gw.HTTPRouteSpec{
 			CommonRouteSpec: gw.CommonRouteSpec{
@@ -558,8 +558,6 @@ func TestListenerCanBind_AllowedNamespaces(t *testing.T) {
 				}},
 			},
 		},
-	}, K8sRouteConfig{
-		Logger: hclog.NewNullLogger(),
 	}))
 	require.NoError(t, err)
 	require.False(t, canBind)
@@ -587,7 +585,7 @@ func TestListenerCanBind_AllowedNamespaces(t *testing.T) {
 		Logger: hclog.NewNullLogger(),
 	})
 	listener.supportedKinds = supportedProtocols[gw.HTTPProtocolType]
-	_, err = listener.CanBind(context.Background(), NewK8sRoute(&gw.HTTPRoute{
+	_, err = listener.CanBind(context.Background(), factory.NewRoute(&gw.HTTPRoute{
 		TypeMeta: routeMeta,
 		Spec: gw.HTTPRouteSpec{
 			CommonRouteSpec: gw.CommonRouteSpec{
@@ -598,11 +596,9 @@ func TestListenerCanBind_AllowedNamespaces(t *testing.T) {
 				}},
 			},
 		},
-	}, K8sRouteConfig{
-		Logger: hclog.NewNullLogger(),
 	}))
 	require.Error(t, err)
-	_, err = listener.CanBind(context.Background(), NewK8sRoute(&gw.HTTPRoute{
+	_, err = listener.CanBind(context.Background(), factory.NewRoute(&gw.HTTPRoute{
 		TypeMeta: routeMeta,
 		Spec: gw.HTTPRouteSpec{
 			CommonRouteSpec: gw.CommonRouteSpec{
@@ -612,14 +608,16 @@ func TestListenerCanBind_AllowedNamespaces(t *testing.T) {
 				}},
 			},
 		},
-	}, K8sRouteConfig{
-		Logger: hclog.NewNullLogger(),
 	}))
 	require.Error(t, err)
 }
 
 func TestListenerCanBind_HostnameMatch(t *testing.T) {
 	t.Parallel()
+
+	factory := NewFactory(FactoryConfig{
+		Logger: hclog.NewNullLogger(),
+	})
 
 	routeMeta := meta.TypeMeta{}
 	routeMeta.SetGroupVersionKind(schema.GroupVersionKind{
@@ -641,7 +639,7 @@ func TestListenerCanBind_HostnameMatch(t *testing.T) {
 		Logger: hclog.NewNullLogger(),
 	})
 	listener.supportedKinds = supportedProtocols[gw.HTTPProtocolType]
-	_, err := listener.CanBind(context.Background(), NewK8sRoute(&gw.HTTPRoute{
+	_, err := listener.CanBind(context.Background(), factory.NewRoute(&gw.HTTPRoute{
 		TypeMeta: routeMeta,
 		Spec: gw.HTTPRouteSpec{
 			CommonRouteSpec: gw.CommonRouteSpec{
@@ -652,12 +650,10 @@ func TestListenerCanBind_HostnameMatch(t *testing.T) {
 			},
 			Hostnames: []gw.Hostname{"other"},
 		},
-	}, K8sRouteConfig{
-		Logger: hclog.NewNullLogger(),
 	}))
 	require.Error(t, err)
 
-	canBind, err := listener.CanBind(context.Background(), NewK8sRoute(&gw.HTTPRoute{
+	canBind, err := listener.CanBind(context.Background(), factory.NewRoute(&gw.HTTPRoute{
 		TypeMeta: routeMeta,
 		Spec: gw.HTTPRouteSpec{
 			CommonRouteSpec: gw.CommonRouteSpec{
@@ -667,8 +663,6 @@ func TestListenerCanBind_HostnameMatch(t *testing.T) {
 			},
 			Hostnames: []gw.Hostname{"other"},
 		},
-	}, K8sRouteConfig{
-		Logger: hclog.NewNullLogger(),
 	}))
 	require.NoError(t, err)
 	require.False(t, canBind)
@@ -676,6 +670,10 @@ func TestListenerCanBind_HostnameMatch(t *testing.T) {
 
 func TestListenerCanBind_NameMatch(t *testing.T) {
 	t.Parallel()
+
+	factory := NewFactory(FactoryConfig{
+		Logger: hclog.NewNullLogger(),
+	})
 
 	name := gw.SectionName("listener")
 	otherName := gw.SectionName("other")
@@ -689,7 +687,7 @@ func TestListenerCanBind_NameMatch(t *testing.T) {
 	}, K8sListenerConfig{
 		Logger: hclog.NewNullLogger(),
 	})
-	canBind, err := listener.CanBind(context.Background(), NewK8sRoute(&gw.HTTPRoute{
+	canBind, err := listener.CanBind(context.Background(), factory.NewRoute(&gw.HTTPRoute{
 		Spec: gw.HTTPRouteSpec{
 			CommonRouteSpec: gw.CommonRouteSpec{
 				ParentRefs: []gw.ParentRef{{
@@ -699,8 +697,6 @@ func TestListenerCanBind_NameMatch(t *testing.T) {
 			},
 			Hostnames: []gw.Hostname{"other"},
 		},
-	}, K8sRouteConfig{
-		Logger: hclog.NewNullLogger(),
 	}))
 	require.NoError(t, err)
 	require.False(t, canBind)

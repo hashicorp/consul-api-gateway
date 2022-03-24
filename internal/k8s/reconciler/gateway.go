@@ -38,48 +38,6 @@ type K8sGateway struct {
 
 var _ store.StatusTrackingGateway = &K8sGateway{}
 
-type K8sGatewayConfig struct {
-	ConsulNamespace string
-	ConsulCA        string
-	SDSHost         string
-	SDSPort         int
-	Config          apigwv1alpha1.GatewayClassConfig
-	Logger          hclog.Logger
-	Client          gatewayclient.Client
-}
-
-func NewK8sGateway(gateway *gw.Gateway, config K8sGatewayConfig) *K8sGateway {
-	gatewayLogger := config.Logger.Named("gateway").With("name", gateway.Name, "namespace", gateway.Namespace)
-	listeners := make(map[string]*K8sListener)
-	for _, listener := range gateway.Spec.Listeners {
-		k8sListener := NewK8sListener(gateway, listener, K8sListenerConfig{
-			ConsulNamespace: config.ConsulNamespace,
-			Logger:          gatewayLogger,
-			Client:          config.Client,
-		})
-		listeners[k8sListener.ID()] = k8sListener
-	}
-
-	deployment := builder.NewGatewayDeployment(gateway)
-	deployment.WithSDS(config.SDSHost, config.SDSPort)
-	deployment.WithClassConfig(config.Config)
-	deployment.WithConsulCA(config.ConsulCA)
-	deployment.WithConsulGatewayNamespace(config.ConsulNamespace)
-	service := builder.NewGatewayService(gateway)
-	service.WithClassConfig(config.Config)
-
-	return &K8sGateway{
-		config:            config.Config,
-		deploymentBuilder: deployment,
-		serviceBuilder:    service,
-		consulNamespace:   config.ConsulNamespace,
-		logger:            gatewayLogger,
-		client:            config.Client,
-		gateway:           gateway,
-		listeners:         listeners,
-	}
-}
-
 func (g *K8sGateway) Validate(ctx context.Context) error {
 	g.status = GatewayStatus{}
 	g.validateListenerConflicts()

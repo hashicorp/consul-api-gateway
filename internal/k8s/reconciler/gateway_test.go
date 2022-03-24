@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"testing"
 
 	"github.com/golang/mock/gomock"
@@ -29,23 +28,24 @@ func TestGatewayValidate(t *testing.T) {
 	defer ctrl.Finish()
 	client := mocks.NewMockClient(ctrl)
 
-	hostname := gw.Hostname("*")
-	gateway := NewK8sGateway(&gw.Gateway{
-		Spec: gw.GatewaySpec{
-			Listeners: []gw.Listener{{
-				Hostname: &hostname,
-				Protocol: gw.HTTPSProtocolType,
-				TLS: &gw.GatewayTLSConfig{
-					CertificateRefs: []*gw.SecretObjectReference{{}},
-				},
-			}},
-		},
-	}, K8sGatewayConfig{
-		Logger: hclog.New(&hclog.LoggerOptions{
-			Output: io.Discard,
-			Level:  hclog.Trace,
-		}),
+	factory := NewFactory(FactoryConfig{
+		Logger: hclog.NewNullLogger(),
 		Client: client,
+	})
+
+	hostname := gw.Hostname("*")
+	gateway := factory.NewGateway(NewGatewayConfig{
+		Gateway: &gw.Gateway{
+			Spec: gw.GatewaySpec{
+				Listeners: []gw.Listener{{
+					Hostname: &hostname,
+					Protocol: gw.HTTPSProtocolType,
+					TLS: &gw.GatewayTLSConfig{
+						CertificateRefs: []*gw.SecretObjectReference{{}},
+					},
+				}},
+			},
+		},
 		Config: apigwv1alpha1.GatewayClassConfig{
 			Spec: apigwv1alpha1.GatewayClassConfigSpec{
 				ServiceType: serviceType(core.ServiceTypeNodePort),
@@ -71,6 +71,11 @@ func TestGatewayValidateGatewayIP(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	client := mocks.NewMockClient(ctrl)
+
+	factory := NewFactory(FactoryConfig{
+		Logger: hclog.NewNullLogger(),
+		Client: client,
+	})
 
 	hostname := gw.Hostname("*")
 
@@ -146,9 +151,8 @@ func TestGatewayValidateGatewayIP(t *testing.T) {
 		}
 
 		t.Run(name, func(t *testing.T) {
-			gateway := NewK8sGateway(gwDef, K8sGatewayConfig{
-				Logger: hclog.NewNullLogger(),
-				Client: client,
+			gateway := factory.NewGateway(NewGatewayConfig{
+				Gateway: gwDef,
 				Config: apigwv1alpha1.GatewayClassConfig{
 					Spec: apigwv1alpha1.GatewayClassConfigSpec{
 						ServiceType: tc.serviceType,
@@ -178,29 +182,30 @@ func TestGatewayValidate_ListenerProtocolConflicts(t *testing.T) {
 	defer ctrl.Finish()
 	client := mocks.NewMockClient(ctrl)
 
-	gateway := NewK8sGateway(&gw.Gateway{
-		Spec: gw.GatewaySpec{
-			Listeners: []gw.Listener{{
-				Name:     gw.SectionName("1"),
-				Protocol: gw.HTTPProtocolType,
-				Port:     gw.PortNumber(1),
-			}, {
-				Name:     gw.SectionName("2"),
-				Protocol: gw.UDPProtocolType,
-				Port:     gw.PortNumber(1),
-			}},
+	factory := NewFactory(FactoryConfig{
+		Logger: hclog.NewNullLogger(),
+		Client: client,
+	})
+
+	gateway := factory.NewGateway(NewGatewayConfig{
+		Gateway: &gw.Gateway{
+			Spec: gw.GatewaySpec{
+				Listeners: []gw.Listener{{
+					Name:     gw.SectionName("1"),
+					Protocol: gw.HTTPProtocolType,
+					Port:     gw.PortNumber(1),
+				}, {
+					Name:     gw.SectionName("2"),
+					Protocol: gw.UDPProtocolType,
+					Port:     gw.PortNumber(1),
+				}},
+			},
 		},
-	}, K8sGatewayConfig{
-		Logger: hclog.New(&hclog.LoggerOptions{
-			Output: io.Discard,
-			Level:  hclog.Trace,
-		}),
 		Config: apigwv1alpha1.GatewayClassConfig{
 			Spec: apigwv1alpha1.GatewayClassConfigSpec{
 				ServiceType: serviceType(core.ServiceTypeNodePort),
 			},
 		},
-		Client: client,
 	})
 	client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(nil, nil).Times(2)
 	require.NoError(t, gateway.Validate(context.Background()))
@@ -215,33 +220,34 @@ func TestGatewayValidate_ListenerHostnameConflicts(t *testing.T) {
 	defer ctrl.Finish()
 	client := mocks.NewMockClient(ctrl)
 
+	factory := NewFactory(FactoryConfig{
+		Logger: hclog.NewNullLogger(),
+		Client: client,
+	})
+
 	hostname := gw.Hostname("1")
 	other := gw.Hostname("2")
-	gateway := NewK8sGateway(&gw.Gateway{
-		Spec: gw.GatewaySpec{
-			Listeners: []gw.Listener{{
-				Name:     gw.SectionName("1"),
-				Protocol: gw.HTTPProtocolType,
-				Hostname: &hostname,
-				Port:     gw.PortNumber(1),
-			}, {
-				Name:     gw.SectionName("2"),
-				Protocol: gw.HTTPProtocolType,
-				Hostname: &other,
-				Port:     gw.PortNumber(1),
-			}},
+	gateway := factory.NewGateway(NewGatewayConfig{
+		Gateway: &gw.Gateway{
+			Spec: gw.GatewaySpec{
+				Listeners: []gw.Listener{{
+					Name:     gw.SectionName("1"),
+					Protocol: gw.HTTPProtocolType,
+					Hostname: &hostname,
+					Port:     gw.PortNumber(1),
+				}, {
+					Name:     gw.SectionName("2"),
+					Protocol: gw.HTTPProtocolType,
+					Hostname: &other,
+					Port:     gw.PortNumber(1),
+				}},
+			},
 		},
-	}, K8sGatewayConfig{
-		Logger: hclog.New(&hclog.LoggerOptions{
-			Output: io.Discard,
-			Level:  hclog.Trace,
-		}),
 		Config: apigwv1alpha1.GatewayClassConfig{
 			Spec: apigwv1alpha1.GatewayClassConfigSpec{
 				ServiceType: serviceType(core.ServiceTypeNodePort),
 			},
 		},
-		Client: client,
 	})
 	client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(nil, nil).Times(2)
 	require.NoError(t, gateway.Validate(context.Background()))
@@ -256,21 +262,22 @@ func TestGatewayValidate_Pods(t *testing.T) {
 	defer ctrl.Finish()
 	client := mocks.NewMockClient(ctrl)
 
-	gateway := NewK8sGateway(&gw.Gateway{
-		Spec: gw.GatewaySpec{
-			Listeners: []gw.Listener{{}},
+	factory := NewFactory(FactoryConfig{
+		Logger: hclog.NewNullLogger(),
+		Client: client,
+	})
+
+	gateway := factory.NewGateway(NewGatewayConfig{
+		Gateway: &gw.Gateway{
+			Spec: gw.GatewaySpec{
+				Listeners: []gw.Listener{{}},
+			},
 		},
-	}, K8sGatewayConfig{
-		Logger: hclog.New(&hclog.LoggerOptions{
-			Output: io.Discard,
-			Level:  hclog.Trace,
-		}),
 		Config: apigwv1alpha1.GatewayClassConfig{
 			Spec: apigwv1alpha1.GatewayClassConfigSpec{
 				ServiceType: serviceType(core.ServiceTypeNodePort),
 			},
 		},
-		Client: client,
 	})
 
 	// Pod has no/unknown status
@@ -338,13 +345,16 @@ func TestGatewayValidate_Pods(t *testing.T) {
 func TestGatewayID(t *testing.T) {
 	t.Parallel()
 
-	gateway := NewK8sGateway(&gw.Gateway{
-		ObjectMeta: meta.ObjectMeta{
-			Name:      "name",
-			Namespace: "namespace",
+	factory := NewFactory(FactoryConfig{
+		Logger: hclog.NewNullLogger(),
+	})
+	gateway := factory.NewGateway(NewGatewayConfig{
+		Gateway: &gw.Gateway{
+			ObjectMeta: meta.ObjectMeta{
+				Name:      "name",
+				Namespace: "namespace",
+			},
 		},
-	}, K8sGatewayConfig{
-		Logger:          hclog.NewNullLogger(),
 		ConsulNamespace: "consul",
 	})
 	require.Equal(t, internalCore.GatewayID{Service: "name", ConsulNamespace: "consul"}, gateway.ID())
@@ -353,13 +363,17 @@ func TestGatewayID(t *testing.T) {
 func TestGatewayMeta(t *testing.T) {
 	t.Parallel()
 
-	gateway := NewK8sGateway(&gw.Gateway{
-		ObjectMeta: meta.ObjectMeta{
-			Name:      "name",
-			Namespace: "namespace",
+	factory := NewFactory(FactoryConfig{
+		Logger: hclog.NewNullLogger(),
+	})
+
+	gateway := factory.NewGateway(NewGatewayConfig{
+		Gateway: &gw.Gateway{
+			ObjectMeta: meta.ObjectMeta{
+				Name:      "name",
+				Namespace: "namespace",
+			},
 		},
-	}, K8sGatewayConfig{
-		Logger:          hclog.NewNullLogger(),
 		ConsulNamespace: "consul",
 	})
 	require.NotNil(t, gateway.Meta())
@@ -368,12 +382,15 @@ func TestGatewayMeta(t *testing.T) {
 func TestGatewayListeners(t *testing.T) {
 	t.Parallel()
 
-	gateway := NewK8sGateway(&gw.Gateway{
-		Spec: gw.GatewaySpec{
-			Listeners: []gw.Listener{{}},
-		},
-	}, K8sGatewayConfig{
+	factory := NewFactory(FactoryConfig{
 		Logger: hclog.NewNullLogger(),
+	})
+	gateway := factory.NewGateway(NewGatewayConfig{
+		Gateway: &gw.Gateway{
+			Spec: gw.GatewaySpec{
+				Listeners: []gw.Listener{{}},
+			},
+		},
 	})
 	require.Len(t, gateway.Listeners(), 1)
 }
@@ -381,15 +398,19 @@ func TestGatewayListeners(t *testing.T) {
 func TestGatewayOutputStatus(t *testing.T) {
 	t.Parallel()
 
-	// Pending listener
-	gateway := NewK8sGateway(&gw.Gateway{
-		Spec: gw.GatewaySpec{
-			Listeners: []gw.Listener{{
-				Name: gw.SectionName("1"),
-			}},
-		},
-	}, K8sGatewayConfig{
+	factory := NewFactory(FactoryConfig{
 		Logger: hclog.NewNullLogger(),
+	})
+
+	// Pending listener
+	gateway := factory.NewGateway(NewGatewayConfig{
+		Gateway: &gw.Gateway{
+			Spec: gw.GatewaySpec{
+				Listeners: []gw.Listener{{
+					Name: gw.SectionName("1"),
+				}},
+			},
+		},
 	})
 	gateway.addresses = []string{"127.0.0.1"}
 	gateway.listeners["1"].status.Ready.Pending = errors.New("pending")
@@ -397,14 +418,14 @@ func TestGatewayOutputStatus(t *testing.T) {
 	assert.Equal(t, GatewayConditionReasonListenersNotReady, gateway.status.Ready.Condition(0).Reason)
 
 	// Service ready, pods not
-	gateway = NewK8sGateway(&gw.Gateway{
-		Spec: gw.GatewaySpec{
-			Listeners: []gw.Listener{{
-				Name: gw.SectionName("1"),
-			}},
+	gateway = factory.NewGateway(NewGatewayConfig{
+		Gateway: &gw.Gateway{
+			Spec: gw.GatewaySpec{
+				Listeners: []gw.Listener{{
+					Name: gw.SectionName("1"),
+				}},
+			},
 		},
-	}, K8sGatewayConfig{
-		Logger: hclog.NewNullLogger(),
 	})
 	gateway.podReady = false
 	gateway.serviceReady = true
@@ -413,14 +434,14 @@ func TestGatewayOutputStatus(t *testing.T) {
 	assert.Equal(t, GatewayConditionReasonListenersNotValid, gateway.status.Ready.Condition(0).Reason)
 
 	// Pods ready, service not
-	gateway = NewK8sGateway(&gw.Gateway{
-		Spec: gw.GatewaySpec{
-			Listeners: []gw.Listener{{
-				Name: gw.SectionName("1"),
-			}},
+	gateway = factory.NewGateway(NewGatewayConfig{
+		Gateway: &gw.Gateway{
+			Spec: gw.GatewaySpec{
+				Listeners: []gw.Listener{{
+					Name: gw.SectionName("1"),
+				}},
+			},
 		},
-	}, K8sGatewayConfig{
-		Logger: hclog.NewNullLogger(),
 	})
 	gateway.podReady = true
 	gateway.serviceReady = false
@@ -429,30 +450,30 @@ func TestGatewayOutputStatus(t *testing.T) {
 	assert.Equal(t, GatewayConditionReasonListenersNotValid, gateway.status.Ready.Condition(0).Reason)
 
 	// Pods + service ready
-	gateway = NewK8sGateway(&gw.Gateway{
-		Spec: gw.GatewaySpec{
-			Listeners: []gw.Listener{{
-				Name: gw.SectionName("1"),
-			}},
-			Addresses: []gw.GatewayAddress{{}},
+	gateway = factory.NewGateway(NewGatewayConfig{
+		Gateway: &gw.Gateway{
+			Spec: gw.GatewaySpec{
+				Listeners: []gw.Listener{{
+					Name: gw.SectionName("1"),
+				}},
+				Addresses: []gw.GatewayAddress{{}},
+			},
 		},
-	}, K8sGatewayConfig{
-		Logger: hclog.NewNullLogger(),
 	})
 	gateway.podReady = true
 	gateway.serviceReady = true
 	require.Len(t, gateway.Status().Listeners, 1)
 	assert.Equal(t, GatewayConditionReasonAddressNotAssigned, gateway.status.Ready.Condition(0).Reason)
 
-	gateway = NewK8sGateway(&gw.Gateway{
-		Spec: gw.GatewaySpec{
-			Listeners: []gw.Listener{{
-				Name: gw.SectionName("1"),
-			}},
-			Addresses: []gw.GatewayAddress{{}},
+	gateway = factory.NewGateway(NewGatewayConfig{
+		Gateway: &gw.Gateway{
+			Spec: gw.GatewaySpec{
+				Listeners: []gw.Listener{{
+					Name: gw.SectionName("1"),
+				}},
+				Addresses: []gw.GatewayAddress{{}},
+			},
 		},
-	}, K8sGatewayConfig{
-		Logger: hclog.NewNullLogger(),
 	})
 	gateway.gateway.Status = gateway.Status()
 	gateway.Status()
@@ -465,26 +486,18 @@ func TestGatewayTrackSync(t *testing.T) {
 	defer ctrl.Finish()
 	client := mocks.NewMockClient(ctrl)
 
-	gateway := NewK8sGateway(&gw.Gateway{}, K8sGatewayConfig{
-		Logger: hclog.New(&hclog.LoggerOptions{
-			Output: io.Discard,
-			Level:  hclog.Trace,
-		}),
+	factory := NewFactory(FactoryConfig{
+		Logger: hclog.NewNullLogger(),
 		Client: client,
 	})
+	gateway := factory.NewGateway(NewGatewayConfig{Gateway: &gw.Gateway{}})
 	gateway.gateway.Status = gateway.Status()
 	client.EXPECT().CreateOrUpdateDeployment(gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil)
 	require.NoError(t, gateway.TrackSync(context.Background(), func() (bool, error) {
 		return false, nil
 	}))
 
-	gateway = NewK8sGateway(&gw.Gateway{}, K8sGatewayConfig{
-		Logger: hclog.New(&hclog.LoggerOptions{
-			Output: io.Discard,
-			Level:  hclog.Trace,
-		}),
-		Client: client,
-	})
+	gateway = factory.NewGateway(NewGatewayConfig{Gateway: &gw.Gateway{}})
 	client.EXPECT().CreateOrUpdateDeployment(gomock.Any(), gomock.Any(), gomock.Any()).Return(false, nil)
 	client.EXPECT().UpdateStatus(gomock.Any(), gateway.gateway).Return(nil)
 	require.NoError(t, gateway.TrackSync(context.Background(), func() (bool, error) {
@@ -493,51 +506,27 @@ func TestGatewayTrackSync(t *testing.T) {
 
 	expected := errors.New("expected")
 
-	gateway = NewK8sGateway(&gw.Gateway{}, K8sGatewayConfig{
-		Logger: hclog.New(&hclog.LoggerOptions{
-			Output: io.Discard,
-			Level:  hclog.Trace,
-		}),
-		Client: client,
-	})
+	gateway = factory.NewGateway(NewGatewayConfig{Gateway: &gw.Gateway{}})
 	client.EXPECT().CreateOrUpdateDeployment(gomock.Any(), gomock.Any(), gomock.Any()).Return(false, expected)
 	require.True(t, errors.Is(gateway.TrackSync(context.Background(), func() (bool, error) {
 		return false, nil
 	}), expected))
 
-	gateway = NewK8sGateway(&gw.Gateway{}, K8sGatewayConfig{
-		Logger: hclog.New(&hclog.LoggerOptions{
-			Output: io.Discard,
-			Level:  hclog.Trace,
-		}),
-		Client: client,
-	})
+	gateway = factory.NewGateway(NewGatewayConfig{Gateway: &gw.Gateway{}})
 	client.EXPECT().CreateOrUpdateDeployment(gomock.Any(), gomock.Any(), gomock.Any()).Return(false, nil)
 	client.EXPECT().UpdateStatus(gomock.Any(), gateway.gateway).Return(expected)
 	require.Equal(t, expected, gateway.TrackSync(context.Background(), func() (bool, error) {
 		return false, nil
 	}))
 
-	gateway = NewK8sGateway(&gw.Gateway{}, K8sGatewayConfig{
-		Logger: hclog.New(&hclog.LoggerOptions{
-			Output: io.Discard,
-			Level:  hclog.Trace,
-		}),
-		Client: client,
-	})
+	gateway = factory.NewGateway(NewGatewayConfig{Gateway: &gw.Gateway{}})
 	client.EXPECT().CreateOrUpdateDeployment(gomock.Any(), gomock.Any(), gomock.Any()).Return(false, nil)
 	client.EXPECT().UpdateStatus(gomock.Any(), gateway.gateway).Return(nil)
 	require.NoError(t, gateway.TrackSync(context.Background(), func() (bool, error) {
 		return true, nil
 	}))
 
-	gateway = NewK8sGateway(&gw.Gateway{}, K8sGatewayConfig{
-		Logger: hclog.New(&hclog.LoggerOptions{
-			Output: io.Discard,
-			Level:  hclog.Trace,
-		}),
-		Client: client,
-	})
+	gateway = factory.NewGateway(NewGatewayConfig{Gateway: &gw.Gateway{}})
 	client.EXPECT().CreateOrUpdateDeployment(gomock.Any(), gomock.Any(), gomock.Any()).Return(false, nil)
 	client.EXPECT().UpdateStatus(gomock.Any(), gateway.gateway).Return(nil)
 	require.NoError(t, gateway.TrackSync(context.Background(), func() (bool, error) {
@@ -548,13 +537,11 @@ func TestGatewayTrackSync(t *testing.T) {
 func TestGatewayShouldUpdate(t *testing.T) {
 	t.Parallel()
 
-	gateway := NewK8sGateway(&gw.Gateway{}, K8sGatewayConfig{
+	factory := NewFactory(FactoryConfig{
 		Logger: hclog.NewNullLogger(),
 	})
-
-	other := NewK8sGateway(&gw.Gateway{}, K8sGatewayConfig{
-		Logger: hclog.NewNullLogger(),
-	})
+	gateway := factory.NewGateway(NewGatewayConfig{Gateway: &gw.Gateway{}})
+	other := factory.NewGateway(NewGatewayConfig{Gateway: &gw.Gateway{}})
 
 	// Have equal resource version
 	gateway.gateway.ObjectMeta.ResourceVersion = `0`
@@ -592,20 +579,19 @@ func TestGatewayShouldUpdate(t *testing.T) {
 func TestGatewayShouldBind(t *testing.T) {
 	t.Parallel()
 
-	gateway := NewK8sGateway(&gw.Gateway{}, K8sGatewayConfig{
+	factory := NewFactory(FactoryConfig{
 		Logger: hclog.NewNullLogger(),
 	})
+	gateway := factory.NewGateway(NewGatewayConfig{Gateway: &gw.Gateway{}})
 	gateway.gateway.Name = "name"
 
 	require.False(t, gateway.ShouldBind(storeMocks.NewMockRoute(nil)))
 
-	route := NewK8sRoute(&gw.HTTPRoute{}, K8sRouteConfig{
-		Logger: hclog.NewNullLogger(),
-	})
+	route := factory.NewRoute(&gw.HTTPRoute{})
 	route.resolutionErrors.Add(service.NewConsulResolutionError("test"))
 	require.False(t, gateway.ShouldBind(route))
 
-	require.True(t, gateway.ShouldBind(NewK8sRoute(&gw.HTTPRoute{
+	require.True(t, gateway.ShouldBind(factory.NewRoute(&gw.HTTPRoute{
 		Spec: gw.HTTPRouteSpec{
 			CommonRouteSpec: gw.CommonRouteSpec{
 				ParentRefs: []gw.ParentRef{{
@@ -613,13 +599,9 @@ func TestGatewayShouldBind(t *testing.T) {
 				}},
 			},
 		},
-	}, K8sRouteConfig{
-		Logger: hclog.NewNullLogger(),
 	})))
 
-	require.False(t, gateway.ShouldBind(NewK8sRoute(&gw.HTTPRoute{}, K8sRouteConfig{
-		Logger: hclog.NewNullLogger(),
-	})))
+	require.False(t, gateway.ShouldBind(factory.NewRoute(&gw.HTTPRoute{})))
 }
 
 func serviceType(v core.ServiceType) *core.ServiceType {

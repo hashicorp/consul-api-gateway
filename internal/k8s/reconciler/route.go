@@ -25,41 +25,24 @@ type Route interface {
 	schema.ObjectKind
 }
 
+type RouteStatuses map[string]*RouteStatus
+
 type K8sRoute struct {
 	Route
 
+	// TODO: make this able to be marshaled
+	references       service.RouteRuleReferenceMap
+	resolutionErrors *service.ResolutionErrors
+	parentStatuses   RouteStatuses
+
+	// these get populated by our factory
 	controllerName string
 	logger         hclog.Logger
 	client         gatewayclient.Client
 	resolver       service.BackendResolver
-
-	references       service.RouteRuleReferenceMap
-	resolutionErrors *service.ResolutionErrors
-
-	parentStatuses map[string]*RouteStatus
 }
 
 var _ store.StatusTrackingRoute = &K8sRoute{}
-
-type K8sRouteConfig struct {
-	ControllerName string
-	Logger         hclog.Logger
-	Client         gatewayclient.Client
-	Resolver       service.BackendResolver
-}
-
-func NewK8sRoute(route Route, config K8sRouteConfig) *K8sRoute {
-	return &K8sRoute{
-		Route:            route,
-		controllerName:   config.ControllerName,
-		logger:           config.Logger.Named("route").With("name", route.GetName()),
-		client:           config.Client,
-		resolver:         config.Resolver,
-		references:       service.RouteRuleReferenceMap{},
-		resolutionErrors: service.NewResolutionErrors(),
-		parentStatuses:   make(map[string]*RouteStatus),
-	}
-}
 
 func (r *K8sRoute) parentKeyForGateway(parent types.NamespacedName) (string, bool) {
 	for _, p := range r.Parents() {
@@ -364,7 +347,7 @@ func (r *K8sRoute) Validate(ctx context.Context) error {
 			routeRule := service.NewRouteRule(&rule)
 			for _, backendRef := range rule.BackendRefs {
 				ref := backendRef
-				reference, err := r.resolver.Resolve(ctx, ref.BackendObjectReference)
+				reference, err := r.resolver.Resolve(ctx, r.GetNamespace(), ref.BackendObjectReference)
 				if err != nil {
 					var resolutionError service.ResolutionError
 					if !errors.As(err, &resolutionError) {
@@ -395,7 +378,7 @@ func (r *K8sRoute) Validate(ctx context.Context) error {
 		routeRule := service.NewRouteRule(rule)
 
 		ref := rule.BackendRefs[0]
-		reference, err := r.resolver.Resolve(ctx, ref.BackendObjectReference)
+		reference, err := r.resolver.Resolve(ctx, r.GetNamespace(), ref.BackendObjectReference)
 		if err != nil {
 			var resolutionError service.ResolutionError
 			if !errors.As(err, &resolutionError) {
