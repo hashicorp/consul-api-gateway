@@ -177,41 +177,30 @@ func (s *Store) DeleteRoute(ctx context.Context, id string) error {
 	return s.Sync(ctx)
 }
 
-func (s *Store) UpsertRoute(ctx context.Context, route store.Route) error {
+func (s *Store) UpsertRoute(ctx context.Context, route store.Route, updateConditionFn func(current store.Route) bool) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
 	id := route.ID()
 
-	switch compareRoutes(s.routes[id], route) {
-	case store.CompareResultInvalid, store.CompareResultNewer:
-		// we have an old or invalid route, ignore it
+	if updateConditionFn != nil && !updateConditionFn(s.routes[id]) {
+		// No-op
 		return nil
-	case store.CompareResultNotEqual:
-		s.logger.Trace("detected route state change", "id", id)
-		s.routes[id] = route
+	}
 
-		// bind to gateways
-		for _, gateway := range s.gateways {
-			gateway.TryBind(ctx, route)
-		}
+	s.logger.Trace("detected route state change", "id", id)
+	s.routes[id] = route
+
+	// bind to gateways
+	for _, gateway := range s.gateways {
+		gateway.TryBind(ctx, route)
 	}
 
 	// sync the gateways to consul and route statuses to k8s
 	return s.Sync(ctx)
 }
 
-func compareRoutes(a, b store.Route) store.CompareResult {
-	if b == nil {
-		return store.CompareResultInvalid
-	}
-	if a == nil {
-		return store.CompareResultNotEqual
-	}
-	return a.Compare(b)
-}
-
-func (s *Store) UpsertGateway(ctx context.Context, gateway store.Gateway) error {
+func (s *Store) UpsertGateway(ctx context.Context, gateway store.Gateway, updateConditionFn func(current store.Gateway) bool) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -219,7 +208,7 @@ func (s *Store) UpsertGateway(ctx context.Context, gateway store.Gateway) error 
 
 	current, found := s.gateways[id]
 
-	if !current.ShouldUpdate(gateway) {
+	if updateConditionFn != nil && !updateConditionFn(current) {
 		// No-op
 		return nil
 	}

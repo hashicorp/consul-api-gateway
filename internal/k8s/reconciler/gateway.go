@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync/atomic"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -316,20 +317,33 @@ func (g *K8sGateway) ShouldUpdate(other store.Gateway) bool {
 	return !utils.ResourceVersionGreater(g.Gateway.ResourceVersion, otherGateway.Gateway.ResourceVersion)
 }
 
-func (g *K8sGateway) ShouldBind(route store.Route) bool {
+// Bind returns the name of the listeners to which a route bound
+func (g *K8sGateway) Bind(ctx context.Context, route store.Route) []string {
 	k8sRoute, ok := route.(*K8sRoute)
 	if !ok {
-		return false
+		return nil
 	}
 
+	boundListeners := []string{}
 	for _, ref := range k8sRoute.CommonRouteSpec().ParentRefs {
 		if namespacedName, isGateway := utils.ReferencesGateway(k8sRoute.GetNamespace(), ref); isGateway {
 			if utils.NamespacedName(g.Gateway) == namespacedName {
-				return true
+				for _, l := range g.listeners {
+					if (&Binder{
+						Client:        l.client,
+						Gateway:       l.gateway,
+						Listener:      l.listener,
+						ListenerState: l.ListenerState,
+					}).Bind(ctx, k8sRoute) {
+						atomic.AddInt32(&l.ListenerState.RouteCount, 1)
+						boundListeners = append(boundListeners, l.ID())
+					}
+				}
+				return boundListeners
 			}
 		}
 	}
-	return false
+	return nil
 }
 
 func (g *K8sGateway) Status() gw.GatewayStatus {

@@ -176,7 +176,12 @@ func (m *GatewayReconcileManager) UpsertGateway(ctx context.Context, g *gw.Gatew
 		return err
 	}
 
-	return m.store.UpsertGateway(ctx, gateway)
+	return m.store.UpsertGateway(ctx, gateway, func(current store.Gateway) bool {
+		if current == nil {
+			return true
+		}
+		return !utils.ResourceVersionGreater(current.(*K8sGateway).ResourceVersion, gateway.ResourceVersion)
+	})
 }
 
 func (m *GatewayReconcileManager) UpsertHTTPRoute(ctx context.Context, r Route) error {
@@ -212,7 +217,12 @@ func (m *GatewayReconcileManager) upsertRoute(ctx context.Context, r Route, id s
 	if err := route.Validate(ctx); err != nil {
 		return err
 	}
-	return m.store.UpsertRoute(ctx, route)
+	return m.store.UpsertRoute(ctx, route, func(current store.Route) bool {
+		if current == nil {
+			return true
+		}
+		return !utils.ResourceVersionGreater(current.(*K8sRoute).GetResourceVersion(), route.GetResourceVersion())
+	})
 }
 
 func (m *GatewayReconcileManager) DeleteGatewayClass(ctx context.Context, name string) error {

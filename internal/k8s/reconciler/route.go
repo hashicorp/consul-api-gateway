@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"reflect"
 
 	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
@@ -233,57 +232,6 @@ func (r *K8sRoute) SyncStatus(ctx context.Context) error {
 	}
 
 	return nil
-}
-
-func (r *K8sRoute) Compare(other store.Route) store.CompareResult {
-	if other == nil {
-		return store.CompareResultInvalid
-	}
-	if r == nil {
-		return store.CompareResultNotEqual
-	}
-
-	if otherRoute, ok := other.(*K8sRoute); ok {
-		if utils.ResourceVersionGreater(r.GetResourceVersion(), otherRoute.GetResourceVersion()) {
-			return store.CompareResultNewer
-		}
-
-		if r.isEqual(otherRoute) {
-			return store.CompareResultEqual
-		}
-		return store.CompareResultNotEqual
-	}
-	return store.CompareResultInvalid
-}
-
-func (r *K8sRoute) isEqual(k8sRoute *K8sRoute) bool {
-	if !reflect.DeepEqual(r.references, k8sRoute.references) || !reflect.DeepEqual(r.resolutionErrors, k8sRoute.resolutionErrors) {
-		return false
-	}
-
-	switch route := r.Route.(type) {
-	case *gw.HTTPRoute:
-		if otherRoute, ok := k8sRoute.Route.(*gw.HTTPRoute); ok {
-			return reflect.DeepEqual(route.Spec, otherRoute.Spec)
-		}
-		return false
-	case *gw.TCPRoute:
-		if otherRoute, ok := k8sRoute.Route.(*gw.TCPRoute); ok {
-			return reflect.DeepEqual(route.Spec, otherRoute.Spec)
-		}
-		return false
-	case *gw.UDPRoute:
-		if otherRoute, ok := k8sRoute.Route.(*gw.UDPRoute); ok {
-			return reflect.DeepEqual(route.Spec, otherRoute.Spec)
-		}
-		return false
-	case *gw.TLSRoute:
-		if otherRoute, ok := k8sRoute.Route.(*gw.TLSRoute); ok {
-			return reflect.DeepEqual(route.Spec, otherRoute.Spec)
-		}
-		return false
-	}
-	return false
 }
 
 func (r *K8sRoute) Resolve(listener store.Listener) *core.ResolvedRoute {

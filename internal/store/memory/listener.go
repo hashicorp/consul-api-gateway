@@ -59,9 +59,7 @@ func (l *listenerState) RemoveRoute(id string) {
 		return
 	}
 	l.logger.Trace("removing route from listener", "route", id)
-	if tracker, ok := l.Listener.(store.RouteTrackingListener); ok {
-		tracker.OnRouteRemoved(id)
-	}
+	l.RouteRemoved()
 
 	l.needsSync = true
 	delete(l.routes, id)
@@ -74,11 +72,6 @@ func (l *listenerState) SetRoute(route store.Route) {
 		if found && reflect.DeepEqual(stored, *resolved) {
 			// don't bother updating if the route is the same
 			return
-		}
-		if tracker, ok := l.Listener.(store.RouteTrackingListener); ok {
-			if !found {
-				tracker.OnRouteAdded(route)
-			}
 		}
 
 		l.routes[route.ID()] = *resolved

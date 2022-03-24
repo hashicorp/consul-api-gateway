@@ -8,16 +8,6 @@ import (
 
 //go:generate mockgen -source ./interfaces.go -destination ./mocks/interfaces.go -package mocks StatusTrackingGateway,Gateway,RouteTrackingListener,Listener,StatusTrackingRoute,Route,Store
 
-type CompareResult int
-
-const (
-	CompareResultInvalid CompareResult = iota
-	CompareResultNewer
-	CompareResultNotEqual
-	CompareResultEqual
-	CompareResultStatusNotEqual
-)
-
 // StatusTrackingGateway is an optional extension
 // of Gateway. If supported by a Store, when
 // a Gateway is synced to an external location,
@@ -33,9 +23,8 @@ type StatusTrackingGateway interface {
 type Gateway interface {
 	ID() core.GatewayID
 	Meta() map[string]string
-	ShouldUpdate(other Gateway) bool
 	Listeners() []Listener
-	ShouldBind(route Route) bool
+	Bind(ctx context.Context, route Route) []string
 }
 
 // ListenerConfig contains the common configuration
@@ -48,23 +37,13 @@ type ListenerConfig struct {
 	TLS      core.TLSParams
 }
 
-// RouteTrackingListener is an optional extension
-// to Listener that tracks when routes have been
-// bound to it.
-type RouteTrackingListener interface {
-	Listener
-
-	OnRouteAdded(route Route)
-	OnRouteRemoved(id string)
-}
-
 // Listener describes the basic methods of a gateway
 // listener.
 type Listener interface {
 	ID() string
-	Bind(ctx context.Context, route Route) bool
 	Config() ListenerConfig
 	IsValid() bool
+	RouteRemoved()
 }
 
 // StatusTrackingRoute is an optional extension
@@ -84,7 +63,6 @@ type StatusTrackingRoute interface {
 // source integrations
 type Route interface {
 	ID() string
-	Compare(other Route) CompareResult
 	Resolve(listener Listener) *core.ResolvedRoute
 }
 
@@ -93,8 +71,8 @@ type Store interface {
 	GatewayExists(ctx context.Context, id core.GatewayID) (bool, error)
 	CanFetchSecrets(ctx context.Context, id core.GatewayID, secrets []string) (bool, error)
 	DeleteGateway(ctx context.Context, id core.GatewayID) error
-	UpsertGateway(ctx context.Context, gateway Gateway) error
+	UpsertGateway(ctx context.Context, gateway Gateway, updateConditionFn func(current Gateway) bool) error
 	DeleteRoute(ctx context.Context, id string) error
-	UpsertRoute(ctx context.Context, route Route) error
+	UpsertRoute(ctx context.Context, route Route, updateConditionFn func(current Route) bool) error
 	Sync(ctx context.Context) error
 }

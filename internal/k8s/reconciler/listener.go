@@ -1,7 +1,6 @@
 package reconciler
 
 import (
-	"context"
 	"sync/atomic"
 
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
@@ -10,23 +9,6 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	"github.com/hashicorp/consul-api-gateway/internal/store"
 	"github.com/hashicorp/go-hclog"
-)
-
-var (
-	supportedProtocols = map[gw.ProtocolType][]gw.RouteGroupKind{
-		gw.HTTPProtocolType: {{
-			Group: (*gw.Group)(&gw.GroupVersion.Group),
-			Kind:  "HTTPRoute",
-		}},
-		gw.HTTPSProtocolType: {{
-			Group: (*gw.Group)(&gw.GroupVersion.Group),
-			Kind:  "HTTPRoute",
-		}},
-		gw.TCPProtocolType: {{
-			Group: (*gw.Group)(&gw.GroupVersion.Group),
-			Kind:  "TCPRoute",
-		}},
-	}
 )
 
 const (
@@ -42,7 +24,7 @@ type K8sListener struct {
 	client  gatewayclient.Client
 }
 
-var _ store.RouteTrackingListener = &K8sListener{}
+var _ store.Listener = &K8sListener{}
 
 type K8sListenerConfig struct {
 	Logger hclog.Logger
@@ -88,31 +70,7 @@ func (l *K8sListener) Config() store.ListenerConfig {
 	}
 }
 
-// Bind returns whether a route can bind
-// to a gateway, if the route can bind to a listener
-// on the gateway the return value is nil, if not,
-// an error specifying why the route cannot bind
-// is returned.
-func (l *K8sListener) Bind(ctx context.Context, route store.Route) bool {
-	k8sRoute, ok := route.(*K8sRoute)
-	if !ok {
-		l.logger.Error("route is not a known type")
-		return false
-	}
-
-	return (&Binder{
-		Client:        l.client,
-		Gateway:       l.gateway,
-		Listener:      l.listener,
-		ListenerState: l.ListenerState,
-	}).Bind(ctx, k8sRoute)
-}
-
-func (l *K8sListener) OnRouteAdded(_ store.Route) {
-	atomic.AddInt32(&l.ListenerState.RouteCount, 1)
-}
-
-func (l *K8sListener) OnRouteRemoved(_ string) {
+func (l *K8sListener) RouteRemoved() {
 	atomic.AddInt32(&l.ListenerState.RouteCount, -1)
 }
 
@@ -122,33 +80,4 @@ func (l *K8sListener) Status() gw.ListenerStatus {
 
 func (l *K8sListener) IsValid() bool {
 	return l.ListenerState.ValidWithProtocol(l.listener.Protocol)
-}
-
-func supportedKindsFor(protocol gw.ProtocolType) []gw.RouteGroupKind {
-	return supportedProtocols[protocol]
-}
-
-func kindsNotInSet(set, parent []gw.RouteGroupKind) []gw.RouteGroupKind {
-	kinds := []gw.RouteGroupKind{}
-	for _, kind := range set {
-		if !isKindInSet(kind, parent) {
-			kinds = append(kinds, kind)
-		}
-	}
-	return kinds
-}
-
-func isKindInSet(value gw.RouteGroupKind, set []gw.RouteGroupKind) bool {
-	for _, kind := range set {
-		groupsMatch := false
-		if value.Group == nil && kind.Group == nil {
-			groupsMatch = true
-		} else if value.Group != nil && kind.Group != nil && *value.Group == *kind.Group {
-			groupsMatch = true
-		}
-		if groupsMatch && value.Kind == kind.Kind {
-			return true
-		}
-	}
-	return false
 }

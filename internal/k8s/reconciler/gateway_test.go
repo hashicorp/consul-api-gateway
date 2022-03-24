@@ -582,16 +582,26 @@ func TestGatewayShouldBind(t *testing.T) {
 	factory := NewFactory(FactoryConfig{
 		Logger: hclog.NewNullLogger(),
 	})
-	gateway := factory.NewGateway(NewGatewayConfig{Gateway: &gw.Gateway{}})
+	gateway := factory.NewGateway(NewGatewayConfig{Gateway: &gw.Gateway{
+		Spec: gw.GatewaySpec{
+			Listeners: []gw.Listener{{
+				Protocol: gw.HTTPProtocolType,
+			}},
+		},
+	}})
 	gateway.Gateway.Name = "name"
 
-	require.False(t, gateway.ShouldBind(storeMocks.NewMockRoute(nil)))
+	require.Empty(t, gateway.Bind(context.Background(), storeMocks.NewMockRoute(nil)))
 
 	route := factory.NewRoute(&gw.HTTPRoute{})
 	route.resolutionErrors.Add(service.NewConsulResolutionError("test"))
-	require.False(t, gateway.ShouldBind(route))
+	require.Empty(t, gateway.Bind(context.Background(), route))
 
-	require.True(t, gateway.ShouldBind(factory.NewRoute(&gw.HTTPRoute{
+	require.NotEmpty(t, gateway.Bind(context.Background(), factory.NewRoute(&gw.HTTPRoute{
+		TypeMeta: meta.TypeMeta{
+			Kind:       "HTTPRoute",
+			APIVersion: "gateway.networking.k8s.io/something",
+		},
 		Spec: gw.HTTPRouteSpec{
 			CommonRouteSpec: gw.CommonRouteSpec{
 				ParentRefs: []gw.ParentRef{{
@@ -601,7 +611,7 @@ func TestGatewayShouldBind(t *testing.T) {
 		},
 	})))
 
-	require.False(t, gateway.ShouldBind(factory.NewRoute(&gw.HTTPRoute{})))
+	require.Empty(t, gateway.Bind(context.Background(), factory.NewRoute(&gw.HTTPRoute{})))
 }
 
 func serviceType(v core.ServiceType) *core.ServiceType {

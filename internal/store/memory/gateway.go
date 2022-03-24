@@ -6,7 +6,6 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul-api-gateway/internal/store"
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/go-multierror"
 )
 
 type gatewayState struct {
@@ -51,33 +50,12 @@ func (g *gatewayState) Remove(id string) {
 
 func (g *gatewayState) TryBind(ctx context.Context, route store.Route) {
 	g.logger.Trace("checking if route can bind to gateway", "route", route.ID())
-	if g.ShouldBind(route) {
-		var bindError error
-		for _, l := range g.listeners {
-			g.logger.Trace("checking if route can bind to listener", "listener", l.name, "route", route.ID())
-			bound, err := l.Bind(ctx, route)
-			if err != nil {
-				// consider each route distinct for the purposes of binding
-				g.logger.Debug("error binding route to gateway", "error", err, "route", route.ID())
-				bindError = multierror.Append(bindError, err)
-			}
-			if bound {
-				g.logger.Trace("setting listener route", "listener", l.name, "route", route.ID())
-				l.SetRoute(route)
-			}
+	for _, name := range g.Bind(ctx, route) {
+		if listener, ok := g.listeners[name]; ok {
+			g.logger.Trace("setting listener route", "listener", listener.name, "route", route.ID())
+			listener.SetRoute(route)
 		}
 	}
-}
-
-func (g *gatewayState) ShouldUpdate(other store.Gateway) bool {
-	if other == nil {
-		return false
-	}
-	if g == nil {
-		return true
-	}
-
-	return g.Gateway.ShouldUpdate(other)
 }
 
 func (g *gatewayState) Sync(ctx context.Context) (bool, error) {

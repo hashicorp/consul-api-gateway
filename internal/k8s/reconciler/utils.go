@@ -16,6 +16,23 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 )
 
+var (
+	supportedProtocols = map[gw.ProtocolType][]gw.RouteGroupKind{
+		gw.HTTPProtocolType: {{
+			Group: (*gw.Group)(&gw.GroupVersion.Group),
+			Kind:  "HTTPRoute",
+		}},
+		gw.HTTPSProtocolType: {{
+			Group: (*gw.Group)(&gw.GroupVersion.Group),
+			Kind:  "HTTPRoute",
+		}},
+		gw.TCPProtocolType: {{
+			Group: (*gw.Group)(&gw.GroupVersion.Group),
+			Kind:  "TCPRoute",
+		}},
+	}
+)
+
 const (
 	// NamespaceNameLabel represents that label added automatically to namespaces is newer Kubernetes clusters
 	NamespaceNameLabel = "kubernetes.io/metadata.name"
@@ -75,6 +92,7 @@ func routeKindIsAllowedForListener(kinds []gw.RouteGroupKind, route *K8sRoute) b
 		if kind.Group != nil && *kind.Group != "" {
 			group = string(*kind.Group)
 		}
+
 		if string(kind.Kind) == gvk.Kind && group == gvk.Group {
 			return true
 		}
@@ -255,4 +273,33 @@ func gatewayStatusEqual(a, b gw.GatewayStatus) bool {
 	}
 
 	return true
+}
+
+func supportedKindsFor(protocol gw.ProtocolType) []gw.RouteGroupKind {
+	return supportedProtocols[protocol]
+}
+
+func kindsNotInSet(set, parent []gw.RouteGroupKind) []gw.RouteGroupKind {
+	kinds := []gw.RouteGroupKind{}
+	for _, kind := range set {
+		if !isKindInSet(kind, parent) {
+			kinds = append(kinds, kind)
+		}
+	}
+	return kinds
+}
+
+func isKindInSet(value gw.RouteGroupKind, set []gw.RouteGroupKind) bool {
+	for _, kind := range set {
+		groupsMatch := false
+		if value.Group == nil && kind.Group == nil {
+			groupsMatch = true
+		} else if value.Group != nil && kind.Group != nil && *value.Group == *kind.Group {
+			groupsMatch = true
+		}
+		if groupsMatch && value.Kind == kind.Kind {
+			return true
+		}
+	}
+	return false
 }

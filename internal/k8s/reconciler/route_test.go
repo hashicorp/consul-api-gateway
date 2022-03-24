@@ -10,8 +10,6 @@ import (
 	clientMocks "github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient/mocks"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/service"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/service/mocks"
-	"github.com/hashicorp/consul-api-gateway/internal/store"
-	storeMocks "github.com/hashicorp/consul-api-gateway/internal/store/mocks"
 	"github.com/hashicorp/go-hclog"
 	"github.com/stretchr/testify/require"
 	core "k8s.io/api/core/v1"
@@ -512,64 +510,6 @@ func TestRouteResolve(t *testing.T) {
 	require.NotNil(t, factory.NewRoute(&gw.HTTPRoute{}).Resolve(NewK8sListener(gateway, listener, K8sListenerConfig{
 		Logger: hclog.NewNullLogger(),
 	})))
-}
-
-func TestRouteCompare(t *testing.T) {
-	t.Parallel()
-
-	factory := NewFactory(FactoryConfig{
-		Logger: hclog.NewNullLogger(),
-	})
-
-	// invalid route comparison
-	route := factory.NewRoute(&core.Pod{})
-	other := factory.NewRoute(&core.Pod{})
-
-	require.Equal(t, store.CompareResultNotEqual, route.Compare(route))
-	require.Equal(t, store.CompareResultInvalid, route.Compare(nil))
-	route = nil
-	require.Equal(t, store.CompareResultNotEqual, route.Compare(other))
-
-	// http route comparison
-	route = factory.NewRoute(&gw.HTTPRoute{})
-	other = factory.NewRoute(&gw.HTTPRoute{})
-	require.Equal(t, store.CompareResultEqual, route.Compare(other))
-	other.resolutionErrors.Add(service.NewConsulResolutionError("error"))
-	require.Equal(t, store.CompareResultNotEqual, route.Compare(other))
-	route = factory.NewRoute(&gw.HTTPRoute{
-		ObjectMeta: meta.ObjectMeta{
-			ResourceVersion: "1",
-		},
-	})
-	require.Equal(t, store.CompareResultNewer, route.Compare(other))
-
-	route = factory.NewRoute(&gw.HTTPRoute{})
-	other = factory.NewRoute(&gw.TCPRoute{})
-	require.Equal(t, store.CompareResultNotEqual, route.Compare(other))
-
-	// tcp route comparison
-	route = factory.NewRoute(&gw.TCPRoute{})
-	other = factory.NewRoute(&gw.TCPRoute{})
-	require.Equal(t, store.CompareResultEqual, route.Compare(other))
-	other = factory.NewRoute(&gw.HTTPRoute{})
-	require.Equal(t, store.CompareResultNotEqual, route.Compare(other))
-
-	// tls route comparison
-	route = factory.NewRoute(&gw.TLSRoute{})
-	other = factory.NewRoute(&gw.TLSRoute{})
-	require.Equal(t, store.CompareResultEqual, route.Compare(other))
-	other = factory.NewRoute(&gw.HTTPRoute{})
-	require.Equal(t, store.CompareResultNotEqual, route.Compare(other))
-
-	// udp route comparison
-	route = factory.NewRoute(&gw.UDPRoute{})
-	other = factory.NewRoute(&gw.UDPRoute{})
-	require.Equal(t, store.CompareResultEqual, route.Compare(other))
-	other = factory.NewRoute(&gw.HTTPRoute{})
-	require.Equal(t, store.CompareResultNotEqual, route.Compare(other))
-
-	// mismatched types
-	require.Equal(t, store.CompareResultInvalid, route.Compare(storeMocks.NewMockRoute(nil)))
 }
 
 func TestRouteSyncStatus(t *testing.T) {

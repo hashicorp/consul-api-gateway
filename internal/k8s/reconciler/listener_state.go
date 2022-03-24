@@ -19,8 +19,8 @@ import (
 // ListenerState holds ephemeral state for listeners
 type ListenerState struct {
 	RouteCount int32
-	Status     ListenerStatus
 	TLS        core.TLSParams
+	Status     ListenerStatus
 }
 
 func (l *ListenerState) Validate(ctx context.Context, client gatewayclient.Client, gateway *gw.Gateway, listener gw.Listener) error {
