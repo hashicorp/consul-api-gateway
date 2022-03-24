@@ -490,9 +490,11 @@ func TestRouteValidate(t *testing.T) {
 func TestRouteResolve(t *testing.T) {
 	t.Parallel()
 
-	gateway := &gw.Gateway{
-		ObjectMeta: meta.ObjectMeta{
-			Name: "expected",
+	gateway := &K8sGateway{
+		Gateway: &gw.Gateway{
+			ObjectMeta: meta.ObjectMeta{
+				Name: "expected",
+			},
 		},
 	}
 	listener := gw.Listener{}

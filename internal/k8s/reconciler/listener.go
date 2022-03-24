@@ -45,31 +45,28 @@ const (
 
 type K8sListener struct {
 	ListenerState
+	listener gw.Listener
 
-	consulNamespace string
-	logger          hclog.Logger
-	gateway         *gw.Gateway
-	listener        gw.Listener
-	client          gatewayclient.Client
+	logger  hclog.Logger
+	gateway *K8sGateway
+	client  gatewayclient.Client
 }
 
 var _ store.RouteTrackingListener = &K8sListener{}
 
 type K8sListenerConfig struct {
-	ConsulNamespace string
-	Logger          hclog.Logger
-	Client          gatewayclient.Client
+	Logger hclog.Logger
+	Client gatewayclient.Client
 }
 
-func NewK8sListener(gateway *gw.Gateway, listener gw.Listener, config K8sListenerConfig) *K8sListener {
+func NewK8sListener(gateway *K8sGateway, listener gw.Listener, config K8sListenerConfig) *K8sListener {
 	listenerLogger := config.Logger.Named("listener").With("listener", string(listener.Name))
 
 	return &K8sListener{
-		consulNamespace: config.ConsulNamespace,
-		logger:          listenerLogger,
-		client:          config.Client,
-		gateway:         gateway,
-		listener:        listener,
+		logger:   listenerLogger,
+		client:   config.Client,
+		gateway:  gateway,
+		listener: listener,
 	}
 }
 

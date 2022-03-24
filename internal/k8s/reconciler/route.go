@@ -156,7 +156,7 @@ func (r *K8sRoute) NeedsStatusUpdate() bool {
 func (r *K8sRoute) OnBindFailed(err error, gateway store.Gateway) {
 	k8sGateway, ok := gateway.(*K8sGateway)
 	if ok {
-		id, found := r.parentKeyForGateway(utils.NamespacedName(k8sGateway.gateway))
+		id, found := r.parentKeyForGateway(utils.NamespacedName(k8sGateway.Gateway))
 		if found {
 			status, statusFound := r.parentStatuses[id]
 			if !statusFound {
@@ -197,7 +197,7 @@ func (r *K8sRoute) OnBindFailed(err error, gateway store.Gateway) {
 func (r *K8sRoute) OnBound(gateway store.Gateway) {
 	k8sGateway, ok := gateway.(*K8sGateway)
 	if ok {
-		id, found := r.parentKeyForGateway(utils.NamespacedName(k8sGateway.gateway))
+		id, found := r.parentKeyForGateway(utils.NamespacedName(k8sGateway.Gateway))
 		if found {
 			// clear out any existing errors on our statuses
 			if status, statusFound := r.parentStatuses[id]; statusFound {
@@ -213,7 +213,7 @@ func (r *K8sRoute) OnBound(gateway store.Gateway) {
 func (r *K8sRoute) OnGatewayRemoved(gateway store.Gateway) {
 	k8sGateway, ok := gateway.(*K8sGateway)
 	if ok {
-		id, found := r.parentKeyForGateway(utils.NamespacedName(k8sGateway.gateway))
+		id, found := r.parentKeyForGateway(utils.NamespacedName(k8sGateway.Gateway))
 		if found {
 			delete(r.parentStatuses, id)
 		}
@@ -299,7 +299,7 @@ func (r *K8sRoute) Resolve(listener store.Listener) *core.ResolvedRoute {
 	}
 
 	prefix := fmt.Sprintf("consul-api-gateway_%s_", k8sListener.gateway.Name)
-	namespace := k8sListener.consulNamespace
+	namespace := k8sListener.gateway.consulNamespace
 	hostname := k8sListener.Config().Hostname
 	switch route := r.Route.(type) {
 	case *gw.HTTPRoute:
