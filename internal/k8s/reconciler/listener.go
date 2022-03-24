@@ -88,24 +88,24 @@ func (l *K8sListener) Config() store.ListenerConfig {
 	}
 }
 
-// CanBind returns whether a route can bind
+// Bind returns whether a route can bind
 // to a gateway, if the route can bind to a listener
 // on the gateway the return value is nil, if not,
 // an error specifying why the route cannot bind
 // is returned.
-func (l *K8sListener) CanBind(ctx context.Context, route store.Route) (bool, error) {
+func (l *K8sListener) Bind(ctx context.Context, route store.Route) bool {
 	k8sRoute, ok := route.(*K8sRoute)
 	if !ok {
 		l.logger.Error("route is not a known type")
-		return false, nil
+		return false
 	}
 
 	return (&Binder{
 		Client:        l.client,
-		Gateway:       l.gateway.Gateway,
+		Gateway:       l.gateway,
 		Listener:      l.listener,
 		ListenerState: l.ListenerState,
-	}).CanBind(ctx, k8sRoute)
+	}).Bind(ctx, k8sRoute)
 }
 
 func (l *K8sListener) OnRouteAdded(_ store.Route) {

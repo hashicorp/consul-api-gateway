@@ -153,59 +153,53 @@ func (r *K8sRoute) NeedsStatusUpdate() bool {
 	return !routeStatusEqual(currentStatus, updatedStatus)
 }
 
-func (r *K8sRoute) OnBindFailed(err error, gateway store.Gateway) {
-	k8sGateway, ok := gateway.(*K8sGateway)
-	if ok {
-		id, found := r.parentKeyForGateway(utils.NamespacedName(k8sGateway.Gateway))
-		if found {
-			status, statusFound := r.parentStatuses[id]
-			if !statusFound {
-				status = &RouteStatus{}
-			}
-			var bindError BindError
-			if errors.As(err, &bindError) {
-				switch bindError.Kind() {
-				case BindErrorTypeHostnameMismatch:
-					status.Accepted.ListenerHostnameMismatch = err
-				case BindErrorTypeListenerNamespacePolicy:
-					status.Accepted.ListenerNamespacePolicy = err
-				case BindErrorTypeRouteKind:
-					status.Accepted.InvalidRouteKind = err
-				case BindErrorTypeRouteInvalid:
-					status.Accepted.BindError = err
-				}
-			} else {
+func (r *K8sRoute) bindFailed(err error, gateway *K8sGateway) {
+	id, found := r.parentKeyForGateway(utils.NamespacedName(gateway.Gateway))
+	if found {
+		status, statusFound := r.parentStatuses[id]
+		if !statusFound {
+			status = &RouteStatus{}
+		}
+		var bindError BindError
+		if errors.As(err, &bindError) {
+			switch bindError.Kind() {
+			case BindErrorTypeHostnameMismatch:
+				status.Accepted.ListenerHostnameMismatch = err
+			case BindErrorTypeListenerNamespacePolicy:
+				status.Accepted.ListenerNamespacePolicy = err
+			case BindErrorTypeRouteKind:
+				status.Accepted.InvalidRouteKind = err
+			case BindErrorTypeRouteInvalid:
 				status.Accepted.BindError = err
 			}
-			// set resolution errors - we can do this here because
-			// a route with resolution errors will always fail to bind
-			errorType, err := r.resolutionErrors.Flatten()
-			switch errorType {
-			case service.GenericResolutionErrorType:
-				status.ResolvedRefs.Errors = err
-			case service.ConsulServiceResolutionErrorType:
-				status.ResolvedRefs.ConsulServiceNotFound = err
-			case service.K8sServiceResolutionErrorType:
-				status.ResolvedRefs.ServiceNotFound = err
-			}
-
-			r.parentStatuses[id] = status
+		} else {
+			status.Accepted.BindError = err
 		}
+		// set resolution errors - we can do this here because
+		// a route with resolution errors will always fail to bind
+		errorType, err := r.resolutionErrors.Flatten()
+		switch errorType {
+		case service.GenericResolutionErrorType:
+			status.ResolvedRefs.Errors = err
+		case service.ConsulServiceResolutionErrorType:
+			status.ResolvedRefs.ConsulServiceNotFound = err
+		case service.K8sServiceResolutionErrorType:
+			status.ResolvedRefs.ServiceNotFound = err
+		}
+
+		r.parentStatuses[id] = status
 	}
 }
 
-func (r *K8sRoute) OnBound(gateway store.Gateway) {
-	k8sGateway, ok := gateway.(*K8sGateway)
-	if ok {
-		id, found := r.parentKeyForGateway(utils.NamespacedName(k8sGateway.Gateway))
-		if found {
-			// clear out any existing errors on our statuses
-			if status, statusFound := r.parentStatuses[id]; statusFound {
-				status.Accepted = RouteAcceptedStatus{}
-				status.ResolvedRefs = RouteResolvedRefsStatus{}
-			} else {
-				r.parentStatuses[id] = &RouteStatus{}
-			}
+func (r *K8sRoute) bound(gateway *K8sGateway) {
+	id, found := r.parentKeyForGateway(utils.NamespacedName(gateway.Gateway))
+	if found {
+		// clear out any existing errors on our statuses
+		if status, statusFound := r.parentStatuses[id]; statusFound {
+			status.Accepted = RouteAcceptedStatus{}
+			status.ResolvedRefs = RouteResolvedRefsStatus{}
+		} else {
+			r.parentStatuses[id] = &RouteStatus{}
 		}
 	}
 }

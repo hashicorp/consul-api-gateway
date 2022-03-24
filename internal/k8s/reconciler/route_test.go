@@ -124,7 +124,7 @@ func TestRouteFilterParentStatuses(t *testing.T) {
 		},
 	})
 
-	route.OnBound(factory.NewGateway(NewGatewayConfig{
+	route.bound(factory.NewGateway(NewGatewayConfig{
 		Gateway: &gw.Gateway{
 			ObjectMeta: meta.ObjectMeta{
 				Name: "expected",
@@ -187,7 +187,7 @@ func TestRouteMergedStatusAndBinding(t *testing.T) {
 		},
 	}
 	route := factory.NewRoute(inner)
-	route.OnBound(gateway)
+	route.bound(gateway)
 
 	statuses := route.MergedStatus().Parents
 	require.Len(t, statuses, 3)
@@ -200,7 +200,7 @@ func TestRouteMergedStatusAndBinding(t *testing.T) {
 	require.Equal(t, "other", string(statuses[2].ParentRef.Name))
 	require.Equal(t, "other", string(statuses[2].ControllerName))
 
-	route.OnBindFailed(errors.New("expected"), gateway)
+	route.bindFailed(errors.New("expected"), gateway)
 
 	statuses = route.MergedStatus().Parents
 	require.Len(t, statuses, 3)
@@ -209,7 +209,7 @@ func TestRouteMergedStatusAndBinding(t *testing.T) {
 	require.Equal(t, "expected", statuses[0].Conditions[0].Message)
 	require.Equal(t, RouteConditionReasonBindError, statuses[0].Conditions[0].Reason)
 
-	route.OnBindFailed(NewBindErrorHostnameMismatch("expected"), gateway)
+	route.bindFailed(NewBindErrorHostnameMismatch("expected"), gateway)
 
 	statuses = route.MergedStatus().Parents
 	require.Len(t, statuses, 3)
@@ -218,7 +218,7 @@ func TestRouteMergedStatusAndBinding(t *testing.T) {
 	require.Equal(t, "expected", statuses[0].Conditions[0].Message)
 	require.Equal(t, RouteConditionReasonListenerHostnameMismatch, statuses[0].Conditions[0].Reason)
 
-	route.OnBindFailed(NewBindErrorListenerNamespacePolicy("expected"), gateway)
+	route.bindFailed(NewBindErrorListenerNamespacePolicy("expected"), gateway)
 
 	statuses = route.MergedStatus().Parents
 	require.Len(t, statuses, 3)
@@ -227,7 +227,7 @@ func TestRouteMergedStatusAndBinding(t *testing.T) {
 	require.Equal(t, "expected", statuses[0].Conditions[0].Message)
 	require.Equal(t, RouteConditionReasonListenerNamespacePolicy, statuses[0].Conditions[0].Reason)
 
-	route.OnBindFailed(NewBindErrorRouteKind("expected"), gateway)
+	route.bindFailed(NewBindErrorRouteKind("expected"), gateway)
 
 	statuses = route.MergedStatus().Parents
 	require.Len(t, statuses, 3)
@@ -236,7 +236,7 @@ func TestRouteMergedStatusAndBinding(t *testing.T) {
 	require.Equal(t, "expected", statuses[0].Conditions[0].Message)
 	require.Equal(t, RouteConditionReasonInvalidRouteKind, statuses[0].Conditions[0].Reason)
 
-	route.OnBound(gateway)
+	route.bound(gateway)
 
 	statuses = route.MergedStatus().Parents
 	require.Len(t, statuses, 3)
@@ -256,7 +256,7 @@ func TestRouteMergedStatusAndBinding(t *testing.T) {
 	// check creating a status on bind failure when it's not there
 	route = factory.NewRoute(inner)
 
-	route.OnBindFailed(errors.New("expected"), gateway)
+	route.bindFailed(errors.New("expected"), gateway)
 
 	statuses = route.MergedStatus().Parents
 	require.Len(t, statuses, 3)
@@ -275,10 +275,10 @@ func TestRouteMergedStatusAndBinding(t *testing.T) {
 	})
 	statuses = route.MergedStatus().Parents
 	require.Len(t, statuses, 3)
-	route.OnBound(gateway)
+	route.bound(gateway)
 	statuses = route.MergedStatus().Parents
 	require.Len(t, statuses, 3)
-	route.OnBindFailed(errors.New("expected"), gateway)
+	route.bindFailed(errors.New("expected"), gateway)
 	statuses = route.MergedStatus().Parents
 	require.Len(t, statuses, 3)
 }
@@ -326,7 +326,7 @@ func TestRouteNeedsStatusUpdate(t *testing.T) {
 
 	require.False(t, route.NeedsStatusUpdate())
 
-	route.OnBound(factory.NewGateway(NewGatewayConfig{
+	route.bound(factory.NewGateway(NewGatewayConfig{
 		Gateway: &gw.Gateway{
 			ObjectMeta: meta.ObjectMeta{
 				Name: "expected",
@@ -629,7 +629,7 @@ func TestRouteSyncStatus(t *testing.T) {
 	})
 	logger.SetLevel(hclog.Trace)
 	route := factory.NewRoute(inner)
-	route.OnBound(gateway)
+	route.bound(gateway)
 
 	expected := errors.New("expected")
 	client.EXPECT().UpdateStatus(gomock.Any(), inner).Return(expected)

@@ -62,7 +62,7 @@ type RouteTrackingListener interface {
 // listener.
 type Listener interface {
 	ID() string
-	CanBind(ctx context.Context, route Route) (bool, error)
+	Bind(ctx context.Context, route Route) bool
 	Config() ListenerConfig
 	IsValid() bool
 }
@@ -77,8 +77,6 @@ type StatusTrackingRoute interface {
 	Route
 
 	SyncStatus(ctx context.Context) error
-	OnBound(gateway Gateway)
-	OnBindFailed(err error, gateway Gateway)
 	OnGatewayRemoved(gateway Gateway)
 }
 

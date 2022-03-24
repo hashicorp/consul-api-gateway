@@ -11,32 +11,26 @@ import (
 
 type Binder struct {
 	Client        gatewayclient.Client
-	Gateway       *gw.Gateway
+	Gateway       *K8sGateway
 	Listener      gw.Listener
 	ListenerState *ListenerState
 }
 
-func (b *Binder) CanBind(ctx context.Context, route *K8sRoute) (bool, error) {
+func (b *Binder) Bind(ctx context.Context, route *K8sRoute) bool {
 	for _, ref := range route.CommonRouteSpec().ParentRefs {
 		if namespacedName, isGateway := utils.ReferencesGateway(route.GetNamespace(), ref); isGateway {
 			expected := utils.NamespacedName(b.Gateway)
 			if expected == namespacedName {
-				canBind, err := b.canBind(ctx, ref, route)
-				if err != nil {
-					return false, err
-				}
-				if canBind {
-					return true, nil
-				}
+				return b.canBind(ctx, ref, route)
 			}
 		}
 	}
-	return false, nil
+	return false
 }
 
-func (b *Binder) canBind(ctx context.Context, ref gw.ParentRef, route *K8sRoute) (bool, error) {
+func (b *Binder) canBind(ctx context.Context, ref gw.ParentRef, route *K8sRoute) bool {
 	if b.ListenerState.Status.Ready.HasError() {
-		return false, nil
+		return false
 	}
 
 	// must is only true if there's a ref with a specific listener name
@@ -45,35 +39,39 @@ func (b *Binder) canBind(ctx context.Context, ref gw.ParentRef, route *K8sRoute)
 	if allowed {
 		if !routeKindIsAllowedForListener(supportedKindsFor(b.Listener.Protocol), route) {
 			if must {
-				return false, NewBindErrorRouteKind("route kind not allowed for listener")
+				route.bindFailed(NewBindErrorRouteKind("route kind not allowed for listener"), b.Gateway)
 			}
-			return false, nil
+			return false
 		}
 
 		allowed, err := routeAllowedForListenerNamespaces(ctx, b.Gateway.Namespace, b.Listener.AllowedRoutes, route, b.Client)
 		if err != nil {
-			return false, fmt.Errorf("error checking listener namespaces: %w", err)
+			route.bindFailed(fmt.Errorf("error checking listener namespaces: %w", err), b.Gateway)
+			return false
 		}
 		if !allowed {
 			if must {
-				return false, NewBindErrorListenerNamespacePolicy("route not allowed because of listener namespace policy")
+				route.bindFailed(NewBindErrorListenerNamespacePolicy("route not allowed because of listener namespace policy"), b.Gateway)
 			}
-			return false, nil
+			return false
 		}
 
 		if !route.MatchesHostname(b.Listener.Hostname) {
 			if must {
-				return false, NewBindErrorHostnameMismatch("route does not match listener hostname")
+				route.bindFailed(NewBindErrorHostnameMismatch("route does not match listener hostname"), b.Gateway)
 			}
-			return false, nil
+			return false
 		}
 
 		// check if the route is valid, if not, then return a status about it being rejected
 		if !route.IsValid() {
-			return false, NewBindErrorRouteInvalid("route is in an invalid state and cannot bind")
+			route.bindFailed(NewBindErrorRouteInvalid("route is in an invalid state and cannot bind"), b.Gateway)
+			return false
 		}
-		return true, nil
+
+		route.bound(b.Gateway)
+		return true
 	}
 
-	return false, nil
+	return false
 }
