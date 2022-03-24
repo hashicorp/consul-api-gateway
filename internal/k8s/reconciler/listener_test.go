@@ -44,7 +44,7 @@ func TestListenerValidate(t *testing.T) {
 	listener := NewK8sListener(&K8sGateway{Gateway: &gw.Gateway{}}, gw.Listener{}, K8sListenerConfig{
 		Logger: hclog.NewNullLogger(),
 	})
-	require.NoError(t, listener.Validate(context.Background()))
+	require.NoError(t, listener.Validate(context.Background(), client, listener.gateway.Gateway, listener.listener))
 	condition := listener.ListenerState.Status.Ready.Condition(0)
 	require.Equal(t, ListenerConditionReasonInvalid, condition.Reason)
 	condition = listener.ListenerState.Status.Detached.Condition(0)
@@ -60,7 +60,7 @@ func TestListenerValidate(t *testing.T) {
 	}, K8sListenerConfig{
 		Logger: hclog.NewNullLogger(),
 	})
-	require.NoError(t, listener.Validate(context.Background()))
+	require.NoError(t, listener.Validate(context.Background(), client, listener.gateway.Gateway, listener.listener))
 	condition = listener.ListenerState.Status.ResolvedRefs.Condition(0)
 	require.Equal(t, ListenerConditionReasonInvalidRouteKinds, condition.Reason)
 
@@ -76,7 +76,7 @@ func TestListenerValidate(t *testing.T) {
 	}, K8sListenerConfig{
 		Logger: hclog.NewNullLogger(),
 	})
-	require.NoError(t, listener.Validate(context.Background()))
+	require.NoError(t, listener.Validate(context.Background(), client, listener.gateway.Gateway, listener.listener))
 	condition = listener.ListenerState.Status.Detached.Condition(0)
 	require.Equal(t, ListenerConditionReasonUnsupportedAddress, condition.Reason)
 
@@ -86,7 +86,7 @@ func TestListenerValidate(t *testing.T) {
 	}, K8sListenerConfig{
 		Logger: hclog.NewNullLogger(),
 	})
-	require.NoError(t, listener.Validate(context.Background()))
+	require.NoError(t, listener.Validate(context.Background(), client, listener.gateway.Gateway, listener.listener))
 	condition = listener.ListenerState.Status.Ready.Condition(0)
 	require.Equal(t, ListenerConditionReasonInvalid, condition.Reason)
 
@@ -99,7 +99,7 @@ func TestListenerValidate(t *testing.T) {
 	}, K8sListenerConfig{
 		Logger: hclog.NewNullLogger(),
 	})
-	require.NoError(t, listener.Validate(context.Background()))
+	require.NoError(t, listener.Validate(context.Background(), client, listener.gateway.Gateway, listener.listener))
 	condition = listener.ListenerState.Status.Ready.Condition(0)
 	require.Equal(t, ListenerConditionReasonInvalid, condition.Reason)
 
@@ -109,7 +109,7 @@ func TestListenerValidate(t *testing.T) {
 	}, K8sListenerConfig{
 		Logger: hclog.NewNullLogger(),
 	})
-	require.NoError(t, listener.Validate(context.Background()))
+	require.NoError(t, listener.Validate(context.Background(), client, listener.gateway.Gateway, listener.listener))
 	condition = listener.ListenerState.Status.ResolvedRefs.Condition(0)
 	require.Equal(t, ListenerConditionReasonInvalidCertificateRef, condition.Reason)
 
@@ -125,7 +125,7 @@ func TestListenerValidate(t *testing.T) {
 		Client: client,
 	})
 	client.EXPECT().GetSecret(gomock.Any(), gomock.Any()).Return(nil, expected)
-	require.True(t, errors.Is(listener.Validate(context.Background()), expected))
+	require.True(t, errors.Is(listener.Validate(context.Background(), client, listener.gateway.Gateway, listener.listener), expected))
 
 	listener = NewK8sListener(&K8sGateway{Gateway: &gw.Gateway{}}, gw.Listener{
 		Protocol: gw.HTTPSProtocolType,
@@ -139,7 +139,7 @@ func TestListenerValidate(t *testing.T) {
 		Client: client,
 	})
 	client.EXPECT().GetSecret(gomock.Any(), gomock.Any()).Return(nil, nil)
-	require.NoError(t, listener.Validate(context.Background()))
+	require.NoError(t, listener.Validate(context.Background(), client, listener.gateway.Gateway, listener.listener))
 	condition = listener.ListenerState.Status.ResolvedRefs.Condition(0)
 	require.Equal(t, ListenerConditionReasonInvalidCertificateRef, condition.Reason)
 
@@ -160,7 +160,7 @@ func TestListenerValidate(t *testing.T) {
 		},
 	}, nil)
 	require.Len(t, listener.Config().TLS.Certificates, 0)
-	require.NoError(t, listener.Validate(context.Background()))
+	require.NoError(t, listener.Validate(context.Background(), client, listener.gateway.Gateway, listener.listener))
 	require.Len(t, listener.Config().TLS.Certificates, 1)
 
 	group := gw.Group("group")
@@ -180,7 +180,7 @@ func TestListenerValidate(t *testing.T) {
 		Logger: hclog.NewNullLogger(),
 		Client: client,
 	})
-	require.NoError(t, listener.Validate(context.Background()))
+	require.NoError(t, listener.Validate(context.Background(), client, listener.gateway.Gateway, listener.listener))
 	condition = listener.ListenerState.Status.ResolvedRefs.Condition(0)
 	require.Equal(t, ListenerConditionReasonInvalidCertificateRef, condition.Reason)
 
@@ -203,7 +203,7 @@ func TestListenerValidate(t *testing.T) {
 			Name: "secret",
 		},
 	}, nil)
-	require.NoError(t, listener.Validate(context.Background()))
+	require.NoError(t, listener.Validate(context.Background(), client, listener.gateway.Gateway, listener.listener))
 	condition = listener.ListenerState.Status.Ready.Condition(0)
 	require.Equal(t, ListenerConditionReasonReady, condition.Reason)
 	require.Equal(t, "TLSv1_2", listener.ListenerState.TLS.MinVersion)
@@ -227,7 +227,7 @@ func TestListenerValidate(t *testing.T) {
 			Name: "secret",
 		},
 	}, nil)
-	require.NoError(t, listener.Validate(context.Background()))
+	require.NoError(t, listener.Validate(context.Background(), client, listener.gateway.Gateway, listener.listener))
 	condition = listener.ListenerState.Status.Ready.Condition(0)
 	require.Equal(t, ListenerConditionReasonInvalid, condition.Reason)
 	require.Equal(t, "unrecognized TLS min version", condition.Message)
@@ -251,7 +251,7 @@ func TestListenerValidate(t *testing.T) {
 			Name: "secret",
 		},
 	}, nil)
-	require.NoError(t, listener.Validate(context.Background()))
+	require.NoError(t, listener.Validate(context.Background(), client, listener.gateway.Gateway, listener.listener))
 	condition = listener.ListenerState.Status.Ready.Condition(0)
 	require.Equal(t, ListenerConditionReasonReady, condition.Reason)
 	require.Equal(t, []string{"TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256"}, listener.ListenerState.TLS.CipherSuites)
@@ -276,7 +276,7 @@ func TestListenerValidate(t *testing.T) {
 			Name: "secret",
 		},
 	}, nil)
-	require.NoError(t, listener.Validate(context.Background()))
+	require.NoError(t, listener.Validate(context.Background(), client, listener.gateway.Gateway, listener.listener))
 	condition = listener.ListenerState.Status.Ready.Condition(0)
 	require.Equal(t, ListenerConditionReasonInvalid, condition.Reason)
 	require.Equal(t, "configuring TLS cipher suites is only supported for TLS 1.2 and earlier", condition.Message)
@@ -300,7 +300,7 @@ func TestListenerValidate(t *testing.T) {
 			Name: "secret",
 		},
 	}, nil)
-	require.NoError(t, listener.Validate(context.Background()))
+	require.NoError(t, listener.Validate(context.Background(), client, listener.gateway.Gateway, listener.listener))
 	condition = listener.ListenerState.Status.Ready.Condition(0)
 	require.Equal(t, ListenerConditionReasonInvalid, condition.Reason)
 	require.Equal(t, "unrecognized or unsupported TLS cipher suite: foo", condition.Message)
@@ -469,7 +469,7 @@ func TestListenerCanBind_RouteKind(t *testing.T) {
 	}, K8sListenerConfig{
 		Logger: hclog.NewNullLogger(),
 	})
-	require.NoError(t, listener.Validate(context.Background()))
+	require.NoError(t, listener.Validate(context.Background(), nil, listener.gateway.Gateway, listener.listener))
 	canBind, err := listener.CanBind(context.Background(), factory.NewRoute(&gw.UDPRoute{
 		TypeMeta: routeMeta,
 		Spec: gw.UDPRouteSpec{

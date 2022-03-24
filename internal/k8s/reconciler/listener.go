@@ -2,16 +2,10 @@ package reconciler
 
 import (
 	"context"
-	"errors"
-	"fmt"
-	"strings"
 	"sync/atomic"
 
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/types"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
-	"github.com/hashicorp/consul-api-gateway/internal/common"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	"github.com/hashicorp/consul-api-gateway/internal/store"
@@ -36,15 +30,11 @@ var (
 )
 
 const (
-	defaultListenerName          = "default"
-	annotationKeyPrefix          = "api-gateway.consul.hashicorp.com/"
-	tlsMinVersionAnnotationKey   = annotationKeyPrefix + "tls_min_version"
-	tlsMaxVersionAnnotationKey   = annotationKeyPrefix + "tls_max_version"
-	tlsCipherSuitesAnnotationKey = annotationKeyPrefix + "tls_cipher_suites"
+	defaultListenerName = "default"
 )
 
 type K8sListener struct {
-	ListenerState
+	*ListenerState
 	listener gw.Listener
 
 	logger  hclog.Logger
@@ -63,215 +53,16 @@ func NewK8sListener(gateway *K8sGateway, listener gw.Listener, config K8sListene
 	listenerLogger := config.Logger.Named("listener").With("listener", string(listener.Name))
 
 	return &K8sListener{
-		logger:   listenerLogger,
-		client:   config.Client,
-		gateway:  gateway,
-		listener: listener,
+		ListenerState: &ListenerState{},
+		logger:        listenerLogger,
+		client:        config.Client,
+		gateway:       gateway,
+		listener:      listener,
 	}
 }
 
 func (l *K8sListener) ID() string {
 	return string(l.listener.Name)
-}
-
-func (l *K8sListener) Validate(ctx context.Context) error {
-	l.validateUnsupported()
-	l.validateProtocols()
-
-	if err := l.validateTLS(ctx); err != nil {
-		return err
-	}
-
-	if l.ListenerState.Status.Ready.Invalid == nil && !l.ListenerState.Status.Valid() {
-		// set the listener as invalid if any other statuses are not valid
-		l.ListenerState.Status.Ready.Invalid = errors.New("listener is in an invalid state")
-	}
-
-	return nil
-}
-
-func (l *K8sListener) validateTLS(ctx context.Context) error {
-	if l.listener.TLS == nil {
-		// TODO: should this struct field be "Required" instead of "Enabled"?
-		if l.Config().TLS.Enabled {
-			// we are using a protocol that requires TLS but has no TLS
-			// configured
-			l.ListenerState.Status.Ready.Invalid = errors.New("tls configuration required for the given protocol")
-		}
-		return nil
-	}
-
-	if l.listener.TLS.Mode != nil && *l.listener.TLS.Mode == gw.TLSModePassthrough {
-		l.ListenerState.Status.Ready.Invalid = errors.New("tls passthrough not supported")
-		return nil
-	}
-
-	if len(l.listener.TLS.CertificateRefs) == 0 {
-		l.ListenerState.Status.ResolvedRefs.InvalidCertificateRef = errors.New("certificate reference must be set")
-		return nil
-	}
-
-	// we only support a single certificate for now
-	ref := *l.listener.TLS.CertificateRefs[0]
-	resource, err := l.resolveCertificateReference(ctx, ref)
-	if err != nil {
-		var certificateErr CertificateResolutionError
-		if !errors.As(err, &certificateErr) {
-			return err
-		}
-		l.ListenerState.Status.ResolvedRefs.InvalidCertificateRef = certificateErr
-	} else {
-		l.ListenerState.TLS.Certificates = []string{resource}
-	}
-
-	if l.listener.TLS.Options != nil {
-		tlsMinVersion := l.listener.TLS.Options[tlsMinVersionAnnotationKey]
-		tlsMaxVersion := l.listener.TLS.Options[tlsMaxVersionAnnotationKey]
-		tlsCipherSuitesStr := l.listener.TLS.Options[tlsCipherSuitesAnnotationKey]
-
-		if tlsMinVersion != "" {
-			if _, ok := supportedTlsVersions[string(tlsMinVersion)]; !ok {
-				l.ListenerState.Status.Ready.Invalid = errors.New("unrecognized TLS min version")
-				return nil
-			}
-
-			if tlsCipherSuitesStr != "" {
-				if _, ok := tlsVersionsWithConfigurableCipherSuites[string(tlsMinVersion)]; !ok {
-					l.ListenerState.Status.Ready.Invalid = errors.New("configuring TLS cipher suites is only supported for TLS 1.2 and earlier")
-					return nil
-				}
-			}
-
-			l.ListenerState.TLS.MinVersion = string(tlsMinVersion)
-		}
-
-		if tlsMaxVersion != "" {
-			if _, ok := supportedTlsVersions[string(tlsMaxVersion)]; !ok {
-				l.ListenerState.Status.Ready.Invalid = errors.New("unrecognized TLS max version")
-				return nil
-			}
-
-			l.ListenerState.TLS.MaxVersion = string(tlsMaxVersion)
-		}
-
-		if tlsCipherSuitesStr != "" {
-			// split comma delimited string into string array and trim whitespace
-			tlsCipherSuitesUntrimmed := strings.Split(string(tlsCipherSuitesStr), ",")
-			tlsCipherSuites := tlsCipherSuitesUntrimmed[:0]
-			for _, c := range tlsCipherSuitesUntrimmed {
-				tlsCipherSuites = append(tlsCipherSuites, strings.TrimSpace(c))
-			}
-
-			// validate each cipher suite in array
-			for _, c := range tlsCipherSuites {
-				if ok := common.SupportedTLSCipherSuite(c); !ok {
-					l.ListenerState.Status.Ready.Invalid = fmt.Errorf("unrecognized or unsupported TLS cipher suite: %s", c)
-					return nil
-				}
-			}
-
-			// set cipher suites on listener TLS params
-			l.ListenerState.TLS.CipherSuites = tlsCipherSuites
-		}
-	}
-
-	return nil
-}
-
-var supportedTlsVersions = map[string]struct{}{
-	"TLS_AUTO": {},
-	"TLSv1_0":  {},
-	"TLSv1_1":  {},
-	"TLSv1_2":  {},
-	"TLSv1_3":  {},
-}
-
-var tlsVersionsWithConfigurableCipherSuites = map[string]struct{}{
-	// Remove these two if Envoy ever sets TLS 1.3 as default minimum
-	"":         {},
-	"TLS_AUTO": {},
-
-	"TLSv1_0": {},
-	"TLSv1_1": {},
-	"TLSv1_2": {},
-}
-
-func (l *K8sListener) validateUnsupported() {
-	// seems weird that we're looking at gateway fields for listener status
-	// but that's the weirdness of the spec
-	if len(l.gateway.Spec.Addresses) > 0 {
-		// we dnn't support address binding
-		l.ListenerState.Status.Detached.UnsupportedAddress = errors.New("specified addresses are not supported")
-	}
-}
-
-func (l *K8sListener) validateProtocols() {
-	supportedKinds := supportedKindsFor(l.listener.Protocol)
-	if len(supportedKinds) == 0 {
-		l.ListenerState.Status.Detached.UnsupportedProtocol = fmt.Errorf("unsupported protocol: %s", l.listener.Protocol)
-	}
-	if l.listener.AllowedRoutes != nil {
-		remainderKinds := kindsNotInSet(l.listener.AllowedRoutes.Kinds, supportedKinds)
-		if len(remainderKinds) != 0 {
-			l.ListenerState.Status.ResolvedRefs.InvalidRouteKinds = fmt.Errorf("listener has unsupported kinds: %v", remainderKinds)
-		}
-	}
-}
-
-func kindsNotInSet(set, parent []gw.RouteGroupKind) []gw.RouteGroupKind {
-	kinds := []gw.RouteGroupKind{}
-	for _, kind := range set {
-		if !isKindInSet(kind, parent) {
-			kinds = append(kinds, kind)
-		}
-	}
-	return kinds
-}
-
-func isKindInSet(value gw.RouteGroupKind, set []gw.RouteGroupKind) bool {
-	for _, kind := range set {
-		groupsMatch := false
-		if value.Group == nil && kind.Group == nil {
-			groupsMatch = true
-		} else if value.Group != nil && kind.Group != nil && *value.Group == *kind.Group {
-			groupsMatch = true
-		}
-		if groupsMatch && value.Kind == kind.Kind {
-			return true
-		}
-	}
-	return false
-}
-
-func (l *K8sListener) resolveCertificateReference(ctx context.Context, ref gw.SecretObjectReference) (string, error) {
-	group := corev1.GroupName
-	kind := "Secret"
-	namespace := l.gateway.Namespace
-
-	if ref.Group != nil {
-		group = string(*ref.Group)
-	}
-	if ref.Kind != nil {
-		kind = string(*ref.Kind)
-	}
-	if ref.Namespace != nil {
-		namespace = string(*ref.Namespace)
-	}
-
-	switch {
-	case kind == "Secret" && group == corev1.GroupName:
-		cert, err := l.client.GetSecret(ctx, types.NamespacedName{Name: string(ref.Name), Namespace: namespace})
-		if err != nil {
-			return "", fmt.Errorf("error fetching secret: %w", err)
-		}
-		if cert == nil {
-			return "", NewCertificateResolutionErrorNotFound("certificate not found")
-		}
-		return utils.NewK8sSecret(namespace, string(ref.Name)).String(), nil
-	// add more supported types here
-	default:
-		return "", NewCertificateResolutionErrorUnsupported(fmt.Sprintf("unsupported certificate type - group: %s, kind: %s", group, kind))
-	}
 }
 
 func (l *K8sListener) Config() store.ListenerConfig {
@@ -309,74 +100,12 @@ func (l *K8sListener) CanBind(ctx context.Context, route store.Route) (bool, err
 		return false, nil
 	}
 
-	for _, ref := range k8sRoute.CommonRouteSpec().ParentRefs {
-		l.logger.Trace("checking route parent ref", "name", ref.Name)
-		if namespacedName, isGateway := utils.ReferencesGateway(k8sRoute.GetNamespace(), ref); isGateway {
-			expected := utils.NamespacedName(l.gateway)
-			l.logger.Trace("checking gateway match", "expected", expected.String(), "found", namespacedName.String())
-			if expected == namespacedName {
-				canBind, err := l.canBind(ctx, ref, k8sRoute)
-				if err != nil {
-					return false, err
-				}
-				if canBind {
-					return true, nil
-				}
-			}
-		}
-	}
-	return false, nil
-}
-
-func (l *K8sListener) canBind(ctx context.Context, ref gw.ParentRef, route *K8sRoute) (bool, error) {
-	if l.ListenerState.Status.Ready.HasError() {
-		l.logger.Trace("listener not ready, unable to bind", "route", route.ID())
-		return false, nil
-	}
-
-	l.logger.Trace("checking listener match", "expected", l.listener.Name, "found", ref.SectionName)
-
-	// must is only true if there's a ref with a specific listener name
-	// meaning if we must attach, but cannot, it's an error
-	allowed, must := routeMatchesListener(l.listener.Name, ref.SectionName)
-	if allowed {
-		if !routeKindIsAllowedForListener(supportedKindsFor(l.listener.Protocol), route) {
-			l.logger.Trace("route kind not allowed for listener", "route", route.ID())
-			if must {
-				return false, NewBindErrorRouteKind("route kind not allowed for listener")
-			}
-			return false, nil
-		}
-
-		allowed, err := routeAllowedForListenerNamespaces(ctx, l.gateway.Namespace, l.listener.AllowedRoutes, route, l.client)
-		if err != nil {
-			return false, fmt.Errorf("error checking listener namespaces: %w", err)
-		}
-		if !allowed {
-			l.logger.Trace("route not allowed because of listener namespace policy", "route", route.ID())
-			if must {
-				return false, NewBindErrorListenerNamespacePolicy("route not allowed because of listener namespace policy")
-			}
-			return false, nil
-		}
-
-		if !route.MatchesHostname(l.listener.Hostname) {
-			l.logger.Trace("route does not match listener hostname", "route", route.ID())
-			if must {
-				return false, NewBindErrorHostnameMismatch("route does not match listener hostname")
-			}
-			return false, nil
-		}
-
-		// check if the route is valid, if not, then return a status about it being rejected
-		if !route.IsValid() {
-			return false, NewBindErrorRouteInvalid("route is in an invalid state and cannot bind")
-		}
-		return true, nil
-	}
-
-	l.logger.Trace("route does not match listener name", "route", route.ID())
-	return false, nil
+	return (&Binder{
+		Client:        l.client,
+		Gateway:       l.gateway.Gateway,
+		Listener:      l.listener,
+		ListenerState: l.ListenerState,
+	}).CanBind(ctx, k8sRoute)
 }
 
 func (l *K8sListener) OnRouteAdded(_ store.Route) {
@@ -388,32 +117,38 @@ func (l *K8sListener) OnRouteRemoved(_ string) {
 }
 
 func (l *K8sListener) Status() gw.ListenerStatus {
-	routeCount := atomic.LoadInt32(&l.ListenerState.RouteCount)
-	if l.listener.Protocol == gw.TCPProtocolType {
-		if routeCount > 1 {
-			l.ListenerState.Status.Conflicted.RouteConflict = errors.New("only a single TCP route can be bound to a TCP listener")
-		} else {
-			l.ListenerState.Status.Conflicted.RouteConflict = nil
-		}
-	}
-	return gw.ListenerStatus{
-		Name:           l.listener.Name,
-		SupportedKinds: supportedKindsFor(l.listener.Protocol),
-		AttachedRoutes: routeCount,
-		Conditions:     l.ListenerState.Status.Conditions(l.gateway.Generation),
-	}
+	return l.GetStatus(l.listener, l.gateway.Generation)
 }
 
 func (l *K8sListener) IsValid() bool {
-	routeCount := atomic.LoadInt32(&l.ListenerState.RouteCount)
-	if l.listener.Protocol == gw.TCPProtocolType {
-		if routeCount > 1 {
-			return false
-		}
-	}
-	return l.ListenerState.Status.Valid()
+	return l.ListenerState.ValidWithProtocol(l.listener.Protocol)
 }
 
 func supportedKindsFor(protocol gw.ProtocolType) []gw.RouteGroupKind {
 	return supportedProtocols[protocol]
+}
+
+func kindsNotInSet(set, parent []gw.RouteGroupKind) []gw.RouteGroupKind {
+	kinds := []gw.RouteGroupKind{}
+	for _, kind := range set {
+		if !isKindInSet(kind, parent) {
+			kinds = append(kinds, kind)
+		}
+	}
+	return kinds
+}
+
+func isKindInSet(value gw.RouteGroupKind, set []gw.RouteGroupKind) bool {
+	for _, kind := range set {
+		groupsMatch := false
+		if value.Group == nil && kind.Group == nil {
+			groupsMatch = true
+		} else if value.Group != nil && kind.Group != nil && *value.Group == *kind.Group {
+			groupsMatch = true
+		}
+		if groupsMatch && value.Kind == kind.Kind {
+			return true
+		}
+	}
+	return false
 }

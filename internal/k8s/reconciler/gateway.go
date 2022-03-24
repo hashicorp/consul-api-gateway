@@ -49,7 +49,7 @@ func (g *K8sGateway) Validate(ctx context.Context) error {
 	}
 
 	for _, listener := range g.listeners {
-		if err := listener.Validate(ctx); err != nil {
+		if err := listener.Validate(ctx, g.client, g.Gateway, listener.listener); err != nil {
 			return err
 		}
 	}
