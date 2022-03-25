@@ -3,6 +3,8 @@ package reconciler
 import (
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/builder"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/state"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/status"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/service"
 	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 	"github.com/hashicorp/go-hclog"
@@ -47,7 +49,7 @@ type NewGatewayConfig struct {
 func (f *Factory) NewGateway(config NewGatewayConfig) *K8sGateway {
 	return f.initializeGateway(&K8sGateway{
 		Gateway:         config.Gateway,
-		GatewayState:    &GatewayState{},
+		GatewayState:    &state.GatewayState{},
 		config:          config.Config,
 		consulNamespace: config.ConsulNamespace,
 	})
@@ -63,7 +65,7 @@ func (f *Factory) initializeGateway(gateway *K8sGateway) *K8sGateway {
 			Logger: logger,
 			Client: f.client,
 		})
-		state := &ListenerState{}
+		state := &state.ListenerState{}
 		gateway.GatewayState.Listeners = append(gateway.GatewayState.Listeners, state)
 		k8sListener.ListenerState = state
 		listeners = append(listeners, k8sListener)
@@ -90,10 +92,10 @@ func (f *Factory) initializeGateway(gateway *K8sGateway) *K8sGateway {
 func (f *Factory) NewRoute(route Route) *K8sRoute {
 	return f.initializeRoute(&K8sRoute{
 		Route: route,
-		RouteState: &RouteState{
+		RouteState: &state.RouteState{
 			ResolutionErrors: service.NewResolutionErrors(),
 			References:       make(service.RouteRuleReferenceMap),
-			ParentStatuses:   make(RouteStatuses),
+			ParentStatuses:   make(status.RouteStatuses),
 		},
 	})
 }

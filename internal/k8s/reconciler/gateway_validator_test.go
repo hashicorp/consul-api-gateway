@@ -8,6 +8,8 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient/mocks"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/state"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/status"
 	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 	"github.com/hashicorp/go-hclog"
 	"github.com/stretchr/testify/assert"
@@ -168,7 +170,7 @@ func TestGatewayValidateGatewayIP(t *testing.T) {
 				client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(pod, nil)
 			}
 			validator := NewGatewayValidator(client)
-			state := &GatewayState{}
+			state := &state.GatewayState{}
 			assert.NoError(t, validator.validateGatewayIP(context.Background(), state, gateway.Gateway, gateway.serviceBuilder.Build()))
 
 			require.Len(t, state.Addresses, 1)
@@ -215,8 +217,8 @@ func TestGatewayValidate_ListenerProtocolConflicts(t *testing.T) {
 	validator := NewGatewayValidator(client)
 	state, err := validator.Validate(context.Background(), gateway)
 	require.NoError(t, err)
-	require.Equal(t, ListenerConditionReasonProtocolConflict, state.Listeners[0].Status.Conflicted.Condition(0).Reason)
-	require.Equal(t, ListenerConditionReasonProtocolConflict, state.Listeners[1].Status.Conflicted.Condition(0).Reason)
+	require.Equal(t, status.ListenerConditionReasonProtocolConflict, state.Listeners[0].Status.Conflicted.Condition(0).Reason)
+	require.Equal(t, status.ListenerConditionReasonProtocolConflict, state.Listeners[1].Status.Conflicted.Condition(0).Reason)
 }
 
 func TestGatewayValidate_ListenerHostnameConflicts(t *testing.T) {
@@ -259,8 +261,8 @@ func TestGatewayValidate_ListenerHostnameConflicts(t *testing.T) {
 	validator := NewGatewayValidator(client)
 	state, err := validator.Validate(context.Background(), gateway)
 	require.NoError(t, err)
-	require.Equal(t, ListenerConditionReasonHostnameConflict, state.Listeners[0].Status.Conflicted.Condition(0).Reason)
-	require.Equal(t, ListenerConditionReasonHostnameConflict, state.Listeners[1].Status.Conflicted.Condition(0).Reason)
+	require.Equal(t, status.ListenerConditionReasonHostnameConflict, state.Listeners[0].Status.Conflicted.Condition(0).Reason)
+	require.Equal(t, status.ListenerConditionReasonHostnameConflict, state.Listeners[1].Status.Conflicted.Condition(0).Reason)
 }
 
 func TestGatewayValidate_Pods(t *testing.T) {
@@ -295,7 +297,7 @@ func TestGatewayValidate_Pods(t *testing.T) {
 	validator := NewGatewayValidator(client)
 	state, err := validator.Validate(context.Background(), gateway)
 	require.NoError(t, err)
-	require.Equal(t, GatewayConditionReasonUnknown, state.Status.Scheduled.Condition(0).Reason)
+	require.Equal(t, status.GatewayConditionReasonUnknown, state.Status.Scheduled.Condition(0).Reason)
 
 	// Pod has pending status
 	client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(&core.Pod{
@@ -305,7 +307,7 @@ func TestGatewayValidate_Pods(t *testing.T) {
 	}, nil).Times(2)
 	state, err = validator.Validate(context.Background(), gateway)
 	require.NoError(t, err)
-	require.Equal(t, GatewayConditionReasonNotReconciled, state.Status.Scheduled.Condition(0).Reason)
+	require.Equal(t, status.GatewayConditionReasonNotReconciled, state.Status.Scheduled.Condition(0).Reason)
 
 	// Pod is marked as unschedulable
 	client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(&core.Pod{
@@ -320,7 +322,7 @@ func TestGatewayValidate_Pods(t *testing.T) {
 	}, nil).Times(2)
 	state, err = validator.Validate(context.Background(), gateway)
 	require.NoError(t, err)
-	assert.Equal(t, GatewayConditionReasonNoResources, state.Status.Scheduled.Condition(0).Reason)
+	assert.Equal(t, status.GatewayConditionReasonNoResources, state.Status.Scheduled.Condition(0).Reason)
 
 	// Pod has running status and is marked ready
 	client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(&core.Pod{
@@ -344,7 +346,7 @@ func TestGatewayValidate_Pods(t *testing.T) {
 	}, nil).Times(2)
 	state, err = validator.Validate(context.Background(), gateway)
 	require.NoError(t, err)
-	assert.Equal(t, GatewayConditionReasonPodFailed, state.Status.Scheduled.Condition(0).Reason)
+	assert.Equal(t, status.GatewayConditionReasonPodFailed, state.Status.Scheduled.Condition(0).Reason)
 
 	// Pod has failed status
 	client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(&core.Pod{
@@ -354,7 +356,7 @@ func TestGatewayValidate_Pods(t *testing.T) {
 	}, nil).Times(2)
 	state, err = validator.Validate(context.Background(), gateway)
 	require.NoError(t, err)
-	assert.Equal(t, GatewayConditionReasonPodFailed, state.Status.Scheduled.Condition(0).Reason)
+	assert.Equal(t, status.GatewayConditionReasonPodFailed, state.Status.Scheduled.Condition(0).Reason)
 }
 
 func TestListenerValidate(t *testing.T) {
@@ -372,7 +374,7 @@ func TestListenerValidate(t *testing.T) {
 	})
 	validator.validateProtocols(listener.ListenerState, listener.listener)
 	condition := listener.ListenerState.Status.Detached.Condition(0)
-	require.Equal(t, ListenerConditionReasonUnsupportedProtocol, condition.Reason)
+	require.Equal(t, status.ListenerConditionReasonUnsupportedProtocol, condition.Reason)
 
 	listener = NewK8sListener(&K8sGateway{Gateway: &gw.Gateway{}}, gw.Listener{
 		Protocol: gw.HTTPProtocolType,
@@ -386,7 +388,7 @@ func TestListenerValidate(t *testing.T) {
 	})
 	validator.validateProtocols(listener.ListenerState, listener.listener)
 	condition = listener.ListenerState.Status.ResolvedRefs.Condition(0)
-	require.Equal(t, ListenerConditionReasonInvalidRouteKinds, condition.Reason)
+	require.Equal(t, status.ListenerConditionReasonInvalidRouteKinds, condition.Reason)
 
 	// Addresses
 	listener = NewK8sListener(&K8sGateway{
@@ -402,7 +404,7 @@ func TestListenerValidate(t *testing.T) {
 	})
 	validator.validateUnsupported(listener.ListenerState, listener.gateway.Gateway)
 	condition = listener.ListenerState.Status.Detached.Condition(0)
-	require.Equal(t, ListenerConditionReasonUnsupportedAddress, condition.Reason)
+	require.Equal(t, status.ListenerConditionReasonUnsupportedAddress, condition.Reason)
 
 	// TLS validations
 	listener = NewK8sListener(&K8sGateway{Gateway: &gw.Gateway{}}, gw.Listener{
@@ -413,7 +415,7 @@ func TestListenerValidate(t *testing.T) {
 	err := validator.validateTLS(context.Background(), listener.ListenerState, listener.gateway.Gateway, listener.listener)
 	require.NoError(t, err)
 	condition = listener.ListenerState.Status.Ready.Condition(0)
-	require.Equal(t, ListenerConditionReasonInvalid, condition.Reason)
+	require.Equal(t, status.ListenerConditionReasonInvalid, condition.Reason)
 
 	mode := gw.TLSModePassthrough
 	listener = NewK8sListener(&K8sGateway{Gateway: &gw.Gateway{}}, gw.Listener{
@@ -427,7 +429,7 @@ func TestListenerValidate(t *testing.T) {
 	err = validator.validateTLS(context.Background(), listener.ListenerState, listener.gateway.Gateway, listener.listener)
 	require.NoError(t, err)
 	condition = listener.ListenerState.Status.Ready.Condition(0)
-	require.Equal(t, ListenerConditionReasonInvalid, condition.Reason)
+	require.Equal(t, status.ListenerConditionReasonInvalid, condition.Reason)
 
 	listener = NewK8sListener(&K8sGateway{Gateway: &gw.Gateway{}}, gw.Listener{
 		Protocol: gw.HTTPSProtocolType,
@@ -438,7 +440,7 @@ func TestListenerValidate(t *testing.T) {
 	err = validator.validateTLS(context.Background(), listener.ListenerState, listener.gateway.Gateway, listener.listener)
 	require.NoError(t, err)
 	condition = listener.ListenerState.Status.ResolvedRefs.Condition(0)
-	require.Equal(t, ListenerConditionReasonInvalidCertificateRef, condition.Reason)
+	require.Equal(t, status.ListenerConditionReasonInvalidCertificateRef, condition.Reason)
 
 	expected := errors.New("expected")
 	listener = NewK8sListener(&K8sGateway{Gateway: &gw.Gateway{}}, gw.Listener{
@@ -471,7 +473,7 @@ func TestListenerValidate(t *testing.T) {
 	err = validator.validateTLS(context.Background(), listener.ListenerState, listener.gateway.Gateway, listener.listener)
 	require.NoError(t, err)
 	condition = listener.ListenerState.Status.ResolvedRefs.Condition(0)
-	require.Equal(t, ListenerConditionReasonInvalidCertificateRef, condition.Reason)
+	require.Equal(t, status.ListenerConditionReasonInvalidCertificateRef, condition.Reason)
 
 	listener = NewK8sListener(&K8sGateway{Gateway: &gw.Gateway{}}, gw.Listener{
 		Protocol: gw.HTTPSProtocolType,
@@ -514,7 +516,7 @@ func TestListenerValidate(t *testing.T) {
 	err = validator.validateTLS(context.Background(), listener.ListenerState, listener.gateway.Gateway, listener.listener)
 	require.NoError(t, err)
 	condition = listener.ListenerState.Status.ResolvedRefs.Condition(0)
-	require.Equal(t, ListenerConditionReasonInvalidCertificateRef, condition.Reason)
+	require.Equal(t, status.ListenerConditionReasonInvalidCertificateRef, condition.Reason)
 
 	listener = NewK8sListener(&K8sGateway{Gateway: &gw.Gateway{}}, gw.Listener{
 		Protocol: gw.HTTPSProtocolType,
@@ -538,7 +540,7 @@ func TestListenerValidate(t *testing.T) {
 	err = validator.validateTLS(context.Background(), listener.ListenerState, listener.gateway.Gateway, listener.listener)
 	require.NoError(t, err)
 	condition = listener.ListenerState.Status.Ready.Condition(0)
-	require.Equal(t, ListenerConditionReasonReady, condition.Reason)
+	require.Equal(t, status.ListenerConditionReasonReady, condition.Reason)
 	require.Equal(t, "TLSv1_2", listener.ListenerState.TLS.MinVersion)
 
 	listener = NewK8sListener(&K8sGateway{Gateway: &gw.Gateway{}}, gw.Listener{
@@ -563,7 +565,7 @@ func TestListenerValidate(t *testing.T) {
 	err = validator.validateTLS(context.Background(), listener.ListenerState, listener.gateway.Gateway, listener.listener)
 	require.NoError(t, err)
 	condition = listener.ListenerState.Status.Ready.Condition(0)
-	require.Equal(t, ListenerConditionReasonInvalid, condition.Reason)
+	require.Equal(t, status.ListenerConditionReasonInvalid, condition.Reason)
 	require.Equal(t, "unrecognized TLS min version", condition.Message)
 
 	listener = NewK8sListener(&K8sGateway{Gateway: &gw.Gateway{}}, gw.Listener{
@@ -588,7 +590,7 @@ func TestListenerValidate(t *testing.T) {
 	err = validator.validateTLS(context.Background(), listener.ListenerState, listener.gateway.Gateway, listener.listener)
 	require.NoError(t, err)
 	condition = listener.ListenerState.Status.Ready.Condition(0)
-	require.Equal(t, ListenerConditionReasonReady, condition.Reason)
+	require.Equal(t, status.ListenerConditionReasonReady, condition.Reason)
 	require.Equal(t, []string{"TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256"}, listener.ListenerState.TLS.CipherSuites)
 
 	listener = NewK8sListener(&K8sGateway{Gateway: &gw.Gateway{}}, gw.Listener{
@@ -614,7 +616,7 @@ func TestListenerValidate(t *testing.T) {
 	err = validator.validateTLS(context.Background(), listener.ListenerState, listener.gateway.Gateway, listener.listener)
 	require.NoError(t, err)
 	condition = listener.ListenerState.Status.Ready.Condition(0)
-	require.Equal(t, ListenerConditionReasonInvalid, condition.Reason)
+	require.Equal(t, status.ListenerConditionReasonInvalid, condition.Reason)
 	require.Equal(t, "configuring TLS cipher suites is only supported for TLS 1.2 and earlier", condition.Message)
 
 	listener = NewK8sListener(&K8sGateway{Gateway: &gw.Gateway{}}, gw.Listener{
@@ -639,6 +641,6 @@ func TestListenerValidate(t *testing.T) {
 	err = validator.validateTLS(context.Background(), listener.ListenerState, listener.gateway.Gateway, listener.listener)
 	require.NoError(t, err)
 	condition = listener.ListenerState.Status.Ready.Condition(0)
-	require.Equal(t, ListenerConditionReasonInvalid, condition.Reason)
+	require.Equal(t, status.ListenerConditionReasonInvalid, condition.Reason)
 	require.Equal(t, "unrecognized or unsupported TLS cipher suite: foo", condition.Message)
 }

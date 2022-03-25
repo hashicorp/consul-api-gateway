@@ -8,6 +8,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/state"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/service"
 )
 
@@ -205,7 +206,7 @@ func TestConvertHTTPRoute(t *testing.T) {
 `,
 	}} {
 		t.Run(test.name, func(t *testing.T) {
-			resolved := convertHTTPRoute(test.namespace, test.hostname, test.name, test.meta, test.route, &RouteState{
+			resolved := convertHTTPRoute(test.namespace, test.hostname, test.name, test.meta, test.route, &state.RouteState{
 				References: test.references,
 			})
 

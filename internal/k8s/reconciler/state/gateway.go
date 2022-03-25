@@ -1,16 +1,18 @@
-package reconciler
+package state
 
 import (
 	"errors"
 	"sync/atomic"
 
 	"github.com/hashicorp/consul-api-gateway/internal/core"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/common"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/status"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
 )
 
 // GatewayState holds ephemeral state for gateways
 type GatewayState struct {
-	Status       GatewayStatus
+	Status       status.GatewayStatus
 	PodReady     bool
 	ServiceReady bool
 	Generation   int64
@@ -41,10 +43,10 @@ func (g *GatewayState) GetStatus(gateway *gw.Gateway) gw.GatewayStatus {
 	conditions := g.Status.Conditions(g.Generation)
 
 	// prefer to not update to not mess up timestamps
-	if listenerStatusesEqual(listenerStatuses, gateway.Status.Listeners) {
+	if status.ListenerStatusesEqual(listenerStatuses, gateway.Status.Listeners) {
 		listenerStatuses = gateway.Status.Listeners
 	}
-	if conditionsEqual(conditions, gateway.Status.Conditions) {
+	if status.ConditionsEqual(conditions, gateway.Status.Conditions) {
 		conditions = gateway.Status.Conditions
 	}
 
@@ -70,12 +72,12 @@ type ListenerState struct {
 	Protocol   gw.ProtocolType
 	Name       gw.SectionName
 	TLS        core.TLSParams
-	Status     ListenerStatus
+	Status     status.ListenerStatus
 }
 
-func (l *ListenerState) ValidWithProtocol(protocol gw.ProtocolType) bool {
+func (l *ListenerState) Valid() bool {
 	routeCount := atomic.LoadInt32(&l.RouteCount)
-	if protocol == gw.TCPProtocolType {
+	if l.Protocol == gw.TCPProtocolType {
 		if routeCount > 1 {
 			return false
 		}
@@ -94,7 +96,7 @@ func (l *ListenerState) getStatus(generation int64) gw.ListenerStatus {
 	}
 	return gw.ListenerStatus{
 		Name:           l.Name,
-		SupportedKinds: supportedKindsFor(l.Protocol),
+		SupportedKinds: common.SupportedKindsFor(l.Protocol),
 		AttachedRoutes: routeCount,
 		Conditions:     l.Status.Conditions(generation),
 	}

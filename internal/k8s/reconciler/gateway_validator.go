@@ -8,6 +8,9 @@ import (
 
 	"github.com/hashicorp/consul-api-gateway/internal/common"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
+	rcommon "github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/common"
+	rerrors "github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/errors"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/state"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -24,10 +27,10 @@ func NewGatewayValidator(client gatewayclient.Client) *GatewayValidator {
 	}
 }
 
-func (g *GatewayValidator) Validate(ctx context.Context, wrappedGateway *K8sGateway) (*GatewayState, error) {
+func (g *GatewayValidator) Validate(ctx context.Context, wrappedGateway *K8sGateway) (*state.GatewayState, error) {
 	gateway := wrappedGateway.Gateway
 
-	state := InitialGatewayState(gateway)
+	state := state.InitialGatewayState(gateway)
 
 	if len(gateway.Spec.Addresses) != 0 {
 		state.Status.Ready.AddressNotAssigned = errors.New("gateway does not support requesting addresses")
@@ -101,7 +104,7 @@ func mergeListenersByPort(g *gw.Gateway) map[gw.PortNumber]mergedListener {
 	return mergedListeners
 }
 
-func (g *GatewayValidator) validateListenerConflicts(state *GatewayState, gateway *gw.Gateway) {
+func (g *GatewayValidator) validateListenerConflicts(state *state.GatewayState, gateway *gw.Gateway) {
 	for _, merged := range mergeListenersByPort(gateway) {
 		if len(merged.protocols) > 1 {
 			conflict := fmt.Errorf("listeners have conflicting protocols for port: %s", setToCSV(merged.protocols))
@@ -120,7 +123,7 @@ func (g *GatewayValidator) validateListenerConflicts(state *GatewayState, gatewa
 	}
 }
 
-func (g *GatewayValidator) validatePods(ctx context.Context, state *GatewayState, gateway *gw.Gateway) error {
+func (g *GatewayValidator) validatePods(ctx context.Context, state *state.GatewayState, gateway *gw.Gateway) error {
 	pod, err := g.client.PodWithLabels(ctx, utils.LabelsForGateway(gateway))
 	if err != nil {
 		return err
@@ -131,7 +134,7 @@ func (g *GatewayValidator) validatePods(ctx context.Context, state *GatewayState
 	return nil
 }
 
-func (g *GatewayValidator) validatePodConditions(state *GatewayState, pod *corev1.Pod) {
+func (g *GatewayValidator) validatePodConditions(state *state.GatewayState, pod *corev1.Pod) {
 	if pod == nil {
 		state.Status.Scheduled.NotReconciled = errors.New("pod not found")
 		return
@@ -156,7 +159,7 @@ func (g *GatewayValidator) validatePodConditions(state *GatewayState, pod *corev
 	}
 }
 
-func (g *GatewayValidator) validatePodStatusPending(state *GatewayState, pod *corev1.Pod) {
+func (g *GatewayValidator) validatePodStatusPending(state *state.GatewayState, pod *corev1.Pod) {
 	for _, condition := range pod.Status.Conditions {
 		if condition.Type == corev1.PodScheduled && condition.Status == corev1.ConditionFalse &&
 			strings.Contains(condition.Reason, "Unschedulable") {
@@ -169,7 +172,7 @@ func (g *GatewayValidator) validatePodStatusPending(state *GatewayState, pod *co
 	state.Status.Scheduled.NotReconciled = errors.New("pod conditions not found")
 }
 
-func (g *GatewayValidator) validatePodStatusRunning(state *GatewayState, pod *corev1.Pod) {
+func (g *GatewayValidator) validatePodStatusRunning(state *state.GatewayState, pod *corev1.Pod) {
 	for _, condition := range pod.Status.Conditions {
 		if condition.Type == corev1.PodReady && condition.Status == corev1.ConditionTrue {
 			state.PodReady = true
@@ -180,7 +183,7 @@ func (g *GatewayValidator) validatePodStatusRunning(state *GatewayState, pod *co
 
 // validateGatewayIP ensures that the appropriate IP addresses are assigned to the
 // Gateway.
-func (g *GatewayValidator) validateGatewayIP(ctx context.Context, state *GatewayState, gateway *gw.Gateway, service *corev1.Service) error {
+func (g *GatewayValidator) validateGatewayIP(ctx context.Context, state *state.GatewayState, gateway *gw.Gateway, service *corev1.Service) error {
 	if service == nil {
 		return g.assignGatewayIPFromPod(ctx, state, gateway)
 	}
@@ -206,7 +209,7 @@ func (g *GatewayValidator) validateGatewayIP(ctx context.Context, state *Gateway
 
 // assignGatewayIPFromServiceIngress retrieves the external load balancer
 // ingress IP for the Service and assigns it to the Gateway
-func (g *GatewayValidator) assignGatewayIPFromServiceIngress(ctx context.Context, state *GatewayState, service *corev1.Service) error {
+func (g *GatewayValidator) assignGatewayIPFromServiceIngress(ctx context.Context, state *state.GatewayState, service *corev1.Service) error {
 	updated, err := g.client.GetService(ctx, types.NamespacedName{Namespace: service.Namespace, Name: service.Name})
 	if err != nil {
 		return err
@@ -227,7 +230,7 @@ func (g *GatewayValidator) assignGatewayIPFromServiceIngress(ctx context.Context
 
 // assignGatewayIPFromService retrieves the internal cluster IP for the
 // Service and assigns it to the Gateway
-func (g *GatewayValidator) assignGatewayIPFromService(ctx context.Context, state *GatewayState, service *corev1.Service) error {
+func (g *GatewayValidator) assignGatewayIPFromService(ctx context.Context, state *state.GatewayState, service *corev1.Service) error {
 	updated, err := g.client.GetService(ctx, types.NamespacedName{Namespace: service.Namespace, Name: service.Name})
 	if err != nil {
 		return err
@@ -248,7 +251,7 @@ func (g *GatewayValidator) assignGatewayIPFromService(ctx context.Context, state
 
 // assignGatewayIPFromPod retrieves the internal IP for the Pod and assigns
 // it to the Gateway.
-func (g *GatewayValidator) assignGatewayIPFromPod(ctx context.Context, state *GatewayState, gateway *gw.Gateway) error {
+func (g *GatewayValidator) assignGatewayIPFromPod(ctx context.Context, state *state.GatewayState, gateway *gw.Gateway) error {
 	pod, err := g.client.PodWithLabels(ctx, utils.LabelsForGateway(gateway))
 	if err != nil {
 		return err
@@ -272,7 +275,7 @@ func (g *GatewayValidator) assignGatewayIPFromPod(ctx context.Context, state *Ga
 // This IP address is not always externally accessible and may require additional
 // work by the practitioner such as port-forwarding or opening firewall rules to make
 // it externally accessible.
-func (g *GatewayValidator) assignGatewayIPFromPodHost(ctx context.Context, state *GatewayState, gateway *gw.Gateway) error {
+func (g *GatewayValidator) assignGatewayIPFromPodHost(ctx context.Context, state *state.GatewayState, gateway *gw.Gateway) error {
 	pod, err := g.client.PodWithLabels(ctx, utils.LabelsForGateway(gateway))
 	if err != nil {
 		return err
@@ -291,7 +294,7 @@ func (g *GatewayValidator) assignGatewayIPFromPodHost(ctx context.Context, state
 	return nil
 }
 
-func (g *GatewayValidator) validateUnsupported(state *ListenerState, gateway *gw.Gateway) {
+func (g *GatewayValidator) validateUnsupported(state *state.ListenerState, gateway *gw.Gateway) {
 	// seems weird that we're looking at gateway fields for listener status
 	// but that's the weirdness of the spec
 	if len(gateway.Spec.Addresses) > 0 {
@@ -300,8 +303,8 @@ func (g *GatewayValidator) validateUnsupported(state *ListenerState, gateway *gw
 	}
 }
 
-func (g *GatewayValidator) validateProtocols(state *ListenerState, listener gw.Listener) {
-	supportedKinds := supportedKindsFor(listener.Protocol)
+func (g *GatewayValidator) validateProtocols(state *state.ListenerState, listener gw.Listener) {
+	supportedKinds := rcommon.SupportedKindsFor(listener.Protocol)
 	if len(supportedKinds) == 0 {
 		state.Status.Detached.UnsupportedProtocol = fmt.Errorf("unsupported protocol: %s", listener.Protocol)
 	}
@@ -313,7 +316,7 @@ func (g *GatewayValidator) validateProtocols(state *ListenerState, listener gw.L
 	}
 }
 
-func (g *GatewayValidator) validateTLS(ctx context.Context, state *ListenerState, gateway *gw.Gateway, listener gw.Listener) error {
+func (g *GatewayValidator) validateTLS(ctx context.Context, state *state.ListenerState, gateway *gw.Gateway, listener gw.Listener) error {
 	_, tlsRequired := utils.ProtocolToConsul(listener.Protocol)
 	if listener.TLS == nil {
 		// TODO: should this struct field be "Required" instead of "Enabled"?
@@ -339,7 +342,7 @@ func (g *GatewayValidator) validateTLS(ctx context.Context, state *ListenerState
 	ref := *listener.TLS.CertificateRefs[0]
 	resource, err := resolveCertificateReference(ctx, g.client, gateway, ref)
 	if err != nil {
-		var certificateErr CertificateResolutionError
+		var certificateErr rerrors.CertificateResolutionError
 		if !errors.As(err, &certificateErr) {
 			return err
 		}
@@ -424,12 +427,12 @@ func resolveCertificateReference(ctx context.Context, client gatewayclient.Clien
 			return "", fmt.Errorf("error fetching secret: %w", err)
 		}
 		if cert == nil {
-			return "", NewCertificateResolutionErrorNotFound("certificate not found")
+			return "", rerrors.NewCertificateResolutionErrorNotFound("certificate not found")
 		}
 		return utils.NewK8sSecret(namespace, string(ref.Name)).String(), nil
 	// add more supported types here
 	default:
-		return "", NewCertificateResolutionErrorUnsupported(fmt.Sprintf("unsupported certificate type - group: %s, kind: %s", group, kind))
+		return "", rerrors.NewCertificateResolutionErrorUnsupported(fmt.Sprintf("unsupported certificate type - group: %s, kind: %s", group, kind))
 	}
 }
 

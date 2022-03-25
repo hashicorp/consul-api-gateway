@@ -7,6 +7,7 @@ import (
 
 	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/state"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	"github.com/hashicorp/consul-api-gateway/internal/store"
 	"github.com/hashicorp/go-hclog"
@@ -23,7 +24,7 @@ type Route interface {
 
 type K8sRoute struct {
 	Route
-	*RouteState
+	*state.RouteState
 
 	// these get populated by our factory
 	controllerName string
@@ -98,7 +99,7 @@ func (r *K8sRoute) SetStatus(updated gw.RouteStatus) {
 }
 
 func (r *K8sRoute) SyncStatus(ctx context.Context) error {
-	if status, ok := needsStatusUpdate(r.routeStatus(), r.controllerName, r.GetGeneration(), r.RouteState); ok {
+	if status, ok := r.RouteState.ParentStatuses.NeedsUpdate(r.routeStatus(), r.controllerName, r.GetGeneration()); ok {
 		r.SetStatus(status)
 
 		if r.logger.IsTrace() {

@@ -2,6 +2,7 @@ package reconciler
 
 import (
 	"github.com/hashicorp/consul-api-gateway/internal/core"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/state"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/service"
 	"k8s.io/apimachinery/pkg/types"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
@@ -11,7 +12,7 @@ func TCPRouteID(namespacedName types.NamespacedName) string {
 	return "tcp-" + namespacedName.String()
 }
 
-func convertTCPRoute(namespace, prefix string, meta map[string]string, route *gw.TCPRoute, state *RouteState) *core.ResolvedRoute {
+func convertTCPRoute(namespace, prefix string, meta map[string]string, route *gw.TCPRoute, state *state.RouteState) *core.ResolvedRoute {
 	name := prefix + route.Name
 
 	resolved := core.NewTCPRouteBuilder().

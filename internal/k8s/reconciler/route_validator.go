@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/state"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/status"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/service"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
 )
@@ -18,11 +20,11 @@ func NewRouteValidator(resolver service.BackendResolver) *RouteValidator {
 	}
 }
 
-func (r *RouteValidator) Validate(ctx context.Context, route *K8sRoute) (*RouteState, error) {
-	state := &RouteState{
+func (r *RouteValidator) Validate(ctx context.Context, route *K8sRoute) (*state.RouteState, error) {
+	state := &state.RouteState{
 		ResolutionErrors: service.NewResolutionErrors(),
 		References:       make(service.RouteRuleReferenceMap),
-		ParentStatuses:   make(RouteStatuses),
+		ParentStatuses:   make(status.RouteStatuses),
 	}
 
 	switch route := route.Route.(type) {
@@ -35,7 +37,7 @@ func (r *RouteValidator) Validate(ctx context.Context, route *K8sRoute) (*RouteS
 	return nil, nil
 }
 
-func (r *RouteValidator) validateHTTPRoute(ctx context.Context, state *RouteState, route *gw.HTTPRoute) (*RouteState, error) {
+func (r *RouteValidator) validateHTTPRoute(ctx context.Context, state *state.RouteState, route *gw.HTTPRoute) (*state.RouteState, error) {
 	for _, httpRule := range route.Spec.Rules {
 		rule := httpRule
 		routeRule := service.NewRouteRule(&rule)
@@ -57,7 +59,7 @@ func (r *RouteValidator) validateHTTPRoute(ctx context.Context, state *RouteStat
 	return state, nil
 }
 
-func (r *RouteValidator) validateTCPRoute(ctx context.Context, state *RouteState, route *gw.TCPRoute) (*RouteState, error) {
+func (r *RouteValidator) validateTCPRoute(ctx context.Context, state *state.RouteState, route *gw.TCPRoute) (*state.RouteState, error) {
 	if len(route.Spec.Rules) != 1 {
 		err := service.NewResolutionError("a single tcp rule is required")
 		state.ResolutionErrors.Add(err)

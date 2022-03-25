@@ -6,6 +6,7 @@ import (
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/state"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	"github.com/hashicorp/consul-api-gateway/internal/store"
 	"github.com/hashicorp/go-hclog"
@@ -16,7 +17,7 @@ const (
 )
 
 type K8sListener struct {
-	*ListenerState
+	*state.ListenerState
 	listener gw.Listener
 
 	logger  hclog.Logger
@@ -35,7 +36,7 @@ func NewK8sListener(gateway *K8sGateway, listener gw.Listener, config K8sListene
 	listenerLogger := config.Logger.Named("listener").With("listener", string(listener.Name))
 
 	return &K8sListener{
-		ListenerState: &ListenerState{},
+		ListenerState: &state.ListenerState{},
 		logger:        listenerLogger,
 		client:        config.Client,
 		gateway:       gateway,
@@ -75,5 +76,5 @@ func (l *K8sListener) RouteRemoved() {
 }
 
 func (l *K8sListener) IsValid() bool {
-	return l.ListenerState.ValidWithProtocol(l.listener.Protocol)
+	return l.ListenerState.Valid()
 }

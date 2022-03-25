@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/status"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 	"github.com/hashicorp/go-hclog"
@@ -72,7 +73,7 @@ type K8sGatewayClass struct {
 	logger hclog.Logger
 	client gatewayclient.Client
 
-	status GatewayClassStatus
+	status status.GatewayClassStatus
 	class  *gw.GatewayClass
 	config apigwv1alpha1.GatewayClassConfig
 }
@@ -115,7 +116,7 @@ func (c *K8sGatewayClass) Validate(ctx context.Context) error {
 		}
 		c.config = *found
 		// clear out any accepted errors
-		c.status.Accepted = GatewayClassAcceptedStatus{}
+		c.status.Accepted = status.GatewayClassAcceptedStatus{}
 	}
 
 	return nil
@@ -124,7 +125,7 @@ func (c *K8sGatewayClass) Validate(ctx context.Context) error {
 func (c *K8sGatewayClass) SyncStatus(ctx context.Context) error {
 	current := c.class.Status.Conditions
 	conditions := c.status.Conditions(c.class.Generation)
-	if !conditionsEqual(conditions, current) {
+	if !status.ConditionsEqual(conditions, current) {
 		c.class.Status.Conditions = conditions
 		if err := c.client.UpdateStatus(ctx, c.class); err != nil {
 			// unset to sync on next retry

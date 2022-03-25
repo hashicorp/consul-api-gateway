@@ -5,6 +5,9 @@ import (
 	"fmt"
 
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/common"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/errors"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/state"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
 )
@@ -13,7 +16,7 @@ type Binder struct {
 	Client        gatewayclient.Client
 	Gateway       *K8sGateway
 	Listener      gw.Listener
-	ListenerState *ListenerState
+	ListenerState *state.ListenerState
 }
 
 func (b *Binder) Bind(ctx context.Context, route *K8sRoute) bool {
@@ -37,9 +40,9 @@ func (b *Binder) canBind(ctx context.Context, ref gw.ParentRef, route *K8sRoute)
 	// meaning if we must attach, but cannot, it's an error
 	allowed, must := routeMatchesListener(b.Listener.Name, ref.SectionName)
 	if allowed {
-		if !routeKindIsAllowedForListener(supportedKindsFor(b.Listener.Protocol), route) {
+		if !routeKindIsAllowedForListener(common.SupportedKindsFor(b.Listener.Protocol), route) {
 			if must {
-				route.bindFailed(NewBindErrorRouteKind("route kind not allowed for listener"), b.Gateway)
+				route.bindFailed(errors.NewBindErrorRouteKind("route kind not allowed for listener"), b.Gateway)
 			}
 			return false
 		}
@@ -51,21 +54,21 @@ func (b *Binder) canBind(ctx context.Context, ref gw.ParentRef, route *K8sRoute)
 		}
 		if !allowed {
 			if must {
-				route.bindFailed(NewBindErrorListenerNamespacePolicy("route not allowed because of listener namespace policy"), b.Gateway)
+				route.bindFailed(errors.NewBindErrorListenerNamespacePolicy("route not allowed because of listener namespace policy"), b.Gateway)
 			}
 			return false
 		}
 
 		if !route.MatchesHostname(b.Listener.Hostname) {
 			if must {
-				route.bindFailed(NewBindErrorHostnameMismatch("route does not match listener hostname"), b.Gateway)
+				route.bindFailed(errors.NewBindErrorHostnameMismatch("route does not match listener hostname"), b.Gateway)
 			}
 			return false
 		}
 
 		// check if the route is valid, if not, then return a status about it being rejected
 		if !route.RouteState.ResolutionErrors.Empty() {
-			route.bindFailed(NewBindErrorRouteInvalid("route is in an invalid state and cannot bind"), b.Gateway)
+			route.bindFailed(errors.NewBindErrorRouteInvalid("route is in an invalid state and cannot bind"), b.Gateway)
 			return false
 		}
 

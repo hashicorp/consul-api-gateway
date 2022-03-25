@@ -10,6 +10,8 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/builder"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/state"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/status"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	"github.com/hashicorp/consul-api-gateway/internal/store"
 	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
@@ -17,7 +19,7 @@ import (
 )
 
 type K8sGateway struct {
-	*GatewayState
+	*state.GatewayState
 	*gw.Gateway
 
 	listeners []*K8sListener
@@ -33,7 +35,7 @@ type K8sGateway struct {
 var _ store.StatusTrackingGateway = &K8sGateway{}
 
 // TODO: remove this
-func (g *K8sGateway) SetState(state *GatewayState) {
+func (g *K8sGateway) SetState(state *state.GatewayState) {
 	g.GatewayState = state
 	for i, listener := range g.listeners {
 		listener.ListenerState = state.Listeners[i]
@@ -105,14 +107,14 @@ func (g *K8sGateway) TrackSync(ctx context.Context, sync func() (bool, error)) e
 		g.GatewayState.Status.InSync.SyncError = err
 	} else if didSync {
 		// clear out any old synchronization error statuses
-		g.GatewayState.Status.InSync = GatewayInSyncStatus{}
+		g.GatewayState.Status.InSync = status.GatewayInSyncStatus{}
 	}
 
-	status := g.GetStatus(g.Gateway)
-	if !gatewayStatusEqual(status, g.Gateway.Status) {
-		g.Gateway.Status = status
+	gatewayStatus := g.GetStatus(g.Gateway)
+	if !status.GatewayStatusEqual(gatewayStatus, g.Gateway.Status) {
+		g.Gateway.Status = gatewayStatus
 		if g.logger.IsTrace() {
-			data, err := json.MarshalIndent(status, "", "  ")
+			data, err := json.MarshalIndent(gatewayStatus, "", "  ")
 			if err == nil {
 				g.logger.Trace("setting gateway status", "status", string(data))
 			}

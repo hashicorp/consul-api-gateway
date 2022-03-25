@@ -1,4 +1,4 @@
-package reconciler
+package errors
 
 // GENERATED from errors.yaml, DO NOT EDIT DIRECTLY
 

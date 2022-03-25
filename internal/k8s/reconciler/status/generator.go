@@ -4,27 +4,20 @@
 package main
 
 /*
-This file generates boilerplate error structures and k8s object statuses to
-facillitate status construction
+This file generates k8s object statuses to facillitate status construction
 */
 
 import (
 	"bytes"
 	"fmt"
 	"os"
-	"path"
 	"strings"
 	"text/template"
 
 	"k8s.io/apimachinery/pkg/util/yaml"
 )
 
-//go:generate sh -c "go run generator.go && go fmt zz_generated_status.go zz_generated_status_test.go zz_generated_errors.go zz_generated_errors_test.go"
-
-type customError struct {
-	Name  string
-	Types []string
-}
+//go:generate sh -c "go run generator.go && go fmt zz_generated_status.go zz_generated_status_test.go"
 
 type status struct {
 	Kind        string
@@ -88,7 +81,7 @@ func (c conditionType) normalize() conditionType {
 }
 
 func mustDecodeYAML(name string, into interface{}) {
-	file, err := os.OpenFile(path.Join("config", name), os.O_RDONLY, 0644)
+	file, err := os.OpenFile(name, os.O_RDONLY, 0644)
 	if err != nil {
 		panic(err)
 	}
@@ -106,14 +99,11 @@ func mustDecodeYAML(name string, into interface{}) {
 
 func init() {
 	mustDecodeYAML("statuses.yaml", &statuses)
-	mustDecodeYAML("errors.yaml", &errors)
 
 	for i, status := range statuses {
 		statuses[i] = status.normalize()
 	}
 
-	errorGenerator = template.Must(template.New("errors").Parse(errorTemplate))
-	errorTestGenerator = template.Must(template.New("errorTests").Parse(errorTestsTemplate))
 	statusGenerator = template.Must(template.New("statuses").Funcs(template.FuncMap{
 		"writeComment": writeComment,
 		"required":     required,
@@ -124,70 +114,13 @@ func init() {
 }
 
 var (
-	errorGenerator      *template.Template
-	errorTestGenerator  *template.Template
 	statusGenerator     *template.Template
 	statusTestGenerator *template.Template
 	statuses            []status
-	errors              []customError
 )
 
 const (
-	errorTemplate = `package reconciler
-
-// GENERATED from errors.yaml, DO NOT EDIT DIRECTLY
-
-{{ range $error := $ -}}
-type {{ $error.Name }}ErrorType int
-
-const (
-	{{- range $index, $value := $error.Types }}
-	{{ $error.Name }}ErrorType{{ $value }}{{ if (eq $index 0) }} {{ $error.Name }}ErrorType = iota{{end}}{{end}}
-)
-	
-type {{ $error.Name }}Error struct {
-	inner string
-	errorType {{ $error.Name }}ErrorType
-}
-
-{{ range $index, $value := $error.Types -}}
-func New{{ $error.Name }}Error{{ $value }}(inner string) {{$error.Name}}Error {
-	return {{ $error.Name }}Error{inner, {{ $error.Name }}ErrorType{{ $value }}}
-}
-{{end}}
-	
-func (r {{ $error.Name }}Error) Error() string {
-	return r.inner
-}
-	
-func (r {{ $error.Name }}Error) Kind() {{ $error.Name }}ErrorType {
-	return r.errorType
-}	
-{{end}}
-`
-	errorTestsTemplate = `package reconciler
-
-// GENERATED from errors.yaml, DO NOT EDIT DIRECTLY
-
-import (
-	"testing"
-
-	"github.com/stretchr/testify/require"
-)
-{{ range $error := $ }}
-
-func Test{{ $error.Name }}ErrorType(t *testing.T) {
-	t.Parallel()
-
-	expected := "expected"
-
-	{{ range $value := $error.Types -}}
-	require.Equal(t, expected, New{{ $error.Name }}Error{{ $value }}(expected).Error())
-	require.Equal(t, {{ $error.Name }}ErrorType{{ $value }}, New{{ $error.Name }}Error{{ $value }}(expected).Kind())
-{{end}}}
-{{end}}
-`
-	statusTestsTemplate = `package reconciler
+	statusTestsTemplate = `package status
 
 // GENERATED from statuses.yaml, DO NOT EDIT DIRECTLY
 
@@ -250,7 +183,7 @@ func Test{{ $status.Kind }}Status(t *testing.T) {
 
 {{end}}
 `
-	statusTemplate = `package reconciler
+	statusTemplate = `package status
 
 // GENERATED from statuses.yaml, DO NOT EDIT DIRECTLY
 
@@ -412,24 +345,6 @@ func main() {
 		panic(err)
 	}
 	if err := os.WriteFile("zz_generated_status_test.go", buffer.Bytes(), 0644); err != nil {
-		panic(err)
-	}
-
-	buffer.Reset()
-
-	if err := errorGenerator.Execute(&buffer, errors); err != nil {
-		panic(err)
-	}
-	if err := os.WriteFile("zz_generated_errors.go", buffer.Bytes(), 0644); err != nil {
-		panic(err)
-	}
-
-	buffer.Reset()
-
-	if err := errorTestGenerator.Execute(&buffer, errors); err != nil {
-		panic(err)
-	}
-	if err := os.WriteFile("zz_generated_errors_test.go", buffer.Bytes(), 0644); err != nil {
 		panic(err)
 	}
 }

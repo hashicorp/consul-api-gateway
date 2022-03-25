@@ -7,6 +7,7 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient/mocks"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/status"
 	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 	"github.com/hashicorp/go-hclog"
 	"github.com/stretchr/testify/require"
@@ -26,7 +27,7 @@ func TestGatewayClassValidate(t *testing.T) {
 		Client: client,
 	})
 	require.NoError(t, gatewayClass.Validate(context.Background()))
-	require.Equal(t, GatewayClassConditionReasonAccepted, gatewayClass.status.Accepted.Condition(0).Reason)
+	require.Equal(t, status.GatewayClassConditionReasonAccepted, gatewayClass.status.Accepted.Condition(0).Reason)
 
 	require.NoError(t, gatewayClass.Validate(context.Background()))
 	gatewayClass = NewK8sGatewayClass(&gw.GatewayClass{
@@ -41,7 +42,7 @@ func TestGatewayClassValidate(t *testing.T) {
 		Client: client,
 	})
 	require.NoError(t, gatewayClass.Validate(context.Background()))
-	require.Equal(t, GatewayClassConditionReasonInvalidParameters, gatewayClass.status.Accepted.Condition(0).Reason)
+	require.Equal(t, status.GatewayClassConditionReasonInvalidParameters, gatewayClass.status.Accepted.Condition(0).Reason)
 
 	require.NoError(t, gatewayClass.Validate(context.Background()))
 	gatewayClass = NewK8sGatewayClass(&gw.GatewayClass{
@@ -62,13 +63,13 @@ func TestGatewayClassValidate(t *testing.T) {
 
 	client.EXPECT().GetGatewayClassConfig(gomock.Any(), gomock.Any()).Return(nil, nil)
 	require.NoError(t, gatewayClass.Validate(context.Background()))
-	require.Equal(t, GatewayClassConditionReasonInvalidParameters, gatewayClass.status.Accepted.Condition(0).Reason)
+	require.Equal(t, status.GatewayClassConditionReasonInvalidParameters, gatewayClass.status.Accepted.Condition(0).Reason)
 	require.False(t, gatewayClass.IsValid())
 
 	config := &apigwv1alpha1.GatewayClassConfig{}
 	client.EXPECT().GetGatewayClassConfig(gomock.Any(), gomock.Any()).Return(config, nil)
 	require.NoError(t, gatewayClass.Validate(context.Background()))
-	require.Equal(t, GatewayClassConditionReasonAccepted, gatewayClass.status.Accepted.Condition(0).Reason)
+	require.Equal(t, status.GatewayClassConditionReasonAccepted, gatewayClass.status.Accepted.Condition(0).Reason)
 	require.Equal(t, *config, gatewayClass.config)
 	require.True(t, gatewayClass.IsValid())
 }

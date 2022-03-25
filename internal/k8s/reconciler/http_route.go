@@ -2,6 +2,7 @@ package reconciler
 
 import (
 	"github.com/hashicorp/consul-api-gateway/internal/core"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/state"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/service"
 	"k8s.io/apimachinery/pkg/types"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
@@ -11,7 +12,7 @@ func HTTPRouteID(namespacedName types.NamespacedName) string {
 	return "http-" + namespacedName.String()
 }
 
-func convertHTTPRoute(namespace, hostname, prefix string, meta map[string]string, route *gw.HTTPRoute, state *RouteState) *core.ResolvedRoute {
+func convertHTTPRoute(namespace, hostname, prefix string, meta map[string]string, route *gw.HTTPRoute, state *state.RouteState) *core.ResolvedRoute {
 	hostnames := []string{}
 	for _, hostname := range route.Spec.Hostnames {
 		hostnames = append(hostnames, string(hostname))
