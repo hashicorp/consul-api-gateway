@@ -1,4 +1,4 @@
-package reconciler
+package validators
 
 import (
 	"context"
@@ -7,8 +7,16 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/state"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/status"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/service"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
 )
+
+// all kubernetes routes implement the following two interfaces
+type Route interface {
+	client.Object
+	schema.ObjectKind
+}
 
 type RouteValidator struct {
 	resolver service.BackendResolver
@@ -20,14 +28,14 @@ func NewRouteValidator(resolver service.BackendResolver) *RouteValidator {
 	}
 }
 
-func (r *RouteValidator) Validate(ctx context.Context, route *K8sRoute) (*state.RouteState, error) {
+func (r *RouteValidator) Validate(ctx context.Context, route Route) (*state.RouteState, error) {
 	state := &state.RouteState{
 		ResolutionErrors: service.NewResolutionErrors(),
 		References:       make(service.RouteRuleReferenceMap),
 		ParentStatuses:   make(status.RouteStatuses),
 	}
 
-	switch route := route.Route.(type) {
+	switch route := route.(type) {
 	case *gw.HTTPRoute:
 		return r.validateHTTPRoute(ctx, state, route)
 	case *gw.TCPRoute:

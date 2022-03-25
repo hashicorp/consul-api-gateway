@@ -50,7 +50,7 @@ type GatewayReconcileManager struct {
 	gatewayClasses   *K8sGatewayClasses
 	Factory          *Factory
 	GatewayValidator *validators.GatewayValidator
-	RouteValidator   *RouteValidator
+	RouteValidator   *validators.RouteValidator
 
 	deployer              *GatewayDeployer
 	consulNamespaceMapper common.ConsulNamespaceMapper
@@ -94,7 +94,7 @@ func NewReconcileManager(config ManagerConfig) *GatewayReconcileManager {
 			Deployer:       deployer,
 		}),
 		GatewayValidator:      validators.NewGatewayValidator(config.Client),
-		RouteValidator:        NewRouteValidator(resolver),
+		RouteValidator:        validators.NewRouteValidator(resolver),
 		gatewayClasses:        NewK8sGatewayClasses(config.Logger.Named("gatewayclasses"), config.Client),
 		namespaceMap:          make(map[types.NamespacedName]string),
 		consulNamespaceMapper: config.ConsulNamespaceMapper,
@@ -225,7 +225,7 @@ func (m *GatewayReconcileManager) upsertRoute(ctx context.Context, r Route, id s
 
 	// Calling validate outside of the upsert process allows us to re-resolve any
 	// external references and set the statuses accordingly.
-	state, err := m.RouteValidator.Validate(ctx, route)
+	state, err := m.RouteValidator.Validate(ctx, r)
 	if err != nil {
 		return err
 	}
