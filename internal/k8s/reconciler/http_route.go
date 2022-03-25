@@ -32,7 +32,7 @@ func convertHTTPRoute(namespace, hostname, prefix string, meta map[string]string
 		WithNamespace(namespace).
 		WithHostnames(hostnames).
 		WithMeta(meta).
-		WithRules(httpReferencesToRules(k8sRoute.references)).
+		WithRules(httpReferencesToRules(k8sRoute.RouteState.References)).
 		Build()
 	return &resolved
 }

@@ -21,7 +21,7 @@ func convertTCPRoute(namespace, prefix string, meta map[string]string, route *gw
 		// be in different namespaces
 		WithNamespace(namespace).
 		WithMeta(meta).
-		WithService(tcpReferencesToService(k8sRoute.references)).
+		WithService(tcpReferencesToService(k8sRoute.RouteState.References)).
 		Build()
 	return &resolved
 }

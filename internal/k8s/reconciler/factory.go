@@ -50,6 +50,7 @@ type NewGatewayConfig struct {
 func (f *Factory) NewGateway(config NewGatewayConfig) *K8sGateway {
 	return f.initializeGateway(&K8sGateway{
 		Gateway:         config.Gateway,
+		GatewayState:    &GatewayState{},
 		config:          config.Config,
 		consulNamespace: config.ConsulNamespace,
 	})
@@ -59,13 +60,16 @@ func (f *Factory) initializeGateway(gateway *K8sGateway) *K8sGateway {
 	logger := f.logger.Named("gateway").With("name", gateway.Name, "namespace", gateway.Namespace)
 
 	// TODO: get rid of this to make this marshalable
-	listeners := make(map[string]*K8sListener)
+	listeners := []*K8sListener{}
 	for _, listener := range gateway.Spec.Listeners {
 		k8sListener := NewK8sListener(gateway, listener, K8sListenerConfig{
 			Logger: logger,
 			Client: f.client,
 		})
-		listeners[k8sListener.ID()] = k8sListener
+		state := &ListenerState{}
+		gateway.GatewayState.Listeners = append(gateway.GatewayState.Listeners, state)
+		k8sListener.ListenerState = state
+		listeners = append(listeners, k8sListener)
 	}
 	gateway.listeners = listeners
 
@@ -88,10 +92,12 @@ func (f *Factory) initializeGateway(gateway *K8sGateway) *K8sGateway {
 
 func (f *Factory) NewRoute(route Route) *K8sRoute {
 	return f.initializeRoute(&K8sRoute{
-		Route:            route,
-		resolutionErrors: service.NewResolutionErrors(),
-		references:       make(service.RouteRuleReferenceMap),
-		parentStatuses:   make(RouteStatuses),
+		Route: route,
+		RouteState: &RouteState{
+			ResolutionErrors: service.NewResolutionErrors(),
+			References:       make(service.RouteRuleReferenceMap),
+			ParentStatuses:   make(RouteStatuses),
+		},
 	})
 }
 

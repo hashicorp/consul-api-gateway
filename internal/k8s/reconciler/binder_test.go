@@ -95,7 +95,8 @@ func TestBinder_RouteKind(t *testing.T) {
 	}, K8sListenerConfig{
 		Logger: hclog.NewNullLogger(),
 	})
-	require.NoError(t, listener.Validate(context.Background(), nil, listener.gateway.Gateway, listener.listener))
+	validator := NewGatewayValidator(nil)
+	validator.validateProtocols(listener.ListenerState, listener.listener)
 	testBinder(t, listener, factory.NewRoute(&gw.UDPRoute{
 		TypeMeta: routeMeta,
 		Spec: gw.UDPRouteSpec{

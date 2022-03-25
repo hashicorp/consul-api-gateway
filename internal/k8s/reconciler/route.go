@@ -28,11 +28,7 @@ type RouteStatuses map[string]*RouteStatus
 
 type K8sRoute struct {
 	Route
-
-	// TODO: make this able to be marshaled
-	references       service.RouteRuleReferenceMap
-	resolutionErrors *service.ResolutionErrors
-	parentStatuses   RouteStatuses
+	*RouteState
 
 	// these get populated by our factory
 	controllerName string
@@ -117,89 +113,17 @@ func (r *K8sRoute) SetStatus(updated gw.RouteStatus) {
 	}
 }
 
-func (r *K8sRoute) ParentStatuses() []gw.RouteParentStatus {
-	statuses := []gw.RouteParentStatus{}
-	for ref, status := range r.parentStatuses {
-		statuses = append(statuses, gw.RouteParentStatus{
-			ParentRef:      parseParent(ref),
-			ControllerName: gw.GatewayController(r.controllerName),
-			Conditions:     status.Conditions(r.GetGeneration()),
-		})
-	}
-	return statuses
-}
-
-func (r *K8sRoute) FilterParentStatuses() []gw.RouteParentStatus {
-	filtered := []gw.RouteParentStatus{}
-	for _, status := range r.routeStatus().Parents {
-		if status.ControllerName != gw.GatewayController(r.controllerName) {
-			filtered = append(filtered, status)
-			continue
-		}
-	}
-	return filtered
-}
-
-func (r *K8sRoute) MergedStatus() gw.RouteStatus {
-	return gw.RouteStatus{
-		Parents: sortParents(append(r.FilterParentStatuses(), r.ParentStatuses()...)),
-	}
-}
-
-func (r *K8sRoute) NeedsStatusUpdate() bool {
-	currentStatus := gw.RouteStatus{Parents: sortParents(r.routeStatus().Parents)}
-	updatedStatus := r.MergedStatus()
-	return !routeStatusEqual(currentStatus, updatedStatus)
-}
-
 func (r *K8sRoute) bindFailed(err error, gateway *K8sGateway) {
 	id, found := r.parentKeyForGateway(utils.NamespacedName(gateway.Gateway))
 	if found {
-		status, statusFound := r.parentStatuses[id]
-		if !statusFound {
-			status = &RouteStatus{}
-		}
-		var bindError BindError
-		if errors.As(err, &bindError) {
-			switch bindError.Kind() {
-			case BindErrorTypeHostnameMismatch:
-				status.Accepted.ListenerHostnameMismatch = err
-			case BindErrorTypeListenerNamespacePolicy:
-				status.Accepted.ListenerNamespacePolicy = err
-			case BindErrorTypeRouteKind:
-				status.Accepted.InvalidRouteKind = err
-			case BindErrorTypeRouteInvalid:
-				status.Accepted.BindError = err
-			}
-		} else {
-			status.Accepted.BindError = err
-		}
-		// set resolution errors - we can do this here because
-		// a route with resolution errors will always fail to bind
-		errorType, err := r.resolutionErrors.Flatten()
-		switch errorType {
-		case service.GenericResolutionErrorType:
-			status.ResolvedRefs.Errors = err
-		case service.ConsulServiceResolutionErrorType:
-			status.ResolvedRefs.ConsulServiceNotFound = err
-		case service.K8sServiceResolutionErrorType:
-			status.ResolvedRefs.ServiceNotFound = err
-		}
-
-		r.parentStatuses[id] = status
+		r.RouteState.bindFailed(err, id)
 	}
 }
 
 func (r *K8sRoute) bound(gateway *K8sGateway) {
 	id, found := r.parentKeyForGateway(utils.NamespacedName(gateway.Gateway))
 	if found {
-		// clear out any existing errors on our statuses
-		if status, statusFound := r.parentStatuses[id]; statusFound {
-			status.Accepted = RouteAcceptedStatus{}
-			status.ResolvedRefs = RouteResolvedRefsStatus{}
-		} else {
-			r.parentStatuses[id] = &RouteStatus{}
-		}
+		r.RouteState.bound(id)
 	}
 }
 
@@ -208,25 +132,22 @@ func (r *K8sRoute) OnGatewayRemoved(gateway store.Gateway) {
 	if ok {
 		id, found := r.parentKeyForGateway(utils.NamespacedName(k8sGateway.Gateway))
 		if found {
-			delete(r.parentStatuses, id)
+			r.RouteState.remove(id)
 		}
 	}
 }
 
 func (r *K8sRoute) SyncStatus(ctx context.Context) error {
-	if r.NeedsStatusUpdate() {
-		status := r.routeStatus()
-		r.SetStatus(r.MergedStatus())
+	if status, ok := needsStatusUpdate(r.routeStatus(), r.controllerName, r.GetGeneration(), r.RouteState); ok {
+		r.SetStatus(status)
 
 		if r.logger.IsTrace() {
-			status, err := json.MarshalIndent(r.routeStatus(), "", "  ")
+			status, err := json.MarshalIndent(status, "", "  ")
 			if err == nil {
 				r.logger.Trace("syncing route status", "status", string(status))
 			}
 		}
 		if err := r.client.UpdateStatus(ctx, r.Route); err != nil {
-			// reset the status so we sync again on a retry
-			r.SetStatus(status)
 			return fmt.Errorf("error updating route status: %w", err)
 		}
 	}
@@ -295,17 +216,17 @@ func (r *K8sRoute) Validate(ctx context.Context) error {
 					if !errors.As(err, &resolutionError) {
 						return err
 					}
-					r.resolutionErrors.Add(resolutionError)
+					r.RouteState.ResolutionErrors.Add(resolutionError)
 					continue
 				}
 				reference.Reference.Set(&ref)
-				r.references.Add(routeRule, *reference)
+				r.RouteState.References.Add(routeRule, *reference)
 			}
 		}
 	case *gw.TCPRoute:
 		if len(route.Spec.Rules) != 1 {
 			err := service.NewResolutionError("a single tcp rule is required")
-			r.resolutionErrors.Add(err)
+			r.RouteState.ResolutionErrors.Add(err)
 			return nil
 		}
 
@@ -313,7 +234,7 @@ func (r *K8sRoute) Validate(ctx context.Context) error {
 
 		if len(rule.BackendRefs) != 1 {
 			err := service.NewResolutionError("a single backendRef per tcp rule is required")
-			r.resolutionErrors.Add(err)
+			r.RouteState.ResolutionErrors.Add(err)
 			return nil
 		}
 
@@ -326,17 +247,17 @@ func (r *K8sRoute) Validate(ctx context.Context) error {
 			if !errors.As(err, &resolutionError) {
 				return err
 			}
-			r.resolutionErrors.Add(resolutionError)
+			r.RouteState.ResolutionErrors.Add(resolutionError)
 			return nil
 		}
 
 		reference.Reference.Set(&ref)
-		r.references.Add(routeRule, *reference)
+		r.RouteState.References.Add(routeRule, *reference)
 	}
 
 	return nil
 }
 
 func (r *K8sRoute) IsValid() bool {
-	return r.resolutionErrors.Empty()
+	return r.RouteState.ResolutionErrors.Empty()
 }

@@ -188,7 +188,6 @@ func (s *Store) UpsertRoute(ctx context.Context, route store.Route, updateCondit
 		return nil
 	}
 
-	s.logger.Trace("detected route state change", "id", id)
 	s.routes[id] = route
 
 	// bind to gateways
@@ -217,9 +216,7 @@ func (s *Store) UpsertGateway(ctx context.Context, gateway store.Gateway, update
 		return nil
 	}
 
-	s.logger.Trace("detected gateway state change", "service", id.Service, "namespace", id.ConsulNamespace)
 	updated := newGatewayState(s.logger, gateway, s.adapter)
-
 	s.gateways[id] = updated
 
 	// bind routes to this gateway

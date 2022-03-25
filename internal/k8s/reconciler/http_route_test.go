@@ -205,7 +205,9 @@ func TestConvertHTTPRoute(t *testing.T) {
 `,
 	}} {
 		t.Run(test.name, func(t *testing.T) {
-			resolved := convertHTTPRoute(test.namespace, test.hostname, test.name, test.meta, test.route, &K8sRoute{references: test.references})
+			resolved := convertHTTPRoute(test.namespace, test.hostname, test.name, test.meta, test.route, &K8sRoute{RouteState: &RouteState{
+				References: test.references,
+			}})
 
 			data, err := json.MarshalIndent(resolved, "", "  ")
 			require.NoError(t, err)

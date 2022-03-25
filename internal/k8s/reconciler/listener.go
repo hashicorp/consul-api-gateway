@@ -74,10 +74,6 @@ func (l *K8sListener) RouteRemoved() {
 	atomic.AddInt32(&l.ListenerState.RouteCount, -1)
 }
 
-func (l *K8sListener) Status() gw.ListenerStatus {
-	return l.GetStatus(l.listener, l.gateway.Generation)
-}
-
 func (l *K8sListener) IsValid() bool {
 	return l.ListenerState.ValidWithProtocol(l.listener.Protocol)
 }

@@ -130,7 +130,7 @@ func TestRouteFilterParentStatuses(t *testing.T) {
 		},
 	}))
 
-	statuses := route.FilterParentStatuses()
+	statuses := filterParentStatuses(route.routeStatus(), route.controllerName)
 	require.Len(t, statuses, 2)
 	require.Equal(t, "expected", string(statuses[0].ParentRef.Name))
 	require.Equal(t, "other", string(statuses[0].ControllerName))
@@ -187,7 +187,7 @@ func TestRouteMergedStatusAndBinding(t *testing.T) {
 	route := factory.NewRoute(inner)
 	route.bound(gateway)
 
-	statuses := route.MergedStatus().Parents
+	statuses := mergedStatus(route.routeStatus(), route.controllerName, route.GetGeneration(), route.RouteState).Parents
 	require.Len(t, statuses, 3)
 	require.Equal(t, "expected", string(statuses[0].ParentRef.Name))
 	require.Equal(t, "expected", string(statuses[0].ControllerName))
@@ -200,7 +200,7 @@ func TestRouteMergedStatusAndBinding(t *testing.T) {
 
 	route.bindFailed(errors.New("expected"), gateway)
 
-	statuses = route.MergedStatus().Parents
+	statuses = mergedStatus(route.routeStatus(), route.controllerName, route.GetGeneration(), route.RouteState).Parents
 	require.Len(t, statuses, 3)
 	require.Equal(t, "expected", string(statuses[0].ParentRef.Name))
 	require.Equal(t, "expected", string(statuses[0].ControllerName))
@@ -209,7 +209,7 @@ func TestRouteMergedStatusAndBinding(t *testing.T) {
 
 	route.bindFailed(NewBindErrorHostnameMismatch("expected"), gateway)
 
-	statuses = route.MergedStatus().Parents
+	statuses = mergedStatus(route.routeStatus(), route.controllerName, route.GetGeneration(), route.RouteState).Parents
 	require.Len(t, statuses, 3)
 	require.Equal(t, "expected", string(statuses[0].ParentRef.Name))
 	require.Equal(t, "expected", string(statuses[0].ControllerName))
@@ -218,7 +218,7 @@ func TestRouteMergedStatusAndBinding(t *testing.T) {
 
 	route.bindFailed(NewBindErrorListenerNamespacePolicy("expected"), gateway)
 
-	statuses = route.MergedStatus().Parents
+	statuses = mergedStatus(route.routeStatus(), route.controllerName, route.GetGeneration(), route.RouteState).Parents
 	require.Len(t, statuses, 3)
 	require.Equal(t, "expected", string(statuses[0].ParentRef.Name))
 	require.Equal(t, "expected", string(statuses[0].ControllerName))
@@ -227,7 +227,7 @@ func TestRouteMergedStatusAndBinding(t *testing.T) {
 
 	route.bindFailed(NewBindErrorRouteKind("expected"), gateway)
 
-	statuses = route.MergedStatus().Parents
+	statuses = mergedStatus(route.routeStatus(), route.controllerName, route.GetGeneration(), route.RouteState).Parents
 	require.Len(t, statuses, 3)
 	require.Equal(t, "expected", string(statuses[0].ParentRef.Name))
 	require.Equal(t, "expected", string(statuses[0].ControllerName))
@@ -236,7 +236,7 @@ func TestRouteMergedStatusAndBinding(t *testing.T) {
 
 	route.bound(gateway)
 
-	statuses = route.MergedStatus().Parents
+	statuses = mergedStatus(route.routeStatus(), route.controllerName, route.GetGeneration(), route.RouteState).Parents
 	require.Len(t, statuses, 3)
 	require.Equal(t, "expected", string(statuses[0].ParentRef.Name))
 	require.Equal(t, "expected", string(statuses[0].ControllerName))
@@ -244,7 +244,7 @@ func TestRouteMergedStatusAndBinding(t *testing.T) {
 
 	route.OnGatewayRemoved(gateway)
 
-	statuses = route.MergedStatus().Parents
+	statuses = mergedStatus(route.routeStatus(), route.controllerName, route.GetGeneration(), route.RouteState).Parents
 	require.Len(t, statuses, 2)
 	require.Equal(t, "expected", string(statuses[0].ParentRef.Name))
 	require.Equal(t, "other", string(statuses[0].ControllerName))
@@ -256,7 +256,7 @@ func TestRouteMergedStatusAndBinding(t *testing.T) {
 
 	route.bindFailed(errors.New("expected"), gateway)
 
-	statuses = route.MergedStatus().Parents
+	statuses = mergedStatus(route.routeStatus(), route.controllerName, route.GetGeneration(), route.RouteState).Parents
 	require.Len(t, statuses, 3)
 	require.Equal(t, "expected", string(statuses[0].ParentRef.Name))
 	require.Equal(t, "expected", string(statuses[0].ControllerName))
@@ -271,13 +271,13 @@ func TestRouteMergedStatusAndBinding(t *testing.T) {
 			},
 		},
 	})
-	statuses = route.MergedStatus().Parents
+	statuses = mergedStatus(route.routeStatus(), route.controllerName, route.GetGeneration(), route.RouteState).Parents
 	require.Len(t, statuses, 3)
 	route.bound(gateway)
-	statuses = route.MergedStatus().Parents
+	statuses = mergedStatus(route.routeStatus(), route.controllerName, route.GetGeneration(), route.RouteState).Parents
 	require.Len(t, statuses, 3)
 	route.bindFailed(errors.New("expected"), gateway)
-	statuses = route.MergedStatus().Parents
+	statuses = mergedStatus(route.routeStatus(), route.controllerName, route.GetGeneration(), route.RouteState).Parents
 	require.Len(t, statuses, 3)
 }
 
@@ -320,9 +320,10 @@ func TestRouteNeedsStatusUpdate(t *testing.T) {
 			},
 		},
 	})
-	route.SetStatus(route.MergedStatus())
+	route.SetStatus(mergedStatus(route.routeStatus(), route.controllerName, route.GetGeneration(), route.RouteState))
 
-	require.False(t, route.NeedsStatusUpdate())
+	_, needsUpdate := needsStatusUpdate(route.routeStatus(), route.controllerName, route.GetGeneration(), route.RouteState)
+	require.False(t, needsUpdate)
 
 	route.bound(factory.NewGateway(NewGatewayConfig{
 		Gateway: &gw.Gateway{
@@ -332,11 +333,13 @@ func TestRouteNeedsStatusUpdate(t *testing.T) {
 		},
 	}))
 
-	require.True(t, route.NeedsStatusUpdate())
+	_, needsUpdate = needsStatusUpdate(route.routeStatus(), route.controllerName, route.GetGeneration(), route.RouteState)
+	require.True(t, needsUpdate)
 
-	route.SetStatus(route.MergedStatus())
+	route.SetStatus(mergedStatus(route.routeStatus(), route.controllerName, route.GetGeneration(), route.RouteState))
 
-	require.False(t, route.NeedsStatusUpdate())
+	_, needsUpdate = needsStatusUpdate(route.routeStatus(), route.controllerName, route.GetGeneration(), route.RouteState)
+	require.False(t, needsUpdate)
 }
 
 func TestRouteSetStatus(t *testing.T) {
@@ -575,9 +578,5 @@ func TestRouteSyncStatus(t *testing.T) {
 	client.EXPECT().UpdateStatus(gomock.Any(), inner).Return(expected)
 	require.True(t, errors.Is(route.SyncStatus(context.Background()), expected))
 
-	client.EXPECT().UpdateStatus(gomock.Any(), inner)
-	require.NoError(t, route.SyncStatus(context.Background()))
-
-	// sync again, no status update called
 	require.NoError(t, route.SyncStatus(context.Background()))
 }
