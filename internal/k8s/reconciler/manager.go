@@ -51,6 +51,7 @@ type GatewayReconcileManager struct {
 	GatewayValidator *GatewayValidator
 	RouteValidator   *RouteValidator
 
+	deployer              *GatewayDeployer
 	consulNamespaceMapper common.ConsulNamespaceMapper
 
 	namespaceMap map[types.NamespacedName]string
@@ -74,17 +75,22 @@ type ManagerConfig struct {
 
 func NewReconcileManager(config ManagerConfig) *GatewayReconcileManager {
 	resolver := service.NewBackendResolver(config.Logger, config.ConsulNamespaceMapper, config.Client, config.Consul)
+	deployer := NewDeployer(DeployerConfig{
+		ConsulCA: config.ConsulCA,
+		SDSHost:  config.SDSHost,
+		SDSPort:  config.SDSPort,
+		Logger:   config.Logger,
+		Client:   config.Client,
+	})
 
 	return &GatewayReconcileManager{
 		logger: config.Logger,
 		client: config.Client,
 		Factory: NewFactory(FactoryConfig{
 			ControllerName: config.ControllerName,
-			ConsulCA:       config.ConsulCA,
-			SDSHost:        config.SDSHost,
-			SDSPort:        config.SDSPort,
 			Logger:         config.Logger,
 			Client:         config.Client,
+			Deployer:       deployer,
 		}),
 		GatewayValidator:      NewGatewayValidator(config.Client),
 		RouteValidator:        NewRouteValidator(resolver),
@@ -175,7 +181,8 @@ func (m *GatewayReconcileManager) UpsertGateway(ctx context.Context, g *gw.Gatew
 
 	// Calling validate outside of the upsert process allows us to re-resolve any
 	// external references and set the statuses accordingly.
-	state, err := m.GatewayValidator.Validate(ctx, gateway)
+	service := m.deployer.Service(config, g)
+	state, err := m.GatewayValidator.Validate(ctx, g, service)
 	if err != nil {
 		return err
 	}

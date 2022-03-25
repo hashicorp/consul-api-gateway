@@ -55,17 +55,17 @@ func TestGatewayValidate(t *testing.T) {
 
 	client.EXPECT().GetSecret(gomock.Any(), gomock.Any()).Return(nil, nil)
 	client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(nil, nil).Times(2)
-	_, err := validator.Validate(context.Background(), gateway)
+	_, err := validator.Validate(context.Background(), gateway.Gateway, nil)
 	require.NoError(t, err)
 
 	expected := errors.New("expected")
 	client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(nil, nil).Times(2)
 	client.EXPECT().GetSecret(gomock.Any(), gomock.Any()).Return(nil, expected)
-	_, err = validator.Validate(context.Background(), gateway)
+	_, err = validator.Validate(context.Background(), gateway.Gateway, nil)
 	require.True(t, errors.Is(err, expected))
 
 	client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(nil, expected).Times(1)
-	_, err = validator.Validate(context.Background(), gateway)
+	_, err = validator.Validate(context.Background(), gateway.Gateway, nil)
 	require.True(t, errors.Is(err, expected))
 }
 
@@ -169,9 +169,11 @@ func TestGatewayValidateGatewayIP(t *testing.T) {
 			} else {
 				client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(pod, nil)
 			}
+			deployer := NewDeployer(DeployerConfig{})
 			validator := NewGatewayValidator(client)
 			state := &state.GatewayState{}
-			assert.NoError(t, validator.validateGatewayIP(context.Background(), state, gateway.Gateway, gateway.serviceBuilder.Build()))
+			service := deployer.Service(gateway.config, gateway.Gateway)
+			assert.NoError(t, validator.validateGatewayIP(context.Background(), state, gateway.Gateway, service))
 
 			require.Len(t, state.Addresses, 1)
 			assert.Equal(t, tc.expectedIP, state.Addresses[0])
@@ -215,7 +217,7 @@ func TestGatewayValidate_ListenerProtocolConflicts(t *testing.T) {
 	})
 	client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(nil, nil).Times(2)
 	validator := NewGatewayValidator(client)
-	state, err := validator.Validate(context.Background(), gateway)
+	state, err := validator.Validate(context.Background(), gateway.Gateway, nil)
 	require.NoError(t, err)
 	require.Equal(t, status.ListenerConditionReasonProtocolConflict, state.Listeners[0].Status.Conflicted.Condition(0).Reason)
 	require.Equal(t, status.ListenerConditionReasonProtocolConflict, state.Listeners[1].Status.Conflicted.Condition(0).Reason)
@@ -259,7 +261,7 @@ func TestGatewayValidate_ListenerHostnameConflicts(t *testing.T) {
 	})
 	client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(nil, nil).Times(2)
 	validator := NewGatewayValidator(client)
-	state, err := validator.Validate(context.Background(), gateway)
+	state, err := validator.Validate(context.Background(), gateway.Gateway, nil)
 	require.NoError(t, err)
 	require.Equal(t, status.ListenerConditionReasonHostnameConflict, state.Listeners[0].Status.Conflicted.Condition(0).Reason)
 	require.Equal(t, status.ListenerConditionReasonHostnameConflict, state.Listeners[1].Status.Conflicted.Condition(0).Reason)
@@ -295,7 +297,7 @@ func TestGatewayValidate_Pods(t *testing.T) {
 		Status: core.PodStatus{},
 	}, nil).Times(2)
 	validator := NewGatewayValidator(client)
-	state, err := validator.Validate(context.Background(), gateway)
+	state, err := validator.Validate(context.Background(), gateway.Gateway, nil)
 	require.NoError(t, err)
 	require.Equal(t, status.GatewayConditionReasonUnknown, state.Status.Scheduled.Condition(0).Reason)
 
@@ -305,7 +307,7 @@ func TestGatewayValidate_Pods(t *testing.T) {
 			Phase: core.PodPending,
 		},
 	}, nil).Times(2)
-	state, err = validator.Validate(context.Background(), gateway)
+	state, err = validator.Validate(context.Background(), gateway.Gateway, nil)
 	require.NoError(t, err)
 	require.Equal(t, status.GatewayConditionReasonNotReconciled, state.Status.Scheduled.Condition(0).Reason)
 
@@ -320,7 +322,7 @@ func TestGatewayValidate_Pods(t *testing.T) {
 			}},
 		},
 	}, nil).Times(2)
-	state, err = validator.Validate(context.Background(), gateway)
+	state, err = validator.Validate(context.Background(), gateway.Gateway, nil)
 	require.NoError(t, err)
 	assert.Equal(t, status.GatewayConditionReasonNoResources, state.Status.Scheduled.Condition(0).Reason)
 
@@ -334,7 +336,7 @@ func TestGatewayValidate_Pods(t *testing.T) {
 			}},
 		},
 	}, nil).Times(2)
-	state, err = validator.Validate(context.Background(), gateway)
+	state, err = validator.Validate(context.Background(), gateway.Gateway, nil)
 	require.NoError(t, err)
 	assert.True(t, state.PodReady)
 
@@ -344,7 +346,7 @@ func TestGatewayValidate_Pods(t *testing.T) {
 			Phase: core.PodSucceeded,
 		},
 	}, nil).Times(2)
-	state, err = validator.Validate(context.Background(), gateway)
+	state, err = validator.Validate(context.Background(), gateway.Gateway, nil)
 	require.NoError(t, err)
 	assert.Equal(t, status.GatewayConditionReasonPodFailed, state.Status.Scheduled.Condition(0).Reason)
 
@@ -354,7 +356,7 @@ func TestGatewayValidate_Pods(t *testing.T) {
 			Phase: core.PodFailed,
 		},
 	}, nil).Times(2)
-	state, err = validator.Validate(context.Background(), gateway)
+	state, err = validator.Validate(context.Background(), gateway.Gateway, nil)
 	require.NoError(t, err)
 	assert.Equal(t, status.GatewayConditionReasonPodFailed, state.Status.Scheduled.Condition(0).Reason)
 }

@@ -79,8 +79,9 @@ func TestGatewayTrackSync(t *testing.T) {
 	client := mocks.NewMockClient(ctrl)
 
 	factory := NewFactory(FactoryConfig{
-		Logger: hclog.NewNullLogger(),
-		Client: client,
+		Logger:   hclog.NewNullLogger(),
+		Client:   client,
+		Deployer: NewDeployer(DeployerConfig{Client: client, Logger: hclog.NewNullLogger()}),
 	})
 	gateway := factory.NewGateway(NewGatewayConfig{Gateway: &gw.Gateway{}})
 	gateway.Gateway.Status = gateway.GetStatus(gateway.Gateway)

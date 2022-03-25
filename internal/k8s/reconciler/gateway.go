@@ -8,7 +8,6 @@ import (
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	"github.com/hashicorp/consul-api-gateway/internal/core"
-	"github.com/hashicorp/consul-api-gateway/internal/k8s/builder"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/state"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/status"
@@ -24,12 +23,11 @@ type K8sGateway struct {
 
 	listeners []*K8sListener
 
-	consulNamespace   string
-	logger            hclog.Logger
-	client            gatewayclient.Client
-	config            apigwv1alpha1.GatewayClassConfig
-	deploymentBuilder builder.DeploymentBuilder
-	serviceBuilder    builder.ServiceBuilder
+	consulNamespace string
+	logger          hclog.Logger
+	client          gatewayclient.Client
+	config          apigwv1alpha1.GatewayClassConfig
+	deployer        *GatewayDeployer
 }
 
 var _ store.StatusTrackingGateway = &K8sGateway{}
@@ -98,7 +96,7 @@ func (g *K8sGateway) Bind(ctx context.Context, route store.Route) []string {
 
 func (g *K8sGateway) TrackSync(ctx context.Context, sync func() (bool, error)) error {
 	// we've done all but synced our state, so ensure our deployments are up-to-date
-	if err := g.ensureDeploymentExists(ctx); err != nil {
+	if err := g.deployer.Deploy(ctx, g.consulNamespace, g.config, g.Gateway); err != nil {
 		return err
 	}
 

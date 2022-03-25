@@ -12,6 +12,7 @@ import (
 	rerrors "github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/errors"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/state"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
+	core "k8s.io/api/core/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
@@ -27,9 +28,7 @@ func NewGatewayValidator(client gatewayclient.Client) *GatewayValidator {
 	}
 }
 
-func (g *GatewayValidator) Validate(ctx context.Context, wrappedGateway *K8sGateway) (*state.GatewayState, error) {
-	gateway := wrappedGateway.Gateway
-
+func (g *GatewayValidator) Validate(ctx context.Context, gateway *gw.Gateway, service *core.Service) (*state.GatewayState, error) {
 	state := state.InitialGatewayState(gateway)
 
 	if len(gateway.Spec.Addresses) != 0 {
@@ -39,7 +38,6 @@ func (g *GatewayValidator) Validate(ctx context.Context, wrappedGateway *K8sGate
 	if err := g.validatePods(ctx, state, gateway); err != nil {
 		return nil, err
 	}
-	service := wrappedGateway.serviceBuilder.Build()
 	if err := g.validateGatewayIP(ctx, state, gateway, service); err != nil {
 		return nil, err
 	}

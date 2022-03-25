@@ -1,7 +1,6 @@
 package reconciler
 
 import (
-	"github.com/hashicorp/consul-api-gateway/internal/k8s/builder"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/state"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/status"
@@ -13,30 +12,24 @@ import (
 
 type Factory struct {
 	controllerName string
-	consulCA       string
-	sdsHost        string
-	sdsPort        int
 	logger         hclog.Logger
 	client         gatewayclient.Client
+	deployer       *GatewayDeployer
 }
 
 type FactoryConfig struct {
 	ControllerName string
-	ConsulCA       string
-	SDSHost        string
-	SDSPort        int
 	Logger         hclog.Logger
 	Client         gatewayclient.Client
+	Deployer       *GatewayDeployer
 }
 
 func NewFactory(config FactoryConfig) *Factory {
 	return &Factory{
 		controllerName: config.ControllerName,
-		consulCA:       config.ConsulCA,
-		sdsHost:        config.SDSHost,
-		sdsPort:        config.SDSPort,
 		logger:         config.Logger,
 		client:         config.Client,
+		deployer:       config.Deployer,
 	}
 }
 
@@ -72,19 +65,9 @@ func (f *Factory) initializeGateway(gateway *K8sGateway) *K8sGateway {
 	}
 	gateway.listeners = listeners
 
-	deployment := builder.NewGatewayDeployment(gateway.Gateway)
-	deployment.WithSDS(f.sdsHost, f.sdsPort)
-	deployment.WithClassConfig(gateway.config)
-	deployment.WithConsulCA(f.consulCA)
-	deployment.WithConsulGatewayNamespace(gateway.consulNamespace)
-
-	service := builder.NewGatewayService(gateway.Gateway)
-	service.WithClassConfig(gateway.config)
-
 	gateway.logger = logger
-	gateway.deploymentBuilder = deployment
-	gateway.serviceBuilder = service
 	gateway.client = f.client
+	gateway.deployer = f.deployer
 
 	return gateway
 }
