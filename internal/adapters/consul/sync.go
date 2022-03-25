@@ -300,16 +300,6 @@ func (a *ConsulSyncAdapter) Sync(ctx context.Context, gateway core.ResolvedGatew
 	a.mutex.Lock()
 	defer a.mutex.Unlock()
 
-	if a.logger.IsTrace() {
-		started := time.Now()
-		resolved, err := json.MarshalIndent(gateway, "", "  ")
-		if err == nil {
-			a.logger.Trace("reconciling gateway snapshot", "gateway", string(resolved))
-		}
-		a.logger.Trace("started reconciliation", "time", started)
-		defer a.logger.Trace("reconciliation finished", "time", time.Now(), "spent", time.Since(started))
-	}
-
 	ingress, computedRouters, computedSplitters, computedDefaults := discoveryChain(gateway)
 	existingIngress, existingRouters, existingSplitters, existingDefaults := a.entriesForGateway(gateway.ID)
 
@@ -334,6 +324,14 @@ func (a *ConsulSyncAdapter) Sync(ctx context.Context, gateway core.ResolvedGatew
 	}
 
 	if a.logger.IsTrace() {
+		started := time.Now()
+		resolved, err := json.MarshalIndent(gateway, "", "  ")
+		if err == nil {
+			a.logger.Trace("reconciling gateway snapshot", "gateway", string(resolved))
+		}
+		a.logger.Trace("started reconciliation", "time", started)
+		defer a.logger.Trace("reconciliation finished", "time", time.Now(), "spent", time.Since(started))
+
 		ingressEntry, err := json.MarshalIndent(ingress, "", "  ")
 		if err == nil {
 			a.logger.Trace("setting ingress", "items", string(ingressEntry))
