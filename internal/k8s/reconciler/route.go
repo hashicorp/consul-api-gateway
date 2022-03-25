@@ -7,11 +7,13 @@ import (
 
 	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/converters"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/state"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	"github.com/hashicorp/consul-api-gateway/internal/store"
 	"github.com/hashicorp/go-hclog"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
 )
@@ -112,32 +114,37 @@ func (r *K8sRoute) SyncStatus(ctx context.Context) error {
 	return nil
 }
 
-func (r *K8sRoute) Resolve(listener store.Listener) *core.ResolvedRoute {
-	k8sListener, ok := listener.(*K8sListener)
-	if !ok {
-		return nil
-	}
-
-	prefix := fmt.Sprintf("consul-api-gateway_%s_", k8sListener.gateway.Name)
-	namespace := k8sListener.gateway.consulNamespace
-	hostname := k8sListener.Config().Hostname
+func (r *K8sRoute) resolve(namespace string, gateway *gw.Gateway, listener gw.Listener) core.ResolvedRoute {
+	hostname := listenerHostname(listener)
 	switch route := r.Route.(type) {
 	case *gw.HTTPRoute:
-		return convertHTTPRoute(namespace, hostname, prefix, map[string]string{
-			"external-source":                            "consul-api-gateway",
-			"consul-api-gateway/k8s/Gateway.Name":        k8sListener.gateway.Name,
-			"consul-api-gateway/k8s/Gateway.Namespace":   k8sListener.gateway.Namespace,
-			"consul-api-gateway/k8s/HTTPRoute.Name":      r.GetName(),
-			"consul-api-gateway/k8s/HTTPRoute.Namespace": r.GetNamespace(),
-		}, route, r.RouteState)
+		return converters.NewHTTPRouteConverter(converters.HTTPRouteConverterConfig{
+			Namespace: namespace,
+			Hostname:  hostname,
+			Meta: map[string]string{
+				"external-source":                            "consul-api-gateway",
+				"consul-api-gateway/k8s/Gateway.Name":        gateway.Name,
+				"consul-api-gateway/k8s/Gateway.Namespace":   gateway.Namespace,
+				"consul-api-gateway/k8s/HTTPRoute.Name":      r.GetName(),
+				"consul-api-gateway/k8s/HTTPRoute.Namespace": r.GetNamespace(),
+			},
+			Route: route,
+			State: r.RouteState,
+		}).Convert()
 	case *gw.TCPRoute:
-		return convertTCPRoute(namespace, prefix, map[string]string{
-			"external-source":                           "consul-api-gateway",
-			"consul-api-gateway/k8s/Gateway.Name":       k8sListener.gateway.Name,
-			"consul-api-gateway/k8s/Gateway.Namespace":  k8sListener.gateway.Namespace,
-			"consul-api-gateway/k8s/TCPRoute.Name":      r.GetName(),
-			"consul-api-gateway/k8s/TCPRoute.Namespace": r.GetNamespace(),
-		}, route, r.RouteState)
+		return converters.NewTCPRouteConverter(converters.TCPRouteConverterConfig{
+			Namespace: namespace,
+			Hostname:  hostname,
+			Meta: map[string]string{
+				"external-source":                           "consul-api-gateway",
+				"consul-api-gateway/k8s/Gateway.Name":       gateway.Name,
+				"consul-api-gateway/k8s/Gateway.Namespace":  gateway.Namespace,
+				"consul-api-gateway/k8s/TCPRoute.Name":      r.GetName(),
+				"consul-api-gateway/k8s/TCPRoute.Namespace": r.GetNamespace(),
+			},
+			Route: route,
+			State: r.RouteState,
+		}).Convert()
 	}
 	return nil
 }
@@ -151,4 +158,12 @@ func (r *K8sRoute) Parents() []gw.ParentRef {
 		return route.Spec.ParentRefs
 	}
 	return nil
+}
+
+func HTTPRouteID(namespacedName types.NamespacedName) string {
+	return "http-" + namespacedName.String()
+}
+
+func TCPRouteID(namespacedName types.NamespacedName) string {
+	return "tcp-" + namespacedName.String()
 }

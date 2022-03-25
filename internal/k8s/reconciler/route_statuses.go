@@ -22,10 +22,6 @@ func (r *K8sRoute) bindFailed(err error, ref gw.ParentRef) {
 	r.ParentStatuses.BindFailed(r.ResolutionErrors, err, common.AsJSON(ref))
 }
 
-func (r *K8sRoute) bound(ref gw.ParentRef) {
-	r.ParentStatuses.Bound(common.AsJSON(ref))
-}
-
 func (r *K8sRoute) OnGatewayRemoved(gateway store.Gateway) {
 	k8sGateway, ok := gateway.(*K8sGateway)
 	if ok {

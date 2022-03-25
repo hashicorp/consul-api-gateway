@@ -12,6 +12,7 @@ import (
 
 	internalCore "github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient/mocks"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/state"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/service"
 	storeMocks "github.com/hashicorp/consul-api-gateway/internal/store/mocks"
 	"github.com/hashicorp/go-hclog"
@@ -52,22 +53,6 @@ func TestGatewayMeta(t *testing.T) {
 		ConsulNamespace: "consul",
 	})
 	require.NotNil(t, gateway.Meta())
-}
-
-func TestGatewayListeners(t *testing.T) {
-	t.Parallel()
-
-	factory := NewFactory(FactoryConfig{
-		Logger: hclog.NewNullLogger(),
-	})
-	gateway := factory.NewGateway(NewGatewayConfig{
-		Gateway: &gw.Gateway{
-			Spec: gw.GatewaySpec{
-				Listeners: []gw.Listener{{}},
-			},
-		},
-	})
-	require.Len(t, gateway.Listeners(), 1)
 }
 
 func TestGatewayTrackSync(t *testing.T) {
@@ -143,7 +128,7 @@ func TestGatewayShouldBind(t *testing.T) {
 
 	require.Empty(t, gateway.Bind(context.Background(), storeMocks.NewMockRoute(nil)))
 
-	route := factory.NewRoute(&gw.HTTPRoute{})
+	route := factory.NewRoute(&gw.HTTPRoute{}, state.NewRouteState())
 	route.RouteState.ResolutionErrors.Add(service.NewConsulResolutionError("test"))
 	require.Empty(t, gateway.Bind(context.Background(), route))
 
@@ -159,7 +144,7 @@ func TestGatewayShouldBind(t *testing.T) {
 				}},
 			},
 		},
-	})))
+	}, state.NewRouteState())))
 
-	require.Empty(t, gateway.Bind(context.Background(), factory.NewRoute(&gw.HTTPRoute{})))
+	require.Empty(t, gateway.Bind(context.Background(), factory.NewRoute(&gw.HTTPRoute{}, state.NewRouteState())))
 }

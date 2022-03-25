@@ -375,16 +375,16 @@ func TestBinder(t *testing.T) {
 			factory := NewFactory(FactoryConfig{
 				Logger: hclog.NewNullLogger(),
 			})
-			state := state.InitialGatewayState(test.gateway)
+			gatewayState := state.InitialGatewayState(test.gateway)
 			if test.listenerError != nil {
-				state.Listeners[0].Status.Ready.Invalid = test.listenerError
+				gatewayState.Listeners[0].Status.Ready.Invalid = test.listenerError
 			}
 			if test.namespace != nil {
 				client.EXPECT().GetNamespace(gomock.Any(), gomock.Any()).Return(test.namespace, nil)
 			}
 
-			binder := NewBinder(client, test.gateway, state)
-			listeners := binder.Bind(context.Background(), factory.NewRoute(test.route))
+			binder := NewBinder(client, test.gateway, gatewayState)
+			listeners := binder.Bind(context.Background(), factory.NewRoute(test.route, state.NewRouteState()))
 			if test.didBind {
 				require.NotEmpty(t, listeners)
 			} else {

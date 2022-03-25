@@ -3,7 +3,6 @@ package reconciler
 import (
 	"context"
 	"fmt"
-	"sync/atomic"
 
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/common"
@@ -36,7 +35,7 @@ func (b *Binder) Bind(ctx context.Context, route *K8sRoute) []string {
 				for i, listener := range b.Gateway.Spec.Listeners {
 					state := b.GatewayState.Listeners[i]
 					if b.canBind(ctx, listener, state, ref, route) {
-						atomic.AddInt32(&state.RouteCount, 1)
+						state.Routes[route.ID()] = route.resolve(b.GatewayState.ConsulNamespace, b.Gateway, listener)
 						boundListeners = append(boundListeners, string(listener.Name))
 					}
 				}

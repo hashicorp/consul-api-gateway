@@ -12,3 +12,11 @@ type RouteState struct {
 	ResolutionErrors *service.ResolutionErrors
 	ParentStatuses   status.RouteStatuses
 }
+
+func NewRouteState() *RouteState {
+	return &RouteState{
+		References:       make(service.RouteRuleReferenceMap),
+		ResolutionErrors: service.NewResolutionErrors(),
+		ParentStatuses:   make(status.RouteStatuses),
+	}
+}

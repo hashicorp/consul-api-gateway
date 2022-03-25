@@ -50,6 +50,21 @@ func (mr *MockStatusTrackingGatewayMockRecorder) Bind(ctx, route interface{}) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bind", reflect.TypeOf((*MockStatusTrackingGateway)(nil).Bind), ctx, route)
 }
 
+// CanFetchSecrets mocks base method.
+func (m *MockStatusTrackingGateway) CanFetchSecrets(ctx context.Context, secrets []string) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CanFetchSecrets", ctx, secrets)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CanFetchSecrets indicates an expected call of CanFetchSecrets.
+func (mr *MockStatusTrackingGatewayMockRecorder) CanFetchSecrets(ctx, secrets interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CanFetchSecrets", reflect.TypeOf((*MockStatusTrackingGateway)(nil).CanFetchSecrets), ctx, secrets)
+}
+
 // ID mocks base method.
 func (m *MockStatusTrackingGateway) ID() core.GatewayID {
 	m.ctrl.T.Helper()
@@ -64,32 +79,32 @@ func (mr *MockStatusTrackingGatewayMockRecorder) ID() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ID", reflect.TypeOf((*MockStatusTrackingGateway)(nil).ID))
 }
 
-// Listeners mocks base method.
-func (m *MockStatusTrackingGateway) Listeners() []store.Listener {
+// Remove mocks base method.
+func (m *MockStatusTrackingGateway) Remove(ctx context.Context, id string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Listeners")
-	ret0, _ := ret[0].([]store.Listener)
+	ret := m.ctrl.Call(m, "Remove", ctx, id)
+	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// Listeners indicates an expected call of Listeners.
-func (mr *MockStatusTrackingGatewayMockRecorder) Listeners() *gomock.Call {
+// Remove indicates an expected call of Remove.
+func (mr *MockStatusTrackingGatewayMockRecorder) Remove(ctx, id interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Listeners", reflect.TypeOf((*MockStatusTrackingGateway)(nil).Listeners))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Remove", reflect.TypeOf((*MockStatusTrackingGateway)(nil).Remove), ctx, id)
 }
 
-// Meta mocks base method.
-func (m *MockStatusTrackingGateway) Meta() map[string]string {
+// Resolve mocks base method.
+func (m *MockStatusTrackingGateway) Resolve() core.ResolvedGateway {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Meta")
-	ret0, _ := ret[0].(map[string]string)
+	ret := m.ctrl.Call(m, "Resolve")
+	ret0, _ := ret[0].(core.ResolvedGateway)
 	return ret0
 }
 
-// Meta indicates an expected call of Meta.
-func (mr *MockStatusTrackingGatewayMockRecorder) Meta() *gomock.Call {
+// Resolve indicates an expected call of Resolve.
+func (mr *MockStatusTrackingGatewayMockRecorder) Resolve() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Meta", reflect.TypeOf((*MockStatusTrackingGateway)(nil).Meta))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Resolve", reflect.TypeOf((*MockStatusTrackingGateway)(nil).Resolve))
 }
 
 // TrackSync mocks base method.
@@ -143,6 +158,21 @@ func (mr *MockGatewayMockRecorder) Bind(ctx, route interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bind", reflect.TypeOf((*MockGateway)(nil).Bind), ctx, route)
 }
 
+// CanFetchSecrets mocks base method.
+func (m *MockGateway) CanFetchSecrets(ctx context.Context, secrets []string) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CanFetchSecrets", ctx, secrets)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CanFetchSecrets indicates an expected call of CanFetchSecrets.
+func (mr *MockGatewayMockRecorder) CanFetchSecrets(ctx, secrets interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CanFetchSecrets", reflect.TypeOf((*MockGateway)(nil).CanFetchSecrets), ctx, secrets)
+}
+
 // ID mocks base method.
 func (m *MockGateway) ID() core.GatewayID {
 	m.ctrl.T.Helper()
@@ -157,109 +187,32 @@ func (mr *MockGatewayMockRecorder) ID() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ID", reflect.TypeOf((*MockGateway)(nil).ID))
 }
 
-// Listeners mocks base method.
-func (m *MockGateway) Listeners() []store.Listener {
+// Remove mocks base method.
+func (m *MockGateway) Remove(ctx context.Context, id string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Listeners")
-	ret0, _ := ret[0].([]store.Listener)
+	ret := m.ctrl.Call(m, "Remove", ctx, id)
+	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// Listeners indicates an expected call of Listeners.
-func (mr *MockGatewayMockRecorder) Listeners() *gomock.Call {
+// Remove indicates an expected call of Remove.
+func (mr *MockGatewayMockRecorder) Remove(ctx, id interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Listeners", reflect.TypeOf((*MockGateway)(nil).Listeners))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Remove", reflect.TypeOf((*MockGateway)(nil).Remove), ctx, id)
 }
 
-// Meta mocks base method.
-func (m *MockGateway) Meta() map[string]string {
+// Resolve mocks base method.
+func (m *MockGateway) Resolve() core.ResolvedGateway {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Meta")
-	ret0, _ := ret[0].(map[string]string)
+	ret := m.ctrl.Call(m, "Resolve")
+	ret0, _ := ret[0].(core.ResolvedGateway)
 	return ret0
 }
 
-// Meta indicates an expected call of Meta.
-func (mr *MockGatewayMockRecorder) Meta() *gomock.Call {
+// Resolve indicates an expected call of Resolve.
+func (mr *MockGatewayMockRecorder) Resolve() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Meta", reflect.TypeOf((*MockGateway)(nil).Meta))
-}
-
-// MockListener is a mock of Listener interface.
-type MockListener struct {
-	ctrl     *gomock.Controller
-	recorder *MockListenerMockRecorder
-}
-
-// MockListenerMockRecorder is the mock recorder for MockListener.
-type MockListenerMockRecorder struct {
-	mock *MockListener
-}
-
-// NewMockListener creates a new mock instance.
-func NewMockListener(ctrl *gomock.Controller) *MockListener {
-	mock := &MockListener{ctrl: ctrl}
-	mock.recorder = &MockListenerMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockListener) EXPECT() *MockListenerMockRecorder {
-	return m.recorder
-}
-
-// Config mocks base method.
-func (m *MockListener) Config() store.ListenerConfig {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Config")
-	ret0, _ := ret[0].(store.ListenerConfig)
-	return ret0
-}
-
-// Config indicates an expected call of Config.
-func (mr *MockListenerMockRecorder) Config() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Config", reflect.TypeOf((*MockListener)(nil).Config))
-}
-
-// ID mocks base method.
-func (m *MockListener) ID() string {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ID")
-	ret0, _ := ret[0].(string)
-	return ret0
-}
-
-// ID indicates an expected call of ID.
-func (mr *MockListenerMockRecorder) ID() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ID", reflect.TypeOf((*MockListener)(nil).ID))
-}
-
-// IsValid mocks base method.
-func (m *MockListener) IsValid() bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "IsValid")
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// IsValid indicates an expected call of IsValid.
-func (mr *MockListenerMockRecorder) IsValid() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsValid", reflect.TypeOf((*MockListener)(nil).IsValid))
-}
-
-// RouteRemoved mocks base method.
-func (m *MockListener) RouteRemoved() {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "RouteRemoved")
-}
-
-// RouteRemoved indicates an expected call of RouteRemoved.
-func (mr *MockListenerMockRecorder) RouteRemoved() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RouteRemoved", reflect.TypeOf((*MockListener)(nil).RouteRemoved))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Resolve", reflect.TypeOf((*MockGateway)(nil).Resolve))
 }
 
 // MockStatusTrackingRoute is a mock of StatusTrackingRoute interface.
@@ -309,20 +262,6 @@ func (m *MockStatusTrackingRoute) OnGatewayRemoved(gateway store.Gateway) {
 func (mr *MockStatusTrackingRouteMockRecorder) OnGatewayRemoved(gateway interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnGatewayRemoved", reflect.TypeOf((*MockStatusTrackingRoute)(nil).OnGatewayRemoved), gateway)
-}
-
-// Resolve mocks base method.
-func (m *MockStatusTrackingRoute) Resolve(listener store.Listener) *core.ResolvedRoute {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Resolve", listener)
-	ret0, _ := ret[0].(*core.ResolvedRoute)
-	return ret0
-}
-
-// Resolve indicates an expected call of Resolve.
-func (mr *MockStatusTrackingRouteMockRecorder) Resolve(listener interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Resolve", reflect.TypeOf((*MockStatusTrackingRoute)(nil).Resolve), listener)
 }
 
 // SyncStatus mocks base method.
@@ -376,20 +315,6 @@ func (mr *MockRouteMockRecorder) ID() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ID", reflect.TypeOf((*MockRoute)(nil).ID))
 }
 
-// Resolve mocks base method.
-func (m *MockRoute) Resolve(listener store.Listener) *core.ResolvedRoute {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Resolve", listener)
-	ret0, _ := ret[0].(*core.ResolvedRoute)
-	return ret0
-}
-
-// Resolve indicates an expected call of Resolve.
-func (mr *MockRouteMockRecorder) Resolve(listener interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Resolve", reflect.TypeOf((*MockRoute)(nil).Resolve), listener)
-}
-
 // MockStore is a mock of Store interface.
 type MockStore struct {
 	ctrl     *gomock.Controller
@@ -411,21 +336,6 @@ func NewMockStore(ctrl *gomock.Controller) *MockStore {
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockStore) EXPECT() *MockStoreMockRecorder {
 	return m.recorder
-}
-
-// CanFetchSecrets mocks base method.
-func (m *MockStore) CanFetchSecrets(ctx context.Context, id core.GatewayID, secrets []string) (bool, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CanFetchSecrets", ctx, id, secrets)
-	ret0, _ := ret[0].(bool)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// CanFetchSecrets indicates an expected call of CanFetchSecrets.
-func (mr *MockStoreMockRecorder) CanFetchSecrets(ctx, id, secrets interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CanFetchSecrets", reflect.TypeOf((*MockStore)(nil).CanFetchSecrets), ctx, id, secrets)
 }
 
 // DeleteGateway mocks base method.
@@ -456,19 +366,19 @@ func (mr *MockStoreMockRecorder) DeleteRoute(ctx, id interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteRoute", reflect.TypeOf((*MockStore)(nil).DeleteRoute), ctx, id)
 }
 
-// GatewayExists mocks base method.
-func (m *MockStore) GatewayExists(ctx context.Context, id core.GatewayID) (bool, error) {
+// GetGateway mocks base method.
+func (m *MockStore) GetGateway(ctx context.Context, id core.GatewayID) (store.Gateway, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GatewayExists", ctx, id)
-	ret0, _ := ret[0].(bool)
+	ret := m.ctrl.Call(m, "GetGateway", ctx, id)
+	ret0, _ := ret[0].(store.Gateway)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GatewayExists indicates an expected call of GatewayExists.
-func (mr *MockStoreMockRecorder) GatewayExists(ctx, id interface{}) *gomock.Call {
+// GetGateway indicates an expected call of GetGateway.
+func (mr *MockStoreMockRecorder) GetGateway(ctx, id interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GatewayExists", reflect.TypeOf((*MockStore)(nil).GatewayExists), ctx, id)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetGateway", reflect.TypeOf((*MockStore)(nil).GetGateway), ctx, id)
 }
 
 // Sync mocks base method.

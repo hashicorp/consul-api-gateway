@@ -2,7 +2,6 @@ package state
 
 import (
 	"errors"
-	"sync/atomic"
 
 	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/common"
@@ -12,11 +11,12 @@ import (
 
 // GatewayState holds ephemeral state for gateways
 type GatewayState struct {
-	Status       status.GatewayStatus
-	PodReady     bool
-	ServiceReady bool
-	Generation   int64
-	Addresses    []string
+	ConsulNamespace string
+	Status          status.GatewayStatus
+	PodReady        bool
+	ServiceReady    bool
+	Generation      int64
+	Addresses       []string
 
 	Listeners []*ListenerState
 }
@@ -29,6 +29,7 @@ func InitialGatewayState(g *gw.Gateway) *GatewayState {
 		state.Listeners = append(state.Listeners, &ListenerState{
 			Name:     listener.Name,
 			Protocol: listener.Protocol,
+			Routes:   make(map[string]core.ResolvedRoute),
 		})
 	}
 	return state
@@ -68,15 +69,15 @@ func (g *GatewayState) GetStatus(gateway *gw.Gateway) gw.GatewayStatus {
 
 // ListenerState holds ephemeral state for listeners
 type ListenerState struct {
-	RouteCount int32
-	Protocol   gw.ProtocolType
-	Name       gw.SectionName
-	TLS        core.TLSParams
-	Status     status.ListenerStatus
+	Routes   map[string]core.ResolvedRoute
+	Protocol gw.ProtocolType
+	Name     gw.SectionName
+	TLS      core.TLSParams
+	Status   status.ListenerStatus
 }
 
 func (l *ListenerState) Valid() bool {
-	routeCount := atomic.LoadInt32(&l.RouteCount)
+	routeCount := len(l.Routes)
 	if l.Protocol == gw.TCPProtocolType {
 		if routeCount > 1 {
 			return false
@@ -86,7 +87,7 @@ func (l *ListenerState) Valid() bool {
 }
 
 func (l *ListenerState) getStatus(generation int64) gw.ListenerStatus {
-	routeCount := atomic.LoadInt32(&l.RouteCount)
+	routeCount := len(l.Routes)
 	if l.Protocol == gw.TCPProtocolType {
 		if routeCount > 1 {
 			l.Status.Conflicted.RouteConflict = errors.New("only a single TCP route can be bound to a TCP listener")
@@ -97,7 +98,7 @@ func (l *ListenerState) getStatus(generation int64) gw.ListenerStatus {
 	return gw.ListenerStatus{
 		Name:           l.Name,
 		SupportedKinds: common.SupportedKindsFor(l.Protocol),
-		AttachedRoutes: routeCount,
+		AttachedRoutes: int32(routeCount),
 		Conditions:     l.Status.Conditions(generation),
 	}
 }

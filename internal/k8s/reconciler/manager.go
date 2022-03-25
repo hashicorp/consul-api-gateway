@@ -30,8 +30,8 @@ const (
 type ReconcileManager interface {
 	UpsertGatewayClass(ctx context.Context, gc *gw.GatewayClass) error
 	UpsertGateway(ctx context.Context, g *gw.Gateway) error
-	UpsertHTTPRoute(ctx context.Context, r Route) error
-	UpsertTCPRoute(ctx context.Context, r Route) error
+	UpsertHTTPRoute(ctx context.Context, r *gw.HTTPRoute) error
+	UpsertTCPRoute(ctx context.Context, r *gw.TCPRoute) error
 	DeleteGatewayClass(ctx context.Context, name string) error
 	DeleteGateway(ctx context.Context, name types.NamespacedName) error
 	DeleteHTTPRoute(ctx context.Context, name types.NamespacedName) error
@@ -169,23 +169,22 @@ func (m *GatewayReconcileManager) UpsertGateway(ctx context.Context, g *gw.Gatew
 		return m.client.Update(ctx, g)
 	}
 
+	// Calling validate outside of the upsert process allows us to re-resolve any
+	// external references and set the statuses accordingly.
 	consulNamespace := m.consulNamespaceMapper(g.GetNamespace())
+	service := m.deployer.Service(config, g)
+	state, err := m.GatewayValidator.Validate(ctx, g, service)
+	if err != nil {
+		return err
+	}
 
 	m.namespaceMap[utils.NamespacedName(g)] = consulNamespace
 	gateway := m.Factory.NewGateway(NewGatewayConfig{
 		Gateway:         g,
 		Config:          config,
 		ConsulNamespace: consulNamespace,
+		State:           state,
 	})
-
-	// Calling validate outside of the upsert process allows us to re-resolve any
-	// external references and set the statuses accordingly.
-	service := m.deployer.Service(config, g)
-	state, err := m.GatewayValidator.Validate(ctx, g, service)
-	if err != nil {
-		return err
-	}
-	gateway.SetState(state)
 
 	return m.store.UpsertGateway(ctx, gateway, func(current store.Gateway) bool {
 		if current == nil {
@@ -195,21 +194,19 @@ func (m *GatewayReconcileManager) UpsertGateway(ctx context.Context, g *gw.Gatew
 	})
 }
 
-func (m *GatewayReconcileManager) UpsertHTTPRoute(ctx context.Context, r Route) error {
-	return m.upsertRoute(ctx, r, HTTPRouteID(utils.NamespacedName(r)))
+func (m *GatewayReconcileManager) UpsertHTTPRoute(ctx context.Context, r *gw.HTTPRoute) error {
+	return m.upsertRoute(ctx, r, r.Spec.ParentRefs, HTTPRouteID(utils.NamespacedName(r)))
 }
 
-func (m *GatewayReconcileManager) UpsertTCPRoute(ctx context.Context, r Route) error {
-	return m.upsertRoute(ctx, r, TCPRouteID(utils.NamespacedName(r)))
+func (m *GatewayReconcileManager) UpsertTCPRoute(ctx context.Context, r *gw.TCPRoute) error {
+	return m.upsertRoute(ctx, r, r.Spec.ParentRefs, TCPRouteID(utils.NamespacedName(r)))
 }
 
-func (m *GatewayReconcileManager) upsertRoute(ctx context.Context, r Route, id string) error {
+func (m *GatewayReconcileManager) upsertRoute(ctx context.Context, r Route, parents []gw.ParentRef, id string) error {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 
-	route := m.Factory.NewRoute(r)
-
-	managed, err := m.deleteUnmanagedRoute(ctx, route, id)
+	managed, err := m.deleteUnmanagedRoute(ctx, r.GetNamespace(), parents, id)
 	if err != nil {
 		return err
 	}
@@ -223,7 +220,7 @@ func (m *GatewayReconcileManager) upsertRoute(ctx context.Context, r Route, id s
 	if err != nil {
 		return err
 	}
-	route.RouteState = state
+	route := m.Factory.NewRoute(r, state)
 
 	return m.store.UpsertRoute(ctx, route, func(current store.Route) bool {
 		if current == nil {
@@ -262,13 +259,13 @@ func (m *GatewayReconcileManager) DeleteTCPRoute(ctx context.Context, name types
 	return m.store.DeleteRoute(ctx, TCPRouteID(name))
 }
 
-func (m *GatewayReconcileManager) deleteUnmanagedRoute(ctx context.Context, route *K8sRoute, id string) (bool, error) {
+func (m *GatewayReconcileManager) deleteUnmanagedRoute(ctx context.Context, namespace string, refs []gw.ParentRef, id string) (bool, error) {
 	// check our cache first
-	managed := m.managedByCachedGatewaysForRoute(route.GetNamespace(), route.Parents())
+	managed := m.managedByCachedGatewaysForRoute(namespace, refs)
 	if !managed {
 		var err error
 		// we might not yet have the gateway in our cache, check remotely
-		if managed, err = m.client.IsManagedRoute(ctx, route.GetNamespace(), route.Parents()); err != nil {
+		if managed, err = m.client.IsManagedRoute(ctx, namespace, refs); err != nil {
 			return false, err
 		}
 	}

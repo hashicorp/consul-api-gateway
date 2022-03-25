@@ -15,13 +15,14 @@ import (
 	"github.com/hashicorp/go-hclog"
 
 	"github.com/hashicorp/consul-api-gateway/internal/metrics"
+	"github.com/hashicorp/consul-api-gateway/internal/store"
 )
 
 // RequestHandler implements the handlers for an SDS Delta server
 type RequestHandler struct {
 	logger         hclog.Logger
 	secretManager  SecretManager
-	registry       GatewaySecretRegistry
+	store          store.Store
 	nodeMap        sync.Map
 	streamContexts sync.Map
 	activeStreams  int64
@@ -29,9 +30,9 @@ type RequestHandler struct {
 
 // NewRequestHandler initializes a RequestHandler instance and wraps it in a github.com/envoyproxy/go-control-plane/pkg/server/v3,(*CallbackFuncs)
 // so that it can be used by the stock go-control-plane server implementation
-func NewRequestHandler(logger hclog.Logger, registry GatewaySecretRegistry, secretManager SecretManager) *server.CallbackFuncs {
+func NewRequestHandler(logger hclog.Logger, store store.Store, secretManager SecretManager) *server.CallbackFuncs {
 	handler := &RequestHandler{
-		registry:      registry,
+		store:         store,
 		logger:        logger,
 		secretManager: secretManager,
 	}
@@ -85,7 +86,12 @@ func (r *RequestHandler) OnStreamRequest(streamID int64, req *discovery.Discover
 	resources := req.GetResourceNames()
 
 	// check to make sure we're actually authorized to do this
-	allowed, err := r.registry.CanFetchSecrets(ctx, GatewayFromContext(ctx), resources)
+	gateway, err := r.store.GetGateway(ctx, GatewayFromContext(ctx))
+	if err != nil {
+		r.logger.Error("error fetching gateway", "error", err)
+		return err
+	}
+	allowed, err := gateway.CanFetchSecrets(ctx, resources)
 	if err != nil {
 		r.logger.Error("error checking gateway secrets", "error", err)
 		return err

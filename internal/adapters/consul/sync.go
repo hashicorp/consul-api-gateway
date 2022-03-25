@@ -299,7 +299,7 @@ func (a *ConsulSyncAdapter) Clear(ctx context.Context, id core.GatewayID) error 
 	return nil
 }
 
-func (a *ConsulSyncAdapter) Sync(ctx context.Context, gateway core.ResolvedGateway) error {
+func (a *ConsulSyncAdapter) Sync(ctx context.Context, gateway core.ResolvedGateway) (bool, error) {
 	a.mutex.Lock()
 	defer a.mutex.Unlock()
 
@@ -329,6 +329,11 @@ func (a *ConsulSyncAdapter) Sync(ctx context.Context, gateway core.ResolvedGatew
 	removedSplitters := computedSplitters.Difference(existingSplitters).ToArray()
 	removedDefaults := computedDefaults.Difference(existingDefaults).ToArray()
 
+	if len(addedRouters) == 0 && len(addedDefaults) == 0 && len(addedSplitters) == 0 &&
+		len(removedRouters) == 0 && len(removedDefaults) == 0 && len(removedSplitters) == 0 {
+		return false, nil
+	}
+
 	if a.logger.IsTrace() {
 		ingressEntry, err := json.MarshalIndent(ingress, "", "  ")
 		if err == nil {
@@ -346,33 +351,33 @@ func (a *ConsulSyncAdapter) Sync(ctx context.Context, gateway core.ResolvedGatew
 
 	// defaults need to go first, otherwise the routers are always configured to use tcp
 	if err := a.setConfigEntries(ctx, addedDefaults...); err != nil {
-		return fmt.Errorf("error adding service defaults config entries: %w", err)
+		return false, fmt.Errorf("error adding service defaults config entries: %w", err)
 	}
 	if err := a.setConfigEntries(ctx, addedRouters...); err != nil {
-		return fmt.Errorf("error adding service router config entries: %w", err)
+		return false, fmt.Errorf("error adding service router config entries: %w", err)
 	}
 	if err := a.setConfigEntries(ctx, addedSplitters...); err != nil {
-		return fmt.Errorf("error adding service splitter config entries: %w", err)
+		return false, fmt.Errorf("error adding service splitter config entries: %w", err)
 	}
 
 	if err := a.setConfigEntries(ctx, ingress); err != nil {
-		return fmt.Errorf("error adding ingress config entry: %w", err)
+		return false, fmt.Errorf("error adding ingress config entry: %w", err)
 	}
 
 	if err := a.deleteConfigEntries(ctx, removedRouters...); err != nil {
-		return fmt.Errorf("error removing service router config entries: %w", err)
+		return false, fmt.Errorf("error removing service router config entries: %w", err)
 	}
 	if err := a.deleteConfigEntries(ctx, removedSplitters...); err != nil {
-		return fmt.Errorf("error removing service splitter config entries: %w", err)
+		return false, fmt.Errorf("error removing service splitter config entries: %w", err)
 	}
 	if err := a.deleteConfigEntries(ctx, removedDefaults...); err != nil {
-		return fmt.Errorf("error removing service defaults config entries: %w", err)
+		return false, fmt.Errorf("error removing service defaults config entries: %w", err)
 	}
 
 	a.setEntriesForGateway(gateway, computedRouters, computedSplitters, computedDefaults)
 	if err := a.syncIntentionsForGateway(gateway.ID, ingress); err != nil {
-		return fmt.Errorf("error syncing service intention config entries: %w", err)
+		return false, fmt.Errorf("error syncing service intention config entries: %w", err)
 	}
 
-	return nil
+	return true, nil
 }

@@ -13,6 +13,7 @@ import (
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient/mocks"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/state"
 	"github.com/hashicorp/go-hclog"
 )
 
@@ -79,13 +80,13 @@ func TestRouteKindIsAllowedForListener(t *testing.T) {
 		Kind:  "HTTPRoute",
 	}}, factory.NewRoute(&gw.HTTPRoute{
 		TypeMeta: routeMeta,
-	})))
+	}, state.NewRouteState())))
 	require.False(t, routeKindIsAllowedForListener([]gw.RouteGroupKind{{
 		Group: (*gw.Group)(&gw.GroupVersion.Group),
 		Kind:  "TCPRoute",
 	}}, factory.NewRoute(&gw.HTTPRoute{
 		TypeMeta: routeMeta,
-	})))
+	}, state.NewRouteState())))
 }
 
 func TestRouteAllowedForListenerNamespaces(t *testing.T) {
@@ -110,7 +111,7 @@ func TestRouteAllowedForListenerNamespaces(t *testing.T) {
 		ObjectMeta: meta.ObjectMeta{
 			Namespace: "expected",
 		},
-	}), client)
+	}, state.NewRouteState()), client)
 	require.NoError(t, err)
 	require.True(t, allowed)
 
@@ -122,7 +123,7 @@ func TestRouteAllowedForListenerNamespaces(t *testing.T) {
 		ObjectMeta: meta.ObjectMeta{
 			Namespace: "other",
 		},
-	}), client)
+	}, state.NewRouteState()), client)
 	require.NoError(t, err)
 	require.False(t, allowed)
 
@@ -136,7 +137,7 @@ func TestRouteAllowedForListenerNamespaces(t *testing.T) {
 		ObjectMeta: meta.ObjectMeta{
 			Namespace: "other",
 		},
-	}), client)
+	}, state.NewRouteState()), client)
 	require.NoError(t, err)
 	require.True(t, allowed)
 
@@ -165,7 +166,7 @@ func TestRouteAllowedForListenerNamespaces(t *testing.T) {
 		ObjectMeta: meta.ObjectMeta{
 			Namespace: "expected",
 		},
-	}), client)
+	}, state.NewRouteState()), client)
 	require.NoError(t, err)
 	require.False(t, allowed)
 
@@ -183,7 +184,7 @@ func TestRouteAllowedForListenerNamespaces(t *testing.T) {
 		ObjectMeta: meta.ObjectMeta{
 			Namespace: "expected",
 		},
-	}), client)
+	}, state.NewRouteState()), client)
 	require.NoError(t, err)
 	require.True(t, allowed)
 
@@ -201,7 +202,7 @@ func TestRouteAllowedForListenerNamespaces(t *testing.T) {
 		ObjectMeta: meta.ObjectMeta{
 			Namespace: "expected",
 		},
-	}), client)
+	}, state.NewRouteState()), client)
 	require.Error(t, err)
 
 	// unknown
@@ -214,7 +215,7 @@ func TestRouteAllowedForListenerNamespaces(t *testing.T) {
 		ObjectMeta: meta.ObjectMeta{
 			Namespace: "expected",
 		},
-	}), client)
+	}, state.NewRouteState()), client)
 	require.NoError(t, err)
 	require.False(t, allowed)
 }
