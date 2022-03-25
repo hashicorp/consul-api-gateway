@@ -40,10 +40,6 @@ func (r *K8sRoute) ID() string {
 		return HTTPRouteID(utils.NamespacedName(r.Route))
 	case *gw.TCPRoute:
 		return TCPRouteID(utils.NamespacedName(r.Route))
-	case *gw.UDPRoute:
-		return UDPRouteID(utils.NamespacedName(r.Route))
-	case *gw.TLSRoute:
-		return TLSRouteID(utils.NamespacedName(r.Route))
 	}
 	return ""
 }
@@ -142,10 +138,8 @@ func (r *K8sRoute) Resolve(listener store.Listener) *core.ResolvedRoute {
 			"consul-api-gateway/k8s/TCPRoute.Name":      r.GetName(),
 			"consul-api-gateway/k8s/TCPRoute.Namespace": r.GetNamespace(),
 		}, route, r.RouteState)
-	default:
-		// TODO: add other route types
-		return nil
 	}
+	return nil
 }
 
 func (r *K8sRoute) Parents() []gw.ParentRef {
@@ -154,10 +148,6 @@ func (r *K8sRoute) Parents() []gw.ParentRef {
 	case *gw.HTTPRoute:
 		return route.Spec.ParentRefs
 	case *gw.TCPRoute:
-		return route.Spec.ParentRefs
-	case *gw.UDPRoute:
-		return route.Spec.ParentRefs
-	case *gw.TLSRoute:
 		return route.Spec.ParentRefs
 	}
 	return nil

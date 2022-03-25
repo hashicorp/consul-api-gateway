@@ -30,13 +30,7 @@ func TestRouteID(t *testing.T) {
 	require.Equal(t, "http-namespace/name", factory.NewRoute(&gw.HTTPRoute{
 		ObjectMeta: meta,
 	}).ID())
-	require.Equal(t, "udp-namespace/name", factory.NewRoute(&gw.UDPRoute{
-		ObjectMeta: meta,
-	}).ID())
 	require.Equal(t, "tcp-namespace/name", factory.NewRoute(&gw.TCPRoute{
-		ObjectMeta: meta,
-	}).ID())
-	require.Equal(t, "tls-namespace/name", factory.NewRoute(&gw.TLSRoute{
 		ObjectMeta: meta,
 	}).ID())
 	require.Equal(t, "", factory.NewRoute(&core.Pod{
@@ -141,12 +135,6 @@ func TestRouteParents(t *testing.T) {
 	require.Equal(t, expected.ParentRefs, parents)
 
 	parents = factory.NewRoute(&gw.TCPRoute{Spec: gw.TCPRouteSpec{CommonRouteSpec: expected}}).Parents()
-	require.Equal(t, expected.ParentRefs, parents)
-
-	parents = factory.NewRoute(&gw.TLSRoute{Spec: gw.TLSRouteSpec{CommonRouteSpec: expected}}).Parents()
-	require.Equal(t, expected.ParentRefs, parents)
-
-	parents = factory.NewRoute(&gw.UDPRoute{Spec: gw.UDPRouteSpec{CommonRouteSpec: expected}}).Parents()
 	require.Equal(t, expected.ParentRefs, parents)
 
 	require.Nil(t, factory.NewRoute(&core.Pod{}).Parents())
