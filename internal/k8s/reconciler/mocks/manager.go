@@ -93,20 +93,6 @@ func (mr *MockReconcileManagerMockRecorder) DeleteTCPRoute(ctx, name interface{}
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteTCPRoute", reflect.TypeOf((*MockReconcileManager)(nil).DeleteTCPRoute), ctx, name)
 }
 
-// DeleteTLSRoute mocks base method.
-func (m *MockReconcileManager) DeleteTLSRoute(ctx context.Context, name types.NamespacedName) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteTLSRoute", ctx, name)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// DeleteTLSRoute indicates an expected call of DeleteTLSRoute.
-func (mr *MockReconcileManagerMockRecorder) DeleteTLSRoute(ctx, name interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteTLSRoute", reflect.TypeOf((*MockReconcileManager)(nil).DeleteTLSRoute), ctx, name)
-}
-
 // UpsertGateway mocks base method.
 func (m *MockReconcileManager) UpsertGateway(ctx context.Context, g *v1alpha2.Gateway) error {
 	m.ctrl.T.Helper()
@@ -161,18 +147,4 @@ func (m *MockReconcileManager) UpsertTCPRoute(ctx context.Context, r reconciler.
 func (mr *MockReconcileManagerMockRecorder) UpsertTCPRoute(ctx, r interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertTCPRoute", reflect.TypeOf((*MockReconcileManager)(nil).UpsertTCPRoute), ctx, r)
-}
-
-// UpsertTLSRoute mocks base method.
-func (m *MockReconcileManager) UpsertTLSRoute(ctx context.Context, r reconciler.Route) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpsertTLSRoute", ctx, r)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// UpsertTLSRoute indicates an expected call of UpsertTLSRoute.
-func (mr *MockReconcileManagerMockRecorder) UpsertTLSRoute(ctx, r interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertTLSRoute", reflect.TypeOf((*MockReconcileManager)(nil).UpsertTLSRoute), ctx, r)
 }

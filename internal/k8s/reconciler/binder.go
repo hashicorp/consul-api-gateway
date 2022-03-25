@@ -58,37 +58,37 @@ func (b *Binder) canBind(ctx context.Context, listener gw.Listener, state *state
 	if allowed {
 		if !routeKindIsAllowedForListener(common.SupportedKindsFor(listener.Protocol), route) {
 			if must {
-				route.bindFailed(errors.NewBindErrorRouteKind("route kind not allowed for listener"), b.Gateway)
+				route.bindFailed(errors.NewBindErrorRouteKind("route kind not allowed for listener"), ref)
 			}
 			return false
 		}
 
 		allowed, err := routeAllowedForListenerNamespaces(ctx, b.Gateway.Namespace, listener.AllowedRoutes, route, b.Client)
 		if err != nil {
-			route.bindFailed(fmt.Errorf("error checking listener namespaces: %w", err), b.Gateway)
+			route.bindFailed(fmt.Errorf("error checking listener namespaces: %w", err), ref)
 			return false
 		}
 		if !allowed {
 			if must {
-				route.bindFailed(errors.NewBindErrorListenerNamespacePolicy("route not allowed because of listener namespace policy"), b.Gateway)
+				route.bindFailed(errors.NewBindErrorListenerNamespacePolicy("route not allowed because of listener namespace policy"), ref)
 			}
 			return false
 		}
 
 		if !route.MatchesHostname(listener.Hostname) {
 			if must {
-				route.bindFailed(errors.NewBindErrorHostnameMismatch("route does not match listener hostname"), b.Gateway)
+				route.bindFailed(errors.NewBindErrorHostnameMismatch("route does not match listener hostname"), ref)
 			}
 			return false
 		}
 
 		// check if the route is valid, if not, then return a status about it being rejected
 		if !route.RouteState.ResolutionErrors.Empty() {
-			route.bindFailed(errors.NewBindErrorRouteInvalid("route is in an invalid state and cannot bind"), b.Gateway)
+			route.bindFailed(errors.NewBindErrorRouteInvalid("route is in an invalid state and cannot bind"), ref)
 			return false
 		}
 
-		route.bound(b.Gateway)
+		route.RouteState.ParentStatuses.Bound(common.AsJSON(ref))
 		return true
 	}
 

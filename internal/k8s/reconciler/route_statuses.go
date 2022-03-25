@@ -18,18 +18,12 @@ func (r *K8sRoute) parentKeyForGateway(parent types.NamespacedName) (string, boo
 	return "", false
 }
 
-func (r *K8sRoute) bindFailed(err error, gateway *gw.Gateway) {
-	id, found := r.parentKeyForGateway(utils.NamespacedName(gateway))
-	if found {
-		r.ParentStatuses.BindFailed(r.ResolutionErrors, err, id)
-	}
+func (r *K8sRoute) bindFailed(err error, ref gw.ParentRef) {
+	r.ParentStatuses.BindFailed(r.ResolutionErrors, err, common.AsJSON(ref))
 }
 
-func (r *K8sRoute) bound(gateway *gw.Gateway) {
-	id, found := r.parentKeyForGateway(utils.NamespacedName(gateway))
-	if found {
-		r.ParentStatuses.Bound(id)
-	}
+func (r *K8sRoute) bound(ref gw.ParentRef) {
+	r.ParentStatuses.Bound(common.AsJSON(ref))
 }
 
 func (r *K8sRoute) OnGatewayRemoved(gateway store.Gateway) {

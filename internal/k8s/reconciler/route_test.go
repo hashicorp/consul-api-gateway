@@ -206,13 +206,6 @@ func TestRouteSyncStatus(t *testing.T) {
 		ControllerName: "expected",
 	})
 
-	gateway := factory.NewGateway(NewGatewayConfig{
-		Gateway: &gw.Gateway{
-			ObjectMeta: meta.ObjectMeta{
-				Name: "expected",
-			},
-		},
-	})
 	inner := &gw.TLSRoute{
 		Spec: gw.TLSRouteSpec{
 			CommonRouteSpec: gw.CommonRouteSpec{
@@ -250,7 +243,9 @@ func TestRouteSyncStatus(t *testing.T) {
 	})
 	logger.SetLevel(hclog.Trace)
 	route := factory.NewRoute(inner)
-	route.bound(gateway.Gateway)
+	route.bound(gw.ParentRef{
+		Name: "expected",
+	})
 
 	expected := errors.New("expected")
 	client.EXPECT().UpdateStatus(gomock.Any(), inner).Return(expected)
