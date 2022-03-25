@@ -11,7 +11,7 @@ func HTTPRouteID(namespacedName types.NamespacedName) string {
 	return "http-" + namespacedName.String()
 }
 
-func convertHTTPRoute(namespace, hostname, prefix string, meta map[string]string, route *gw.HTTPRoute, k8sRoute *K8sRoute) *core.ResolvedRoute {
+func convertHTTPRoute(namespace, hostname, prefix string, meta map[string]string, route *gw.HTTPRoute, state *RouteState) *core.ResolvedRoute {
 	hostnames := []string{}
 	for _, hostname := range route.Spec.Hostnames {
 		hostnames = append(hostnames, string(hostname))
@@ -32,7 +32,7 @@ func convertHTTPRoute(namespace, hostname, prefix string, meta map[string]string
 		WithNamespace(namespace).
 		WithHostnames(hostnames).
 		WithMeta(meta).
-		WithRules(httpReferencesToRules(k8sRoute.RouteState.References)).
+		WithRules(httpReferencesToRules(state.References)).
 		Build()
 	return &resolved
 }

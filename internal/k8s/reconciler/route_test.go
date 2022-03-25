@@ -8,8 +8,6 @@ import (
 
 	"github.com/golang/mock/gomock"
 	clientMocks "github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient/mocks"
-	"github.com/hashicorp/consul-api-gateway/internal/k8s/service"
-	"github.com/hashicorp/consul-api-gateway/internal/k8s/service/mocks"
 	"github.com/hashicorp/go-hclog"
 	"github.com/stretchr/testify/require"
 	core "k8s.io/api/core/v1"
@@ -438,54 +436,6 @@ func TestRouteMatchesHostname(t *testing.T) {
 	// check where the underlying route doesn't implement
 	// a matching routine
 	require.True(t, factory.NewRoute(&gw.TCPRoute{}).MatchesHostname(&hostname))
-}
-
-func TestRouteValidate(t *testing.T) {
-	t.Parallel()
-
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-	resolver := mocks.NewMockBackendResolver(ctrl)
-
-	factory := NewFactory(FactoryConfig{
-		Logger:   hclog.NewNullLogger(),
-		Resolver: resolver,
-	})
-
-	require.NoError(t, factory.NewRoute(&core.Pod{}).Validate(context.Background()))
-	require.True(t, factory.NewRoute(&gw.HTTPRoute{}).IsValid())
-
-	reference := gw.BackendObjectReference{
-		Name: "expected",
-	}
-	resolved := &service.ResolvedReference{
-		Type:      service.ConsulServiceReference,
-		Reference: &service.BackendReference{},
-	}
-
-	resolver.EXPECT().Resolve(gomock.Any(), gomock.Any(), reference).Return(resolved, nil)
-
-	route := factory.NewRoute(&gw.HTTPRoute{
-		Spec: gw.HTTPRouteSpec{
-			Rules: []gw.HTTPRouteRule{{
-				BackendRefs: []gw.HTTPBackendRef{{
-					BackendRef: gw.BackendRef{
-						BackendObjectReference: reference,
-					},
-				}},
-			}},
-		},
-	})
-	require.NoError(t, route.Validate(context.Background()))
-	require.True(t, route.IsValid())
-
-	expected := errors.New("expected")
-	resolver.EXPECT().Resolve(gomock.Any(), gomock.Any(), reference).Return(nil, expected)
-	require.Equal(t, expected, route.Validate(context.Background()))
-
-	resolver.EXPECT().Resolve(gomock.Any(), gomock.Any(), reference).Return(nil, service.NewK8sResolutionError("error"))
-	require.NoError(t, route.Validate(context.Background()))
-	require.False(t, route.IsValid())
 }
 
 func TestRouteResolve(t *testing.T) {

@@ -11,7 +11,7 @@ func TCPRouteID(namespacedName types.NamespacedName) string {
 	return "tcp-" + namespacedName.String()
 }
 
-func convertTCPRoute(namespace, prefix string, meta map[string]string, route *gw.TCPRoute, k8sRoute *K8sRoute) *core.ResolvedRoute {
+func convertTCPRoute(namespace, prefix string, meta map[string]string, route *gw.TCPRoute, state *RouteState) *core.ResolvedRoute {
 	name := prefix + route.Name
 
 	resolved := core.NewTCPRouteBuilder().
@@ -21,7 +21,7 @@ func convertTCPRoute(namespace, prefix string, meta map[string]string, route *gw
 		// be in different namespaces
 		WithNamespace(namespace).
 		WithMeta(meta).
-		WithService(tcpReferencesToService(k8sRoute.RouteState.References)).
+		WithService(tcpReferencesToService(state.References)).
 		Build()
 	return &resolved
 }

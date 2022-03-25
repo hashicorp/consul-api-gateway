@@ -16,7 +16,6 @@ type Factory struct {
 	sdsPort        int
 	logger         hclog.Logger
 	client         gatewayclient.Client
-	resolver       service.BackendResolver
 }
 
 type FactoryConfig struct {
@@ -26,7 +25,6 @@ type FactoryConfig struct {
 	SDSPort        int
 	Logger         hclog.Logger
 	Client         gatewayclient.Client
-	Resolver       service.BackendResolver
 }
 
 func NewFactory(config FactoryConfig) *Factory {
@@ -37,7 +35,6 @@ func NewFactory(config FactoryConfig) *Factory {
 		sdsPort:        config.SDSPort,
 		logger:         config.Logger,
 		client:         config.Client,
-		resolver:       config.Resolver,
 	}
 }
 
@@ -103,7 +100,6 @@ func (f *Factory) NewRoute(route Route) *K8sRoute {
 
 func (f *Factory) initializeRoute(route *K8sRoute) *K8sRoute {
 	route.logger = f.logger.Named("route").With("name", route.GetName())
-	route.resolver = f.resolver
 	route.client = f.client
 	route.controllerName = f.controllerName
 

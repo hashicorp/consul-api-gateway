@@ -3,12 +3,10 @@ package reconciler
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 
 	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
-	"github.com/hashicorp/consul-api-gateway/internal/k8s/service"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	"github.com/hashicorp/consul-api-gateway/internal/store"
 	"github.com/hashicorp/go-hclog"
@@ -34,7 +32,6 @@ type K8sRoute struct {
 	controllerName string
 	logger         hclog.Logger
 	client         gatewayclient.Client
-	resolver       service.BackendResolver
 }
 
 var _ store.StatusTrackingRoute = &K8sRoute{}
@@ -172,7 +169,7 @@ func (r *K8sRoute) Resolve(listener store.Listener) *core.ResolvedRoute {
 			"consul-api-gateway/k8s/Gateway.Namespace":   k8sListener.gateway.Namespace,
 			"consul-api-gateway/k8s/HTTPRoute.Name":      r.GetName(),
 			"consul-api-gateway/k8s/HTTPRoute.Namespace": r.GetNamespace(),
-		}, route, r)
+		}, route, r.RouteState)
 	case *gw.TCPRoute:
 		return convertTCPRoute(namespace, prefix, map[string]string{
 			"external-source":                           "consul-api-gateway",
@@ -180,7 +177,7 @@ func (r *K8sRoute) Resolve(listener store.Listener) *core.ResolvedRoute {
 			"consul-api-gateway/k8s/Gateway.Namespace":  k8sListener.gateway.Namespace,
 			"consul-api-gateway/k8s/TCPRoute.Name":      r.GetName(),
 			"consul-api-gateway/k8s/TCPRoute.Namespace": r.GetNamespace(),
-		}, route, r)
+		}, route, r.RouteState)
 	default:
 		// TODO: add other route types
 		return nil
@@ -200,64 +197,4 @@ func (r *K8sRoute) Parents() []gw.ParentRef {
 		return route.Spec.ParentRefs
 	}
 	return nil
-}
-
-func (r *K8sRoute) Validate(ctx context.Context) error {
-	switch route := r.Route.(type) {
-	case *gw.HTTPRoute:
-		for _, httpRule := range route.Spec.Rules {
-			rule := httpRule
-			routeRule := service.NewRouteRule(&rule)
-			for _, backendRef := range rule.BackendRefs {
-				ref := backendRef
-				reference, err := r.resolver.Resolve(ctx, r.GetNamespace(), ref.BackendObjectReference)
-				if err != nil {
-					var resolutionError service.ResolutionError
-					if !errors.As(err, &resolutionError) {
-						return err
-					}
-					r.RouteState.ResolutionErrors.Add(resolutionError)
-					continue
-				}
-				reference.Reference.Set(&ref)
-				r.RouteState.References.Add(routeRule, *reference)
-			}
-		}
-	case *gw.TCPRoute:
-		if len(route.Spec.Rules) != 1 {
-			err := service.NewResolutionError("a single tcp rule is required")
-			r.RouteState.ResolutionErrors.Add(err)
-			return nil
-		}
-
-		rule := route.Spec.Rules[0]
-
-		if len(rule.BackendRefs) != 1 {
-			err := service.NewResolutionError("a single backendRef per tcp rule is required")
-			r.RouteState.ResolutionErrors.Add(err)
-			return nil
-		}
-
-		routeRule := service.NewRouteRule(rule)
-
-		ref := rule.BackendRefs[0]
-		reference, err := r.resolver.Resolve(ctx, r.GetNamespace(), ref.BackendObjectReference)
-		if err != nil {
-			var resolutionError service.ResolutionError
-			if !errors.As(err, &resolutionError) {
-				return err
-			}
-			r.RouteState.ResolutionErrors.Add(resolutionError)
-			return nil
-		}
-
-		reference.Reference.Set(&ref)
-		r.RouteState.References.Add(routeRule, *reference)
-	}
-
-	return nil
-}
-
-func (r *K8sRoute) IsValid() bool {
-	return r.RouteState.ResolutionErrors.Empty()
 }

@@ -49,6 +49,7 @@ type GatewayReconcileManager struct {
 	gatewayClasses   *K8sGatewayClasses
 	Factory          *Factory
 	GatewayValidator *GatewayValidator
+	RouteValidator   *RouteValidator
 
 	consulNamespaceMapper common.ConsulNamespaceMapper
 
@@ -72,6 +73,8 @@ type ManagerConfig struct {
 }
 
 func NewReconcileManager(config ManagerConfig) *GatewayReconcileManager {
+	resolver := service.NewBackendResolver(config.Logger, config.ConsulNamespaceMapper, config.Client, config.Consul)
+
 	return &GatewayReconcileManager{
 		logger: config.Logger,
 		client: config.Client,
@@ -82,9 +85,9 @@ func NewReconcileManager(config ManagerConfig) *GatewayReconcileManager {
 			SDSPort:        config.SDSPort,
 			Logger:         config.Logger,
 			Client:         config.Client,
-			Resolver:       service.NewBackendResolver(config.Logger, config.ConsulNamespaceMapper, config.Client, config.Consul),
 		}),
 		GatewayValidator:      NewGatewayValidator(config.Client),
+		RouteValidator:        NewRouteValidator(resolver),
 		gatewayClasses:        NewK8sGatewayClasses(config.Logger.Named("gatewayclasses"), config.Client),
 		namespaceMap:          make(map[types.NamespacedName]string),
 		consulNamespaceMapper: config.ConsulNamespaceMapper,
@@ -213,12 +216,13 @@ func (m *GatewayReconcileManager) upsertRoute(ctx context.Context, r Route, id s
 	}
 
 	// Calling validate outside of the upsert process allows us to re-resolve any
-	// external references and set the statuses accordingly. Since we actually
-	// have other object updates triggering reconciliation loops, this is necessary
-	// prior to dirty-checking on upsert.
-	if err := route.Validate(ctx); err != nil {
+	// external references and set the statuses accordingly.
+	state, err := m.RouteValidator.Validate(ctx, route)
+	if err != nil {
 		return err
 	}
+	route.RouteState = state
+
 	return m.store.UpsertRoute(ctx, route, func(current store.Route) bool {
 		if current == nil {
 			return true

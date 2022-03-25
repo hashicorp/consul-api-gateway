@@ -64,7 +64,7 @@ func (b *Binder) canBind(ctx context.Context, ref gw.ParentRef, route *K8sRoute)
 		}
 
 		// check if the route is valid, if not, then return a status about it being rejected
-		if !route.IsValid() {
+		if !route.RouteState.ResolutionErrors.Empty() {
 			route.bindFailed(NewBindErrorRouteInvalid("route is in an invalid state and cannot bind"), b.Gateway)
 			return false
 		}
