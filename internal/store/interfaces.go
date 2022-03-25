@@ -22,9 +22,11 @@ type StatusTrackingGateway interface {
 // Gateway describes a gateway.
 type Gateway interface {
 	ID() core.GatewayID
+	Bind(ctx context.Context, route Route) []string
+
+	// TODO: get rid of these
 	Meta() map[string]string
 	Listeners() []Listener
-	Bind(ctx context.Context, route Route) []string
 }
 
 // ListenerConfig contains the common configuration
@@ -39,6 +41,7 @@ type ListenerConfig struct {
 
 // Listener describes the basic methods of a gateway
 // listener.
+// TODO: get rid of this interface
 type Listener interface {
 	ID() string
 	Config() ListenerConfig
@@ -63,16 +66,24 @@ type StatusTrackingRoute interface {
 // source integrations
 type Route interface {
 	ID() string
+
+	// TODO: move this to the gateway as
+	// Resolve(routes []Route) *core.ResolvedGateway
 	Resolve(listener Listener) *core.ResolvedRoute
 }
 
 // Store is used for persisting and querying gateways and routes
 type Store interface {
+	// TODO: make these part of a Backend interface
 	GatewayExists(ctx context.Context, id core.GatewayID) (bool, error)
-	CanFetchSecrets(ctx context.Context, id core.GatewayID, secrets []string) (bool, error)
 	DeleteGateway(ctx context.Context, id core.GatewayID) error
 	UpsertGateway(ctx context.Context, gateway Gateway, updateConditionFn func(current Gateway) bool) error
 	DeleteRoute(ctx context.Context, id string) error
 	UpsertRoute(ctx context.Context, route Route, updateConditionFn func(current Route) bool) error
+
+	// TODO: move this into a concrete implementation of store
 	Sync(ctx context.Context) error
+
+	// TODO: move this to the gateway
+	CanFetchSecrets(ctx context.Context, id core.GatewayID, secrets []string) (bool, error)
 }

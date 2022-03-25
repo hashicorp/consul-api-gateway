@@ -11,7 +11,6 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/store"
 	"github.com/hashicorp/go-hclog"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
 )
@@ -21,8 +20,6 @@ type Route interface {
 	client.Object
 	schema.ObjectKind
 }
-
-type RouteStatuses map[string]*RouteStatus
 
 type K8sRoute struct {
 	Route
@@ -35,16 +32,6 @@ type K8sRoute struct {
 }
 
 var _ store.StatusTrackingRoute = &K8sRoute{}
-
-func (r *K8sRoute) parentKeyForGateway(parent types.NamespacedName) (string, bool) {
-	for _, p := range r.Parents() {
-		gatewayName, isGateway := utils.ReferencesGateway(r.GetNamespace(), p)
-		if isGateway && gatewayName == parent {
-			return asJSON(p), true
-		}
-	}
-	return "", false
-}
 
 func (r *K8sRoute) ID() string {
 	switch r.Route.(type) {
@@ -107,30 +94,6 @@ func (r *K8sRoute) SetStatus(updated gw.RouteStatus) {
 		route.Status.RouteStatus = updated
 	case *gw.TLSRoute:
 		route.Status.RouteStatus = updated
-	}
-}
-
-func (r *K8sRoute) bindFailed(err error, gateway *K8sGateway) {
-	id, found := r.parentKeyForGateway(utils.NamespacedName(gateway.Gateway))
-	if found {
-		r.RouteState.bindFailed(err, id)
-	}
-}
-
-func (r *K8sRoute) bound(gateway *K8sGateway) {
-	id, found := r.parentKeyForGateway(utils.NamespacedName(gateway.Gateway))
-	if found {
-		r.RouteState.bound(id)
-	}
-}
-
-func (r *K8sRoute) OnGatewayRemoved(gateway store.Gateway) {
-	k8sGateway, ok := gateway.(*K8sGateway)
-	if ok {
-		id, found := r.parentKeyForGateway(utils.NamespacedName(k8sGateway.Gateway))
-		if found {
-			r.RouteState.remove(id)
-		}
 	}
 }
 

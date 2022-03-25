@@ -432,3 +432,11 @@ func resolveCertificateReference(ctx context.Context, client gatewayclient.Clien
 		return "", NewCertificateResolutionErrorUnsupported(fmt.Sprintf("unsupported certificate type - group: %s, kind: %s", group, kind))
 	}
 }
+
+func setToCSV(set map[string]struct{}) string {
+	values := []string{}
+	for value := range set {
+		values = append(values, value)
+	}
+	return strings.Join(values, ", ")
+}
