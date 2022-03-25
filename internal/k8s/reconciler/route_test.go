@@ -262,7 +262,7 @@ func TestRouteSyncStatus(t *testing.T) {
 	})
 	logger.SetLevel(hclog.Trace)
 	route := factory.NewRoute(inner)
-	route.bound(gateway)
+	route.bound(gateway.Gateway)
 
 	expected := errors.New("expected")
 	client.EXPECT().UpdateStatus(gomock.Any(), inner).Return(expected)

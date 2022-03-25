@@ -5,6 +5,7 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	"github.com/hashicorp/consul-api-gateway/internal/store"
 	"k8s.io/apimachinery/pkg/types"
+	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
 )
 
 func (r *K8sRoute) parentKeyForGateway(parent types.NamespacedName) (string, bool) {
@@ -17,15 +18,15 @@ func (r *K8sRoute) parentKeyForGateway(parent types.NamespacedName) (string, boo
 	return "", false
 }
 
-func (r *K8sRoute) bindFailed(err error, gateway *K8sGateway) {
-	id, found := r.parentKeyForGateway(utils.NamespacedName(gateway.Gateway))
+func (r *K8sRoute) bindFailed(err error, gateway *gw.Gateway) {
+	id, found := r.parentKeyForGateway(utils.NamespacedName(gateway))
 	if found {
 		r.ParentStatuses.BindFailed(r.ResolutionErrors, err, id)
 	}
 }
 
-func (r *K8sRoute) bound(gateway *K8sGateway) {
-	id, found := r.parentKeyForGateway(utils.NamespacedName(gateway.Gateway))
+func (r *K8sRoute) bound(gateway *gw.Gateway) {
+	id, found := r.parentKeyForGateway(utils.NamespacedName(gateway))
 	if found {
 		r.ParentStatuses.Bound(id)
 	}

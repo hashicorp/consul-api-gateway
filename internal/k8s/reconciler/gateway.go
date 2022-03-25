@@ -3,7 +3,6 @@ package reconciler
 import (
 	"context"
 	"encoding/json"
-	"sync/atomic"
 
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
@@ -11,7 +10,6 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/state"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/status"
-	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	"github.com/hashicorp/consul-api-gateway/internal/store"
 	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 	"github.com/hashicorp/go-hclog"
@@ -72,26 +70,7 @@ func (g *K8sGateway) Bind(ctx context.Context, route store.Route) []string {
 		return nil
 	}
 
-	boundListeners := []string{}
-	for _, ref := range k8sRoute.CommonRouteSpec().ParentRefs {
-		if namespacedName, isGateway := utils.ReferencesGateway(k8sRoute.GetNamespace(), ref); isGateway {
-			if utils.NamespacedName(g.Gateway) == namespacedName {
-				for _, l := range g.listeners {
-					if (&Binder{
-						Client:        l.client,
-						Gateway:       l.gateway,
-						Listener:      l.listener,
-						ListenerState: l.ListenerState,
-					}).Bind(ctx, k8sRoute) {
-						atomic.AddInt32(&l.ListenerState.RouteCount, 1)
-						boundListeners = append(boundListeners, l.ID())
-					}
-				}
-				return boundListeners
-			}
-		}
-	}
-	return nil
+	return NewBinder(g.client, g.Gateway, g.GatewayState).Bind(ctx, k8sRoute)
 }
 
 func (g *K8sGateway) TrackSync(ctx context.Context, sync func() (bool, error)) error {

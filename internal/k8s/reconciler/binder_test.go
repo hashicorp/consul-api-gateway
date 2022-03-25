@@ -5,138 +5,21 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
+	core "k8s.io/api/core/v1"
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient/mocks"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/state"
 	"github.com/hashicorp/go-hclog"
 )
 
 func TestBinder(t *testing.T) {
 	t.Parallel()
 
-	factory := NewFactory(FactoryConfig{
-		Logger: hclog.NewNullLogger(),
-	})
-
-	// no match
-	listener := NewK8sListener(&K8sGateway{Gateway: &gw.Gateway{}}, gw.Listener{}, K8sListenerConfig{
-		Logger: hclog.NewNullLogger(),
-	})
-	testBinder(t, listener, factory.NewRoute(&gw.HTTPRoute{}), false)
-
-	// match
-	listener = NewK8sListener(&K8sGateway{
-		Gateway: &gw.Gateway{
-			ObjectMeta: meta.ObjectMeta{
-				Name: "gateway",
-			},
-		},
-	}, gw.Listener{}, K8sListenerConfig{
-		Logger: hclog.NewNullLogger(),
-	})
-	testBinder(t, listener, factory.NewRoute(&gw.HTTPRoute{
-		Spec: gw.HTTPRouteSpec{
-			CommonRouteSpec: gw.CommonRouteSpec{
-				ParentRefs: []gw.ParentRef{{
-					Name: "gateway",
-				}},
-			},
-		},
-	}), true)
-
-	// not ready
-	listener = NewK8sListener(&K8sGateway{
-		Gateway: &gw.Gateway{
-			ObjectMeta: meta.ObjectMeta{
-				Name: "gateway",
-			},
-		},
-	}, gw.Listener{}, K8sListenerConfig{
-		Logger: hclog.NewNullLogger(),
-	})
-	listener.ListenerState.Status.Ready.Invalid = errors.New("invalid")
-
-	testBinder(t, listener, factory.NewRoute(&gw.HTTPRoute{
-		Spec: gw.HTTPRouteSpec{
-			CommonRouteSpec: gw.CommonRouteSpec{
-				ParentRefs: []gw.ParentRef{{
-					Name: "gateway",
-				}},
-			},
-		},
-	}), false)
-}
-
-func TestBinder_RouteKind(t *testing.T) {
-	t.Parallel()
-
-	routeMeta := meta.TypeMeta{}
-	routeMeta.SetGroupVersionKind(schema.GroupVersionKind{
-		Group:   gw.GroupVersion.Group,
-		Version: gw.GroupVersion.Version,
-		Kind:    "UDPRoute",
-	})
-	name := gw.SectionName("listener")
-
-	factory := NewFactory(FactoryConfig{
-		Logger: hclog.NewNullLogger(),
-	})
-
-	listener := NewK8sListener(&K8sGateway{
-		Gateway: &gw.Gateway{
-			ObjectMeta: meta.ObjectMeta{
-				Name: "gateway",
-			},
-		},
-	}, gw.Listener{
-		Protocol: gw.HTTPProtocolType,
-	}, K8sListenerConfig{
-		Logger: hclog.NewNullLogger(),
-	})
-	validator := NewGatewayValidator(nil)
-	validator.validateProtocols(listener.ListenerState, listener.listener)
-	testBinder(t, listener, factory.NewRoute(&gw.UDPRoute{
-		TypeMeta: routeMeta,
-		Spec: gw.UDPRouteSpec{
-			CommonRouteSpec: gw.CommonRouteSpec{
-				ParentRefs: []gw.ParentRef{{
-					Name: "gateway",
-				}},
-			},
-		},
-	}), false)
-
-	listener = NewK8sListener(&K8sGateway{
-		Gateway: &gw.Gateway{
-			ObjectMeta: meta.ObjectMeta{
-				Name: "gateway",
-			},
-		},
-	}, gw.Listener{
-		Name:     name,
-		Protocol: gw.HTTPProtocolType,
-	}, K8sListenerConfig{
-		Logger: hclog.NewNullLogger(),
-	})
-	testBinder(t, listener, factory.NewRoute(&gw.UDPRoute{
-		TypeMeta: routeMeta,
-		Spec: gw.UDPRouteSpec{
-			CommonRouteSpec: gw.CommonRouteSpec{
-				ParentRefs: []gw.ParentRef{{
-					Name:        "gateway",
-					SectionName: &name,
-				}},
-			},
-		},
-	}), false)
-}
-
-func TestBinder_AllowedNamespaces(t *testing.T) {
-	t.Parallel()
-
-	name := gw.SectionName("listener")
 	same := gw.NamespacesFromSame
 	selector := gw.NamespacesFromSelector
 	other := gw.Namespace("other")
@@ -146,204 +29,377 @@ func TestBinder_AllowedNamespaces(t *testing.T) {
 		Version: gw.GroupVersion.Version,
 		Kind:    "HTTPRoute",
 	})
-
-	factory := NewFactory(FactoryConfig{
-		Logger: hclog.NewNullLogger(),
+	udpMeta := meta.TypeMeta{}
+	udpMeta.SetGroupVersionKind(schema.GroupVersionKind{
+		Group:   gw.GroupVersion.Group,
+		Version: gw.GroupVersion.Version,
+		Kind:    "UDPRoute",
 	})
 
-	listener := NewK8sListener(&K8sGateway{
-		Gateway: &gw.Gateway{
-			ObjectMeta: meta.ObjectMeta{
-				Name:      "gateway",
-				Namespace: "other",
+	for _, test := range []struct {
+		name          string
+		gateway       *gw.Gateway
+		namespace     *core.Namespace
+		listenerError error
+		route         Route
+		didBind       bool
+	}{
+		{
+			name: "no match",
+			gateway: &gw.Gateway{
+				Spec: gw.GatewaySpec{
+					Listeners: []gw.Listener{{}},
+				},
 			},
+			route:   &gw.HTTPRoute{},
+			didBind: false,
 		},
-	}, gw.Listener{
-		Name:     name,
-		Protocol: gw.HTTPProtocolType,
-		AllowedRoutes: &gw.AllowedRoutes{
-			Namespaces: &gw.RouteNamespaces{
-				From: &same,
+		{
+			name: "match",
+			gateway: &gw.Gateway{
+				ObjectMeta: meta.ObjectMeta{
+					Name: "gateway",
+				},
+				Spec: gw.GatewaySpec{
+					Listeners: []gw.Listener{{}},
+				},
 			},
-		},
-	}, K8sListenerConfig{
-		Logger: hclog.NewNullLogger(),
-	})
-
-	testBinder(t, listener, factory.NewRoute(&gw.HTTPRoute{
-		TypeMeta: routeMeta,
-		Spec: gw.HTTPRouteSpec{
-			CommonRouteSpec: gw.CommonRouteSpec{
-				ParentRefs: []gw.ParentRef{{
-					Name:        "gateway",
-					Namespace:   &other,
-					SectionName: &name,
-				}},
+			route: &gw.HTTPRoute{
+				Spec: gw.HTTPRouteSpec{
+					CommonRouteSpec: gw.CommonRouteSpec{
+						ParentRefs: []gw.ParentRef{{
+							Name: "gateway",
+						}},
+					},
+				},
 			},
+			didBind: true,
 		},
-	}), false)
-
-	testBinder(t, listener, factory.NewRoute(&gw.HTTPRoute{
-		TypeMeta: routeMeta,
-		Spec: gw.HTTPRouteSpec{
-			CommonRouteSpec: gw.CommonRouteSpec{
-				ParentRefs: []gw.ParentRef{{
-					Name:      "gateway",
-					Namespace: &other,
-				}},
-			},
-		},
-	}), false)
-
-	listener = NewK8sListener(&K8sGateway{
-		Gateway: &gw.Gateway{
-			ObjectMeta: meta.ObjectMeta{
-				Name:      "gateway",
-				Namespace: "other",
-			},
-		},
-	}, gw.Listener{
-		Name:     name,
-		Protocol: gw.HTTPProtocolType,
-		AllowedRoutes: &gw.AllowedRoutes{
-			Namespaces: &gw.RouteNamespaces{
-				From: &selector,
-				Selector: &meta.LabelSelector{
-					MatchExpressions: []meta.LabelSelectorRequirement{{
-						Key:      "test",
-						Operator: meta.LabelSelectorOperator("invalid"),
+		{
+			name: "bad route type",
+			gateway: &gw.Gateway{
+				ObjectMeta: meta.ObjectMeta{
+					Name: "gateway",
+				},
+				Spec: gw.GatewaySpec{
+					Listeners: []gw.Listener{{
+						Protocol: gw.HTTPProtocolType,
 					}},
 				},
 			},
-		},
-	}, K8sListenerConfig{
-		Logger: hclog.NewNullLogger(),
-	})
-
-	testBinder(t, listener, factory.NewRoute(&gw.HTTPRoute{
-		TypeMeta: routeMeta,
-		Spec: gw.HTTPRouteSpec{
-			CommonRouteSpec: gw.CommonRouteSpec{
-				ParentRefs: []gw.ParentRef{{
-					Name:        "gateway",
-					Namespace:   &other,
-					SectionName: &name,
-				}},
+			route: &gw.UDPRoute{
+				TypeMeta: udpMeta,
+				Spec: gw.UDPRouteSpec{
+					CommonRouteSpec: gw.CommonRouteSpec{
+						ParentRefs: []gw.ParentRef{{
+							Name: "gateway",
+						}},
+					},
+				},
 			},
+			didBind: false,
 		},
-	}), false)
-
-	testBinder(t, listener, factory.NewRoute(&gw.HTTPRoute{
-		TypeMeta: routeMeta,
-		Spec: gw.HTTPRouteSpec{
-			CommonRouteSpec: gw.CommonRouteSpec{
-				ParentRefs: []gw.ParentRef{{
-					Name:      "gateway",
-					Namespace: &other,
-				}},
-			},
-		},
-	}), false)
-}
-
-func TestBinder_HostnameMatch(t *testing.T) {
-	t.Parallel()
-
-	factory := NewFactory(FactoryConfig{
-		Logger: hclog.NewNullLogger(),
-	})
-
-	routeMeta := meta.TypeMeta{}
-	routeMeta.SetGroupVersionKind(schema.GroupVersionKind{
-		Group:   gw.GroupVersion.Group,
-		Version: gw.GroupVersion.Version,
-		Kind:    "HTTPRoute",
-	})
-	name := gw.SectionName("listener")
-	hostname := gw.Hostname("hostname")
-
-	listener := NewK8sListener(&K8sGateway{
-		Gateway: &gw.Gateway{
-			ObjectMeta: meta.ObjectMeta{
-				Name: "gateway",
-			},
-		},
-	}, gw.Listener{
-		Name:     name,
-		Hostname: &hostname,
-		Protocol: gw.HTTPProtocolType,
-	}, K8sListenerConfig{
-		Logger: hclog.NewNullLogger(),
-	})
-
-	testBinder(t, listener, factory.NewRoute(&gw.HTTPRoute{
-		TypeMeta: routeMeta,
-		Spec: gw.HTTPRouteSpec{
-			CommonRouteSpec: gw.CommonRouteSpec{
-				ParentRefs: []gw.ParentRef{{
-					Name:        "gateway",
-					SectionName: &name,
-				}},
-			},
-			Hostnames: []gw.Hostname{"other"},
-		},
-	}), false)
-
-	testBinder(t, listener, factory.NewRoute(&gw.HTTPRoute{
-		TypeMeta: routeMeta,
-		Spec: gw.HTTPRouteSpec{
-			CommonRouteSpec: gw.CommonRouteSpec{
-				ParentRefs: []gw.ParentRef{{
+		{
+			name: "good route type",
+			gateway: &gw.Gateway{
+				ObjectMeta: meta.ObjectMeta{
 					Name: "gateway",
-				}},
+				},
+				Spec: gw.GatewaySpec{
+					Listeners: []gw.Listener{{
+						Protocol: gw.HTTPProtocolType,
+					}},
+				},
 			},
-			Hostnames: []gw.Hostname{"other"},
-		},
-	}), false)
-}
-
-func TestBinder_NameMatch(t *testing.T) {
-	t.Parallel()
-
-	factory := NewFactory(FactoryConfig{
-		Logger: hclog.NewNullLogger(),
-	})
-
-	name := gw.SectionName("listener")
-	otherName := gw.SectionName("other")
-	listener := NewK8sListener(&K8sGateway{
-		Gateway: &gw.Gateway{
-			ObjectMeta: meta.ObjectMeta{
-				Name: "gateway",
+			route: &gw.HTTPRoute{
+				TypeMeta: routeMeta,
+				Spec: gw.HTTPRouteSpec{
+					CommonRouteSpec: gw.CommonRouteSpec{
+						ParentRefs: []gw.ParentRef{{
+							Name: "gateway",
+						}},
+					},
+				},
 			},
+			didBind: true,
 		},
-	}, gw.Listener{
-		Name:     name,
-		Protocol: gw.HTTPProtocolType,
-	}, K8sListenerConfig{
-		Logger: hclog.NewNullLogger(),
-	})
-	testBinder(t, listener, factory.NewRoute(&gw.HTTPRoute{
-		Spec: gw.HTTPRouteSpec{
-			CommonRouteSpec: gw.CommonRouteSpec{
-				ParentRefs: []gw.ParentRef{{
-					Name:        "gateway",
-					SectionName: &otherName,
-				}},
+		{
+			name: "listener not ready",
+			gateway: &gw.Gateway{
+				ObjectMeta: meta.ObjectMeta{
+					Name: "gateway",
+				},
+				Spec: gw.GatewaySpec{
+					Listeners: []gw.Listener{{}},
+				},
 			},
-			Hostnames: []gw.Hostname{"other"},
+			route: &gw.HTTPRoute{
+				Spec: gw.HTTPRouteSpec{
+					CommonRouteSpec: gw.CommonRouteSpec{
+						ParentRefs: []gw.ParentRef{{
+							Name: "gateway",
+						}},
+					},
+				},
+			},
+			listenerError: errors.New("invalid"),
+			didBind:       false,
 		},
-	}), false)
-}
+		{
+			name: "not allowed namespace",
+			gateway: &gw.Gateway{
+				ObjectMeta: meta.ObjectMeta{
+					Name:      "gateway",
+					Namespace: "other",
+				},
+				Spec: gw.GatewaySpec{
+					Listeners: []gw.Listener{{
+						Name:     gw.SectionName("listener"),
+						Protocol: gw.HTTPProtocolType,
+						AllowedRoutes: &gw.AllowedRoutes{
+							Namespaces: &gw.RouteNamespaces{
+								From: &same,
+							},
+						},
+					}},
+				},
+			},
+			route: &gw.HTTPRoute{
+				TypeMeta: routeMeta,
+				Spec: gw.HTTPRouteSpec{
+					CommonRouteSpec: gw.CommonRouteSpec{
+						ParentRefs: []gw.ParentRef{{
+							Name:        "gateway",
+							Namespace:   &other,
+							SectionName: sectionNamePtr("listener"),
+						}},
+					},
+				},
+			},
+			didBind: false,
+		},
+		{
+			name: "allowed namespace",
+			gateway: &gw.Gateway{
+				ObjectMeta: meta.ObjectMeta{
+					Name:      "gateway",
+					Namespace: "other",
+				},
+				Spec: gw.GatewaySpec{
+					Listeners: []gw.Listener{{
+						Name:     gw.SectionName("listener"),
+						Protocol: gw.HTTPProtocolType,
+						AllowedRoutes: &gw.AllowedRoutes{
+							Namespaces: &gw.RouteNamespaces{
+								From: &same,
+							},
+						},
+					}},
+				},
+			},
+			route: &gw.HTTPRoute{
+				TypeMeta: routeMeta,
+				ObjectMeta: meta.ObjectMeta{
+					Namespace: "other",
+				},
+				Spec: gw.HTTPRouteSpec{
+					CommonRouteSpec: gw.CommonRouteSpec{
+						ParentRefs: []gw.ParentRef{{
+							Name:        "gateway",
+							Namespace:   &other,
+							SectionName: sectionNamePtr("listener"),
+						}},
+					},
+				},
+			},
+			didBind: true,
+		},
+		{
+			name: "not allowed namespace match",
+			gateway: &gw.Gateway{
+				ObjectMeta: meta.ObjectMeta{
+					Name:      "gateway",
+					Namespace: "other",
+				},
+				Spec: gw.GatewaySpec{
+					Listeners: []gw.Listener{{
+						Name:     gw.SectionName("listener"),
+						Protocol: gw.HTTPProtocolType,
+						AllowedRoutes: &gw.AllowedRoutes{
+							Namespaces: &gw.RouteNamespaces{
+								From: &selector,
+								Selector: &meta.LabelSelector{
+									MatchExpressions: []meta.LabelSelectorRequirement{{
+										Key:      "test",
+										Operator: meta.LabelSelectorOpIn,
+										Values:   []string{"foo"},
+									}},
+								},
+							},
+						},
+					}},
+				},
+			},
+			route: &gw.HTTPRoute{
+				TypeMeta: routeMeta,
+				ObjectMeta: meta.ObjectMeta{
+					Namespace: "other",
+				},
+				Spec: gw.HTTPRouteSpec{
+					CommonRouteSpec: gw.CommonRouteSpec{
+						ParentRefs: []gw.ParentRef{{
+							Name:        "gateway",
+							Namespace:   &other,
+							SectionName: sectionNamePtr("listener"),
+						}},
+					},
+				},
+			},
+			namespace: &core.Namespace{
+				ObjectMeta: meta.ObjectMeta{
+					Labels: map[string]string{
+						"test": "bar",
+					},
+				},
+			},
+			didBind: false,
+		},
+		{
+			name: "allowed namespace match",
+			gateway: &gw.Gateway{
+				ObjectMeta: meta.ObjectMeta{
+					Name:      "gateway",
+					Namespace: "other",
+				},
+				Spec: gw.GatewaySpec{
+					Listeners: []gw.Listener{{
+						Name:     gw.SectionName("listener"),
+						Protocol: gw.HTTPProtocolType,
+						AllowedRoutes: &gw.AllowedRoutes{
+							Namespaces: &gw.RouteNamespaces{
+								From: &selector,
+								Selector: &meta.LabelSelector{
+									MatchExpressions: []meta.LabelSelectorRequirement{{
+										Key:      "test",
+										Operator: meta.LabelSelectorOpIn,
+										Values:   []string{"foo"},
+									}},
+								},
+							},
+						},
+					}},
+				},
+			},
+			route: &gw.HTTPRoute{
+				TypeMeta: routeMeta,
+				ObjectMeta: meta.ObjectMeta{
+					Namespace: "other",
+				},
+				Spec: gw.HTTPRouteSpec{
+					CommonRouteSpec: gw.CommonRouteSpec{
+						ParentRefs: []gw.ParentRef{{
+							Name:        "gateway",
+							Namespace:   &other,
+							SectionName: sectionNamePtr("listener"),
+						}},
+					},
+				},
+			},
+			namespace: &core.Namespace{
+				ObjectMeta: meta.ObjectMeta{
+					Labels: map[string]string{
+						"test": "foo",
+					},
+				},
+			},
+			didBind: true,
+		},
+		{
+			name: "hostname no match",
+			gateway: &gw.Gateway{
+				ObjectMeta: meta.ObjectMeta{
+					Name: "gateway",
+				},
+				Spec: gw.GatewaySpec{
+					Listeners: []gw.Listener{{
+						Name:     gw.SectionName("listener"),
+						Hostname: hostnamePtr("host"),
+					}},
+				},
+			},
+			route: &gw.HTTPRoute{
+				Spec: gw.HTTPRouteSpec{
+					CommonRouteSpec: gw.CommonRouteSpec{
+						ParentRefs: []gw.ParentRef{{
+							Name:        "gateway",
+							SectionName: sectionNamePtr("listener"),
+						}},
+					},
+					Hostnames: []gw.Hostname{"other"},
+				},
+			},
+			didBind: false,
+		},
+		{
+			name: "hostname match",
+			gateway: &gw.Gateway{
+				ObjectMeta: meta.ObjectMeta{
+					Name: "gateway",
+				},
+				Spec: gw.GatewaySpec{
+					Listeners: []gw.Listener{{
+						Name:     gw.SectionName("listener"),
+						Hostname: hostnamePtr("host"),
+					}},
+				},
+			},
+			route: &gw.HTTPRoute{
+				Spec: gw.HTTPRouteSpec{
+					CommonRouteSpec: gw.CommonRouteSpec{
+						ParentRefs: []gw.ParentRef{{
+							Name:        "gateway",
+							SectionName: sectionNamePtr("listener"),
+						}},
+					},
+					Hostnames: []gw.Hostname{"other", "host"},
+				},
+			},
+			didBind: true,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+			client := mocks.NewMockClient(ctrl)
 
-func testBinder(t *testing.T, listener *K8sListener, route *K8sRoute, expected bool) {
-	t.Helper()
+			factory := NewFactory(FactoryConfig{
+				Logger: hclog.NewNullLogger(),
+			})
+			state := state.InitialGatewayState(test.gateway)
+			if test.listenerError != nil {
+				state.Listeners[0].Status.Ready.Invalid = test.listenerError
+			}
+			if test.namespace != nil {
+				client.EXPECT().GetNamespace(gomock.Any(), gomock.Any()).Return(test.namespace, nil)
+			}
 
-	binder := &Binder{
-		Client:        listener.client,
-		Gateway:       listener.gateway,
-		Listener:      listener.listener,
-		ListenerState: listener.ListenerState,
+			binder := NewBinder(client, test.gateway, state)
+			listeners := binder.Bind(context.Background(), factory.NewRoute(test.route))
+			if test.didBind {
+				require.NotEmpty(t, listeners)
+			} else {
+				require.Empty(t, listeners)
+			}
+		})
 	}
-	require.Equal(t, expected, binder.Bind(context.Background(), route))
+}
+
+func sectionNamePtr(name string) *gw.SectionName {
+	value := gw.SectionName(name)
+	return &value
+}
+
+func hostnamePtr(name string) *gw.Hostname {
+	value := gw.Hostname(name)
+	return &value
 }
