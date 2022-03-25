@@ -131,28 +131,3 @@ func toNamespaceSet(name string, labels map[string]string) klabels.Labels {
 	ret[NamespaceNameLabel] = name
 	return klabels.Set(ret)
 }
-
-func kindsNotInSet(set, parent []gw.RouteGroupKind) []gw.RouteGroupKind {
-	kinds := []gw.RouteGroupKind{}
-	for _, kind := range set {
-		if !isKindInSet(kind, parent) {
-			kinds = append(kinds, kind)
-		}
-	}
-	return kinds
-}
-
-func isKindInSet(value gw.RouteGroupKind, set []gw.RouteGroupKind) bool {
-	for _, kind := range set {
-		groupsMatch := false
-		if value.Group == nil && kind.Group == nil {
-			groupsMatch = true
-		} else if value.Group != nil && kind.Group != nil && *value.Group == *kind.Group {
-			groupsMatch = true
-		}
-		if groupsMatch && value.Kind == kind.Kind {
-			return true
-		}
-	}
-	return false
-}

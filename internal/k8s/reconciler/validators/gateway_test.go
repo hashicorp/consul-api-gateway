@@ -1,4 +1,4 @@
-package reconciler
+package validators
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/golang/mock/gomock"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/builder"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient/mocks"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/state"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/status"
@@ -147,10 +148,9 @@ func TestGatewayValidateGatewayIP(t *testing.T) {
 			} else {
 				client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(pod, nil)
 			}
-			deployer := NewDeployer(DeployerConfig{})
 			validator := NewGatewayValidator(client)
 			state := &state.GatewayState{}
-			service := deployer.Service(config, gateway)
+			service := serviceFor(config, gateway)
 			assert.NoError(t, validator.validateGatewayIP(context.Background(), state, gateway, service))
 
 			require.Len(t, state.Addresses, 1)
@@ -561,4 +561,36 @@ func TestListenerValidate(t *testing.T) {
 	condition = listenerState.Status.Ready.Condition(0)
 	require.Equal(t, status.ListenerConditionReasonInvalid, condition.Reason)
 	require.Equal(t, "unrecognized or unsupported TLS cipher suite: foo", condition.Message)
+}
+
+func TestIsKindInSet(t *testing.T) {
+	t.Parallel()
+
+	require.False(t, isKindInSet(gw.RouteGroupKind{
+		Kind: gw.Kind("test"),
+	}, []gw.RouteGroupKind{}))
+	require.True(t, isKindInSet(gw.RouteGroupKind{
+		Kind: gw.Kind("test"),
+	}, []gw.RouteGroupKind{{
+		Kind: gw.Kind("test"),
+	}}))
+
+	group := gw.Group("group")
+	require.True(t, isKindInSet(gw.RouteGroupKind{
+		Kind:  gw.Kind("test"),
+		Group: &group,
+	}, []gw.RouteGroupKind{{
+		Kind:  gw.Kind("test"),
+		Group: &group,
+	}}))
+}
+
+func serviceType(v core.ServiceType) *core.ServiceType {
+	return &v
+}
+
+func serviceFor(config apigwv1alpha1.GatewayClassConfig, gateway *gw.Gateway) *core.Service {
+	serviceBuilder := builder.NewGatewayService(gateway)
+	serviceBuilder.WithClassConfig(config)
+	return serviceBuilder.Build()
 }

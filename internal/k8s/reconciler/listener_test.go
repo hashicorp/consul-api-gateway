@@ -24,28 +24,6 @@ func TestListenerID(t *testing.T) {
 	}).ID())
 }
 
-func TestIsKindInSet(t *testing.T) {
-	t.Parallel()
-
-	require.False(t, isKindInSet(gw.RouteGroupKind{
-		Kind: gw.Kind("test"),
-	}, []gw.RouteGroupKind{}))
-	require.True(t, isKindInSet(gw.RouteGroupKind{
-		Kind: gw.Kind("test"),
-	}, []gw.RouteGroupKind{{
-		Kind: gw.Kind("test"),
-	}}))
-
-	group := gw.Group("group")
-	require.True(t, isKindInSet(gw.RouteGroupKind{
-		Kind:  gw.Kind("test"),
-		Group: &group,
-	}, []gw.RouteGroupKind{{
-		Kind:  gw.Kind("test"),
-		Group: &group,
-	}}))
-}
-
 func TestListenerConfig(t *testing.T) {
 	t.Parallel()
 

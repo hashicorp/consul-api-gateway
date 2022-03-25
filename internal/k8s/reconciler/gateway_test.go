@@ -7,7 +7,6 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
-	core "k8s.io/api/core/v1"
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
@@ -163,8 +162,4 @@ func TestGatewayShouldBind(t *testing.T) {
 	})))
 
 	require.Empty(t, gateway.Bind(context.Background(), factory.NewRoute(&gw.HTTPRoute{})))
-}
-
-func serviceType(v core.ServiceType) *core.ServiceType {
-	return &v
 }

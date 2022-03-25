@@ -14,6 +14,7 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/common"
 	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/validators"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/service"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	"github.com/hashicorp/consul-api-gateway/internal/store"
@@ -48,7 +49,7 @@ type GatewayReconcileManager struct {
 	store            store.Store
 	gatewayClasses   *K8sGatewayClasses
 	Factory          *Factory
-	GatewayValidator *GatewayValidator
+	GatewayValidator *validators.GatewayValidator
 	RouteValidator   *RouteValidator
 
 	deployer              *GatewayDeployer
@@ -92,7 +93,7 @@ func NewReconcileManager(config ManagerConfig) *GatewayReconcileManager {
 			Client:         config.Client,
 			Deployer:       deployer,
 		}),
-		GatewayValidator:      NewGatewayValidator(config.Client),
+		GatewayValidator:      validators.NewGatewayValidator(config.Client),
 		RouteValidator:        NewRouteValidator(resolver),
 		gatewayClasses:        NewK8sGatewayClasses(config.Logger.Named("gatewayclasses"), config.Client),
 		namespaceMap:          make(map[types.NamespacedName]string),
