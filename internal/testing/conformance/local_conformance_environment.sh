@@ -4,10 +4,12 @@
 #this step will initiate the cluster set up piece locally, but won't automatically
 #tear down kind cluster
 
+
+echo creating kind cluster
 testID=$RANDOM
 clusterName="consul-api-gateway-conformance-test-$testID"
 imageName="consul-api-gateway-$testID"
-kind create cluster --name $clusterName
+kind create cluster --name $clusterName --config=config.yaml
 
 #build image and load into cluster
 docker build --tag $imageName --file ../../../Dockerfile.local ../../../.
