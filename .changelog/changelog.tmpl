@@ -19,14 +19,6 @@ BREAKING CHANGES:
 {{ end -}}
 {{- end -}}
 
-{{- $features := combineTypes .NotesByType.feature (index .NotesByType "new-resource" ) (index .NotesByType "new-datasource") (index .NotesByType "new-data-source") -}}
-{{- if $features }}
-FEATURES:
-{{range $features | sort -}}
-* {{ template "note" . }}
-{{ end -}}
-{{- end -}}
-
 {{- $improvements := combineTypes .NotesByType.improvement .NotesByType.enhancement -}}
 {{- if $improvements }}
 IMPROVEMENTS:
