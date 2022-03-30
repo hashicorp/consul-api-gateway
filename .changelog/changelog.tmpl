@@ -5,6 +5,13 @@ NOTES:
 {{ end -}}
 {{- end -}}
 
+{{- if index .NotesByType "breaking-change" -}}
+BREAKING CHANGES:
+{{range index .NotesByType "breaking-change" -}}
+* {{ template "note" .}}
+{{ end -}}
+{{- end -}}
+
 {{- if .NotesByType.deprecation -}}
 DEPRECATIONS:
 {{range .NotesByType.deprecation -}}
@@ -12,10 +19,10 @@ DEPRECATIONS:
 {{ end -}}
 {{- end -}}
 
-{{- if index .NotesByType "breaking-change" -}}
-BREAKING CHANGES:
-{{range index .NotesByType "breaking-change" -}}
-* {{ template "note" .}}
+{{- if .NotesByType.feature }}
+FEATURES:
+{{range .NotesByType.feature -}}
+* {{ template "note" . }}
 {{ end -}}
 {{- end -}}
 
