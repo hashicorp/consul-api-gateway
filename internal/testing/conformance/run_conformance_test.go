@@ -18,7 +18,7 @@ import (
 	"sigs.k8s.io/e2e-framework/pkg/env"
 )
 
-//This file is intended to help faciliate an easy and local way of running the
+//This file is intended to help facilitate an easy and local way of running the
 //conformance tests defined here https://github.com/kubernetes-sigs/gateway-api/blob/master/conformance/conformance_test.go
 
 //This is a work in progress
