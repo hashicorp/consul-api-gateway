@@ -1,0 +1,11 @@
+
+global:
+  name: consul
+  image: 'hashicorp/consul:1.11.3'
+connectInject:
+  enabled: true
+controller:
+  enabled: true
+apiGateway:
+  enabled: true
+  image: hashicorp/consul-api-gateway:0.1.0

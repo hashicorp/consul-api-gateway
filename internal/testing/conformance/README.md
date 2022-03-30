@@ -48,7 +48,7 @@ repo and copy our patches into the `conformance` subdirectory:
     ```shell
     cd gateway-api/conformance/
     kubectl kustomize ./ --output ./base/manifests.yaml
-    kubectl apply -f manifests.yaml --validate=false
+    kubectl apply -f ./base/manifests.yaml --validate=false
     ```
 
 4. install the test-specific resources (adjust name appropriately):

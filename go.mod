@@ -9,6 +9,7 @@ require (
 	github.com/containerd/continuity v0.2.1 // indirect
 	github.com/docker/docker v20.10.9+incompatible
 	github.com/envoyproxy/go-control-plane v0.9.10-0.20211015211602-cfdef0997689
+	github.com/go-git/go-git/v5 v5.4.2 // indirect
 	github.com/go-logr/logr v0.4.0
 	github.com/golang/mock v1.6.0
 	github.com/google/uuid v1.2.0
@@ -19,7 +20,9 @@ require (
 	github.com/hashicorp/go-multierror v1.1.0
 	github.com/mitchellh/cli v1.1.2
 	github.com/moby/sys/mount v0.2.0 // indirect
+	github.com/nmrshll/go-cp v0.0.0-20180115193924-61436d3b7cfa // indirect
 	github.com/onsi/gomega v1.15.0 // indirect
+	github.com/pkg/errors v0.9.1 // indirect
 	github.com/prometheus/client_golang v1.11.0
 	github.com/stretchr/testify v1.7.0
 	github.com/vladimirvivien/gexe v0.1.1

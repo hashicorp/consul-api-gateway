@@ -30,7 +30,7 @@ const gatewayCRDs = "github.com/kubernetes-sigs/gateway-api/config/crd?ref=v0.4.
 func InstallGatewayCRDs(ctx context.Context, cfg *envconf.Config) (context.Context, error) {
 	log.Print("Installing Gateway CRDs")
 
-	crds, err := kubectlKustomizeCRDs(ctx, gatewayCRDs)
+	crds, err := KubectlKustomizeCRDs(ctx, gatewayCRDs)
 	if err != nil {
 		return nil, err
 	}
