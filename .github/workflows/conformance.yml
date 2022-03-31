@@ -53,8 +53,7 @@ jobs:
           tags: "consul-api-gateway:test"
 
       - name: Load Docker image into Kind
-        run: |
-          kind load docker-image consul-api-gateway:test --name consul-api-gateway-test
+        run: kind load docker-image consul-api-gateway:test --name consul-api-gateway-test
 
       - name: Install Consul API Gateway CRDs
         run: kubectl apply --kustomize="./config/crd"
@@ -93,5 +92,4 @@ jobs:
 
       - name: Run tests
         working-directory: "./internal/testing/conformance/gateway-api/conformance"
-        run: |
-          go test -v -timeout 10m ./ --gateway-class consul-api-gateway
+        run: go test -v -timeout 10m ./ --gateway-class consul-api-gateway
