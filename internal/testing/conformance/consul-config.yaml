@@ -1,0 +1,20 @@
+global:
+  name: consul
+  datacenter: dc1
+  tls:
+    enabled: true
+server:
+  replicas: 1
+ui:
+  enabled: true
+  service:
+    type: NodePort
+connectInject:
+  enabled: true
+  default: true
+controller:
+  enabled: true
+apiGateway:
+  enabled: true
+  logLevel: info
+  image: "consul-api-gateway:test"

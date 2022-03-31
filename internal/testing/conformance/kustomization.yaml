@@ -29,3 +29,10 @@ patches:
         value: {'consul.hashicorp.com/connect-inject': 'true', 'consul.hashicorp.com/connect-service-port': '3000'}
     target:
       kind: Deployment
+  # We don't have enough resources in the GitHub-hosted Actions runner to support 2 replicas
+  - patch: |-
+      - op: replace
+        path: "/spec/replicas"
+        value: 1
+    target:
+      kind: Deployment

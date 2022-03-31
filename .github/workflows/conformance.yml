@@ -1,0 +1,97 @@
+name: conformance
+
+on:
+  push:
+    branches: ["conformance-ci"]
+
+env:
+  GO_VERSION: "1.17"
+
+jobs:
+  run-conformance:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Setup Goenv
+        uses: ./.github/actions/goenv
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Create Kind cluster
+        uses: helm/kind-action@2a525709fd0874b75d7ae842d257981b0e0f557d
+        with:
+          cluster_name: "consul-api-gateway-test"
+          kubectl_version: "v1.21.0"
+
+      - name: Install MetalLB
+        run: |
+          kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.12.1/manifests/namespace.yaml
+          kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.12.1/manifests/metallb.yaml
+          kubectl apply -f ./internal/testing/conformance/metallb-config.yaml
+          kubectl wait --for=condition=Ready --timeout=60s --namespace=metallb-system pods --all
+
+      - name: Build binary
+        env:
+          CGO_ENABLED: "0"
+          GOARCH: "amd64"
+          GOOS: "linux"
+        run: go build -o ./consul-api-gateway
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          platforms: "linux/amd64"
+          file: "Dockerfile.local"
+          load: true
+          push: false
+          tags: "consul-api-gateway:test"
+
+      - name: Load Docker image into Kind
+        run: |
+          kind load docker-image consul-api-gateway:test --name consul-api-gateway-test
+
+      - name: Install Consul API Gateway CRDs
+        run: kubectl apply --kustomize="./config/crd"
+
+      - name: Clone consul-k8s
+        uses: actions/checkout@v2
+        with:
+          repository: "hashicorp/consul-k8s"
+          path: "./internal/testing/conformance/consul-k8s"
+          fetch-depth: "1"
+
+      - name: Clone gateway-api
+        uses: actions/checkout@v2
+        with:
+          repository: "nathancoleman/gateway-api"
+          ref: "eventually-consistent-conformance"
+          path: "./internal/testing/conformance/gateway-api"
+          fetch-depth: "1"
+
+      - name: Install Consul
+        working-directory: "./internal/testing/conformance"
+        run: |
+          helm install --values ./consul-config.yaml consul ./consul-k8s/charts/consul --create-namespace --namespace=consul
+          kubectl wait --for=condition=Ready --timeout=60s --namespace=consul pods --all || kubectl get pods --namespace=consul --selector=component=api-gateway-controller -o name | xargs kubectl logs --namespace=consul --previous
+
+      - name: Patch testing resources
+        working-directory: "./internal/testing/conformance"
+        run: |
+          cp kustomization.yaml proxydefaults.yaml ./gateway-api/conformance/
+          cd ./gateway-api/conformance/
+          kubectl kustomize ./ --output ./base/manifests.yaml
+
+      # - name: Setup tmate session
+      #   uses: mxschmitt/action-tmate@v3
+      #   timeout-minutes: 10
+
+      - name: Run tests
+        working-directory: "./internal/testing/conformance/gateway-api/conformance"
+        run: |
+          go test -v -timeout 10m ./ --gateway-class consul-api-gateway
