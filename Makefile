@@ -63,10 +63,10 @@ endif
 
 .PHONY: changelog-entry
 changelog-entry:
-ifeq (, $(shell which changelog-gen))
-	@go install github.com/hashicorp/go-changelog/cmd/changelog-gen@latest
+ifeq (, $(shell which changelog-entry))
+	@go install github.com/mikemorris/go-changelog/cmd/changelog-entry@changelog-entry-tmp
 endif
-	changelog-gen
+	changelog-entry -dir ../.changelog
 
 # Run controller tests
 .PHONY: ctrl-test
