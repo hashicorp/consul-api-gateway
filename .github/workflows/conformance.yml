@@ -77,7 +77,7 @@ jobs:
         working-directory: "./internal/testing/conformance"
         run: |
           helm install --values ./consul-config.yaml consul ./consul-k8s/charts/consul --create-namespace --namespace=consul
-          kubectl wait --for=condition=Ready --timeout=60s --namespace=consul pods --all || kubectl get pods --namespace=consul --selector=component=api-gateway-controller -o name | xargs kubectl logs --namespace=consul --previous
+          kubectl wait --for=condition=Ready --timeout=60s --namespace=consul pods --all
 
       - name: Patch testing resources
         working-directory: "./internal/testing/conformance"
