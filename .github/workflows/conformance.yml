@@ -2,17 +2,21 @@ name: conformance
 
 on:
   push:
-    branches: ["conformance-ci"]
+    branches:
+      - "*-conformance"
+      - "conformance-*"
+
   schedule:
     # * is a special character in YAML so you have to quote this string
     - cron:  '0 0 * * *'
 
+  workflow_dispatch:
 
 env:
   GO_VERSION: "1.17"
 
 jobs:
-  run-conformance:
+  run-on-kind:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
