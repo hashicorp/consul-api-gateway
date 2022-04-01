@@ -4,7 +4,6 @@ on:
   push:
     branches: ["conformance-ci"]
   schedule:
-    # * is a special character in YAML so you have to quote this string
     - cron:  '0 0 * * *'
 
 
@@ -97,3 +96,11 @@ jobs:
       - name: Run tests
         working-directory: "./internal/testing/conformance/gateway-api/conformance"
         run: go test -v -timeout 10m ./ --gateway-class consul-api-gateway
+      - name: Report Status
+        if: always()
+        uses: ravsamhq/notify-slack-action@v1
+        with:
+          status: ${{ job.status }}
+          notify_when: 'failure'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.ACTION_MONITORING_SLACK }}
