@@ -2,20 +2,16 @@ name: conformance
 
 on:
   push:
-    branches:
-      - "*-conformance"
-      - "conformance-*"
-
+    branches: ["conformance-ci"]
   schedule:
     - cron:  '0 0 * * *'
 
-  workflow_dispatch:
 
 env:
   GO_VERSION: "1.17"
 
 jobs:
-  run-on-kind:
+  run-conformance:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -100,11 +96,11 @@ jobs:
       - name: Run tests
         working-directory: "./internal/testing/conformance/gateway-api/conformance"
         run: go test -v -timeout 10m ./ --gateway-class consul-api-gateway
-      - name: Report Status
-        if: always()
-        uses: ravsamhq/notify-slack-action@v1
-        with:
-          status: ${{ job.status }}
-          notify_when: 'failure'
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.ACTION_MONITORING_SLACK }}
+      # - name: Report Status
+      #   if: always()
+      #   uses: ravsamhq/notify-slack-action@v1
+      #   with:
+      #     status: ${{ job.status }}
+      #     notify_when: 'failure'
+      #   env:
+      #     SLACK_WEBHOOK_URL: ${{ secrets.ACTION_MONITORING_SLACK }}
