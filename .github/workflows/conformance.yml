@@ -95,13 +95,11 @@ jobs:
           cd ./gateway-api/conformance/
           kubectl kustomize ./ --output ./base/manifests.yaml
 
-      # - name: Setup tmate session
-      #   uses: mxschmitt/action-tmate@v3
-      #   timeout-minutes: 10
-
       - name: Run tests
         working-directory: "./internal/testing/conformance/gateway-api/conformance"
         run: go test -v -timeout 10m ./ --gateway-class consul-api-gateway
+
+      # TODO Waiting for webhook approval
       # - name: Report Status
       #   if: always()
       #   uses: ravsamhq/notify-slack-action@v1
