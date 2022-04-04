@@ -1,6 +1,9 @@
 name: conformance
 
 on:
+  pull_request:
+    types: ["opened", "reopened", "synchronize", "labeled"]
+
   push:
      branches: ["conformance/*"]
 
@@ -15,6 +18,8 @@ env:
 
 jobs:
   run-on-kind:
+    # Run on PR only if there is a `pr/run-conformance`
+    if: "github.event_type != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'pr/run-conformance')"
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
