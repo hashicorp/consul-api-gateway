@@ -2,9 +2,7 @@ name: conformance
 
 on:
   push:
-     branches:
-      - "*-conformance"
-      - "conformance-*"
+     branches: ["conformance/*"]
 
   schedule:
     - cron:  '0 0 * * *'
