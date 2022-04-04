@@ -1,0 +1,14 @@
+global:
+  tls:
+    enabled: true
+server:
+  replicas: 1
+connectInject:
+  enabled: true
+  default: true
+controller:
+  enabled: true
+apiGateway:
+  enabled: true
+  logLevel: info
+  image: "consul-api-gateway:test"
