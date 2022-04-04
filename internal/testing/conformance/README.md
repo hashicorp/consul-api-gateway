@@ -8,8 +8,6 @@ The framework defines its own set of Kubernetes resources using kustomization ya
 however, we currently have to make a few patches in order for things to work with Consul. Our goal long-term is to remove the
 need for these patches.
 
-- Consul isn't, by default, aware of each of the created services. To make this work, we patch the `connect-inject` annotation onto
-    each `Deployment`'s template.
 - The `Deployments` defined upstream do not specify a `containerPort` in the `Pod` template. Consul relies on this `containerPort`
     when a `connect-service-port` annotation is not present. To make this work, we patch the `connect-service-port` annotation onto
     each `Deployment`'s template. They all use the same port.
