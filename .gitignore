@@ -8,7 +8,3 @@ cover.out
 demo-deployment
 bin
 pkg/bin
-
-# Repos cloned for conformance testing
-internal/testing/conformance/consul-k8s/
-internal/testing/conformance/gateway-api
