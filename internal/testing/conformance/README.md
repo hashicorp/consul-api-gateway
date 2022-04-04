@@ -19,7 +19,7 @@ need for these patches.
 ## Status
 
 The conformance tests are run nightly in GitHub Actions using the workflow [here](/.github/workflows/conformance.yml).
-You may also run the workflow on demand from this repo's Actions tab or by following the branch naming conventions listed in the workflow.
+You may also run the workflow on demand from this repo's Actions tab, by following the `conformance/*` branch naming convention, or by adding the `pr/run-conformance` label to your pull request.
 
 ## Tips
 
