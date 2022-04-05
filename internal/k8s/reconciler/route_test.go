@@ -535,61 +535,70 @@ func TestRouteValidateDontAllowCrossNamespace(t *testing.T) {
 	require.EqualError(t, err, `route not allowed for backend "expected"`)
 }
 
-//TODO
+// TestRouteValidateAllowCrossNamespaceWithReferencePolicy verifies that a cross-namespace
+// route + backend combination is allowed if an applicable ReferencePolicy is found.
 func TestRouteValidateAllowCrossNamespaceWithReferencePolicy(t *testing.T) {
 	t.Parallel()
-
-	require.NoError(t, NewK8sRoute(&core.Pod{}, K8sRouteConfig{
-		Logger: hclog.NewNullLogger(),
-	}).Validate(context.Background()))
-
-	require.True(t, NewK8sRoute(&gw.HTTPRoute{}, K8sRouteConfig{
-		Logger: hclog.NewNullLogger(),
-	}).IsValid())
 
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	resolver := mocks.NewMockBackendResolver(ctrl)
-
-	reference := gw.BackendObjectReference{
-		Name: "expected",
-	}
+	client := clientMocks.NewMockClient(ctrl)
 
 	//set up backend ref with a different namespace
-	namespaceName := gw.Namespace("test")
-	reference.Namespace = &namespaceName
-
-	resolved := &service.ResolvedReference{
-		Type:      service.ConsulServiceReference,
-		Reference: &service.BackendReference{},
-	}
-
-	resolver.EXPECT().Resolve(gomock.Any(), reference).Return(resolved, nil)
-
+	backendGroup := gw.Group("")
+	backendKind := gw.Kind("Service")
+	backendNamespace := gw.Namespace("namespace2")
+	backendName := gw.ObjectName("backend2")
 	route := NewK8sRoute(&gw.HTTPRoute{
+		ObjectMeta: meta.ObjectMeta{Namespace: "namespace1"},
+		TypeMeta:   meta.TypeMeta{APIVersion: "gateway.networking.k8s.io/v1alpha2", Kind: "HTTPRoute"},
 		Spec: gw.HTTPRouteSpec{
 			Rules: []gw.HTTPRouteRule{{
 				BackendRefs: []gw.HTTPBackendRef{{
 					BackendRef: gw.BackendRef{
-						BackendObjectReference: reference,
+						BackendObjectReference: gw.BackendObjectReference{
+							Group:     &backendGroup,
+							Kind:      &backendKind,
+							Name:      backendName,
+							Namespace: &backendNamespace,
+						},
 					},
 				}},
 			}},
 		},
 	}, K8sRouteConfig{
+		Client:   client,
 		Logger:   hclog.NewNullLogger(),
 		Resolver: resolver,
 	})
-	require.NoError(t, route.Validate(context.Background()))
-	require.True(t, route.IsValid())
 
-	expected := errors.New("expected")
-	resolver.EXPECT().Resolve(gomock.Any(), reference).Return(nil, expected)
-	require.Equal(t, expected, route.Validate(context.Background()))
+	referencePolicy := gw.ReferencePolicy{
+		TypeMeta:   meta.TypeMeta{},
+		ObjectMeta: meta.ObjectMeta{Namespace: "namespace2"},
+		Spec: gw.ReferencePolicySpec{
+			From: []gw.ReferencePolicyFrom{{
+				Group:     "gateway.networking.k8s.io",
+				Kind:      "HTTPRoute",
+				Namespace: "namespace1",
+			}},
+			To: []gw.ReferencePolicyTo{{
+				Group: "",
+				Kind:  "Service",
+				Name:  &backendName,
+			}},
+		},
+	}
 
-	resolver.EXPECT().Resolve(gomock.Any(), reference).Return(nil, service.NewK8sResolutionError("error"))
+	client.EXPECT().
+		GetReferencePoliciesInNamespace(gomock.Any(), gomock.Any()).
+		Return([]gw.ReferencePolicy{referencePolicy}, nil)
+
+	resolver.EXPECT().
+		Resolve(gomock.Any(), gomock.Any()).
+		Return(&service.ResolvedReference{Type: service.ConsulServiceReference, Reference: &service.BackendReference{}}, nil)
+
 	require.NoError(t, route.Validate(context.Background()))
-	require.False(t, route.IsValid())
 }
 
 func TestRouteResolve(t *testing.T) {
