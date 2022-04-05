@@ -174,7 +174,7 @@ func (s *secretManager) SetResourcesForNode(ctx context.Context, names []string,
 	if err := s.watch(ctx, watch, node); err != nil {
 		return err
 	}
-	return s.unwatch(ctx, unwatch, node)
+	return s.unwatch(unwatch, node)
 }
 
 // Watch is used for tracking an envoy node's TLS secrets of interest
@@ -229,7 +229,7 @@ func (s *secretManager) watch(ctx context.Context, names []string, node string) 
 }
 
 // UnwatchAll is used to completely unwatch all a node's secrets
-func (s *secretManager) UnwatchAll(ctx context.Context, node string) error {
+func (s *secretManager) UnwatchAll(_ context.Context, node string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	if watcher, ok := s.watchers[node]; ok {
@@ -250,22 +250,22 @@ func (s *secretManager) UnwatchAll(ctx context.Context, node string) error {
 		// purge the node from our tracker
 		delete(s.watchers, node)
 		// purge GC'd certificates from the cache
-		return s.removeCertificates(ctx, certificates)
+		return s.removeCertificates(certificates)
 	}
 	return nil
 }
 
 // Unwatch is used for removing a subset of an envoy node's TLS secrets
 // from the list the node's secrets of interest
-func (s *secretManager) Unwatch(ctx context.Context, names []string, node string) error {
+func (s *secretManager) Unwatch(_ context.Context, names []string, node string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	return s.unwatch(ctx, names, node)
+	return s.unwatch(names, node)
 }
 
 // this must be called with the mutex lock held
-func (s *secretManager) unwatch(ctx context.Context, names []string, node string) error {
+func (s *secretManager) unwatch(names []string, node string) error {
 	if watcher, ok := s.watchers[node]; ok {
 		certificates := []string{}
 		// remove the node from of requested reference lists
@@ -290,7 +290,7 @@ func (s *secretManager) unwatch(ctx context.Context, names []string, node string
 			delete(s.watchers, node)
 		}
 		// purge GC'd certificates from the cache
-		return s.removeCertificates(ctx, certificates)
+		return s.removeCertificates(certificates)
 	}
 	return nil
 }
@@ -351,7 +351,7 @@ func (s *secretManager) updateCertificates(certs []*tls.Secret) error {
 	return nil
 }
 
-func (s *secretManager) removeCertificates(_ context.Context, names []string) error {
+func (s *secretManager) removeCertificates(names []string) error {
 	if len(names) == 0 {
 		return nil
 	}
