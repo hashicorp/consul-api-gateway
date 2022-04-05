@@ -123,6 +123,9 @@ func routeAllowedForListenerNamespaces(ctx context.Context, gatewayNS string, al
 // routeAllowedForHTTPBackend determines whether the route is allowed
 // for the backend either by being in the same namespace or by having
 // an applicable ReferencePolicy in the same namespace as the backend.
+//
+// TODO This func is currently called once for each backendRef on a route and results
+//   in fetching ReferencePolicies more than we technically have to in some cases
 func routeAllowedForHTTPBackend(ctx context.Context, route *gw.HTTPRoute, backendRef gw.HTTPBackendRef, c gatewayclient.Client) (bool, error) {
 	backendNamespace := ""
 	if backendRef.Namespace != nil {
