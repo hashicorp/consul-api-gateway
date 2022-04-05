@@ -42,7 +42,7 @@ jobs:
         uses: actions/checkout@v2
         with:
           repository: "nathancoleman/gateway-api"
-          ref: "eventually-consistent-conformance"
+          ref: "conformance/reference-policy-rebased"
           path: "gateway-api"
 
       - name: Setup Goenv
