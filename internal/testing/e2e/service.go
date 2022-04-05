@@ -7,6 +7,7 @@ import (
 	"html/template"
 
 	"github.com/cenkalti/backoff"
+	"github.com/hashicorp/consul/api"
 	apps "k8s.io/api/apps/v1"
 	core "k8s.io/api/core/v1"
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -15,7 +16,6 @@ import (
 
 	"github.com/hashicorp/consul-api-gateway/internal/common"
 	serviceResolver "github.com/hashicorp/consul-api-gateway/internal/k8s/service"
-	"github.com/hashicorp/consul/api"
 )
 
 const (
