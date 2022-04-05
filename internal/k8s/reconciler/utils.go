@@ -136,7 +136,7 @@ func routeAllowedForHTTPBackend(ctx context.Context, route *gw.HTTPRoute, backen
 
 	// Allow if ReferencePolicy present for route + backend combination
 	refPolicies, err := c.GetReferencePoliciesInNamespace(ctx, backendNamespace)
-	if err != nil {
+	if err != nil || len(refPolicies) == 0 {
 		return false, err
 	}
 
