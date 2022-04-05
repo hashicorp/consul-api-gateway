@@ -200,12 +200,8 @@ rules:
   resources:
   - referencepolicies
   verbs:
-  - create
-  - delete
   - get
   - list
-  - patch
-  - update
   - watch
 - apiGroups:
   - gateway.networking.k8s.io
