@@ -393,7 +393,7 @@ func runMockConsulServer(t *testing.T, opts mockConsulOptions) *mockConsulServer
 				"ValidBefore":   time.Now().Add(10 * time.Hour),
 			})
 			require.NoError(t, err)
-			_, err = w.Write([]byte(leafCert))
+			_, err = w.Write(leafCert)
 			require.NoError(t, err)
 			return
 		}
@@ -409,7 +409,7 @@ func runMockConsulServer(t *testing.T, opts mockConsulOptions) *mockConsulServer
 				}},
 			})
 			require.NoError(t, err)
-			_, err = w.Write([]byte(rootCert))
+			_, err = w.Write(rootCert)
 			require.NoError(t, err)
 			return
 		}
