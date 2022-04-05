@@ -7,16 +7,17 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/hashicorp/consul-api-gateway/internal/core"
-	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
-	"github.com/hashicorp/consul-api-gateway/internal/k8s/service"
-	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
-	"github.com/hashicorp/consul-api-gateway/internal/store"
 	"github.com/hashicorp/go-hclog"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
+
+	"github.com/hashicorp/consul-api-gateway/internal/core"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/service"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
+	"github.com/hashicorp/consul-api-gateway/internal/store"
 )
 
 // all kubernetes routes implement the following two interfaces
@@ -364,13 +365,11 @@ func (r *K8sRoute) Validate(ctx context.Context) error {
 			routeRule := service.NewRouteRule(&rule)
 
 			for _, backendRef := range rule.BackendRefs {
-				//TODO check for reference policy
-
 				ref := backendRef
-				allowed, err := routeAllowedForBackendNamespaces(ctx, r, backendRef, r.client)
-				if !allowed {
-					//TODO determine error type
-					return errors.New("route not allowed")
+
+				allowed, err := routeAllowedForHTTPBackend(ctx, route, ref, r.client)
+				if err != nil || !allowed {
+					return fmt.Errorf("route not allowed for backend %q", ref.Name)
 				}
 
 				reference, err := r.resolver.Resolve(ctx, ref.BackendObjectReference)

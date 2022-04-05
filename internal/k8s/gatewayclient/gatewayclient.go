@@ -73,7 +73,7 @@ type Client interface {
 	EnsureServiceAccount(ctx context.Context, owner *gateway.Gateway, serviceAccount *core.ServiceAccount) error
 
 	//referencepolicy
-	GetReferencePoliciesInNamespace(ctx context.Context, namespace string) (*[]gateway.ReferencePolicy, error)
+	GetReferencePoliciesInNamespace(ctx context.Context, namespace string) ([]gateway.ReferencePolicy, error)
 }
 
 type gatewayClient struct {

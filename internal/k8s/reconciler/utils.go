@@ -11,6 +11,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	klabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
+
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
@@ -119,25 +120,56 @@ func routeAllowedForListenerNamespaces(ctx context.Context, gatewayNS string, al
 	return false, nil
 }
 
-// routeAllowedForBackendNamespaces determines whether the route is allowed
-// to bind to the Gateway based on the ReferencePolicy namespace selectors.
-func routeAllowedForBackendNamespaces(ctx context.Context, route *K8sRoute, backendRef gw.HTTPBackendRef, client gatewayclient.Client) (bool, error) {
-	//var namespaceSelector *gw.RouteNamespaces
-	routeNamespace := route.GetNamespace()
-	backendNamespace := routeNamespace
-	namespacePointer := backendRef.Namespace
-	//TODO, if unset it assumes same namespace as the route
-	if namespacePointer != nil {
-		backendNamespace = string(*namespacePointer)
+// routeAllowedForHTTPBackend determines whether the route is allowed
+// for the backend either by being in the same namespace or by having
+// an applicable ReferencePolicy in the same namespace as the backend.
+func routeAllowedForHTTPBackend(ctx context.Context, route *gw.HTTPRoute, backendRef gw.HTTPBackendRef, c gatewayclient.Client) (bool, error) {
+	backendNamespace := ""
+	if backendRef.Namespace != nil {
+		backendNamespace = string(*backendRef.Namespace)
 	}
 
-	//get reference policy
-	if routeNamespace == backendNamespace {
-		//no need to check for a reference policy, same namespace
+	// Allow if route and backend are in the same namespace
+	if backendNamespace == "" || route.GetNamespace() == string(*backendRef.Namespace) {
 		return true, nil
 	}
 
-	return false, nil
+	// Allow if ReferencePolicy present for route + backend combination
+	refPolicies, err := c.GetReferencePoliciesInNamespace(ctx, backendNamespace)
+	if err != nil {
+		return false, err
+	}
+
+	for _, refPolicy := range refPolicies {
+		// Check for a From that applies to the route
+		validFrom := false
+		for _, from := range refPolicy.Spec.From {
+			// If this policy allows the group, kind and namespace for this route
+			if route.GroupVersionKind().Group == string(from.Group) &&
+				route.GroupVersionKind().Kind == string(from.Kind) &&
+				route.GetNamespace() == string(from.Namespace) {
+				validFrom = true
+				break
+			}
+		}
+
+		// If this ReferencePolicy has no applicable From, no need to check for a To
+		if !validFrom {
+			continue
+		}
+
+		// Check for a To that applies to the backendRef
+		for _, to := range refPolicy.Spec.To {
+			// If this policy allows the group, kind, and name for this backend
+			if backendRef.Group != nil && to.Group == *backendRef.Group &&
+				backendRef.Kind != nil && to.Kind == *backendRef.Kind &&
+				(to.Name == nil || *to.Name == backendRef.Name) {
+				return true, nil
+			}
+		}
+	}
+
+	return false, err
 }
 
 func toNamespaceSet(name string, labels map[string]string) klabels.Labels {
