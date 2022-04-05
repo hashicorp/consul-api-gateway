@@ -3,7 +3,6 @@ package e2e
 import (
 	"context"
 	"os"
-
 	"path/filepath"
 
 	"sigs.k8s.io/e2e-framework/pkg/env"
@@ -35,7 +34,7 @@ func SetUpStack(hostRoute string) env.Func {
 			CreateServiceAccount(namespace, "consul-api-gateway", getBasePath()+"/config/rbac/role.yaml"),
 			CreateTestConsulContainer(kindClusterName, namespace),
 			CreateConsulACLPolicy,
-			CreateConsulAuthMethod(namespace),
+			CreateConsulAuthMethod(),
 			CreateConsulNamespace,
 			InstallConsulAPIGatewayCRDs,
 			CreateTestGatewayServer(namespace),

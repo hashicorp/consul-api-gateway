@@ -527,7 +527,7 @@ func CreateConsulACLPolicy(ctx context.Context, cfg *envconf.Config) (context.Co
 	return ctx, nil
 }
 
-func CreateConsulAuthMethod(namespace string) env.Func {
+func CreateConsulAuthMethod() env.Func {
 	return func(ctx context.Context, cfg *envconf.Config) (context.Context, error) {
 		log.Print("Creating Consul ACL Auth Method")
 
@@ -536,7 +536,7 @@ func CreateConsulAuthMethod(namespace string) env.Func {
 			return ctx, nil
 		}
 		env := consulEnvironment.(*consulTestEnvironment)
-		_, _, err := env.consulClient.ACL().RoleCreate(gatewayConsulRole(namespace, env.policy.ID), &api.WriteOptions{
+		_, _, err := env.consulClient.ACL().RoleCreate(gatewayConsulRole(env.policy.ID), &api.WriteOptions{
 			Token: env.token,
 		})
 		if err != nil {
@@ -606,7 +606,7 @@ func gatewayConsulBindingRule() *api.ACLBindingRule {
 	}
 }
 
-func gatewayConsulRole(namespace, policyID string) *api.ACLRole {
+func gatewayConsulRole(policyID string) *api.ACLRole {
 	return &api.ACLRole{
 		Name: "consul-api-gateway",
 		Policies: []*api.ACLLink{

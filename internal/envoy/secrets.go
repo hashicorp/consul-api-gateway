@@ -221,7 +221,7 @@ func (s *secretManager) watch(ctx context.Context, names []string, node string) 
 		s.registry[name] = watchedCert
 	}
 	// push all newly fetched certificates into the underlying cache
-	err := s.updateCertificates(ctx, certificates)
+	err := s.updateCertificates(certificates)
 	if err != nil {
 		return err
 	}
@@ -325,7 +325,7 @@ func (s *secretManager) manage(ctx context.Context) {
 				s.logger.Error("error fetching secret", "error", err, "secret", secretName)
 				continue
 			}
-			err = s.updateCertificate(ctx, certificate)
+			err = s.updateCertificate(certificate)
 			if err != nil {
 				s.logger.Error("error updating secret", "error", err, "secret", secretName)
 				continue
@@ -338,20 +338,20 @@ func (s *secretManager) manage(ctx context.Context) {
 	}
 }
 
-func (s *secretManager) updateCertificate(ctx context.Context, c *tls.Secret) error {
+func (s *secretManager) updateCertificate(c *tls.Secret) error {
 	return s.cache.UpdateResource(c.Name, c)
 }
 
-func (s *secretManager) updateCertificates(ctx context.Context, certs []*tls.Secret) error {
+func (s *secretManager) updateCertificates(certs []*tls.Secret) error {
 	for _, cert := range certs {
-		if err := s.updateCertificate(ctx, cert); err != nil {
+		if err := s.updateCertificate(cert); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (s *secretManager) removeCertificates(ctx context.Context, names []string) error {
+func (s *secretManager) removeCertificates(_ context.Context, names []string) error {
 	if len(names) == 0 {
 		return nil
 	}
