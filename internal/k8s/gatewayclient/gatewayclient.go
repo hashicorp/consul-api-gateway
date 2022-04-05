@@ -477,3 +477,7 @@ func (g *gatewayClient) HasManagedDeployment(ctx context.Context, gw *gateway.Ga
 	}
 	return false, nil
 }
+
+func (g *gatewayClient) GetReferencePoliciesInNamespace(ctx context.Context, namespace string) ([]gateway.ReferencePolicy, error) {
+	return []gateway.ReferencePolicy{}, nil
+}
