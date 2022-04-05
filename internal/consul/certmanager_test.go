@@ -220,7 +220,7 @@ func runCertServer(t *testing.T, leafFailures, rootFailures uint64, service stri
 				w.Header().Add(k, v)
 			}
 			require.NoError(t, err)
-			_, err = w.Write([]byte(leafCert))
+			_, err = w.Write(leafCert)
 			require.NoError(t, err)
 			return
 		}
@@ -240,7 +240,7 @@ func runCertServer(t *testing.T, leafFailures, rootFailures uint64, service stri
 			for k, v := range meta {
 				w.Header().Add(k, v)
 			}
-			_, err = w.Write([]byte(rootCert))
+			_, err = w.Write(rootCert)
 			require.NoError(t, err)
 			return
 		}

@@ -34,7 +34,7 @@ func newListenerState(logger hclog.Logger, gateway store.Gateway, listener store
 
 	name := defaultListenerName
 	if listenerConfig.Name != "" {
-		name = string(listenerConfig.Name)
+		name = listenerConfig.Name
 	}
 	hostname := ""
 	if listenerConfig.Hostname != "" {
