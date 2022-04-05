@@ -71,6 +71,9 @@ type Client interface {
 	CreateOrUpdateService(ctx context.Context, service *core.Service, mutators ...func() error) (bool, error)
 	DeleteService(ctx context.Context, service *core.Service) error
 	EnsureServiceAccount(ctx context.Context, owner *gateway.Gateway, serviceAccount *core.ServiceAccount) error
+
+	//referencepolicy
+	GetReferencePoliciesInNamespace(ctx context.Context, namespace string) (*[]gateway.ReferencePolicy, error)
 }
 
 type gatewayClient struct {

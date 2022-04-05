@@ -490,6 +490,106 @@ func TestRouteValidate(t *testing.T) {
 	require.False(t, route.IsValid())
 }
 
+func TestRouteValidateDontAllowCrossNamespace(t *testing.T) {
+	t.Parallel()
+
+	require.NoError(t, NewK8sRoute(&core.Pod{}, K8sRouteConfig{
+		Logger: hclog.NewNullLogger(),
+	}).Validate(context.Background()))
+
+	require.True(t, NewK8sRoute(&gw.HTTPRoute{}, K8sRouteConfig{
+		Logger: hclog.NewNullLogger(),
+	}).IsValid())
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	resolver := mocks.NewMockBackendResolver(ctrl)
+
+	reference := gw.BackendObjectReference{
+		Name: "expected",
+	}
+
+	//set up backend ref with a different namespace
+	namespaceName := gw.Namespace("test")
+	reference.Namespace = &namespaceName
+
+	route := NewK8sRoute(&gw.HTTPRoute{
+		Spec: gw.HTTPRouteSpec{
+			Rules: []gw.HTTPRouteRule{{
+				BackendRefs: []gw.HTTPBackendRef{{
+					BackendRef: gw.BackendRef{
+						BackendObjectReference: reference,
+					},
+				}},
+			}},
+		},
+	}, K8sRouteConfig{
+		Logger:   hclog.NewNullLogger(),
+		Resolver: resolver,
+	})
+
+	require.Error(t, route.Validate(context.Background()))
+	//TODO figure out where the route get marked as invalid so we can test for it
+	//require.True(t, !route.IsValid())
+}
+
+//TODO
+func TestRouteValidateAllowCrossNamespaceWithReferencePolicy(t *testing.T) {
+	t.Parallel()
+
+	require.NoError(t, NewK8sRoute(&core.Pod{}, K8sRouteConfig{
+		Logger: hclog.NewNullLogger(),
+	}).Validate(context.Background()))
+
+	require.True(t, NewK8sRoute(&gw.HTTPRoute{}, K8sRouteConfig{
+		Logger: hclog.NewNullLogger(),
+	}).IsValid())
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	resolver := mocks.NewMockBackendResolver(ctrl)
+
+	reference := gw.BackendObjectReference{
+		Name: "expected",
+	}
+
+	//set up backend ref with a different namespace
+	namespaceName := gw.Namespace("test")
+	reference.Namespace = &namespaceName
+
+	resolved := &service.ResolvedReference{
+		Type:      service.ConsulServiceReference,
+		Reference: &service.BackendReference{},
+	}
+
+	resolver.EXPECT().Resolve(gomock.Any(), reference).Return(resolved, nil)
+
+	route := NewK8sRoute(&gw.HTTPRoute{
+		Spec: gw.HTTPRouteSpec{
+			Rules: []gw.HTTPRouteRule{{
+				BackendRefs: []gw.HTTPBackendRef{{
+					BackendRef: gw.BackendRef{
+						BackendObjectReference: reference,
+					},
+				}},
+			}},
+		},
+	}, K8sRouteConfig{
+		Logger:   hclog.NewNullLogger(),
+		Resolver: resolver,
+	})
+	require.NoError(t, route.Validate(context.Background()))
+	require.True(t, route.IsValid())
+
+	expected := errors.New("expected")
+	resolver.EXPECT().Resolve(gomock.Any(), reference).Return(nil, expected)
+	require.Equal(t, expected, route.Validate(context.Background()))
+
+	resolver.EXPECT().Resolve(gomock.Any(), reference).Return(nil, service.NewK8sResolutionError("error"))
+	require.NoError(t, route.Validate(context.Background()))
+	require.False(t, route.IsValid())
+}
+
 func TestRouteResolve(t *testing.T) {
 	t.Parallel()
 

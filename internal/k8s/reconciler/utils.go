@@ -119,6 +119,27 @@ func routeAllowedForListenerNamespaces(ctx context.Context, gatewayNS string, al
 	return false, nil
 }
 
+// routeAllowedForBackendNamespaces determines whether the route is allowed
+// to bind to the Gateway based on the ReferencePolicy namespace selectors.
+func routeAllowedForBackendNamespaces(ctx context.Context, route *K8sRoute, backendRef gw.HTTPBackendRef, client gatewayclient.Client) (bool, error) {
+	//var namespaceSelector *gw.RouteNamespaces
+	routeNamespace := route.GetNamespace()
+	backendNamespace := routeNamespace
+	namespacePointer := backendRef.Namespace
+	//TODO, if unset it assumes same namespace as the route
+	if namespacePointer != nil {
+		backendNamespace = string(*namespacePointer)
+	}
+
+	//get reference policy
+	if routeNamespace == backendNamespace {
+		//no need to check for a reference policy, same namespace
+		return true, nil
+	}
+
+	return false, nil
+}
+
 func toNamespaceSet(name string, labels map[string]string) klabels.Labels {
 	// If namespace label is not set, implicitly insert it to support older Kubernetes versions
 	if labels[NamespaceNameLabel] == name {

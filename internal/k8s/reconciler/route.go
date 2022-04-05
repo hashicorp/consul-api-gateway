@@ -362,8 +362,17 @@ func (r *K8sRoute) Validate(ctx context.Context) error {
 		for _, httpRule := range route.Spec.Rules {
 			rule := httpRule
 			routeRule := service.NewRouteRule(&rule)
+
 			for _, backendRef := range rule.BackendRefs {
+				//TODO check for reference policy
+
 				ref := backendRef
+				allowed, err := routeAllowedForBackendNamespaces(ctx, r, backendRef, r.client)
+				if !allowed {
+					//TODO determine error type
+					return errors.New("route not allowed")
+				}
+
 				reference, err := r.resolver.Resolve(ctx, ref.BackendObjectReference)
 				if err != nil {
 					var resolutionError service.ResolutionError
