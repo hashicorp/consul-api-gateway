@@ -531,7 +531,12 @@ func TestRouteValidateDontAllowCrossNamespace(t *testing.T) {
 			},
 		}, nil)
 
-	// FUTURE Assert appropriate status set on route
+	// FUTURE Remove once status is set and ReferencePolicy requirement is enforced
+	resolver.EXPECT().
+		Resolve(gomock.Any(), gomock.Any()).
+		Return(&service.ResolvedReference{Type: service.ConsulServiceReference, Reference: &service.BackendReference{}}, nil)
+
+	// FUTURE Assert appropriate status set on route and !route.IsValid() once ReferencePolicy requirement is enforced
 	_ = route.Validate(context.Background())
 }
 
