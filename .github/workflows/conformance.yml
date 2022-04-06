@@ -105,9 +105,6 @@ jobs:
           cp kustomization.yaml proxydefaults.yaml $GITHUB_WORKSPACE/gateway-api/conformance/
           cd $GITHUB_WORKSPACE/gateway-api/conformance/
           kubectl kustomize ./ --output ./base/manifests.yaml
-      - name: Setup tmate session
-        uses: mxschmitt/action-tmate@v3
-        timeout-minutes: 10
 
       - name: Run tests
         working-directory: "gateway-api/conformance"
