@@ -369,7 +369,7 @@ func (r *K8sRoute) Validate(ctx context.Context) error {
 				ref := backendRef
 
 				logger := r.logger.With("backendRef", ref.Name, "namespace", ref.Namespace)
-				logger.Warn("testing if route is allowed for backend ref", "ref", ref.Name, "namespace", ref.Namespace)
+				logger.Warn("testing if route is allowed for backend ref")
 
 				allowed, err := routeAllowedForBackendRef(ctx, r.Route, ref.BackendRef, r.client)
 				if err != nil || !allowed {

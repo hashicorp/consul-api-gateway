@@ -133,7 +133,7 @@ func routeAllowedForBackendRef(ctx context.Context, route Route, backendRef gw.B
 	}
 
 	// Allow if route and backend are in the same namespace
-	if backendNamespace == "" || route.GetNamespace() == string(*backendRef.Namespace) {
+	if backendNamespace == "" || route.GetNamespace() == backendNamespace {
 		return true, nil
 	}
 

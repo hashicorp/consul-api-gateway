@@ -367,7 +367,7 @@ func TestRouteAllowedForBackendRef(t *testing.T) {
 	type testCase struct {
 		name         string
 		routeNS      string
-		backendNS    string
+		backendNS    *string
 		backendName  string
 		policyFromNS string
 		policyToName *string
@@ -378,12 +378,13 @@ func TestRouteAllowedForBackendRef(t *testing.T) {
 	backend1, backend2, backend3 := "backend1", "backend2", "backend3"
 
 	for _, tc := range []testCase{
-		{name: "same-namespace-no-name-allowed", routeNS: ns1, backendNS: ns1, backendName: backend1, policyFromNS: ns1, policyToName: nil, allowed: true},
-		{name: "same-namespace-with-name-allowed", routeNS: ns1, backendNS: ns1, backendName: backend1, policyFromNS: ns1, policyToName: &backend1, allowed: true},
-		{name: "different-namespace-no-name-allowed", routeNS: ns1, backendNS: ns2, backendName: backend2, policyFromNS: ns1, policyToName: nil, allowed: true},
-		{name: "different-namespace-with-name-allowed", routeNS: ns1, backendNS: ns2, backendName: backend2, policyFromNS: ns1, policyToName: &backend2, allowed: true},
-		{name: "mismatched-policy-from-namespace-disallowed", routeNS: ns1, backendNS: ns2, backendName: backend2, policyFromNS: ns3, policyToName: &backend2, allowed: false},
-		{name: "mismatched-policy-to-name-disallowed", routeNS: ns1, backendNS: ns2, backendName: backend2, policyFromNS: ns1, policyToName: &backend3, allowed: false},
+		{name: "unspecified-backend-namespace-allowed", routeNS: ns1, backendNS: nil, backendName: backend1, policyFromNS: ns1, policyToName: nil, allowed: true},
+		{name: "same-namespace-no-name-allowed", routeNS: ns1, backendNS: &ns1, backendName: backend1, policyFromNS: ns1, policyToName: nil, allowed: true},
+		{name: "same-namespace-with-name-allowed", routeNS: ns1, backendNS: &ns1, backendName: backend1, policyFromNS: ns1, policyToName: &backend1, allowed: true},
+		{name: "different-namespace-no-name-allowed", routeNS: ns1, backendNS: &ns2, backendName: backend2, policyFromNS: ns1, policyToName: nil, allowed: true},
+		{name: "different-namespace-with-name-allowed", routeNS: ns1, backendNS: &ns2, backendName: backend2, policyFromNS: ns1, policyToName: &backend2, allowed: true},
+		{name: "mismatched-policy-from-namespace-disallowed", routeNS: ns1, backendNS: &ns2, backendName: backend2, policyFromNS: ns3, policyToName: &backend2, allowed: false},
+		{name: "mismatched-policy-to-name-disallowed", routeNS: ns1, backendNS: &ns2, backendName: backend2, policyFromNS: ns1, policyToName: &backend3, allowed: false},
 	} {
 		// Test each case for both HTTPRoute + TCPRoute which should function identically
 		for _, routeType := range []string{"HTTPRoute", "TCPRoute"} {
@@ -394,15 +395,18 @@ func TestRouteAllowedForBackendRef(t *testing.T) {
 
 				group := gw.Group("")
 				kind := gw.Kind("Service")
-				namespace := gw.Namespace(tc.backendNS)
 
 				backendRef := gw.BackendRef{
 					BackendObjectReference: gw.BackendObjectReference{
 						Group:     &group,
 						Kind:      &kind,
 						Name:      gw.ObjectName(tc.backendName),
-						Namespace: &namespace,
 					},
+				}
+
+				if tc.backendNS != nil {
+					ns := gw.Namespace(*tc.backendNS)
+					backendRef.BackendObjectReference.Namespace = &ns
 				}
 
 				var route Route
@@ -437,10 +441,10 @@ func TestRouteAllowedForBackendRef(t *testing.T) {
 					toName = &on
 				}
 
-				if tc.routeNS != tc.backendNS {
+				if tc.backendNS != nil && tc.routeNS != *tc.backendNS {
 					referencePolicy := gw.ReferencePolicy{
 						TypeMeta:   meta.TypeMeta{},
-						ObjectMeta: meta.ObjectMeta{Namespace: tc.backendNS},
+						ObjectMeta: meta.ObjectMeta{Namespace: *tc.backendNS},
 						Spec: gw.ReferencePolicySpec{
 							From: []gw.ReferencePolicyFrom{{
 								Group:     "gateway.networking.k8s.io",
@@ -456,7 +460,7 @@ func TestRouteAllowedForBackendRef(t *testing.T) {
 					}
 
 					throwawayPolicy := gw.ReferencePolicy{
-						ObjectMeta: meta.ObjectMeta{Namespace: tc.backendNS},
+						ObjectMeta: meta.ObjectMeta{Namespace: *tc.backendNS},
 						Spec: gw.ReferencePolicySpec{
 							From: []gw.ReferencePolicyFrom{{
 								Group:     "Kool & The Gang",
@@ -472,7 +476,7 @@ func TestRouteAllowedForBackendRef(t *testing.T) {
 					}
 
 					client.EXPECT().
-						GetReferencePoliciesInNamespace(gomock.Any(), tc.backendNS).
+						GetReferencePoliciesInNamespace(gomock.Any(), *tc.backendNS).
 						Return([]gw.ReferencePolicy{throwawayPolicy, referencePolicy}, nil)
 				}
 
