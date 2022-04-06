@@ -42,8 +42,8 @@ jobs:
       - name: Clone gateway-api
         uses: actions/checkout@v2
         with:
-          repository: "mikemorris/gateway-api"
-          ref: "conformance/reference-policy"
+          repository: "nathancoleman/gateway-api"
+          ref: "eventually-consistent-conformance"
           path: "gateway-api"
 
       - name: Setup Goenv
