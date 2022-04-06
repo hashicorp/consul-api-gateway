@@ -362,7 +362,7 @@ func TestGatewayStatusEqual(t *testing.T) {
 	}))
 }
 
-func TestRouteAllowedForHTTPBackend(t *testing.T) {
+func TestRouteAllowedForBackendRef(t *testing.T) {
 	type testCase struct {
 		name         string
 		routeNS      string
@@ -393,14 +393,12 @@ func TestRouteAllowedForHTTPBackend(t *testing.T) {
 			kind := gw.Kind("Service")
 			namespace := gw.Namespace(tc.backendNS)
 
-			backendRef := gw.HTTPBackendRef{
-				BackendRef: gw.BackendRef{
-					BackendObjectReference: gw.BackendObjectReference{
-						Group:     &group,
-						Kind:      &kind,
-						Name:      gw.ObjectName(tc.backendName),
-						Namespace: &namespace,
-					},
+			backendRef := gw.BackendRef{
+				BackendObjectReference: gw.BackendObjectReference{
+					Group:     &group,
+					Kind:      &kind,
+					Name:      gw.ObjectName(tc.backendName),
+					Namespace: &namespace,
 				},
 			}
 
@@ -409,7 +407,7 @@ func TestRouteAllowedForHTTPBackend(t *testing.T) {
 				TypeMeta:   meta.TypeMeta{APIVersion: "gateway.networking.k8s.io/v1alpha2", Kind: "HTTPRoute"},
 				Spec: gw.HTTPRouteSpec{
 					Rules: []gw.HTTPRouteRule{{
-						BackendRefs: []gw.HTTPBackendRef{backendRef},
+						BackendRefs: []gw.HTTPBackendRef{{BackendRef: backendRef}},
 					}},
 				},
 			}
