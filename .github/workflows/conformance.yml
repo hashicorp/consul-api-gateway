@@ -36,14 +36,14 @@ jobs:
         uses: actions/checkout@v2
         with:
           repository: "hashicorp/consul-k8s"
-          ref: "nc-capigw-referencepolicies-rbac"
+          ref: "nc-capigw-referencepolicies-rbac"  # TODO Remove on merge of https://github.com/hashicorp/consul-k8s/pull/1148
           path: "consul-k8s"
 
       - name: Clone gateway-api
         uses: actions/checkout@v2
         with:
           repository: "nathancoleman/gateway-api"
-          ref: "conformance/reference-policy-rebased"
+          ref: "eventually-consistent-conformance"
           path: "gateway-api"
 
       - name: Setup Goenv
