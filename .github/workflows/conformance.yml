@@ -1,11 +1,10 @@
 name: conformance
 
 on:
-  pull_request:
-    types: ["opened", "reopened", "synchronize", "labeled"]
-
   push:
-     branches: ["conformance/*"]
+     branches:
+      - "*-conformance"
+      - "conformance-*"
 
   schedule:
     - cron:  '0 0 * * *'
@@ -18,35 +17,13 @@ env:
 
 jobs:
   run-on-kind:
-    # Run on PR only if there is a `pr/run-conformance` label
-    if: "github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'pr/run-conformance')"
     runs-on: ubuntu-latest
     steps:
-      # Clone repos side-by-side:
-      # GITHUB_WORKSPACE/
-      #     consul-api-gateway/
-      #     consul-k8s/
-      #     gateway-api/
-      - name: Checkout consul-api-gateway
+      - name: Checkout
         uses: actions/checkout@v2
-        with:
-          path: "consul-api-gateway"
-
-      - name: Clone consul-k8s
-        uses: actions/checkout@v2
-        with:
-          repository: "hashicorp/consul-k8s"
-          path: "consul-k8s"
-
-      - name: Clone gateway-api
-        uses: actions/checkout@v2
-        with:
-          repository: "nathancoleman/gateway-api"
-          ref: "conformance/reference-policy-rebased"
-          path: "gateway-api"
 
       - name: Setup Goenv
-        uses: ./consul-api-gateway/.github/actions/goenv
+        uses: ./.github/actions/goenv
         with:
           go-version: ${{ env.GO_VERSION }}
 
@@ -60,7 +37,7 @@ jobs:
         run: |
           kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.12.1/manifests/namespace.yaml
           kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.12.1/manifests/metallb.yaml
-          kubectl apply -f ./consul-api-gateway/internal/testing/conformance/metallb-config.yaml
+          kubectl apply -f ./internal/testing/conformance/metallb-config.yaml
           kubectl wait --for=condition=Ready --timeout=60s --namespace=metallb-system pods --all
 
       - name: Build binary
@@ -68,19 +45,17 @@ jobs:
           CGO_ENABLED: "0"
           GOARCH: "amd64"
           GOOS: "linux"
-        working-directory: "consul-api-gateway"
         run: go build -o ./consul-api-gateway
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v1
 
-      # docker build -f Dockerfile.local -t consul-api-gateway:test --platform linux/amd64 .
       - name: Build Docker image
         uses: docker/build-push-action@v2
         with:
-          context: "./consul-api-gateway"
+          context: .
           platforms: "linux/amd64"
-          file: "./consul-api-gateway/Dockerfile.local"
+          file: "Dockerfile.local"
           load: true
           push: false
           tags: "consul-api-gateway:test"
@@ -89,27 +64,43 @@ jobs:
         run: kind load docker-image consul-api-gateway:test --name consul-api-gateway-test
 
       - name: Install Consul API Gateway CRDs
-        working-directory: "consul-api-gateway"
         run: kubectl apply --kustomize="./config/crd"
 
+      - name: Clone consul-k8s
+        uses: actions/checkout@v2
+        with:
+          repository: "hashicorp/consul-k8s"
+          path: "./internal/testing/conformance/consul-k8s"
+          fetch-depth: "1"
+
+      - name: Clone gateway-api
+        uses: actions/checkout@v2
+        with:
+          repository: "nathancoleman/gateway-api"
+          ref: "eventually-consistent-conformance"
+          path: "./internal/testing/conformance/gateway-api"
+          fetch-depth: "1"
+
       - name: Install Consul
-        working-directory: "consul-api-gateway/internal/testing/conformance"
+        working-directory: "./internal/testing/conformance"
         run: |
-          helm install --values ./consul-config.yaml consul $GITHUB_WORKSPACE/consul-k8s/charts/consul --create-namespace --namespace=consul
+          helm install --values ./consul-config.yaml consul ./consul-k8s/charts/consul --create-namespace --namespace=consul
           kubectl wait --for=condition=Ready --timeout=60s --namespace=consul pods --all
 
       - name: Patch testing resources
-        working-directory: "consul-api-gateway/internal/testing/conformance"
+        working-directory: "./internal/testing/conformance"
         run: |
-          cp kustomization.yaml proxydefaults.yaml $GITHUB_WORKSPACE/gateway-api/conformance/
-          cd $GITHUB_WORKSPACE/gateway-api/conformance/
+          cp kustomization.yaml proxydefaults.yaml ./gateway-api/conformance/
+          cd ./gateway-api/conformance/
           kubectl kustomize ./ --output ./base/manifests.yaml
 
-      - name: Run tests
-        working-directory: "gateway-api/conformance"
-        run: go test -v -timeout 10m ./ --gateway-class consul-api-gateway
+      - name: Setup tmate session
+        uses: mxschmitt/action-tmate@v3
+        timeout-minutes: 10
 
-      # TODO Waiting for webhook approval
+      - name: Run tests
+        working-directory: "./internal/testing/conformance/gateway-api/conformance"
+        run: go test -v -timeout 10m ./ --gateway-class consul-api-gateway
       # - name: Report Status
       #   if: always()
       #   uses: ravsamhq/notify-slack-action@v1
