@@ -367,7 +367,7 @@ func (r *K8sRoute) Validate(ctx context.Context) error {
 			for _, backendRef := range rule.BackendRefs {
 				ref := backendRef
 
-				allowed, err := routeAllowedForHTTPBackend(ctx, route, ref, r.client)
+				allowed, err := routeAllowedForBackendRef(ctx, r.Route, ref.BackendRef, r.client)
 				if err != nil || !allowed {
 					return fmt.Errorf("route not allowed for backend %q", ref.Name)
 				}
@@ -403,6 +403,12 @@ func (r *K8sRoute) Validate(ctx context.Context) error {
 		routeRule := service.NewRouteRule(rule)
 
 		ref := rule.BackendRefs[0]
+
+		allowed, err := routeAllowedForBackendRef(ctx, r.Route, ref, r.client)
+		if err != nil || !allowed {
+			return fmt.Errorf("route not allowed for backend %q", ref.Name)
+		}
+
 		reference, err := r.resolver.Resolve(ctx, ref.BackendObjectReference)
 		if err != nil {
 			var resolutionError service.ResolutionError

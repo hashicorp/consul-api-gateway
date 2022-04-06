@@ -459,7 +459,7 @@ func TestRouteAllowedForHTTPBackend(t *testing.T) {
 					Return([]gw.ReferencePolicy{throwawayPolicy, referencePolicy}, nil)
 			}
 
-			allowed, err := routeAllowedForHTTPBackend(context.Background(), route, backendRef, client)
+			allowed, err := routeAllowedForBackendRef(context.Background(), route, backendRef, client)
 			require.NoError(t, err)
 			assert.Equal(t, tc.allowed, allowed)
 		})
