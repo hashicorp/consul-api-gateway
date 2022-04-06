@@ -24,6 +24,12 @@ func LabelsForGateway(gw *gateway.Gateway) map[string]string {
 	}
 }
 
+func LabelsByNamespace(namespace string) map[string]string {
+	return map[string]string{
+		namespaceLabel: namespace,
+	}
+}
+
 func GatewayByLabels(object client.Object) types.NamespacedName {
 	labels := object.GetLabels()
 	return types.NamespacedName{

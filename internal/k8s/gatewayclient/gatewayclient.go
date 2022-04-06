@@ -479,5 +479,12 @@ func (g *gatewayClient) HasManagedDeployment(ctx context.Context, gw *gateway.Ga
 }
 
 func (g *gatewayClient) GetReferencePoliciesInNamespace(ctx context.Context, namespace string) ([]gateway.ReferencePolicy, error) {
-	return []gateway.ReferencePolicy{}, nil
+	list := &gateway.ReferencePolicyList{}
+	if err := g.Client.List(ctx, list, client.MatchingLabels(utils.LabelsByNamespace(namespace))); err != nil {
+		if k8serrors.IsNotFound(err) {
+			return nil, nil
+		}
+		return nil, NewK8sError(err)
+	}
+	return list.Items, nil
 }
