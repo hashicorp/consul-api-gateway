@@ -368,6 +368,7 @@ func TestRouteAllowedForBackendRef(t *testing.T) {
 		name         string
 		routeNS      string
 		backendNS    *string
+		backendKind  *string
 		backendName  string
 		policyFromNS string
 		policyToName *string
@@ -394,19 +395,22 @@ func TestRouteAllowedForBackendRef(t *testing.T) {
 				client := mocks.NewMockClient(ctrl)
 
 				group := gw.Group("")
-				kind := gw.Kind("Service")
 
 				backendRef := gw.BackendRef{
 					BackendObjectReference: gw.BackendObjectReference{
-						Group:     &group,
-						Kind:      &kind,
-						Name:      gw.ObjectName(tc.backendName),
+						Group: &group,
+						Name:  gw.ObjectName(tc.backendName),
 					},
 				}
 
 				if tc.backendNS != nil {
 					ns := gw.Namespace(*tc.backendNS)
 					backendRef.BackendObjectReference.Namespace = &ns
+				}
+
+				if tc.backendKind != nil {
+					k := gw.Kind(*tc.backendKind)
+					backendRef.Kind = &k
 				}
 
 				var route Route
