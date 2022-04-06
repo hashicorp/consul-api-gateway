@@ -2,6 +2,7 @@ package reconciler
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/golang/mock/gomock"
@@ -384,82 +385,101 @@ func TestRouteAllowedForBackendRef(t *testing.T) {
 		{name: "mismatched-policy-from-namespace-disallowed", routeNS: ns1, backendNS: ns2, backendName: backend2, policyFromNS: ns3, policyToName: &backend2, allowed: false},
 		{name: "mismatched-policy-to-name-disallowed", routeNS: ns1, backendNS: ns2, backendName: backend2, policyFromNS: ns1, policyToName: &backend3, allowed: false},
 	} {
-		t.Run(tc.name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-			client := mocks.NewMockClient(ctrl)
+		// Test each case for both HTTPRoute + TCPRoute which should function identically
+		for _, routeType := range []string{"HTTPRoute", "TCPRoute"} {
+			t.Run(tc.name+"-for-"+routeType, func(t *testing.T) {
+				ctrl := gomock.NewController(t)
+				defer ctrl.Finish()
+				client := mocks.NewMockClient(ctrl)
 
-			group := gw.Group("")
-			kind := gw.Kind("Service")
-			namespace := gw.Namespace(tc.backendNS)
+				group := gw.Group("")
+				kind := gw.Kind("Service")
+				namespace := gw.Namespace(tc.backendNS)
 
-			backendRef := gw.BackendRef{
-				BackendObjectReference: gw.BackendObjectReference{
-					Group:     &group,
-					Kind:      &kind,
-					Name:      gw.ObjectName(tc.backendName),
-					Namespace: &namespace,
-				},
-			}
-
-			route := &gw.HTTPRoute{
-				ObjectMeta: meta.ObjectMeta{Namespace: tc.routeNS},
-				TypeMeta:   meta.TypeMeta{APIVersion: "gateway.networking.k8s.io/v1alpha2", Kind: "HTTPRoute"},
-				Spec: gw.HTTPRouteSpec{
-					Rules: []gw.HTTPRouteRule{{
-						BackendRefs: []gw.HTTPBackendRef{{BackendRef: backendRef}},
-					}},
-				},
-			}
-
-			var toName *gw.ObjectName
-			if tc.policyToName != nil {
-				on := gw.ObjectName(*tc.policyToName)
-				toName = &on
-			}
-
-			if tc.routeNS != tc.backendNS {
-				referencePolicy := gw.ReferencePolicy{
-					TypeMeta:   meta.TypeMeta{},
-					ObjectMeta: meta.ObjectMeta{Namespace: tc.backendNS},
-					Spec: gw.ReferencePolicySpec{
-						From: []gw.ReferencePolicyFrom{{
-							Group:     "gateway.networking.k8s.io",
-							Kind:      "HTTPRoute",
-							Namespace: gw.Namespace(tc.policyFromNS),
-						}},
-						To: []gw.ReferencePolicyTo{{
-							Group: "",
-							Kind:  "Service",
-							Name:  toName,
-						}},
+				backendRef := gw.BackendRef{
+					BackendObjectReference: gw.BackendObjectReference{
+						Group:     &group,
+						Kind:      &kind,
+						Name:      gw.ObjectName(tc.backendName),
+						Namespace: &namespace,
 					},
 				}
 
-				throwawayPolicy := gw.ReferencePolicy{
-					ObjectMeta: meta.ObjectMeta{Namespace: tc.backendNS},
-					Spec: gw.ReferencePolicySpec{
-						From: []gw.ReferencePolicyFrom{{
-							Group:     "Kool & The Gang",
-							Kind:      "Jungle Boogie",
-							Namespace: "Wild And Peaceful",
-						}},
-						To: []gw.ReferencePolicyTo{{
-							Group: "does not exist",
-							Kind:  "does not exist",
-							Name:  nil,
-						}},
-					},
+				var route Route
+				switch routeType {
+				case "HTTPRoute":
+					route = &gw.HTTPRoute{
+						ObjectMeta: meta.ObjectMeta{Namespace: tc.routeNS},
+						TypeMeta:   meta.TypeMeta{APIVersion: "gateway.networking.k8s.io/v1alpha2", Kind: "HTTPRoute"},
+						Spec: gw.HTTPRouteSpec{
+							Rules: []gw.HTTPRouteRule{{
+								BackendRefs: []gw.HTTPBackendRef{{BackendRef: backendRef}},
+							}},
+						},
+					}
+				case "TCPRoute":
+					route = &gw.TCPRoute{
+						ObjectMeta: meta.ObjectMeta{Namespace: tc.routeNS},
+						TypeMeta:   meta.TypeMeta{APIVersion: "gateway.networking.k8s.io/v1alpha2", Kind: "TCPRoute"},
+						Spec: gw.TCPRouteSpec{
+							Rules: []gw.TCPRouteRule{{
+								BackendRefs: []gw.BackendRef{backendRef},
+							}},
+						},
+					}
+				default:
+					require.Fail(t, fmt.Sprintf("unhandled route type %q", routeType))
 				}
 
-				client.EXPECT().
-					GetReferencePoliciesInNamespace(gomock.Any(), tc.backendNS).
-					Return([]gw.ReferencePolicy{throwawayPolicy, referencePolicy}, nil)
-			}
+				var toName *gw.ObjectName
+				if tc.policyToName != nil {
+					on := gw.ObjectName(*tc.policyToName)
+					toName = &on
+				}
 
-			allowed, err := routeAllowedForBackendRef(context.Background(), route, backendRef, client)
-			require.NoError(t, err)
-			assert.Equal(t, tc.allowed, allowed)
-		})
+				if tc.routeNS != tc.backendNS {
+					referencePolicy := gw.ReferencePolicy{
+						TypeMeta:   meta.TypeMeta{},
+						ObjectMeta: meta.ObjectMeta{Namespace: tc.backendNS},
+						Spec: gw.ReferencePolicySpec{
+							From: []gw.ReferencePolicyFrom{{
+								Group:     "gateway.networking.k8s.io",
+								Kind:      gw.Kind(routeType),
+								Namespace: gw.Namespace(tc.policyFromNS),
+							}},
+							To: []gw.ReferencePolicyTo{{
+								Group: "",
+								Kind:  "Service",
+								Name:  toName,
+							}},
+						},
+					}
+
+					throwawayPolicy := gw.ReferencePolicy{
+						ObjectMeta: meta.ObjectMeta{Namespace: tc.backendNS},
+						Spec: gw.ReferencePolicySpec{
+							From: []gw.ReferencePolicyFrom{{
+								Group:     "Kool & The Gang",
+								Kind:      "Jungle Boogie",
+								Namespace: "Wild And Peaceful",
+							}},
+							To: []gw.ReferencePolicyTo{{
+								Group: "does not exist",
+								Kind:  "does not exist",
+								Name:  nil,
+							}},
+						},
+					}
+
+					client.EXPECT().
+						GetReferencePoliciesInNamespace(gomock.Any(), tc.backendNS).
+						Return([]gw.ReferencePolicy{throwawayPolicy, referencePolicy}, nil)
+				}
+
+				allowed, err := routeAllowedForBackendRef(context.Background(), route, backendRef, client)
+				require.NoError(t, err)
+				assert.Equal(t, tc.allowed, allowed)
+			})
+		}
 	}
 }
