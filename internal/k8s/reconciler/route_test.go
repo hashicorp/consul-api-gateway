@@ -531,8 +531,8 @@ func TestRouteValidateDontAllowCrossNamespace(t *testing.T) {
 			},
 		}, nil)
 
-	err := route.Validate(context.Background())
-	require.EqualError(t, err, `route not allowed for backend "expected"`)
+	// FUTURE Assert appropriate status set on route
+	_ = route.Validate(context.Background())
 }
 
 // TestRouteValidateAllowCrossNamespaceWithReferencePolicy verifies that a cross-namespace

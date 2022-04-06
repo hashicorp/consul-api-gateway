@@ -368,12 +368,11 @@ func (r *K8sRoute) Validate(ctx context.Context) error {
 			for _, backendRef := range rule.BackendRefs {
 				ref := backendRef
 
-				logger := r.logger.With("backendRef", ref.Name, "namespace", ref.Namespace)
-				logger.Warn("testing if route is allowed for backend ref")
-
 				allowed, err := routeAllowedForBackendRef(ctx, r.Route, ref.BackendRef, r.client)
 				if err != nil || !allowed {
-					logger.Error("route not allowed")
+					// FUTURE Set appropriate status
+					r.logger.Warn("Cross-namespace routing not allowed, will enforce in future", "refName", ref.Name, "refNamespace", ref.Namespace)
+					continue
 				}
 
 				reference, err := r.resolver.Resolve(ctx, ref.BackendObjectReference)
@@ -410,7 +409,9 @@ func (r *K8sRoute) Validate(ctx context.Context) error {
 
 		allowed, err := routeAllowedForBackendRef(ctx, r.Route, ref, r.client)
 		if err != nil || !allowed {
-			return fmt.Errorf("route not allowed for backend %q", ref.Name)
+			// FUTURE Set appropriate status
+			r.logger.Warn("Cross-namespace routing not allowed, will enforce in future", "refName", ref.Name, "refNamespace", ref.Namespace)
+			return nil
 		}
 
 		reference, err := r.resolver.Resolve(ctx, ref.BackendObjectReference)

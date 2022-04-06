@@ -161,13 +161,13 @@ func routeAllowedForBackendRef(ctx context.Context, route Route, backendRef gw.B
 			continue
 		}
 
-		// Backend group should default to empty string
+		// Backend group should default to empty string if not set
 		backendRefGroup := gw.Group("")
 		if backendRef.Group != nil {
 			backendRefGroup = *backendRef.Group
 		}
 
-		// Backend kind should default to Service
+		// Backend kind should default to Service if not set
 		// TODO Should we default to Service here or go look up the kind from K8s API
 		//   See https://github.com/kubernetes-sigs/gateway-api/issues/1092
 		backendRefKind := gw.Kind("Service")
