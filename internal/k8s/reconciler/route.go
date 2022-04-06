@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"reflect"
 
 	"github.com/hashicorp/go-hclog"
@@ -362,18 +361,19 @@ func (r *K8sRoute) Validate(ctx context.Context) error {
 	switch route := r.Route.(type) {
 	case *gw.HTTPRoute:
 		for _, httpRule := range route.Spec.Rules {
-			log.Println("starting validation...")
+			r.logger.Warn("starting validation...")
 			rule := httpRule
 			routeRule := service.NewRouteRule(&rule)
 
 			for _, backendRef := range rule.BackendRefs {
 				ref := backendRef
-				log.Printf("testing if route is allowed for backend ref %v in namespace %v.\n", ref.Name, ref.Namespace)
+
+				logger := r.logger.With("backendRef", ref.Name, "namespace", ref.Namespace)
+				logger.Warn("testing if route is allowed for backend ref", "ref", ref.Name, "namespace", ref.Namespace)
 
 				allowed, err := routeAllowedForBackendRef(ctx, r.Route, ref.BackendRef, r.client)
 				if err != nil || !allowed {
-					log.Println("route not allowed")
-					return fmt.Errorf("route not allowed for backend %q", ref.Name)
+					logger.Error("route not allowed")
 				}
 
 				reference, err := r.resolver.Resolve(ctx, ref.BackendObjectReference)
