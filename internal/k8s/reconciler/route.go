@@ -361,7 +361,6 @@ func (r *K8sRoute) Validate(ctx context.Context) error {
 	switch route := r.Route.(type) {
 	case *gw.HTTPRoute:
 		for _, httpRule := range route.Spec.Rules {
-			r.logger.Warn("starting validation...")
 			rule := httpRule
 			routeRule := service.NewRouteRule(&rule)
 
