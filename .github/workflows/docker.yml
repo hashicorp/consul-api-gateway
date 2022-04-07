@@ -6,7 +6,6 @@ on:
 
 jobs: 
   build-dev-image:
-    name: Build Docker image for latest commits on main
     runs-on: ubuntu-latest
     strategy:
       fail-fast: true
