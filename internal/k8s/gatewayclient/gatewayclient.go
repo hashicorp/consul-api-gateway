@@ -472,18 +472,12 @@ func (g *gatewayClient) HasManagedDeployment(ctx context.Context, gw *gateway.Ga
 	if err := g.Client.List(ctx, list, client.MatchingLabels(utils.LabelsForGateway(gw))); err != nil {
 		return false, NewK8sError(err)
 	}
-	if len(list.Items) > 0 {
-		return true, nil
-	}
-	return false, nil
+	return len(list.Items) > 0, nil
 }
 
 func (g *gatewayClient) GetReferencePoliciesInNamespace(ctx context.Context, namespace string) ([]gateway.ReferencePolicy, error) {
 	list := &gateway.ReferencePolicyList{}
 	if err := g.Client.List(ctx, list, client.InNamespace(namespace)); err != nil {
-		if k8serrors.IsNotFound(err) {
-			return nil, nil
-		}
 		return nil, NewK8sError(err)
 	}
 	return list.Items, nil
