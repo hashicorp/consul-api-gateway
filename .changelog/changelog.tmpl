@@ -1,13 +1,13 @@
-{{- if .NotesByType.note -}}
-NOTES:
-{{range .NotesByType.note -}}
+{{- if index .NotesByType "breaking-change" -}}
+BREAKING CHANGES:
+{{range index .NotesByType "breaking-change" -}}
 * {{ template "note" .}}
 {{ end -}}
 {{- end -}}
 
-{{- if index .NotesByType "breaking-change" -}}
-BREAKING CHANGES:
-{{range index .NotesByType "breaking-change" -}}
+{{- if .NotesByType.security }}
+SECURITY:
+{{range .NotesByType.security -}}
 * {{ template "note" .}}
 {{ end -}}
 {{- end -}}
@@ -38,5 +38,12 @@ IMPROVEMENTS:
 BUG FIXES:
 {{range .NotesByType.bug -}}
 * {{ template "note" . }}
+{{ end -}}
+{{- end -}}
+
+{{- if .NotesByType.note -}}
+NOTES:
+{{range .NotesByType.note -}}
+* {{ template "note" .}}
 {{ end -}}
 {{- end -}}
