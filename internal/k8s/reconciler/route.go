@@ -7,16 +7,17 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/hashicorp/consul-api-gateway/internal/core"
-	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
-	"github.com/hashicorp/consul-api-gateway/internal/k8s/service"
-	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
-	"github.com/hashicorp/consul-api-gateway/internal/store"
 	"github.com/hashicorp/go-hclog"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
+
+	"github.com/hashicorp/consul-api-gateway/internal/core"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/service"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
+	"github.com/hashicorp/consul-api-gateway/internal/store"
 )
 
 // all kubernetes routes implement the following two interfaces
@@ -362,8 +363,18 @@ func (r *K8sRoute) Validate(ctx context.Context) error {
 		for _, httpRule := range route.Spec.Rules {
 			rule := httpRule
 			routeRule := service.NewRouteRule(&rule)
+
 			for _, backendRef := range rule.BackendRefs {
 				ref := backendRef
+
+				allowed, err := routeAllowedForBackendRef(ctx, r.Route, ref.BackendRef, r.client)
+				if err != nil {
+					return err
+				} else if !allowed {
+					// FUTURE Set appropriate status and early out
+					r.logger.Warn("Cross-namespace routing not allowed, will enforce in future", "refName", ref.Name, "refNamespace", ref.Namespace)
+				}
+
 				reference, err := r.resolver.Resolve(ctx, ref.BackendObjectReference)
 				if err != nil {
 					var resolutionError service.ResolutionError
@@ -395,6 +406,15 @@ func (r *K8sRoute) Validate(ctx context.Context) error {
 		routeRule := service.NewRouteRule(rule)
 
 		ref := rule.BackendRefs[0]
+
+		allowed, err := routeAllowedForBackendRef(ctx, r.Route, ref, r.client)
+		if err != nil {
+			return err
+		} else if !allowed {
+			// FUTURE Set appropriate status and early out
+			r.logger.Warn("Cross-namespace routing not allowed, will enforce in future", "refName", ref.Name, "refNamespace", ref.Namespace)
+		}
+
 		reference, err := r.resolver.Resolve(ctx, ref.BackendObjectReference)
 		if err != nil {
 			var resolutionError service.ResolutionError

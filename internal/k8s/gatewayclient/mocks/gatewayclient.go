@@ -289,6 +289,21 @@ func (mr *MockClientMockRecorder) GetNamespace(ctx, key interface{}) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNamespace", reflect.TypeOf((*MockClient)(nil).GetNamespace), ctx, key)
 }
 
+// GetReferencePoliciesInNamespace mocks base method.
+func (m *MockClient) GetReferencePoliciesInNamespace(ctx context.Context, namespace string) ([]v1alpha2.ReferencePolicy, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetReferencePoliciesInNamespace", ctx, namespace)
+	ret0, _ := ret[0].([]v1alpha2.ReferencePolicy)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetReferencePoliciesInNamespace indicates an expected call of GetReferencePoliciesInNamespace.
+func (mr *MockClientMockRecorder) GetReferencePoliciesInNamespace(ctx, namespace interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetReferencePoliciesInNamespace", reflect.TypeOf((*MockClient)(nil).GetReferencePoliciesInNamespace), ctx, namespace)
+}
+
 // GetSecret mocks base method.
 func (m *MockClient) GetSecret(ctx context.Context, key types.NamespacedName) (*v10.Secret, error) {
 	m.ctrl.T.Helper()

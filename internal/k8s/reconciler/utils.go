@@ -11,6 +11,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	klabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
+
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
@@ -117,6 +118,75 @@ func routeAllowedForListenerNamespaces(ctx context.Context, gatewayNS string, al
 		return namespaceSelector.Matches(toNamespaceSet(namespace.GetName(), namespace.GetLabels())), nil
 	}
 	return false, nil
+}
+
+// routeAllowedForBackendRef determines whether the route is allowed
+// for the backend either by being in the same namespace or by having
+// an applicable ReferencePolicy in the same namespace as the backend.
+//
+// TODO This func is currently called once for each backendRef on a route and results
+//   in fetching ReferencePolicies more than we technically have to in some cases
+func routeAllowedForBackendRef(ctx context.Context, route Route, backendRef gw.BackendRef, c gatewayclient.Client) (bool, error) {
+	backendNamespace := ""
+	if backendRef.Namespace != nil {
+		backendNamespace = string(*backendRef.Namespace)
+	}
+
+	// Allow if route and backend are in the same namespace
+	if backendNamespace == "" || route.GetNamespace() == backendNamespace {
+		return true, nil
+	}
+
+	// Allow if ReferencePolicy present for route + backend combination
+	refPolicies, err := c.GetReferencePoliciesInNamespace(ctx, backendNamespace)
+	if err != nil || len(refPolicies) == 0 {
+		return false, err
+	}
+
+	for _, refPolicy := range refPolicies {
+		// Check for a From that applies to the route
+		validFrom := false
+		for _, from := range refPolicy.Spec.From {
+			// If this policy allows the group, kind and namespace for this route
+			if route.GroupVersionKind().Group == string(from.Group) &&
+				route.GroupVersionKind().Kind == string(from.Kind) &&
+				route.GetNamespace() == string(from.Namespace) {
+				validFrom = true
+				break
+			}
+		}
+
+		// If this ReferencePolicy has no applicable From, no need to check for a To
+		if !validFrom {
+			continue
+		}
+
+		// Backend group should default to empty string if not set
+		backendRefGroup := gw.Group("")
+		if backendRef.Group != nil {
+			backendRefGroup = *backendRef.Group
+		}
+
+		// Backend kind should default to Service if not set
+		// TODO Should we default to Service here or go look up the kind from K8s API
+		//   See https://github.com/kubernetes-sigs/gateway-api/issues/1092
+		backendRefKind := gw.Kind("Service")
+		if backendRef.Kind != nil {
+			backendRefKind = *backendRef.Kind
+		}
+
+		// Check for a To that applies to the backendRef
+		for _, to := range refPolicy.Spec.To {
+			// If this policy allows the group, kind, and name for this backend
+			if to.Group == backendRefGroup &&
+				to.Kind == backendRefKind &&
+				(to.Name == nil || *to.Name == backendRef.Name) {
+				return true, nil
+			}
+		}
+	}
+
+	return false, err
 }
 
 func toNamespaceSet(name string, labels map[string]string) klabels.Labels {
