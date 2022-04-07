@@ -72,10 +72,10 @@ endif
 changelog-check:
 ifeq (, $(shell which changelog-check))
 	@rm -rf go-changelog
-	@git clone https://github.com/mikemorris/go-changelog@changelog-check
+	@git clone -b changelog-check https://github.com/mikemorris/go-changelog
 	@cd go-changelog && go install ./cmd/changelog-check
 endif
-	changelog-check -types-file .changelog/types.txt
+	changelog-check
 
 # Run controller tests
 .PHONY: ctrl-test
