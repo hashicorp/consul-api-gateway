@@ -36,7 +36,6 @@ jobs:
         uses: actions/checkout@v2
         with:
           repository: "hashicorp/consul-k8s"
-          ref: "nc-capigw-referencepolicies-rbac"  # TODO Remove on merge of https://github.com/hashicorp/consul-k8s/pull/1148
           path: "consul-k8s"
 
       - name: Clone gateway-api
