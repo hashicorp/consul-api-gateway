@@ -1,5 +1,6 @@
 {{- if index .NotesByType "breaking-change" -}}
 BREAKING CHANGES:
+
 {{range index .NotesByType "breaking-change" -}}
 * {{ template "note" .}}
 {{ end -}}
@@ -7,6 +8,7 @@ BREAKING CHANGES:
 
 {{- if .NotesByType.security }}
 SECURITY:
+
 {{range .NotesByType.security -}}
 * {{ template "note" .}}
 {{ end -}}
@@ -14,6 +16,7 @@ SECURITY:
 
 {{- if .NotesByType.deprecation -}}
 DEPRECATIONS:
+
 {{range .NotesByType.deprecation -}}
 * {{ template "note" .}}
 {{ end -}}
@@ -21,6 +24,7 @@ DEPRECATIONS:
 
 {{- if .NotesByType.feature }}
 FEATURES:
+
 {{range .NotesByType.feature -}}
 * {{ template "note" . }}
 {{ end -}}
@@ -29,6 +33,7 @@ FEATURES:
 {{- $improvements := combineTypes .NotesByType.improvement .NotesByType.enhancement -}}
 {{- if $improvements }}
 IMPROVEMENTS:
+
 {{range $improvements | sort -}}
 * {{ template "note" . }}
 {{ end -}}
@@ -36,6 +41,7 @@ IMPROVEMENTS:
 
 {{- if .NotesByType.bug }}
 BUG FIXES:
+
 {{range .NotesByType.bug -}}
 * {{ template "note" . }}
 {{ end -}}
@@ -43,6 +49,7 @@ BUG FIXES:
 
 {{- if .NotesByType.note -}}
 NOTES:
+
 {{range .NotesByType.note -}}
 * {{ template "note" .}}
 {{ end -}}
