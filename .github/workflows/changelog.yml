@@ -35,7 +35,7 @@ jobs:
             enforce_matching=1
             changelog_file_path=".changelog/${{ github.event.pull_request.number }}.txt"
           else
-            changelog_file_path=".changelog/[[:digit:]].txt"
+            changelog_file_path=".changelog/*(_)+([[:digit:]]).txt"
           fi
 
           # Fail status check if non-zero exit code is returned
