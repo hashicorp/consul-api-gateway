@@ -21,6 +21,10 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0 # by default the checkout action doesn't checkout all branches
+      # FIXME: remove this after building changelog-check from source is not needed
+      - uses: ./.github/actions/goenv
+        with:
+          go-version: '1.16'
       - name: Check for changelog entry in diff
         run: |
           pull_request_base_main=$(expr "${{ github.event.pull_request.base.ref }}" = "main")
