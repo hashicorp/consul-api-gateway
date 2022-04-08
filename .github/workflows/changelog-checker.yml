@@ -35,4 +35,4 @@ jobs:
           fi
 
           # Fail status check if non-zero exit code is returned
-          ./changelog-check.sh ${changelog_file_path} ${enforce_matching}
+          ./scripts/changelog-check.sh ${changelog_file_path} ${enforce_matching}
