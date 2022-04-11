@@ -4,7 +4,85 @@ on:
   push:
     branches: ["main", "dev-image-main"]  # TODO Remove before merge
 
-jobs: 
+jobs:
+  build-linux:
+    needs:
+      - get-go-version
+      - get-product-version
+
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: true
+      matrix:
+        goos: ["linux"]
+        goarch: ["amd64"]
+        go: ["1.17"]
+
+    env:
+      PKG_NAME: ${{ github.event.repository.name }}
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Setup go
+        uses: actions/setup-go@v2
+        with:
+          go-version: ${{ matrix.go }}
+
+      - name: Get product version
+        id: get-product-version
+        run: echo "::set-output name=product-version::$(make version)"
+
+      - name: Build
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          PRODUCT_VERSION: ${{ steps.get-product-version.outputs.product-version }}
+        run: |
+          mkdir dist out
+          go build -o dist/ .
+          zip -r -j out/${{ env.PKG_NAME }}_${{ env.PRODUCT_VERSION }}_${{ matrix.goos }}_${{ matrix.goarch }}.zip dist/
+
+      - uses: actions/upload-artifact@v2
+        env:
+          PRODUCT_VERSION: ${{ steps.get-product-version.outputs.product-version }}
+        with:
+          name: ${{ env.PKG_NAME }}_${{ env.PRODUCT_VERSION }}_${{ matrix.goos }}_${{ matrix.goarch }}.zip
+          path: out/${{ env.PKG_NAME }}_${{ env.PRODUCT_VERSION }}_${{ matrix.goos }}_${{ matrix.goarch }}.zip
+
+      - name: Package
+        uses: hashicorp/actions-packaging-linux@v1
+        with:
+          name: ${{ github.event.repository.name }}
+          description: "Consul API Gateway"
+          arch: ${{ matrix.goarch }}
+          version: ${{ steps.get-product-version.outputs.product-version }}
+          maintainer: "HashiCorp"
+          homepage: "https://github.com/hashicorp/consul-api-gateway"
+          license: "MPL-2.0"
+          binary: "dist/${{ env.PKG_NAME }}"
+          deb_depends: "openssl"
+          rpm_depends: "openssl"
+
+      - name: Set Package Names
+        if: ${{ matrix.goos == 'linux' }}
+        run: |
+          echo "RPM_PACKAGE=$(basename out/*.rpm)" >> $GITHUB_ENV
+          echo "DEB_PACKAGE=$(basename out/*.deb)" >> $GITHUB_ENV
+
+      - uses: actions/upload-artifact@v2
+        if: ${{ matrix.goos == 'linux' }}
+        with:
+          name: ${{ env.RPM_PACKAGE }}
+          path: out/${{ env.RPM_PACKAGE }}
+
+      - uses: actions/upload-artifact@v2
+        if: ${{ matrix.goos == 'linux' }}
+        with:
+          name: ${{ env.DEB_PACKAGE }}
+          path: out/${{ env.DEB_PACKAGE }}
+
   build-dev-image:
     runs-on: ubuntu-latest
     strategy:
@@ -16,19 +94,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
-
-      - name: Setup go
-        uses: actions/setup-go@v2
-        with:
-          go-version: ${{ matrix.go }}
-
-      - name: Build binary
-        env:
-          GOOS: ${{ matrix.goos }}
-          GOARCH: ${{ matrix.goarch }}
-        run: |
-          mkdir -p dist/linux/${{ matrix.goarch }}
-          go build -o dist/linux/${{ matrix.goarch }}
 
       - name: Get product version
         id: get-product-version
