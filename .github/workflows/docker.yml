@@ -44,6 +44,7 @@ jobs:
           arch: ${{ matrix.goarch }}
           version: ${{ steps.get-product-version.outputs.product-version }}
           bin_name: "consul-api-gateway"
+          tags: |
+            docker.io/hashicorp/${{ env.PRODUCT_NAME }}:${{ env.PRODUCT_VERSION }}
           dev_tags: |
-            hashicorppreview/${{ env.PRODUCT_NAME }}:${{ env.PRODUCT_VERSION }}-dev
-            hashicorppreview/${{ env.PRODUCT_NAME }}:${{ env.PRODUCT_VERSION }}-${{ github.sha }}
+            docker.io/hashicorppreview/${{ env.PRODUCT_NAME }}:${{ env.PRODUCT_VERSION }}-dev
