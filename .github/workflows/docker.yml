@@ -6,10 +6,6 @@ on:
 
 jobs:
   build-linux:
-    needs:
-      - get-go-version
-      - get-product-version
-
     runs-on: ubuntu-latest
 
     strategy:
@@ -17,9 +13,9 @@ jobs:
       matrix:
         goos: ["linux"]
         goarch: ["amd64"]
-        go: ["1.17"]
 
     env:
+      GO_VERSION: "1.17"
       PKG_NAME: ${{ github.event.repository.name }}
 
     steps:
@@ -28,7 +24,7 @@ jobs:
       - name: Setup go
         uses: actions/setup-go@v2
         with:
-          go-version: ${{ matrix.go }}
+          go-version: ${{ env.GO_VERSION }}
 
       - name: Get product version
         id: get-product-version
@@ -66,25 +62,23 @@ jobs:
           rpm_depends: "openssl"
 
       - name: Set Package Names
-        if: ${{ matrix.goos == 'linux' }}
         run: |
           echo "RPM_PACKAGE=$(basename out/*.rpm)" >> $GITHUB_ENV
           echo "DEB_PACKAGE=$(basename out/*.deb)" >> $GITHUB_ENV
 
       - uses: actions/upload-artifact@v2
-        if: ${{ matrix.goos == 'linux' }}
         with:
           name: ${{ env.RPM_PACKAGE }}
           path: out/${{ env.RPM_PACKAGE }}
 
       - uses: actions/upload-artifact@v2
-        if: ${{ matrix.goos == 'linux' }}
         with:
           name: ${{ env.DEB_PACKAGE }}
           path: out/${{ env.DEB_PACKAGE }}
 
   build-dev-image:
     runs-on: ubuntu-latest
+    needs: ["build-linux"]
     strategy:
       fail-fast: true
       matrix:
