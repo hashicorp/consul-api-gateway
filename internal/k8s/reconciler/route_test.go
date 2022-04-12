@@ -545,6 +545,7 @@ func TestRouteValidateDontAllowCrossNamespace(t *testing.T) {
 			},
 		}, nil)
 
+
 	// FUTURE Assert appropriate status set on route and !route.IsValid() once ReferencePolicy requirement is enforced
 	_ = route.Validate(context.Background())
 }
