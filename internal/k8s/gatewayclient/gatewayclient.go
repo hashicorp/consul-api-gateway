@@ -71,6 +71,9 @@ type Client interface {
 	CreateOrUpdateService(ctx context.Context, service *core.Service, mutators ...func() error) (bool, error)
 	DeleteService(ctx context.Context, service *core.Service) error
 	EnsureServiceAccount(ctx context.Context, owner *gateway.Gateway, serviceAccount *core.ServiceAccount) error
+
+	//referencepolicy
+	GetReferencePoliciesInNamespace(ctx context.Context, namespace string) ([]gateway.ReferencePolicy, error)
 }
 
 type gatewayClient struct {
@@ -469,8 +472,13 @@ func (g *gatewayClient) HasManagedDeployment(ctx context.Context, gw *gateway.Ga
 	if err := g.Client.List(ctx, list, client.MatchingLabels(utils.LabelsForGateway(gw))); err != nil {
 		return false, NewK8sError(err)
 	}
-	if len(list.Items) > 0 {
-		return true, nil
+	return len(list.Items) > 0, nil
+}
+
+func (g *gatewayClient) GetReferencePoliciesInNamespace(ctx context.Context, namespace string) ([]gateway.ReferencePolicy, error) {
+	list := &gateway.ReferencePolicyList{}
+	if err := g.Client.List(ctx, list, client.InNamespace(namespace)); err != nil {
+		return nil, NewK8sError(err)
 	}
-	return false, nil
+	return list.Items, nil
 }

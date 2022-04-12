@@ -7,16 +7,17 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/hashicorp/consul-api-gateway/internal/core"
-	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
-	"github.com/hashicorp/consul-api-gateway/internal/k8s/service"
-	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
-	"github.com/hashicorp/consul-api-gateway/internal/store"
 	"github.com/hashicorp/go-hclog"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
+
+	"github.com/hashicorp/consul-api-gateway/internal/core"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/service"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
+	"github.com/hashicorp/consul-api-gateway/internal/store"
 )
 
 // all kubernetes routes implement the following two interfaces
@@ -204,6 +205,8 @@ func (r *K8sRoute) OnBindFailed(err error, gateway store.Gateway) {
 				status.ResolvedRefs.ConsulServiceNotFound = err
 			case service.K8sServiceResolutionErrorType:
 				status.ResolvedRefs.ServiceNotFound = err
+			case service.RefNotPermittedErrorType:
+				status.ResolvedRefs.RefNotPermitted = err
 			}
 
 			r.parentStatuses[id] = status
@@ -362,8 +365,20 @@ func (r *K8sRoute) Validate(ctx context.Context) error {
 		for _, httpRule := range route.Spec.Rules {
 			rule := httpRule
 			routeRule := service.NewRouteRule(&rule)
+
 			for _, backendRef := range rule.BackendRefs {
 				ref := backendRef
+
+				allowed, err := routeAllowedForBackendRef(ctx, r.Route, ref.BackendRef, r.client)
+				if err != nil {
+					return err
+				} else if !allowed {
+					msg := fmt.Sprintf("Cross-namespace routing not allowed without matching ReferencePolicy for Service %q", getServiceID(ref.Name, ref.Namespace, route.GetNamespace()))
+					r.logger.Warn("Cross-namespace routing not allowed without matching ReferencePolicy", "refName", ref.Name, "refNamespace", ref.Namespace)
+					r.resolutionErrors.Add(service.NewRefNotPermittedError(msg))
+					continue
+				}
+
 				reference, err := r.resolver.Resolve(ctx, ref.BackendObjectReference)
 				if err != nil {
 					var resolutionError service.ResolutionError
@@ -395,6 +410,17 @@ func (r *K8sRoute) Validate(ctx context.Context) error {
 		routeRule := service.NewRouteRule(rule)
 
 		ref := rule.BackendRefs[0]
+
+		allowed, err := routeAllowedForBackendRef(ctx, r.Route, ref, r.client)
+		if err != nil {
+			return err
+		} else if !allowed {
+			msg := fmt.Sprintf("Cross-namespace routing not allowed without matching ReferencePolicy for Service %q", getServiceID(ref.Name, ref.Namespace, route.GetNamespace()))
+			r.logger.Warn("Cross-namespace routing not allowed without matching ReferencePolicy", "refName", ref.Name, "refNamespace", ref.Namespace)
+			r.resolutionErrors.Add(service.NewRefNotPermittedError(msg))
+			return nil
+		}
+
 		reference, err := r.resolver.Resolve(ctx, ref.BackendObjectReference)
 		if err != nil {
 			var resolutionError service.ResolutionError

@@ -38,12 +38,12 @@ func (m *configEntryMatcher) String() string {
 	return fmt.Sprintf("{Kind: %q, Name: %q, Namespace: %q}", m.Kind, m.Name, m.Namespace)
 }
 
-func testIntentionsReconciler(t *testing.T, disco consulDiscoveryChains, config consulConfigEntries) *IntentionsReconciler {
-	return newIntentionsReconciler(disco, config, api.CompoundServiceName{Name: "name1", Namespace: "namespace1"}, testutil.Logger(t))
+func testIntentionsReconciler(t *testing.T, config consulConfigEntries) *IntentionsReconciler {
+	return newIntentionsReconciler(nil, config, api.CompoundServiceName{Name: "name1", Namespace: "namespace1"}, testutil.Logger(t))
 }
 
 func TestIntentionsReconciler_sourceIntention(t *testing.T) {
-	r := testIntentionsReconciler(t, nil, nil)
+	r := testIntentionsReconciler(t, nil)
 	i := r.sourceIntention()
 	require.NotNil(t, i)
 	require.Equal(t, "name1", i.Name)
@@ -58,7 +58,7 @@ func TestIntentionsReconciler_syncIntentions(t *testing.T) {
 		defer ctrl.Finish()
 
 		config := mocks.NewMockconsulConfigEntries(ctrl)
-		r := testIntentionsReconciler(t, nil, config)
+		r := testIntentionsReconciler(t, config)
 
 		config.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
 		require.NoError(st, r.syncIntentions())
@@ -68,7 +68,7 @@ func TestIntentionsReconciler_syncIntentions(t *testing.T) {
 		defer ctrl.Finish()
 
 		config := mocks.NewMockconsulConfigEntries(ctrl)
-		r := testIntentionsReconciler(t, nil, config)
+		r := testIntentionsReconciler(t, config)
 
 		r.targetIndex.addRef(api.CompoundServiceName{Name: "foo"}, api.CompoundServiceName{Name: "source1"})
 		config.EXPECT().Get(gomock.Eq(api.ServiceIntentions), gomock.Eq("foo"), gomock.Any()).Return(&api.ServiceIntentionsConfigEntry{
@@ -84,7 +84,7 @@ func TestIntentionsReconciler_syncIntentions(t *testing.T) {
 		defer ctrl.Finish()
 
 		config := mocks.NewMockconsulConfigEntries(ctrl)
-		r := testIntentionsReconciler(t, nil, config)
+		r := testIntentionsReconciler(t, config)
 
 		r.targetIndex.addRef(api.CompoundServiceName{Name: "foo"}, api.CompoundServiceName{Name: "source1"})
 		config.EXPECT().Get(gomock.Eq(api.ServiceIntentions), gomock.Eq("foo"), gomock.Any()).Return(&api.ServiceIntentionsConfigEntry{
@@ -101,7 +101,7 @@ func TestIntentionsReconciler_syncIntentions(t *testing.T) {
 		defer ctrl.Finish()
 
 		config := mocks.NewMockconsulConfigEntries(ctrl)
-		r := testIntentionsReconciler(t, nil, config)
+		r := testIntentionsReconciler(t, config)
 
 		r.targetTombstones.Add(api.CompoundServiceName{Name: "foo"})
 		config.EXPECT().Get(gomock.Eq(api.ServiceIntentions), gomock.Eq("foo"), gomock.Any()).Return(&api.ServiceIntentionsConfigEntry{
@@ -137,7 +137,7 @@ func TestIntentionsReconciler_handleChainResults(t *testing.T) {
 	}
 
 	config := mocks.NewMockconsulConfigEntries(ctrl)
-	r := testIntentionsReconciler(t, nil, config)
+	r := testIntentionsReconciler(t, config)
 	require.Len(t, r.targetIndex.all(), 0)
 	r.handleChainResult(mkChain("router", []string{}, []string{}))
 	require.Len(t, r.targetIndex.all(), 0)

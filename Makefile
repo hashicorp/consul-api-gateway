@@ -39,6 +39,13 @@ GOIMPORTS=$(shell which goimports)
 fmt: goimports
 	@for d in $$(go list -f {{.Dir}} ./...); do ${GOIMPORTS} --local github.com/hashicorp --local github.com/hashicorp/consul-api-gateway -w -l $$d/*.go; done
 
+.PHONY: lint
+lint:
+ifeq (, $(shell which golangci-lint))
+	@go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.45
+endif
+	@$(shell which golangci-lint) run --verbose
+
 .PHONY: test
 test:
 	go test ./...

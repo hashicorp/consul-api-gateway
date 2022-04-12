@@ -10,7 +10,7 @@ import (
 	"github.com/hashicorp/consul/api"
 )
 
-// httpRouteToServiceDiscoChain will convert a k8s HTTPRoute to a Consul service-router config entry and 0 or
+// httpRouteDiscoveryChain will convert a k8s HTTPRoute to a Consul service-router config entry and 0 or
 // more service-splitter config entries. A prefix can be given to prefix all config entry names with.
 func httpRouteDiscoveryChain(route core.HTTPRoute) (*api.ServiceRouterConfigEntry, []*api.ServiceSplitterConfigEntry) {
 	router := &api.ServiceRouterConfigEntry{
@@ -97,6 +97,8 @@ func httpRouteDiscoveryChain(route core.HTTPRoute) (*api.ServiceRouterConfigEntr
 	return router, splitters
 }
 
+// httpRouteFiltersToServiceRouteHeaderModifier will consolidate a list of HTTP filters
+// into a single set of header modifications for Consul to make as a request passes through.
 func httpRouteFiltersToServiceRouteHeaderModifier(filters []core.HTTPFilter) *api.HTTPHeaderModifiers {
 	modifier := &api.HTTPHeaderModifiers{
 		Add: make(map[string]string),
@@ -107,7 +109,7 @@ func httpRouteFiltersToServiceRouteHeaderModifier(filters []core.HTTPFilter) *ap
 		case core.HTTPHeaderFilterType:
 			// If we have multiple filters specified, then we can potentially clobber
 			// "Add" and "Set" here -- as far as K8S gateway spec is concerned, this
-			// is all implmentation-specific behavior and undefined by the spec.
+			// is all implementation-specific behavior and undefined by the spec.
 			modifier.Add = mergeMaps(modifier.Add, filter.Header.Add)
 			modifier.Set = mergeMaps(modifier.Set, filter.Header.Set)
 			modifier.Remove = append(modifier.Remove, filter.Header.Remove...)
@@ -219,18 +221,20 @@ func hostsKey(hosts ...string) string {
 	return strconv.FormatUint(uint64(hostsHash.Sum32()), 16)
 }
 
+// compareHTTPRules implements the non-hostname order of precedence for routes specified by the K8s Gateway API spec.
+// https://gateway-api.sigs.k8s.io/v1alpha2/references/spec/#gateway.networking.k8s.io/v1alpha2.HTTPRouteRule
+//
+// Ordering prefers matches based on the largest number of:
+//
+//   1. characters in a matching non-wildcard hostname
+//   2. characters in a matching hostname
+//   3. characters in a matching path
+//   4. header matches
+//   5. query param matches
+//
+// The hostname-specific comparison (1+2) occur in Envoy outside of our control:
+// https://github.com/envoyproxy/envoy/blob/5c4d4bd957f9402eca80bef82e7cc3ae714e04b4/source/common/router/config_impl.cc#L1645-L1682
 func compareHTTPRules(ruleA, ruleB core.HTTPMatch) bool {
-	// this tries to implement some of the logic specified by the K8S gateway API spec
-
-	// Proxy or Load Balancer routing configuration generated from HTTPRoutes MUST prioritize
-	// rules based on the following criteria, continuing on ties. Precedence must be given
-	// to the the Rule with the largest number of:
-	// Characters in a matching non-wildcard hostname.
-	// Characters in a matching hostname.
-	// Characters in a matching path.
-	// Header matches.
-	// Query param matches.
-
 	if len(ruleA.Path.Value) != len(ruleB.Path.Value) {
 		return len(ruleA.Path.Value) > len(ruleB.Path.Value)
 	}
@@ -250,29 +254,35 @@ func httpServiceDefault(entry api.ConfigEntry, meta map[string]string) *api.Serv
 	}
 }
 
-type flattenedRoute struct {
+type hostnameMatch struct {
 	match    core.HTTPMatch
 	filters  []core.HTTPFilter
 	services []core.HTTPService
 }
 
-type flattenedRouteMap struct {
-	flattenedRoutesByHostname map[string][]flattenedRoute
+type routeConsolidator struct {
+	matchesByHostname map[string][]hostnameMatch
 }
 
-func newflattenedRouteMap() *flattenedRouteMap {
-	return &flattenedRouteMap{
-		flattenedRoutesByHostname: map[string][]flattenedRoute{},
+func newRouteConsolidator() *routeConsolidator {
+	return &routeConsolidator{
+		matchesByHostname: map[string][]hostnameMatch{},
 	}
 }
 
-func (f *flattenedRouteMap) flatten(route core.HTTPRoute) {
+// add takes a new route and flattens its rule matches out per hostname.
+// This is required since a single route can specify multiple hostnames, and a
+// single hostname can be specified in multiple routes. Routing for a given
+// hostname must behave based on the aggregate of all rules that apply to it.
+func (f *routeConsolidator) add(route core.HTTPRoute) {
 	for _, host := range route.Hostnames {
-		found, ok := f.flattenedRoutesByHostname[host]
+		matches, ok := f.matchesByHostname[host]
 		if !ok {
-			found = []flattenedRoute{}
+			matches = []hostnameMatch{}
 		}
+
 		for _, rule := range route.Rules {
+			// If a rule has no matches defined, add default match
 			if len(rule.Matches) == 0 {
 				rule.Matches = []core.HTTPMatch{{
 					Path: core.HTTPPathMatch{
@@ -281,42 +291,54 @@ func (f *flattenedRouteMap) flatten(route core.HTTPRoute) {
 					},
 				}}
 			}
+
+			// Add all matches for this rule to the list for this hostname
 			for _, match := range rule.Matches {
-				found = append(found, flattenedRoute{
+				matches = append(matches, hostnameMatch{
 					match:    match,
 					filters:  rule.Filters,
 					services: rule.Services,
 				})
 			}
 		}
-		f.flattenedRoutesByHostname[host] = found
+
+		f.matchesByHostname[host] = matches
 	}
 }
 
-func (f *flattenedRouteMap) constructRoutes(gateway core.ResolvedGateway) []core.HTTPRoute {
-	coreRoutes := []core.HTTPRoute{}
-	for hostname, routes := range f.flattenedRoutesByHostname {
-		sort.SliceStable(routes, func(i, j int) bool {
-			return compareHTTPRules(routes[i].match, routes[j].match)
-		})
-		rules := []core.HTTPRouteRule{}
-		for _, match := range routes {
-			rules = append(rules, core.HTTPRouteRule{
-				Matches:  []core.HTTPMatch{match.match},
-				Filters:  match.filters,
-				Services: match.services,
-			})
-		}
-		name := gateway.ID.Service + "-" + hostsKey(hostname)
-		coreRoutes = append(coreRoutes, core.HTTPRoute{
+// consolidate combines all rules into the shortest possible list of routes
+// with one route per hostname containing all rules for that hostname.
+func (f *routeConsolidator) consolidate(gateway core.ResolvedGateway) []core.HTTPRoute {
+	var routes []core.HTTPRoute
+
+	for hostname, rules := range f.matchesByHostname {
+		// Create route for this hostname
+		route := core.HTTPRoute{
 			CommonRoute: core.CommonRoute{
-				Name:      name,
+				Name:      gateway.ID.Service + "-" + hostsKey(hostname),
 				Namespace: gateway.ID.ConsulNamespace,
 				Meta:      gateway.Meta,
 			},
 			Hostnames: []string{hostname},
-			Rules:     rules,
+			Rules:     make([]core.HTTPRouteRule, 0, len(rules)),
+		}
+
+		// Sort rules for this hostname in order of precedence
+		sort.SliceStable(rules, func(i, j int) bool {
+			return compareHTTPRules(rules[i].match, rules[j].match)
 		})
+
+		// Add all rules for this hostname
+		for _, rule := range rules {
+			route.Rules = append(route.Rules, core.HTTPRouteRule{
+				Matches:  []core.HTTPMatch{rule.match},
+				Filters:  rule.filters,
+				Services: rule.services,
+			})
+		}
+
+		routes = append(routes, route)
 	}
-	return coreRoutes
+
+	return routes
 }

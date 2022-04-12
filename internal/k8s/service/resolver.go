@@ -8,15 +8,16 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff"
-	"github.com/hashicorp/consul-api-gateway/internal/common"
-	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
-	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
+
+	"github.com/hashicorp/consul-api-gateway/internal/common"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
+	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 )
 
 //go:generate mockgen -source ./resolver.go -destination ./mocks/resolver.go -package mocks BackendResolver
@@ -30,6 +31,7 @@ const (
 	ConsulServiceResolutionErrorType
 	GenericResolutionErrorType
 	NoResolutionErrorType
+	RefNotPermittedErrorType
 )
 
 type ResolutionError struct {
@@ -49,14 +51,19 @@ func NewConsulResolutionError(inner string) ResolutionError {
 	return ResolutionError{inner, ConsulServiceResolutionErrorType}
 }
 
+func NewRefNotPermittedError(inner string) ResolutionError {
+	return ResolutionError{inner, RefNotPermittedErrorType}
+}
+
 func (r ResolutionError) Error() string {
 	return r.inner
 }
 
 type ResolutionErrors struct {
-	k8sErrors     []ResolutionError
-	consulErrors  []ResolutionError
-	genericErrors []ResolutionError
+	k8sErrors             []ResolutionError
+	consulErrors          []ResolutionError
+	genericErrors         []ResolutionError
+	refNotPermittedErrors []ResolutionError
 }
 
 func NewResolutionErrors() *ResolutionErrors {
@@ -69,6 +76,8 @@ func (r *ResolutionErrors) Add(err ResolutionError) {
 		r.k8sErrors = append(r.k8sErrors, err)
 	case ConsulServiceResolutionErrorType:
 		r.consulErrors = append(r.consulErrors, err)
+	case RefNotPermittedErrorType:
+		r.refNotPermittedErrors = append(r.refNotPermittedErrors, err)
 	default:
 		r.genericErrors = append(r.genericErrors, err)
 	}
@@ -98,6 +107,17 @@ func (r *ResolutionErrors) String() string {
 		errs = append(errs, consulErrs)
 	}
 
+	if len(r.refNotPermittedErrors) > 0 {
+		refNotPermittedErrs := ""
+		for i, err := range r.refNotPermittedErrors {
+			if i != 0 {
+				refNotPermittedErrs += ", "
+			}
+			refNotPermittedErrs += err.Error()
+		}
+		errs = append(errs, refNotPermittedErrs)
+	}
+
 	if len(r.genericErrors) > 0 {
 		genericErrs := ""
 		for i, err := range r.genericErrors {
@@ -117,7 +137,7 @@ func (r *ResolutionErrors) Flatten() (ServiceResolutionErrorType, error) {
 		return NoResolutionErrorType, nil
 	}
 
-	if len(r.genericErrors) != 0 || (len(r.consulErrors) != 0 && len(r.k8sErrors) != 0) {
+	if len(r.genericErrors) != 0 || (len(r.consulErrors) != 0 && len(r.k8sErrors) != 0 && len(r.refNotPermittedErrors) != 0) {
 		return GenericResolutionErrorType, errors.New(r.String())
 	}
 
@@ -125,11 +145,15 @@ func (r *ResolutionErrors) Flatten() (ServiceResolutionErrorType, error) {
 		return ConsulServiceResolutionErrorType, errors.New(r.String())
 	}
 
+	if len(r.refNotPermittedErrors) != 0 {
+		return RefNotPermittedErrorType, errors.New(r.String())
+	}
+
 	return K8sServiceResolutionErrorType, errors.New(r.String())
 }
 
 func (r *ResolutionErrors) Empty() bool {
-	return len(r.k8sErrors) == 0 && len(r.consulErrors) == 0 && len(r.genericErrors) == 0
+	return len(r.k8sErrors) == 0 && len(r.consulErrors) == 0 && len(r.genericErrors) == 0 && len(r.refNotPermittedErrors) == 0
 }
 
 const (

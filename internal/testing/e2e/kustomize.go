@@ -3,7 +3,6 @@ package e2e
 import (
 	"bytes"
 	"context"
-	"errors"
 	"os/exec"
 	"time"
 
@@ -18,7 +17,7 @@ func kubectlKustomizeCRDs(ctx context.Context, url string) ([]client.Object, err
 	cmd.Stderr = &stderr
 	cmd.Stdout = &stdout
 	if err := cmd.Run(); err != nil {
-		return nil, errors.New(stderr.String())
+		return nil, err
 	}
 
 	return readCRDs(stdout.Bytes())

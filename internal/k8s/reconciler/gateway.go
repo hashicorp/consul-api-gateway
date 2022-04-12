@@ -80,14 +80,6 @@ func NewK8sGateway(gateway *gw.Gateway, config K8sGatewayConfig) *K8sGateway {
 	}
 }
 
-func (g *K8sGateway) certificates() []string {
-	certificates := []string{}
-	for _, listener := range g.listeners {
-		certificates = append(certificates, listener.Config().TLS.Certificates...)
-	}
-	return certificates
-}
-
 func (g *K8sGateway) Validate(ctx context.Context) error {
 	g.status = GatewayStatus{}
 	g.validateListenerConflicts()

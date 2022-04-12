@@ -206,6 +206,11 @@ func TestRouteResolvedRefsStatus(t *testing.T) {
 	require.Equal(t, "expected", status.Condition(0).Message)
 	require.Equal(t, RouteConditionReasonConsulServiceNotFound, status.Condition(0).Reason)
 	require.True(t, status.HasError())
+
+	status = RouteResolvedRefsStatus{RefNotPermitted: expected}
+	require.Equal(t, "expected", status.Condition(0).Message)
+	require.Equal(t, RouteConditionReasonRefNotPermitted, status.Condition(0).Reason)
+	require.True(t, status.HasError())
 }
 
 func TestRouteStatus(t *testing.T) {

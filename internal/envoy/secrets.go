@@ -174,7 +174,7 @@ func (s *secretManager) SetResourcesForNode(ctx context.Context, names []string,
 	if err := s.watch(ctx, watch, node); err != nil {
 		return err
 	}
-	return s.unwatch(ctx, unwatch, node)
+	return s.unwatch(unwatch, node)
 }
 
 // Watch is used for tracking an envoy node's TLS secrets of interest
@@ -221,7 +221,7 @@ func (s *secretManager) watch(ctx context.Context, names []string, node string) 
 		s.registry[name] = watchedCert
 	}
 	// push all newly fetched certificates into the underlying cache
-	err := s.updateCertificates(ctx, certificates)
+	err := s.updateCertificates(certificates)
 	if err != nil {
 		return err
 	}
@@ -229,7 +229,7 @@ func (s *secretManager) watch(ctx context.Context, names []string, node string) 
 }
 
 // UnwatchAll is used to completely unwatch all a node's secrets
-func (s *secretManager) UnwatchAll(ctx context.Context, node string) error {
+func (s *secretManager) UnwatchAll(_ context.Context, node string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	if watcher, ok := s.watchers[node]; ok {
@@ -250,22 +250,22 @@ func (s *secretManager) UnwatchAll(ctx context.Context, node string) error {
 		// purge the node from our tracker
 		delete(s.watchers, node)
 		// purge GC'd certificates from the cache
-		return s.removeCertificates(ctx, certificates)
+		return s.removeCertificates(certificates)
 	}
 	return nil
 }
 
 // Unwatch is used for removing a subset of an envoy node's TLS secrets
 // from the list the node's secrets of interest
-func (s *secretManager) Unwatch(ctx context.Context, names []string, node string) error {
+func (s *secretManager) Unwatch(_ context.Context, names []string, node string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	return s.unwatch(ctx, names, node)
+	return s.unwatch(names, node)
 }
 
 // this must be called with the mutex lock held
-func (s *secretManager) unwatch(ctx context.Context, names []string, node string) error {
+func (s *secretManager) unwatch(names []string, node string) error {
 	if watcher, ok := s.watchers[node]; ok {
 		certificates := []string{}
 		// remove the node from of requested reference lists
@@ -290,7 +290,7 @@ func (s *secretManager) unwatch(ctx context.Context, names []string, node string
 			delete(s.watchers, node)
 		}
 		// purge GC'd certificates from the cache
-		return s.removeCertificates(ctx, certificates)
+		return s.removeCertificates(certificates)
 	}
 	return nil
 }
@@ -325,7 +325,7 @@ func (s *secretManager) manage(ctx context.Context) {
 				s.logger.Error("error fetching secret", "error", err, "secret", secretName)
 				continue
 			}
-			err = s.updateCertificate(ctx, certificate)
+			err = s.updateCertificate(certificate)
 			if err != nil {
 				s.logger.Error("error updating secret", "error", err, "secret", secretName)
 				continue
@@ -338,20 +338,20 @@ func (s *secretManager) manage(ctx context.Context) {
 	}
 }
 
-func (s *secretManager) updateCertificate(ctx context.Context, c *tls.Secret) error {
+func (s *secretManager) updateCertificate(c *tls.Secret) error {
 	return s.cache.UpdateResource(c.Name, c)
 }
 
-func (s *secretManager) updateCertificates(ctx context.Context, certs []*tls.Secret) error {
+func (s *secretManager) updateCertificates(certs []*tls.Secret) error {
 	for _, cert := range certs {
-		if err := s.updateCertificate(ctx, cert); err != nil {
+		if err := s.updateCertificate(cert); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (s *secretManager) removeCertificates(ctx context.Context, names []string) error {
+func (s *secretManager) removeCertificates(names []string) error {
 	if len(names) == 0 {
 		return nil
 	}

@@ -16,10 +16,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 	gateway "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
+	"github.com/hashicorp/go-hclog"
+
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
-	"github.com/hashicorp/go-hclog"
 )
 
 // var ErrPodNotCreated = errors.New("pod not yet created for gateway")
@@ -33,6 +34,8 @@ type GatewayReconciler struct {
 }
 
 //+kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=referencepolicies,verbs=get;list;watch
+
 //+kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways/finalizers,verbs=update
 //+kubebuilder:rbac:groups=core,resources=namespaces,verbs=get;list;watch

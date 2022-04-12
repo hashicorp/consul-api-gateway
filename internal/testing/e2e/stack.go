@@ -3,6 +3,7 @@ package e2e
 import (
 	"context"
 	"os"
+	"path/filepath"
 
 	"sigs.k8s.io/e2e-framework/pkg/env"
 	"sigs.k8s.io/e2e-framework/pkg/envconf"
@@ -30,10 +31,10 @@ func SetUpStack(hostRoute string) env.Func {
 			LoadKindDockerImage(kindClusterName),
 			envfuncs.CreateNamespace(namespace),
 			InstallGatewayCRDs,
-			CreateServiceAccount(namespace),
+			CreateServiceAccount(namespace, "consul-api-gateway", getBasePath()+"/config/rbac/role.yaml"),
 			CreateTestConsulContainer(kindClusterName, namespace),
 			CreateConsulACLPolicy,
-			CreateConsulAuthMethod(namespace),
+			CreateConsulAuthMethod(),
 			CreateConsulNamespace,
 			InstallConsulAPIGatewayCRDs,
 			CreateTestGatewayServer(namespace),
@@ -81,4 +82,9 @@ func getEnvDefault(envvar, defaultVal string) string {
 		return val
 	}
 	return defaultVal
+}
+
+func getBasePath() string {
+	path, _ := filepath.Abs("../../.././")
+	return path
 }

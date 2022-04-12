@@ -602,6 +602,13 @@ type RouteResolvedRefsStatus struct {
 	//
 	// [custom]
 	ConsulServiceNotFound error
+	// This reason is used with the “ResolvedRefs” condition when one of the
+	// Listener’s Routes has a BackendRef to an object in another namespace, where
+	// the object in the other namespace does not have a ReferencePolicy explicitly
+	// allowing the reference.
+	//
+	// [spec]
+	RefNotPermitted error
 }
 
 const (
@@ -631,6 +638,13 @@ const (
 	//
 	// [custom]
 	RouteConditionReasonConsulServiceNotFound = "ConsulServiceNotFound"
+	// RouteConditionReasonRefNotPermitted - This reason is used with the
+	// “ResolvedRefs” condition when one of the Listener’s Routes has a
+	// BackendRef to an object in another namespace, where the object in the other
+	// namespace does not have a ReferencePolicy explicitly allowing the reference.
+	//
+	// [spec]
+	RouteConditionReasonRefNotPermitted = "RefNotPermitted"
 )
 
 // Condition returns the status condition of the RouteResolvedRefsStatus based
@@ -669,6 +683,17 @@ func (s RouteResolvedRefsStatus) Condition(generation int64) meta.Condition {
 		}
 	}
 
+	if s.RefNotPermitted != nil {
+		return meta.Condition{
+			Type:               RouteConditionResolvedRefs,
+			Status:             meta.ConditionFalse,
+			Reason:             RouteConditionReasonRefNotPermitted,
+			Message:            s.RefNotPermitted.Error(),
+			ObservedGeneration: generation,
+			LastTransitionTime: meta.Now(),
+		}
+	}
+
 	return meta.Condition{
 		Type:               RouteConditionResolvedRefs,
 		Status:             meta.ConditionTrue,
@@ -681,7 +706,7 @@ func (s RouteResolvedRefsStatus) Condition(generation int64) meta.Condition {
 
 // HasError returns whether any of the RouteResolvedRefsStatus errors are set.
 func (s RouteResolvedRefsStatus) HasError() bool {
-	return s.Errors != nil || s.ServiceNotFound != nil || s.ConsulServiceNotFound != nil
+	return s.Errors != nil || s.ServiceNotFound != nil || s.ConsulServiceNotFound != nil || s.RefNotPermitted != nil
 }
 
 // RouteStatus - The status associated with a Route with respect to a given
