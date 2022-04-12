@@ -205,6 +205,8 @@ func (r *K8sRoute) OnBindFailed(err error, gateway store.Gateway) {
 				status.ResolvedRefs.ConsulServiceNotFound = err
 			case service.K8sServiceResolutionErrorType:
 				status.ResolvedRefs.ServiceNotFound = err
+			case service.RefNotPermittedErrorType:
+				status.ResolvedRefs.RefNotPermitted = err
 			}
 
 			r.parentStatuses[id] = status
@@ -371,8 +373,10 @@ func (r *K8sRoute) Validate(ctx context.Context) error {
 				if err != nil {
 					return err
 				} else if !allowed {
-					// FUTURE Set appropriate status and early out
-					r.logger.Warn("Cross-namespace routing not allowed, will enforce in future", "refName", ref.Name, "refNamespace", ref.Namespace)
+					msg := fmt.Sprintf("Cross-namespace routing not allowed without matching ReferencePolicy for Service %q", getServiceID(ref.Name, ref.Namespace, route.GetNamespace()))
+					r.logger.Warn("Cross-namespace routing not allowed without matching ReferencePolicy", "refName", ref.Name, "refNamespace", ref.Namespace)
+					r.resolutionErrors.Add(service.NewRefNotPermittedError(msg))
+					continue
 				}
 
 				reference, err := r.resolver.Resolve(ctx, ref.BackendObjectReference)
@@ -411,8 +415,10 @@ func (r *K8sRoute) Validate(ctx context.Context) error {
 		if err != nil {
 			return err
 		} else if !allowed {
-			// FUTURE Set appropriate status and early out
-			r.logger.Warn("Cross-namespace routing not allowed, will enforce in future", "refName", ref.Name, "refNamespace", ref.Namespace)
+			msg := fmt.Sprintf("Cross-namespace routing not allowed without matching ReferencePolicy for Service %q", getServiceID(ref.Name, ref.Namespace, route.GetNamespace()))
+			r.logger.Warn("Cross-namespace routing not allowed without matching ReferencePolicy", "refName", ref.Name, "refNamespace", ref.Namespace)
+			r.resolutionErrors.Add(service.NewRefNotPermittedError(msg))
+			return nil
 		}
 
 		reference, err := r.resolver.Resolve(ctx, ref.BackendObjectReference)

@@ -149,6 +149,14 @@
           description: >
             This reason is used when a Route references services that the controller
             cannot resolve as services inside of Consul.
+        - name: RefNotPermitted
+          description: >
+            This reason is used with the “ResolvedRefs” condition when one of the Listener’s Routes has a BackendRef
+            to an object in another namespace, where the object in the other namespace does not have a ReferencePolicy
+            explicitly allowing the reference.
+
+
+
 - kind: Listener
   description: >
     The status associated with a Listener.
@@ -196,7 +204,7 @@
         name: Attached
         description: >
           This reason is used with the “Detached” condition when the condition is False.
-      errors: 
+      errors:
         - name: PortUnavailable
           description: >
             This reason is used with the “Detached” condition when the Listener requests
@@ -230,7 +238,7 @@
       base:
         description: >
           This reason is used with the “Ready” condition when the condition is true.
-      errors: 
+      errors:
         - name: Invalid
           description: >
             This reason is used with the “Ready” condition when the Listener is syntactically or semantically invalid.
@@ -245,7 +253,7 @@
         description: >
           This reason is used with the “ResolvedRefs” condition when the condition is true.
       required: true
-      errors: 
+      errors:
         - name: InvalidCertificateRef
           description: >
             This reason is used with the “ResolvedRefs” condition when the Listener has a TLS configuration with at least

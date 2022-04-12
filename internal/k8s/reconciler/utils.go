@@ -326,3 +326,11 @@ func gatewayStatusEqual(a, b gw.GatewayStatus) bool {
 
 	return true
 }
+
+func getServiceID(name gw.ObjectName, namespace *gw.Namespace, parentNamespace string) string {
+	serviceID := fmt.Sprintf("%s/%s", name, parentNamespace)
+	if namespace != nil {
+		serviceID = fmt.Sprintf("%s/%s", name, *namespace)
+	}
+	return serviceID
+}

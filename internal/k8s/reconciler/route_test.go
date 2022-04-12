@@ -266,6 +266,20 @@ func TestRouteMergedStatusAndBinding(t *testing.T) {
 	require.Equal(t, "expected", statuses[0].Conditions[0].Message)
 	require.Equal(t, RouteConditionReasonBindError, statuses[0].Conditions[0].Reason)
 
+	// check route ref
+	route = NewK8sRoute(inner, K8sRouteConfig{
+		ControllerName: "expected",
+		Logger:         hclog.NewNullLogger(),
+	})
+	route.resolutionErrors.Add(service.NewRefNotPermittedError("not found"))
+	route.OnBindFailed(nil, gateway)
+	statuses = route.MergedStatus().Parents
+	require.Len(t, statuses, 3)
+	require.Equal(t, "expected", string(statuses[0].ParentRef.Name))
+	require.Equal(t, "expected", string(statuses[0].ControllerName))
+	require.Equal(t, "not found", statuses[0].Conditions[1].Message)
+	require.Equal(t, RouteConditionReasonRefNotPermitted, statuses[0].Conditions[1].Reason)
+
 	// check binding for non-existent route
 	gateway = NewK8sGateway(&gw.Gateway{
 		ObjectMeta: meta.ObjectMeta{
@@ -530,11 +544,6 @@ func TestRouteValidateDontAllowCrossNamespace(t *testing.T) {
 				},
 			},
 		}, nil)
-
-	// FUTURE Remove once status is set and ReferencePolicy requirement is enforced
-	resolver.EXPECT().
-		Resolve(gomock.Any(), gomock.Any()).
-		Return(&service.ResolvedReference{Type: service.ConsulServiceReference, Reference: &service.BackendReference{}}, nil)
 
 	// FUTURE Assert appropriate status set on route and !route.IsValid() once ReferencePolicy requirement is enforced
 	_ = route.Validate(context.Background())
