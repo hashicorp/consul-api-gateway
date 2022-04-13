@@ -109,12 +109,13 @@ jobs:
         working-directory: "gateway-api/conformance"
         run: go test -v -timeout 10m ./ --gateway-class consul-api-gateway
 
-      # TODO Waiting for webhook approval
-      # - name: Report Status
-      #   if: always()
-      #   uses: ravsamhq/notify-slack-action@v1
-      #   with:
-      #     status: ${{ job.status }}
-      #     notify_when: 'failure'
-      #   env:
-      #     SLACK_WEBHOOK_URL: ${{ secrets.ACTION_MONITORING_SLACK }}
+      - name: Report Status
+        if: always() && github.ref == 'refs/heads/main'
+        uses: ravsamhq/notify-slack-action@v1
+        with:
+          status: ${{ job.status }}
+          mention_groups: '!here'
+          mention_groups_when: 'failure,warnings'
+
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.ACTION_MONITORING_SLACK }}
