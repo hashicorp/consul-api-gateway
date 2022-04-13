@@ -144,7 +144,7 @@ const (
 	{{- range $index, $value := $error.Types }}
 	{{ $error.Name }}ErrorType{{ $value }}{{ if (eq $index 0) }} {{ $error.Name }}ErrorType = iota{{end}}{{end}}
 )
-	
+
 type {{ $error.Name }}Error struct {
 	inner string
 	errorType {{ $error.Name }}ErrorType
@@ -155,14 +155,14 @@ func New{{ $error.Name }}Error{{ $value }}(inner string) {{$error.Name}}Error {
 	return {{ $error.Name }}Error{inner, {{ $error.Name }}ErrorType{{ $value }}}
 }
 {{end}}
-	
+
 func (r {{ $error.Name }}Error) Error() string {
 	return r.inner
 }
-	
+
 func (r {{ $error.Name }}Error) Kind() {{ $error.Name }}ErrorType {
 	return r.errorType
-}	
+}
 {{end}}
 `
 	errorTestsTemplate = `package reconciler
@@ -231,7 +231,7 @@ func Test{{ $status.Kind }}Status(t *testing.T) {
 
 	{{ range $index, $conditionType := $status.Types }}
 	conditionType = {{ $status.Kind }}Condition{{ $conditionType.Name }}
-	reason = {{ $status.Kind }}ConditionReason{{ $conditionType.Base.Name }} 
+	reason = {{ $status.Kind }}ConditionReason{{ $conditionType.Base.Name }}
 	require.Equal(t, conditionType, conditions[{{ $index }}].Type)
 	require.Equal(t, reason, conditions[{{ $index }}].Reason)
 	{{end}}
