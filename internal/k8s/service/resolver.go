@@ -34,6 +34,11 @@ const (
 	RefNotPermittedErrorType
 )
 
+var errorTypePrefixMap = map[ServiceResolutionErrorType]string{
+	K8sServiceResolutionErrorType:    "k8s: ",
+	ConsulServiceResolutionErrorType: "consul: ",
+}
+
 type ResolutionError struct {
 	inner  string
 	remote ServiceResolutionErrorType
@@ -55,80 +60,41 @@ func NewRefNotPermittedError(inner string) ResolutionError {
 	return ResolutionError{inner, RefNotPermittedErrorType}
 }
 
+func getErrorTypePrefix(errType ServiceResolutionErrorType) string {
+	return errorTypePrefixMap[errType]
+}
+
 func (r ResolutionError) Error() string {
 	return r.inner
 }
 
 type ResolutionErrors struct {
-	k8sErrors             []ResolutionError
-	consulErrors          []ResolutionError
-	genericErrors         []ResolutionError
-	refNotPermittedErrors []ResolutionError
+	errors map[ServiceResolutionErrorType][]ResolutionError
 }
 
 func NewResolutionErrors() *ResolutionErrors {
-	return &ResolutionErrors{}
+	return &ResolutionErrors{errors: make(map[ServiceResolutionErrorType][]ResolutionError)}
 }
 
 func (r *ResolutionErrors) Add(err ResolutionError) {
-	switch err.remote {
-	case K8sServiceResolutionErrorType:
-		r.k8sErrors = append(r.k8sErrors, err)
-	case ConsulServiceResolutionErrorType:
-		r.consulErrors = append(r.consulErrors, err)
-	case RefNotPermittedErrorType:
-		r.refNotPermittedErrors = append(r.refNotPermittedErrors, err)
-	default:
-		r.genericErrors = append(r.genericErrors, err)
-	}
+	r.errors[err.remote] = append(r.errors[err.remote], err)
 }
 
 func (r *ResolutionErrors) String() string {
 	errs := []string{}
-	if len(r.k8sErrors) > 0 {
-		k8sErrs := "k8s: "
-		for i, err := range r.k8sErrors {
-			if i != 0 {
-				k8sErrs += ", "
-			}
-			k8sErrs += err.Error()
-		}
-		errs = append(errs, k8sErrs)
-	}
 
-	if len(r.consulErrors) > 0 {
-		consulErrs := "consul: "
-		for i, err := range r.consulErrors {
-			if i != 0 {
-				consulErrs += ", "
+	for errType, errors := range r.errors {
+		if len(errors) > 0 {
+			errorString := getErrorTypePrefix(errType)
+			for i, err := range errors {
+				if i != 0 {
+					errorString += ", "
+				}
+				errorString += err.Error()
 			}
-			consulErrs += err.Error()
+			errs = append(errs, errorString)
 		}
-		errs = append(errs, consulErrs)
 	}
-
-	if len(r.refNotPermittedErrors) > 0 {
-		refNotPermittedErrs := ""
-		for i, err := range r.refNotPermittedErrors {
-			if i != 0 {
-				refNotPermittedErrs += ", "
-			}
-			refNotPermittedErrs += err.Error()
-		}
-		errs = append(errs, refNotPermittedErrs)
-	}
-
-	if len(r.genericErrors) > 0 {
-		genericErrs := ""
-		for i, err := range r.genericErrors {
-			if i != 0 {
-				genericErrs += ", "
-			}
-			genericErrs += err.Error()
-		}
-		errs = append(errs, genericErrs)
-	}
-
 	return strings.Join(errs, "; ")
 }
 
@@ -137,23 +103,22 @@ func (r *ResolutionErrors) Flatten() (ServiceResolutionErrorType, error) {
 		return NoResolutionErrorType, nil
 	}
 
-	if len(r.genericErrors) != 0 || (len(r.consulErrors) != 0 && len(r.k8sErrors) != 0 && len(r.refNotPermittedErrors) != 0) {
+	//return generic error if there are multiple errors types, or if generic errors exist
+	if len(r.errors[GenericResolutionErrorType]) != 0 || (len(r.errors) > 1) {
 		return GenericResolutionErrorType, errors.New(r.String())
 	}
 
-	if len(r.consulErrors) != 0 {
-		return ConsulServiceResolutionErrorType, errors.New(r.String())
+	// we only have at most one error type at this point, so return the error type of the first set of errors we find
+	for errType := range r.errors {
+		return errType, errors.New(r.String())
 	}
 
-	if len(r.refNotPermittedErrors) != 0 {
-		return RefNotPermittedErrorType, errors.New(r.String())
-	}
-
-	return K8sServiceResolutionErrorType, errors.New(r.String())
+	//shouldn't be possible to get here
+	return GenericResolutionErrorType, errors.New(r.String())
 }
 
 func (r *ResolutionErrors) Empty() bool {
-	return len(r.k8sErrors) == 0 && len(r.consulErrors) == 0 && len(r.genericErrors) == 0 && len(r.refNotPermittedErrors) == 0
+	return len(r.errors) == 0
 }
 
 const (
