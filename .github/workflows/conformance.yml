@@ -102,11 +102,6 @@ jobs:
           helm install --values ./consul-config.yaml consul $GITHUB_WORKSPACE/consul-k8s/charts/consul --create-namespace --namespace=consul
           kubectl wait --for=condition=Ready --timeout=120s --namespace=consul pods --all
 
-      - name: Setup tmate session
-        uses: mxschmitt/action-tmate@v3
-        if: github.event_name == 'workflow_dispatch' && github.event.inputs.debug_enabled == 'true'
-        timeout-minutes: 10
-
       - name: Patch testing resources
         working-directory: "consul-api-gateway/internal/testing/conformance"
         run: |
@@ -117,6 +112,11 @@ jobs:
       - name: Run tests
         working-directory: "gateway-api/conformance"
         run: go test -v -timeout 10m ./ --gateway-class consul-api-gateway
+
+      - name: Setup tmate session
+        uses: mxschmitt/action-tmate@v3
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.debug_enabled == 'true'
+        timeout-minutes: 10
 
       - name: Report Status
         if: always() && github.ref == 'refs/heads/main'
