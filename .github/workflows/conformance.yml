@@ -11,7 +11,11 @@ on:
     - cron:  '0 0 * * *'
 
   workflow_dispatch:
-
+    inputs:
+      debug_enabled:
+        description: 'Start tmate session if any step fails'
+        required: false
+        default: 'false'  # GitHub parses any value to string, no support for boolean
 
 env:
   GO_VERSION: "1.17"
@@ -97,6 +101,11 @@ jobs:
         run: |
           helm install --values ./consul-config.yaml consul $GITHUB_WORKSPACE/consul-k8s/charts/consul --create-namespace --namespace=consul
           kubectl wait --for=condition=Ready --timeout=120s --namespace=consul pods --all
+
+      - name: Setup tmate session
+        uses: mxschmitt/action-tmate@v3
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.debug_enabled == 'true'
+        timeout-minutes: 10
 
       - name: Patch testing resources
         working-directory: "consul-api-gateway/internal/testing/conformance"
