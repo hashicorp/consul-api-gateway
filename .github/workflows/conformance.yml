@@ -17,6 +17,11 @@ on:
         required: false
         type: boolean
         default: false  # GitHub parses this value to string, see https://github.com/actions/runner/issues/1483
+      debug_timeout_minutes:
+        description: 'How many minutes should the tmate session close itself after?'
+        required: false
+        type: string  # No support for numeric value
+        default: '10'
 
 env:
   GO_VERSION: "1.17"
@@ -117,7 +122,7 @@ jobs:
       - name: Setup tmate session
         uses: mxschmitt/action-tmate@v3
         if: failure() && github.event_name == 'workflow_dispatch' && github.event.inputs.debug_enabled == 'true'
-        timeout-minutes: 10
+        timeout-minutes: ${{ fromJSON(github.event.inputs.debug_timeout_minutes) }}
 
       - name: Report Status
         if: always() && github.ref == 'refs/heads/main'
