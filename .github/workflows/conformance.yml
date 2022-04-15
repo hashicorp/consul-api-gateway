@@ -15,7 +15,7 @@ on:
       debug_enabled:
         description: 'Start tmate session if any step fails'
         required: false
-        default: 'false'  # GitHub parses any value to string, no support for boolean
+        default: 'false'  # GitHub parses any value to string, see https://github.com/actions/runner/issues/1483
 
 env:
   GO_VERSION: "1.17"
