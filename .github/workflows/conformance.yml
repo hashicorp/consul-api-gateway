@@ -65,7 +65,7 @@ jobs:
           kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.12.1/manifests/namespace.yaml
           kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.12.1/manifests/metallb.yaml
           kubectl apply -f ./consul-api-gateway/internal/testing/conformance/metallb-config.yaml
-          kubectl wait --for=condition=Ready --timeout=120s --namespace=metallb-system pods --all
+          kubectl wait --for=condition=Ready --timeout=60s --namespace=metallb-system pods --all
 
       - name: Build binary
         env:
@@ -100,7 +100,7 @@ jobs:
         working-directory: "consul-api-gateway/internal/testing/conformance"
         run: |
           helm install --values ./consul-config.yaml consul $GITHUB_WORKSPACE/consul-k8s/charts/consul --create-namespace --namespace=consul
-          kubectl wait --for=condition=Ready --timeout=120s --namespace=consul pods --all
+          kubectl wait --for=condition=Ready --timeout=60s --namespace=consul pods --all
 
       - name: Patch testing resources
         working-directory: "consul-api-gateway/internal/testing/conformance"
