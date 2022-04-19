@@ -52,7 +52,7 @@ jobs:
         uses: actions/checkout@v2
         with:
           repository: "hashicorp/gateway-api"
-          ref: "60s-time-to-consistency"
+          ref: "conformance/reference-policy-secrets"
           path: "gateway-api"
 
       - name: Setup Goenv
@@ -114,6 +114,10 @@ jobs:
           cp kustomization.yaml proxydefaults.yaml $GITHUB_WORKSPACE/gateway-api/conformance/
           cd $GITHUB_WORKSPACE/gateway-api/conformance/
           kubectl kustomize ./ --output ./base/manifests.yaml
+
+      - name: Setup tmate session
+        uses: mxschmitt/action-tmate@v3
+        timeout-minutes: 15
 
       - name: Run tests
         working-directory: "gateway-api/conformance"
