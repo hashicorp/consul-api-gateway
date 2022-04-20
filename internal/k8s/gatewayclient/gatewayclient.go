@@ -33,6 +33,7 @@ type Client interface {
 	GetSecret(ctx context.Context, key types.NamespacedName) (*core.Secret, error)
 	GetService(ctx context.Context, key types.NamespacedName) (*core.Service, error)
 	GetHTTPRoute(ctx context.Context, key types.NamespacedName) (*gateway.HTTPRoute, error)
+	GetHTTPRoutes(ctx context.Context) (gateway.HTTPRouteList, error)
 	GetTCPRoute(ctx context.Context, key types.NamespacedName) (*gateway.TCPRoute, error)
 	GetMeshService(ctx context.Context, key types.NamespacedName) (*apigwv1alpha1.MeshService, error)
 	GetNamespace(ctx context.Context, key types.NamespacedName) (*core.Namespace, error)
@@ -248,6 +249,17 @@ func (g *gatewayClient) GetHTTPRoute(ctx context.Context, key types.NamespacedNa
 		return nil, NewK8sError(err)
 	}
 	return route, nil
+}
+
+func (g *gatewayClient) GetHTTPRoutes(ctx context.Context) (gateway.HTTPRouteList, error) {
+	routes := &gateway.HTTPRouteList{}
+	if err := g.Client.List(ctx, routes); err != nil {
+		if k8serrors.IsNotFound(err) {
+			return gateway.HTTPRouteList{}, nil
+		}
+		return gateway.HTTPRouteList{}, NewK8sError(err)
+	}
+	return *routes, nil
 }
 
 func (g *gatewayClient) GetTCPRoute(ctx context.Context, key types.NamespacedName) (*gateway.TCPRoute, error) {
