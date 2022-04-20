@@ -162,12 +162,10 @@ func (r *HTTPRouteReconciler) getRoutesAffectedByReferencePolicy(refPolicy gatew
 	// but are no longer permitted. It may be possible to improve performance
 	// here by filtering on the prior and current state of the ReferencePolicy
 	// From and To fields, but currently we just revalidate all routes
-	routeList, err := r.Client.GetHTTPRoutes(context.TODO())
+	routes, err := r.Client.GetHTTPRoutes(context.TODO())
 	if err != nil {
 		return matches
 	}
-
-	routes := routeList.Items
 
 	// Need to match the union of this selction for both current and prior state
 	// in case a ReferencePolicy has been modified to revoke permission from a
