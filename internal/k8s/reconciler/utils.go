@@ -389,10 +389,11 @@ func gatewayStatusEqual(a, b gw.GatewayStatus) bool {
 	return true
 }
 
-func getServiceID(name gw.ObjectName, namespace *gw.Namespace, parentNamespace string) string {
-	serviceID := fmt.Sprintf("%s/%s", name, parentNamespace)
+// getNamespacedName returns types.NamespacedName defaulted to a parent
+// namespace in the case where the provided namespace is nil.
+func getNamespacedName(name gw.ObjectName, namespace *gw.Namespace, parentNamespace string) types.NamespacedName {
 	if namespace != nil {
-		serviceID = fmt.Sprintf("%s/%s", name, *namespace)
+		return types.NamespacedName{Namespace: string(*namespace), Name: string(name)}
 	}
-	return serviceID
+	return types.NamespacedName{Namespace: parentNamespace, Name: string(name)}
 }

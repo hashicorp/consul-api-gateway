@@ -126,10 +126,10 @@ func (l *K8sListener) validateTLS(ctx context.Context) error {
 	if err != nil {
 		return err
 	} else if !allowed {
-		// TODO Generalize getServiceID to work for logging any namespaced type with an optional+inherited namespace
-		l.logger.Warn("Cross-namespace listener certificate not allowed without matching ReferencePolicy", "refName", ref.Name, "refNamespace", ref.Namespace)
+		nsName := getNamespacedName(ref.Name, ref.Namespace, l.gateway.Namespace)
+		l.logger.Warn("Cross-namespace listener certificate not allowed without matching ReferencePolicy", "refName", nsName.Name, "refNamespace", nsName.Namespace)
 		l.status.ResolvedRefs.InvalidCertificateRef = NewCertificateResolutionErrorNotPermitted(
-			fmt.Sprintf("Cross-namespace listener certificate not allowed without matching ReferencePolicy for Secret %s/%s", ref.Name, ref.Name))
+			fmt.Sprintf("Cross-namespace listener certificate not allowed without matching ReferencePolicy for Secret %q", nsName))
 		return nil
 	}
 
