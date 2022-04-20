@@ -156,7 +156,69 @@ func TestListenerValidate(t *testing.T) {
 		require.Equal(t, ListenerConditionReasonInvalidCertificateRef, condition.Reason)
 	})
 
-	t.Run("Happy path", func(t *testing.T) {
+	t.Run("Invalid cross-namespace secret ref with no ReferencePolicy", func(t *testing.T) {
+		otherNamespace := gw.Namespace("other-namespace")
+		listener := NewK8sListener(&gw.Gateway{}, gw.Listener{
+			Protocol: gw.HTTPSProtocolType,
+			TLS: &gw.GatewayTLSConfig{
+				CertificateRefs: []*gw.SecretObjectReference{{
+					Namespace: &otherNamespace,
+					Name:      "secret",
+				}},
+			},
+		}, K8sListenerConfig{
+			Logger: hclog.NewNullLogger(),
+			Client: client,
+		})
+		client.EXPECT().GetReferencePoliciesInNamespace(gomock.Any(), string(otherNamespace)).Return([]gw.ReferencePolicy{}, nil)
+		require.NoError(t, listener.Validate(context.Background()))
+		condition := listener.status.ResolvedRefs.Condition(0)
+		assert.Equal(t, ListenerConditionReasonInvalidCertificateRef, condition.Reason)
+	})
+
+	t.Run("Valid cross-namespace secret ref with ReferencePolicy", func(t *testing.T) {
+		gatewayNamespace := gw.Namespace("gateway-namespace")
+		secretNamespace := gw.Namespace("secret-namespace")
+		listener := NewK8sListener(
+			&gw.Gateway{
+				ObjectMeta: meta.ObjectMeta{Namespace: string(gatewayNamespace)},
+				TypeMeta:   meta.TypeMeta{APIVersion: "gateway.networking.k8s.io/v1alpha2", Kind: "Gateway"}},
+			gw.Listener{
+				Protocol: gw.HTTPSProtocolType,
+				TLS: &gw.GatewayTLSConfig{
+					CertificateRefs: []*gw.SecretObjectReference{{
+						Namespace: &secretNamespace,
+						Name:      "secret",
+					}},
+				},
+			}, K8sListenerConfig{
+				Logger: hclog.NewNullLogger(),
+				Client: client,
+			})
+		client.EXPECT().GetReferencePoliciesInNamespace(gomock.Any(), string(secretNamespace)).
+			Return([]gw.ReferencePolicy{{
+				Spec: gw.ReferencePolicySpec{
+					From: []gw.ReferencePolicyFrom{{
+						Group:     "gateway.networking.k8s.io",
+						Kind:      "Gateway",
+						Namespace: gatewayNamespace,
+					}},
+					To: []gw.ReferencePolicyTo{{
+						Kind: "Secret",
+					}},
+				},
+			}}, nil)
+		client.EXPECT().GetSecret(gomock.Any(), gomock.Any()).Return(&k8s.Secret{
+			ObjectMeta: meta.ObjectMeta{
+				Name: "secret",
+			},
+		}, nil)
+		require.NoError(t, listener.Validate(context.Background()))
+		condition := listener.status.ResolvedRefs.Condition(0)
+		assert.Equal(t, meta.ConditionTrue, condition.Status)
+	})
+
+	t.Run("Valid same-namespace secret ref", func(t *testing.T) {
 		listener := NewK8sListener(&gw.Gateway{}, gw.Listener{
 			Protocol: gw.HTTPSProtocolType,
 			TLS: &gw.GatewayTLSConfig{
