@@ -100,6 +100,21 @@ func TestGetHTTPRoute(t *testing.T) {
 	require.NotNil(t, route)
 }
 
+func TestGetHTTPRoutes(t *testing.T) {
+	t.Parallel()
+
+	gatewayclient := newTestClient(nil, &gateway.HTTPRoute{
+		ObjectMeta: meta.ObjectMeta{
+			Name:      "httproute",
+			Namespace: "namespace",
+		},
+	})
+
+	routes, err := gatewayclient.GetHTTPRoutes(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, len(routes), 1)
+}
+
 func TestGetGatewayClass(t *testing.T) {
 	t.Parallel()
 
