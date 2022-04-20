@@ -11,12 +11,13 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
+	"github.com/hashicorp/go-hclog"
+
 	"github.com/hashicorp/consul-api-gateway/internal/common"
 	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	"github.com/hashicorp/consul-api-gateway/internal/store"
-	"github.com/hashicorp/go-hclog"
 )
 
 var (
@@ -120,6 +121,18 @@ func (l *K8sListener) validateTLS(ctx context.Context) error {
 
 	// we only support a single certificate for now
 	ref := *l.listener.TLS.CertificateRefs[0]
+
+	allowed, err := gatewayAllowedForSecretRef(ctx, l.gateway, ref, l.client)
+	if err != nil {
+		return err
+	} else if !allowed {
+		// TODO Generalize getServiceID to work for logging any namespaced type with an optional+inherited namespace
+		l.logger.Warn("Cross-namespace listener certificate not allowed without matching ReferencePolicy", "refName", ref.Name, "refNamespace", ref.Namespace)
+		l.status.ResolvedRefs.InvalidCertificateRef = NewCertificateResolutionErrorNotPermitted(
+			fmt.Sprintf("Cross-namespace listener certificate not allowed without matching ReferencePolicy for Secret %s/%s", ref.Name, ref.Name))
+		return nil
+	}
+
 	resource, err := l.resolveCertificateReference(ctx, ref)
 	if err != nil {
 		var certificateErr CertificateResolutionError
@@ -127,6 +140,7 @@ func (l *K8sListener) validateTLS(ctx context.Context) error {
 			return err
 		}
 		l.status.ResolvedRefs.InvalidCertificateRef = certificateErr
+		return nil
 	} else {
 		l.tls.Certificates = []string{resource}
 	}

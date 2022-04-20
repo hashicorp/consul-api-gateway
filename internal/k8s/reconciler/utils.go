@@ -120,6 +120,70 @@ func routeAllowedForListenerNamespaces(ctx context.Context, gatewayNS string, al
 	return false, nil
 }
 
+// gatewayAllowedForSecretRef determines whether the gateway is allowed
+// for the secret either by being in the same namespace or by having
+// an applicable ReferencePolicy in the same namespace as the secret.
+func gatewayAllowedForSecretRef(ctx context.Context, gateway *gw.Gateway, secretRef gw.SecretObjectReference, c gatewayclient.Client) (bool, error) {
+	secretNS := ""
+	if secretRef.Namespace != nil {
+		secretNS = string(*secretRef.Namespace)
+	}
+
+	// Allow if gateway and secret are in the same namespace
+	if secretNS == "" || gateway.GetNamespace() == secretNS {
+		return true, nil
+	}
+
+	// Allow if ReferencePolicy present for gateway + secret combination
+	refPolicies, err := c.GetReferencePoliciesInNamespace(ctx, secretNS)
+	if err != nil || len(refPolicies) == 0 {
+		return false, err
+	}
+
+	for _, refPolicy := range refPolicies {
+		// Check for a From that applies to the route
+		validFrom := false
+		for _, from := range refPolicy.Spec.From {
+			// If this policy allows the group, kind and namespace for this gateway
+			if gateway.GroupVersionKind().Group == string(from.Group) &&
+				gateway.GroupVersionKind().Kind == string(from.Kind) &&
+				gateway.GetNamespace() == string(from.Namespace) {
+				validFrom = true
+				break
+			}
+		}
+
+		// If this ReferencePolicy has no applicable From, no need to check for a To
+		if !validFrom {
+			continue
+		}
+
+		var secretRefGroup gw.Group
+		if secretRef.Group != nil {
+			secretRefGroup = *secretRef.Group
+		}
+
+		// Backend kind should default to Secret if not set
+		// https://github.com/kubernetes-sigs/gateway-api/blob/ef773194892636ea8ecbb2b294daf771d4dd5009/apis/v1alpha2/object_reference_types.go#L59
+		var secretRefKind gw.Kind = "Secret"
+		if secretRef.Kind != nil {
+			secretRefKind = *secretRef.Kind
+		}
+
+		// Check for a To that applies to the secretRef
+		for _, to := range refPolicy.Spec.To {
+			// If this policy allows the group, kind, and name for this backend
+			if to.Group == secretRefGroup &&
+				to.Kind == secretRefKind &&
+				(to.Name == nil || *to.Name == secretRef.Name) {
+				return true, nil
+			}
+		}
+	}
+
+	return false, err
+}
+
 // routeAllowedForBackendRef determines whether the route is allowed
 // for the backend either by being in the same namespace or by having
 // an applicable ReferencePolicy in the same namespace as the backend.
@@ -161,15 +225,13 @@ func routeAllowedForBackendRef(ctx context.Context, route Route, backendRef gw.B
 			continue
 		}
 
-		// Backend group should default to empty string if not set
-		backendRefGroup := gw.Group("")
+		var backendRefGroup gw.Group
 		if backendRef.Group != nil {
 			backendRefGroup = *backendRef.Group
 		}
 
 		// Backend kind should default to Service if not set
-		// TODO Should we default to Service here or go look up the kind from K8s API
-		//   See https://github.com/kubernetes-sigs/gateway-api/issues/1092
+		// https://github.com/kubernetes-sigs/gateway-api/blob/ef773194892636ea8ecbb2b294daf771d4dd5009/apis/v1alpha2/object_reference_types.go#L105
 		backendRefKind := gw.Kind("Service")
 		if backendRef.Kind != nil {
 			backendRefKind = *backendRef.Kind
