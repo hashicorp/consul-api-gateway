@@ -260,10 +260,10 @@ func (mr *MockClientMockRecorder) GetHTTPRoute(ctx, key interface{}) *gomock.Cal
 }
 
 // GetHTTPRoutes mocks base method.
-func (m *MockClient) GetHTTPRoutes(ctx context.Context) (v1alpha2.HTTPRouteList, error) {
+func (m *MockClient) GetHTTPRoutes(ctx context.Context) ([]v1alpha2.HTTPRoute, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetHTTPRoutes", ctx)
-	ret0, _ := ret[0].(v1alpha2.HTTPRouteList)
+	ret0, _ := ret[0].([]v1alpha2.HTTPRoute)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
