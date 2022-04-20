@@ -3,7 +3,7 @@ package controllers
 import (
 	"context"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	// metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/apimachinery/pkg/types"
@@ -85,14 +85,14 @@ func getReferencePolicyObjectsFrom(refPolicy gateway.ReferencePolicy) []client.O
 			matchLabels["kubernetes.io/metadata.group"] = "core/v1"
 		}
 
-		selector := metav1.LabelSelector{
-			MatchExpressions: []metav1.LabelSelectorRequirement{{
-				Key:      "",
-				Operator: "In",
-				Values:   []string{},
-			}},
-			MatchLabels: matchLabels,
-		}
+		// selector := metav1.LabelSelector{
+		// 	MatchExpressions: []metav1.LabelSelectorRequirement{{
+		// 		Key:      "",
+		// 		Operator: "In",
+		// 		Values:   []string{},
+		// 	}},
+		// 	MatchLabels: matchLabels,
+		// }
 
 		matches = append(matches, []client.Object{}...)
 	}
@@ -154,36 +154,48 @@ func getReferencePolicyObjectsTo(refPolicy gateway.ReferencePolicy) []client.Obj
 	return matches
 }
 
-func GetRoutesAffectedByReferencePolicy(refPolicy gateway.ReferencePolicy) []gateway.HTTPRoute {
+func (r *HTTPRouteReconciler) getRoutesAffectedByReferencePolicy(refPolicy gateway.ReferencePolicy) []gateway.HTTPRoute {
 	matches := []gateway.HTTPRoute{}
-	objectsTo := getReferencePolicyObjectsTo(refPolicy)
 
-	// FIXME: Only checking Routes selected by GetReferencePolicyObjectsFrom isn't
-	// enough, need to reconcile Routes which may have been allowed before but no
-	// longer are permitted
-	//
-	// GET Routes WHERE BackendRef is selected by GetReferencePolicyObjectsTo
-	for _, route := range getReferencePolicyObjectsFrom(refPolicy) {
-		// TODO: should this use reflection to handle xRoute types? seems expensive
-		for _, rules := range route.Spec.Rules {
-			for _, backendRef := range rules.BackendRefs {
-				for _, from := range objectsTo {
-					if backendRef.DeepEqual(from) {
-						matches = append(matches, backendRef)
-					}
-				}
-			}
-		}
+	// Only checking Routes selected by GetReferencePolicyObjectsFrom isn't
+	// enough - we need to reconcile Routes which may have been allowed before
+	// but are no longer permitted. It may be possible to improve performance
+	// here by filtering on the prior and current state of the ReferencePolicy
+	// From and To fields, but currently we just revalidate all routes
+	routeList, err := r.Client.GetHTTPRoutes(context.TODO())
+	if err != nil {
+		return matches
 	}
 
-	return matches
+	routes := routeList.Items
+
+	// Need to match the union of this selction for both current and prior state
+	// in case a ReferencePolicy has been modified to revoke permission from a
+	// namespace or to a service
+	//
+	// GET Routes IN GetReferencePolicyObjectsFrom WHERE BackendRef is selectable by GetReferencePolicyObjectsTo
+	// objectsTo := getReferencePolicyObjectsTo(refPolicy)
+	// for _, route := range getReferencePolicyObjectsFrom(refPolicy) {
+	// 	// TODO: should this use reflection to handle xRoute types? seems expensive
+	// 	for _, rules := range route.Spec.Rules {
+	// 		for _, backendRef := range rules.BackendRefs {
+	// 			for _, from := range objectsTo {
+	// 				if backendRef.DeepEqual(from) {
+	// 					matches = append(matches, backendRef)
+	// 				}
+	// 			}
+	// 		}
+	// 	}
+	// }
+
+	return routes
 }
 
 func (r *HTTPRouteReconciler) referencePolicyToRouteRequests(object client.Object) []reconcile.Request {
-	r.Log.Info("event for ReferencePolicy", "object", object)
+	r.Log.Error("event for ReferencePolicy", "object", object)
 
 	refPolicy := gateway.ReferencePolicy{}
-	routes := GetRoutesAffectedByReferencePolicy(refPolicy)
+	routes := r.getRoutesAffectedByReferencePolicy(refPolicy)
 	requests := []reconcile.Request{}
 
 	for _, route := range routes {
