@@ -69,6 +69,7 @@ func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(gatewayclient.NewRequeueingMiddleware(r.Log, r))
 }
 
+// FIXME: create client.MatchingLabels here instead
 func getReferencePolicyObjectsFrom(refPolicy gateway.ReferencePolicy) []client.Object {
 	matches := []client.Object{}
 
@@ -100,6 +101,7 @@ func getReferencePolicyObjectsFrom(refPolicy gateway.ReferencePolicy) []client.O
 	return matches
 }
 
+// FIXME: create client.MatchingLabels here instead
 func getReferencePolicyObjectsTo(refPolicy gateway.ReferencePolicy) []client.Object {
 	matches := []client.Object{}
 
