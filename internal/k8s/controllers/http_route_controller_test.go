@@ -86,7 +86,7 @@ func TestHTTPRoute(t *testing.T) {
 	}
 }
 
-func TestHTTPRouteWatchesReferencePolicy(t *testing.T) {
+func TestHTTPRouteReferencePolicyToRouteRequests(t *testing.T) {
 	t.Parallel()
 
 	ctrl := gomock.NewController(t)
