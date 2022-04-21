@@ -2,11 +2,8 @@ package controllers
 
 import (
 	"context"
-	"fmt"
 
-	// metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/selection"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -69,136 +66,20 @@ func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(gatewayclient.NewRequeueingMiddleware(r.Log, r))
 }
 
-// FIXME: create client.MatchingLabels here instead
-func getReferencePolicyObjectsFrom(refPolicy gateway.ReferencePolicy) []client.Object {
-	matches := []client.Object{}
-
-	for _, from := range refPolicy.Spec.From {
-		matchLabels := map[string]string{
-			"kubernetes.io/metadata.kind":      string(from.Kind),
-			"kubernetes.io/metadata.namespace": string(from.Namespace),
-		}
-
-		if from.Group != "" {
-			matchLabels["kubernetes.io/metadata.group"] = string(from.Group)
-		} else {
-			// When empty, the Kubernetes core API group is inferred.
-			matchLabels["kubernetes.io/metadata.group"] = "core/v1"
-		}
-
-		// selector := metav1.LabelSelector{
-		// 	MatchExpressions: []metav1.LabelSelectorRequirement{{
-		// 		Key:      "",
-		// 		Operator: "In",
-		// 		Values:   []string{},
-		// 	}},
-		// 	MatchLabels: matchLabels,
-		// }
-
-		matches = append(matches, []client.Object{}...)
-	}
-
-	return matches
-}
-
-// FIXME: create client.MatchingLabels here instead
-func getReferencePolicyObjectsTo(refPolicy gateway.ReferencePolicy) []client.Object {
-	matches := []client.Object{}
-
-	for _, to := range refPolicy.Spec.To {
-		selector := labels.NewSelector()
-
-		kindReq, _ := labels.NewRequirement(
-			"kubernetes.io/metadata.kind",
-			selection.In,
-			[]string{string(to.Kind)},
-		)
-
-		namespaceReq, _ := labels.NewRequirement(
-			"kubernetes.io/metadata.namesapce",
-			selection.In,
-			[]string{refPolicy.Namespace},
-		)
-
-		selector = selector.Add(*kindReq, *namespaceReq)
-
-		var groupReq *labels.Requirement
-		if to.Group != "" {
-			groupReq, _ = labels.NewRequirement(
-				"kubernetes.io/metadata.group",
-				selection.In,
-				[]string{string(to.Group)},
-			)
-		} else {
-			// When empty, the Kubernetes core API group is inferred.
-			groupReq, _ = labels.NewRequirement(
-				"kubernetes.io/metadata.group",
-				selection.In,
-				[]string{"core/v1"},
-			)
-		}
-
-		selector = selector.Add(*groupReq)
-
-		if to.Name != nil {
-			nameReq, _ := labels.NewRequirement(
-				"kubernetes.io/metadata.name",
-				selection.In,
-				[]string{string(*to.Name)},
-			)
-			selector = selector.Add(*nameReq)
-		}
-
-		// TODO: use selector
-		matches = append(matches, []client.Object{}...)
-	}
-
-	return matches
-}
-
-func (r *HTTPRouteReconciler) getRoutesAffectedByReferencePolicy(refPolicy gateway.ReferencePolicy) []gateway.HTTPRoute {
-	matches := []gateway.HTTPRoute{}
-
-	// Only checking Routes selected by GetReferencePolicyObjectsFrom isn't
-	// enough - we need to reconcile Routes which may have been allowed before
-	// but are no longer permitted. It may be possible to improve performance
-	// here by filtering on the prior and current state of the ReferencePolicy
-	// From and To fields, but currently we just revalidate all routes
-	routes, err := r.Client.GetHTTPRoutes(context.TODO())
-	if err != nil {
-		return matches
-	}
-
-	// Need to match the union of this selction for both current and prior state
-	// in case a ReferencePolicy has been modified to revoke permission from a
-	// namespace or to a service
-	//
-	// GET Routes IN GetReferencePolicyObjectsFrom WHERE BackendRef is selectable by GetReferencePolicyObjectsTo
-	// objectsTo := getReferencePolicyObjectsTo(refPolicy)
-	// for _, route := range getReferencePolicyObjectsFrom(refPolicy) {
-	// 	// TODO: should this use reflection to handle xRoute types? seems expensive
-	// 	for _, rules := range route.Spec.Rules {
-	// 		for _, backendRef := range rules.BackendRefs {
-	// 			for _, from := range objectsTo {
-	// 				if backendRef.DeepEqual(from) {
-	// 					matches = append(matches, backendRef)
-	// 				}
-	// 			}
-	// 		}
-	// 	}
-	// }
-
-	return routes
-}
-
 // For UpdateEvents which contain both a new and old object, this transformation
 // function is run on both objects and both sets of Requests are enqueued.
+//
+// This is needed to reconcile any objects matched by  both current and prior
+// state in case a ReferencePolicy has been modified to revoke permission from a
+// namespace or to a service
+//
+// It may be possible to improve performance here by filtering Routes by
+// BackendRefs selectable by the To fields, but currently we just revalidate
+// all Routes allowed in the From Namespaces
 func (r *HTTPRouteReconciler) referencePolicyToRouteRequests(object client.Object) []reconcile.Request {
-	// FIXME: How to safely cast client.Object to gateway.ReferencePolicy?
-	fmt.Printf("%s", object.GetObjectKind())
-	fmt.Printf("%s", object)
-
-	refPolicy := gateway.ReferencePolicy{}
+	// TODO: Is there a safer way I could typecheck this with
+	// object.GetObjectKind() or something before casting?
+	refPolicy := *object.(*gateway.ReferencePolicy)
 	r.Log.Info("event for ReferencePolicy", "object", refPolicy)
 
 	routes := r.getRoutesAffectedByReferencePolicy(refPolicy)
@@ -214,4 +95,86 @@ func (r *HTTPRouteReconciler) referencePolicyToRouteRequests(object client.Objec
 	}
 
 	return requests
+}
+
+func (r *HTTPRouteReconciler) getRoutesAffectedByReferencePolicy(refPolicy gateway.ReferencePolicy) []gateway.HTTPRoute {
+	matches := []gateway.HTTPRoute{}
+
+	toSelectors := []client.MatchingFieldsSelector{}
+	for _, to := range refPolicy.Spec.To {
+		// When empty, the Kubernetes core API group is inferred.
+		group := "core/v1"
+		if to.Group != "" {
+			group = string(to.Group)
+		}
+
+		toSelectors = append(toSelectors, groupKindToFieldSelector(schema.GroupKind{
+			Group: group,
+			Kind:  string(to.Kind),
+		}))
+	}
+
+	routes := r.getReferencePolicyObjectsFrom(refPolicy)
+	matches = append(matches, routes...)
+
+	// TODO: match only routes with BackendRefs selectable by a
+	// ReferencePolicyTo instead of appending all routes above. This seems
+	// expensive, so not sure if it would actually improve performance or not.
+	// for _, route := range routes {
+	// 	routeMatched := false
+
+	// 	// TODO: should this use reflection to handle xRoute types? seems expensive
+	// 	for _, rule := range route.Spec.Rules {
+	// 		for range rule.BackendRefs {
+	// 			// Check if backendRef.BackendObjectReference is selectable by
+	// 			// the requirements in any refPolicy.Spec.To
+	// 			for _, selector := range toSelectors {
+	// 				if selector.Matches(fields.Set{
+	// 					// TODO: init from backendRef.BackendObjectReference
+	// 				}) {
+	// 					routeMatched = true
+	// 					matches = append(matches, route)
+
+	// 					// Exit toSelectors loop early if route has already been matched
+	// 					if routeMatched {
+	// 						break
+	// 					}
+	// 				}
+	// 			}
+
+	// 			// Exit BackendRefs loop early if route has already been matched
+	// 			if routeMatched {
+	// 				break
+	// 			}
+	// 		}
+
+	// 		// Exit Rules loop early if route has already been matched
+	// 		if routeMatched {
+	// 			break
+	// 		}
+	// 	}
+	// }
+
+	return matches
+}
+
+func (r *HTTPRouteReconciler) getReferencePolicyObjectsFrom(refPolicy gateway.ReferencePolicy) []gateway.HTTPRoute {
+	matches := []gateway.HTTPRoute{}
+
+	for _, from := range refPolicy.Spec.From {
+		// TODO: search by from.Group and from.Kind instead of assuming HTTPRoute
+		routes, err := r.Client.GetHTTPRoutesInNamespace(context.TODO(), string(from.Namespace))
+		if err != nil {
+			// TODO: is there a better way to handle this error?
+			return matches
+		}
+
+		matches = append(matches, routes...)
+	}
+
+	return matches
+}
+
+func groupKindToFieldSelector(gk schema.GroupKind) client.MatchingFieldsSelector {
+	return client.MatchingFieldsSelector{}
 }
