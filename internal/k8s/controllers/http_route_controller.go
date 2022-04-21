@@ -62,8 +62,10 @@ func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&gateway.HTTPRoute{}).
 		Watches(
-			// TODO: how does this handle deletes?
 			&source.Kind{Type: &gateway.ReferencePolicy{}},
+			// For UpdateEvents which contain both a new and old object, the
+			// transformation function is run on both objects and both sets of
+			// Requests are enqueue.
 			handler.EnqueueRequestsFromMapFunc(r.referencePolicyToRouteRequests),
 		).
 		Complete(gatewayclient.NewRequeueingMiddleware(r.Log, r))
@@ -190,7 +192,7 @@ func (r *HTTPRouteReconciler) getRoutesAffectedByReferencePolicy(refPolicy gatew
 }
 
 func (r *HTTPRouteReconciler) referencePolicyToRouteRequests(object client.Object) []reconcile.Request {
-	r.Log.Error("event for ReferencePolicy", "object", object)
+	r.Log.Warn("event for ReferencePolicy", "object", object)
 
 	refPolicy := gateway.ReferencePolicy{}
 	routes := r.getRoutesAffectedByReferencePolicy(refPolicy)
