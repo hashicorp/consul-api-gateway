@@ -155,6 +155,9 @@ func TestHTTPRouteWatchesReferencePolicy(t *testing.T) {
 
 	requests := controller.referencePolicyToRouteRequests(&refPolicy)
 
+	// FIXME: This should only request reconciliation for the one HTTPRoute in the
+	// allowed namespace
+	//
 	// require.Equal(t, len(requests), 1)
 	require.Equal(t, requests, []reconcile.Request{{
 		NamespacedName: types.NamespacedName{
