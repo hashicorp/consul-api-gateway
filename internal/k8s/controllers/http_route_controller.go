@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 
 	// metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -63,9 +64,6 @@ func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&gateway.HTTPRoute{}).
 		Watches(
 			&source.Kind{Type: &gateway.ReferencePolicy{}},
-			// For UpdateEvents which contain both a new and old object, the
-			// transformation function is run on both objects and both sets of
-			// Requests are enqueue.
 			handler.EnqueueRequestsFromMapFunc(r.referencePolicyToRouteRequests),
 		).
 		Complete(gatewayclient.NewRequeueingMiddleware(r.Log, r))
@@ -156,6 +154,7 @@ func getReferencePolicyObjectsTo(refPolicy gateway.ReferencePolicy) []client.Obj
 	return matches
 }
 
+// For
 func (r *HTTPRouteReconciler) getRoutesAffectedByReferencePolicy(refPolicy gateway.ReferencePolicy) []gateway.HTTPRoute {
 	matches := []gateway.HTTPRoute{}
 
@@ -191,10 +190,16 @@ func (r *HTTPRouteReconciler) getRoutesAffectedByReferencePolicy(refPolicy gatew
 	return routes
 }
 
+// For UpdateEvents which contain both a new and old object, this transformation
+// function is run on both objects and both sets of Requests are enqueued.
 func (r *HTTPRouteReconciler) referencePolicyToRouteRequests(object client.Object) []reconcile.Request {
-	r.Log.Warn("event for ReferencePolicy", "object", object)
+	// FIXME: How to safely cast client.Object to gateway.ReferencePolicy?
+	fmt.Printf("%s", object.GetObjectKind())
+	fmt.Printf("%s", object)
 
 	refPolicy := gateway.ReferencePolicy{}
+	r.Log.Info("event for ReferencePolicy", "object", refPolicy)
+
 	routes := r.getRoutesAffectedByReferencePolicy(refPolicy)
 	requests := []reconcile.Request{}
 

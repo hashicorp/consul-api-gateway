@@ -110,6 +110,7 @@ func TestHTTPRouteWatchesReferencePolicy(t *testing.T) {
 	}
 
 	refPolicy := gw.ReferencePolicy{
+		TypeMeta:   metav1.TypeMeta{Kind: "ReferencePolicy"},
 		ObjectMeta: metav1.ObjectMeta{Namespace: "namespace3"},
 		Spec: gw.ReferencePolicySpec{
 			From: []gw.ReferencePolicyFrom{{
