@@ -1,0 +1,3 @@
+```release-note:breaking-change
+Added support for cross namespace Gateway certificateRefs with [ReferencePolicy](https://gateway-api.sigs.k8s.io/v1alpha2/references/spec/#gateway.networking.k8s.io%2fv1alpha2.ReferencePolicy)
+```
