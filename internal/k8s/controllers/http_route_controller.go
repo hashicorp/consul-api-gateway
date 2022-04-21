@@ -154,7 +154,6 @@ func getReferencePolicyObjectsTo(refPolicy gateway.ReferencePolicy) []client.Obj
 	return matches
 }
 
-// For
 func (r *HTTPRouteReconciler) getRoutesAffectedByReferencePolicy(refPolicy gateway.ReferencePolicy) []gateway.HTTPRoute {
 	matches := []gateway.HTTPRoute{}
 
