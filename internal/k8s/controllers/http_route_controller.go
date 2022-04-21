@@ -211,9 +211,5 @@ func (r *HTTPRouteReconciler) referencePolicyToRouteRequests(object client.Objec
 		})
 	}
 
-	if len(requests) > 0 {
-		return requests
-	}
-
-	return nil
+	return requests
 }
