@@ -6,8 +6,10 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient/mocks"
 	reconcilerMocks "github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/mocks"
@@ -73,5 +75,27 @@ func TestHTTPRoute(t *testing.T) {
 			}
 			require.Equal(t, test.result, result)
 		})
+	}
+}
+
+func TestHTTPRouteWatchesReferencePolicy(t *testing.T) {
+	t.Parallel()
+
+	backendName := gw.ObjectName("service1")
+	_ = &gw.ReferencePolicy{
+		TypeMeta:   metav1.TypeMeta{},
+		ObjectMeta: metav1.ObjectMeta{Namespace: "namespace2"},
+		Spec: gw.ReferencePolicySpec{
+			From: []gw.ReferencePolicyFrom{{
+				Group:     "gateway.networking.k8s.io",
+				Kind:      "HTTPRoute",
+				Namespace: "namespace1",
+			}},
+			To: []gw.ReferencePolicyTo{{
+				Group: "",
+				Kind:  "Service",
+				Name:  &backendName,
+			}},
+		},
 	}
 }
