@@ -120,48 +120,6 @@ func routeAllowedForListenerNamespaces(ctx context.Context, gatewayNS string, al
 	return false, nil
 }
 
-func referenceAllowed(ctx context.Context, fromGK metav1.GroupKind, fromNamespace string, toGK metav1.GroupKind, toNamespace, toName string, c gatewayclient.Client) (bool, error) {
-	// Reference does not cross namespaces
-	if toNamespace == "" || toNamespace == fromNamespace {
-		return true, nil
-	}
-
-	// Fetch all ReferencePolicies in the referenced namespace
-	refPolicies, err := c.GetReferencePoliciesInNamespace(ctx, toNamespace)
-	if err != nil || len(refPolicies) == 0 {
-		return false, err
-	}
-
-	for _, refPolicy := range refPolicies {
-		// Check for a From that applies
-		fromMatch := false
-		for _, from := range refPolicy.Spec.From {
-			if fromGK.Group == string(from.Group) && fromGK.Kind == string(from.Kind) && fromNamespace == string(from.Namespace) {
-				fromMatch = true
-				break
-			}
-		}
-
-		if !fromMatch {
-			continue
-		}
-
-		// Check for a To that applies
-		for _, to := range refPolicy.Spec.To {
-			if toGK.Group == string(to.Group) && toGK.Kind == string(to.Kind) {
-				if to.Name == nil {
-					// No name specified is treated as a wildcard within the namespace
-					return true, nil
-				}
-				return gw.ObjectName(toName) == *to.Name, nil
-			}
-		}
-	}
-
-	// No ReferencePolicy was found which allows this cross-namespace reference
-	return false, nil
-}
-
 // gatewayAllowedForSecretRef determines whether the gateway is allowed
 // for the secret either by being in the same namespace or by having
 // an applicable ReferencePolicy in the same namespace as the secret.
@@ -221,6 +179,55 @@ func routeAllowedForBackendRef(ctx context.Context, route Route, backendRef gw.B
 	}
 
 	return referenceAllowed(ctx, fromGK, fromNS, toGK, toNS, toName, c)
+}
+
+// referenceAllowed checks to see if a reference between resources is allowed.
+// In particular, references from one namespace to a resource in a different namespace
+// require an applicable ReferencePolicy be found in the namespace containing the resource
+// being referred to.
+//
+// For example, a Gateway in namespace "foo" may only reference a Secret in namespace "bar"
+// if a ReferencePolicy in namespace "bar" allows references from namespace "foo".
+func referenceAllowed(ctx context.Context, fromGK metav1.GroupKind, fromNamespace string, toGK metav1.GroupKind, toNamespace, toName string, c gatewayclient.Client) (bool, error) {
+	// Reference does not cross namespaces
+	if toNamespace == "" || toNamespace == fromNamespace {
+		return true, nil
+	}
+
+	// Fetch all ReferencePolicies in the referenced namespace
+	refPolicies, err := c.GetReferencePoliciesInNamespace(ctx, toNamespace)
+	if err != nil || len(refPolicies) == 0 {
+		return false, err
+	}
+
+	for _, refPolicy := range refPolicies {
+		// Check for a From that applies
+		fromMatch := false
+		for _, from := range refPolicy.Spec.From {
+			if fromGK.Group == string(from.Group) && fromGK.Kind == string(from.Kind) && fromNamespace == string(from.Namespace) {
+				fromMatch = true
+				break
+			}
+		}
+
+		if !fromMatch {
+			continue
+		}
+
+		// Check for a To that applies
+		for _, to := range refPolicy.Spec.To {
+			if toGK.Group == string(to.Group) && toGK.Kind == string(to.Kind) {
+				if to.Name == nil {
+					// No name specified is treated as a wildcard within the namespace
+					return true, nil
+				}
+				return gw.ObjectName(toName) == *to.Name, nil
+			}
+		}
+	}
+
+	// No ReferencePolicy was found which allows this cross-namespace reference
+	return false, nil
 }
 
 func toNamespaceSet(name string, labels map[string]string) klabels.Labels {
