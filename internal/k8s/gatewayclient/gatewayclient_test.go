@@ -100,19 +100,23 @@ func TestGetHTTPRoute(t *testing.T) {
 	require.NotNil(t, route)
 }
 
-func TestGetHTTPRoutes(t *testing.T) {
+func TestGetHTTPRoutesInNamespace(t *testing.T) {
 	t.Parallel()
 
 	gatewayclient := newTestClient(nil, &gateway.HTTPRoute{
 		ObjectMeta: meta.ObjectMeta{
 			Name:      "httproute",
-			Namespace: "namespace",
+			Namespace: "namespace1",
 		},
 	})
 
-	routes, err := gatewayclient.GetHTTPRoutes(context.Background())
+	routes, err := gatewayclient.GetHTTPRoutesInNamespace(context.Background(), "namespace1")
 	require.NoError(t, err)
 	require.Equal(t, len(routes), 1)
+
+	routes, err = gatewayclient.GetHTTPRoutesInNamespace(context.Background(), "namespace2")
+	require.NoError(t, err)
+	require.Equal(t, len(routes), 0)
 }
 
 func TestGetGatewayClass(t *testing.T) {
