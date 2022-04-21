@@ -3,6 +3,7 @@ package controllers
 import (
 	"context"
 
+	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -100,7 +101,7 @@ func (r *HTTPRouteReconciler) referencePolicyToRouteRequests(object client.Objec
 func (r *HTTPRouteReconciler) getRoutesAffectedByReferencePolicy(refPolicy gateway.ReferencePolicy) []gateway.HTTPRoute {
 	matches := []gateway.HTTPRoute{}
 
-	toSelectors := []client.MatchingFieldsSelector{}
+	toSelectors := []fields.Selector{}
 	for _, to := range refPolicy.Spec.To {
 		// When empty, the Kubernetes core API group is inferred.
 		group := "core/v1"
@@ -115,11 +116,12 @@ func (r *HTTPRouteReconciler) getRoutesAffectedByReferencePolicy(refPolicy gatew
 	}
 
 	routes := r.getReferencePolicyObjectsFrom(refPolicy)
-	matches = append(matches, routes...)
 
 	// TODO: match only routes with BackendRefs selectable by a
-	// ReferencePolicyTo instead of appending all routes above. This seems
-	// expensive, so not sure if it would actually improve performance or not.
+	// ReferencePolicyTo instead of appending all routes. This seems expensive,
+	// so not sure if it would actually improve performance or not.
+	matches = append(matches, routes...)
+
 	// for _, route := range routes {
 	// 	routeMatched := false
 
@@ -130,7 +132,8 @@ func (r *HTTPRouteReconciler) getRoutesAffectedByReferencePolicy(refPolicy gatew
 	// 			// the requirements in any refPolicy.Spec.To
 	// 			for _, selector := range toSelectors {
 	// 				if selector.Matches(fields.Set{
-	// 					// TODO: init from backendRef.BackendObjectReference
+	//                  "kind": backendRef.BackendObjectReference.Kind
+	//                  "metadata.name": backendRef.BackendObjectReference.Name
 	// 				}) {
 	// 					routeMatched = true
 	// 					matches = append(matches, route)
@@ -175,6 +178,8 @@ func (r *HTTPRouteReconciler) getReferencePolicyObjectsFrom(refPolicy gateway.Re
 	return matches
 }
 
-func groupKindToFieldSelector(gk schema.GroupKind) client.MatchingFieldsSelector {
-	return client.MatchingFieldsSelector{}
+func groupKindToFieldSelector(gk schema.GroupKind) fields.Selector {
+	return fields.SelectorFromSet(fields.Set{
+		"kind": gk.Kind,
+	})
 }
