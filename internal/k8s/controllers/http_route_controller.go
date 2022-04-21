@@ -101,19 +101,19 @@ func (r *HTTPRouteReconciler) referencePolicyToRouteRequests(object client.Objec
 func (r *HTTPRouteReconciler) getRoutesAffectedByReferencePolicy(refPolicy gateway.ReferencePolicy) []gateway.HTTPRoute {
 	matches := []gateway.HTTPRoute{}
 
-	toSelectors := []fields.Selector{}
-	for _, to := range refPolicy.Spec.To {
-		// When empty, the Kubernetes core API group is inferred.
-		group := "core/v1"
-		if to.Group != "" {
-			group = string(to.Group)
-		}
+	// toSelectors := []fields.Selector{}
+	// for _, to := range refPolicy.Spec.To {
+	// 	// When empty, the Kubernetes core API group is inferred.
+	// 	group := "core/v1"
+	// 	if to.Group != "" {
+	// 		group = string(to.Group)
+	// 	}
 
-		toSelectors = append(toSelectors, groupKindToFieldSelector(schema.GroupKind{
-			Group: group,
-			Kind:  string(to.Kind),
-		}))
-	}
+	// 	toSelectors = append(toSelectors, groupKindToFieldSelector(schema.GroupKind{
+	// 		Group: group,
+	// 		Kind:  string(to.Kind),
+	// 	}))
+	// }
 
 	routes := r.getReferencePolicyObjectsFrom(refPolicy)
 
