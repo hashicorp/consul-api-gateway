@@ -37,9 +37,9 @@ jobs:
       matrix:
         consul-version: 
         - 1.11.5
-        - 1.12.0-beta1
+        - 1.12.0
         - 1.11.5+ent
-        - 1.12.0-beta1+ent
+        - 1.12.0+ent
     runs-on: ubuntu-latest
     env:
       TEST_RESULTS_DIR: /tmp/test-results/consul@${{ matrix.consul-version }}
@@ -89,8 +89,8 @@ jobs:
         consul-image: 
         - 'hashicorp/consul:1.11.5'
         - 'hashicorp/consul-enterprise:1.11.5-ent'
-        - 'hashicorp/consul:1.12.0-beta1'
-        - 'hashicorp/consul-enterprise:1.12.0-beta1-ent'
+        - 'hashicorp/consul:1.12.0'
+        - 'hashicorp/consul-enterprise:1.12.0-ent'
     runs-on: ubuntu-latest
     env:
       TEST_RESULTS_DIR: /tmp/test-results/e2e@${{ matrix.consul-image }}

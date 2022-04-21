@@ -1,5 +1,5 @@
 global:
-  image: "hashicorp/consul:1.12.0-beta1"  # TODO Remove once 1.12.0 is consumed in consul-k8s
+  image: "hashicorp/consul:1.12.0"  # TODO Remove once 1.12.0 is consumed in consul-k8s
   tls:
     enabled: true
 server:
