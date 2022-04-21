@@ -7,13 +7,21 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient/mocks"
 	reconcilerMocks "github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/mocks"
 	"github.com/hashicorp/go-hclog"
+
+	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 )
 
 var (
@@ -81,10 +89,28 @@ func TestHTTPRoute(t *testing.T) {
 func TestHTTPRouteWatchesReferencePolicy(t *testing.T) {
 	t.Parallel()
 
-	backendName := gw.ObjectName("service1")
-	_ = &gw.ReferencePolicy{
-		TypeMeta:   metav1.TypeMeta{},
-		ObjectMeta: metav1.ObjectMeta{Namespace: "namespace2"},
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	serviceNamespace := gw.Namespace("namespace3")
+
+	backendObjRef := gw.BackendObjectReference{
+		Name:      gw.ObjectName("service"),
+		Namespace: &serviceNamespace,
+	}
+
+	httpRouteSpec := gw.HTTPRouteSpec{
+		Rules: []gw.HTTPRouteRule{{
+			BackendRefs: []gw.HTTPBackendRef{{
+				BackendRef: gw.BackendRef{
+					BackendObjectReference: backendObjRef,
+				},
+			}},
+		}},
+	}
+
+	refPolicy := gw.ReferencePolicy{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "namespace3"},
 		Spec: gw.ReferencePolicySpec{
 			From: []gw.ReferencePolicyFrom{{
 				Group:     "gateway.networking.k8s.io",
@@ -92,10 +118,67 @@ func TestHTTPRouteWatchesReferencePolicy(t *testing.T) {
 				Namespace: "namespace1",
 			}},
 			To: []gw.ReferencePolicyTo{{
-				Group: "",
-				Kind:  "Service",
-				Name:  &backendName,
+				Kind: "Service",
 			}},
 		},
 	}
+
+	gatewayclient := NewTestClient(
+		&gw.HTTPRouteList{
+			Items: []gw.HTTPRoute{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "httproute",
+						Namespace: "namespace1",
+					},
+					Spec: httpRouteSpec,
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "httproute",
+						Namespace: "namespace2",
+					},
+					Spec: httpRouteSpec,
+				},
+			},
+		},
+		&refPolicy,
+	)
+
+	controller := &HTTPRouteReconciler{
+		Client:         gatewayclient,
+		Log:            hclog.NewNullLogger(),
+		ControllerName: mockControllerName,
+		Manager:        reconcilerMocks.NewMockReconcileManager(ctrl),
+	}
+
+	requests := controller.referencePolicyToRouteRequests(&refPolicy)
+
+	// require.Equal(t, len(requests), 1)
+	require.Equal(t, requests, []reconcile.Request{{
+		NamespacedName: types.NamespacedName{
+			Name:      "httproute",
+			Namespace: "namespace1",
+		},
+	}})
+}
+
+// FIXME: this should be refactored into a test utility package
+func NewTestClient(list client.ObjectList, objects ...client.Object) gatewayclient.Client {
+	scheme := runtime.NewScheme()
+	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
+	utilruntime.Must(gw.AddToScheme(scheme))
+	apigwv1alpha1.RegisterTypes(scheme)
+
+	builder := fake.
+		NewClientBuilder().
+		WithScheme(scheme)
+	if list != nil {
+		builder = builder.WithLists(list)
+	}
+	if len(objects) > 0 {
+		builder = builder.WithObjects(objects...)
+	}
+
+	return gatewayclient.New(builder.Build(), scheme, "")
 }
