@@ -1068,15 +1068,67 @@ func TestHTTPRouteReferencePolicyLifecycle(t *testing.T) {
 			// Expect that route sets
 			// ResolvedRefs{ status: False, reason: RefNotPermitted }
 			// due to missing ReferencePolicy for BackendRef in other namespace
-			require.Eventually(t, httpRouteStatusCheck(ctx, resources, gatewayName, routeName, namespace, routeRefNotPermitted), checkTimeout, checkInterval, "route status not set in allotted time")
+            httpRouteStatusCheckRefNotPermitted := httpRouteStatusCheck(
+                ctx,
+                resources,
+                gatewayName,
+                routeName,
+                namespace,
+                createConditionCheckWithReason(
+                    gateway.RouteConditionTypeResolvedRefs,
+                    "False",
+                    gateway.RouteConditionReasonRefNotPermitted
+                )
+            )
+			require.Eventually(t, httpRouteStatusCheckRefNotPermitted, checkTimeout, checkInterval, "route status not set in allotted time")
 
-			// TODO: create ReferencePolicy, check route ResolvedRefs true
+			// create ReferencePolicy allowing BackendRef
+			serviceOneObjectName := gateway.ObjectName(serviceOne.Name)
+			referencePolicy := &gateway.ReferencePolicy{
+				ObjectMeta: meta.ObjectMeta{
+					Namespace: namespace,
+				},
+				Spec: gateway.ReferencePolicySpec{
+					From: []gateway.ReferencePolicyFrom{{
+						Group:     "gateway.networking.k8s.io",
+						Kind:      "HTTPRoute",
+						Namespace: gateway.Namespace(routeNamespace),
+					}},
+					To: []gateway.ReferencePolicyTo{{
+						Group: "",
+						Kind:  "Service",
+						Name:  &serviceOneObjectName,
+					}},
+				},
+			}
+			err = resources.Create(ctx, referencePolicy)
+			require.NoError(t, err)
 
-			// checkRoute(t, checkPort, "/", serviceOne.Name, map[string]string{
-			// 	"Host": "test.foo",
-			// }, "service one not routable in allotted time")
+			// Expect that route sets
+			// ResolvedRefs{ status: True, reason: ResolvedRefs }
+			// now that ReferencePolicy allows BackendRef in other namespace
+			require.Eventually(t, httpRouteStatusCheck(
+                ctx,
+                resources,
+                gatewayName,
+                routeName,
+                namespace,
+                createConditionCheckWithReason(
+                    gateway.RouteConditionTypeResolvedRefs,
+                    "True",
+                    gateway.RouteConditionReasonResolvedRefs
+                )
+            ), checkTimeout, checkInterval, "route status not set in allotted time")
 
-			// TODO: delete ReferencePolicy, check routeRefNotPermitted again
+			checkRoute(t, checkPort, "/", serviceOne.Name, map[string]string{
+				"Host": "test.foo",
+			}, "service one not routable in allotted time")
+
+			// Delete ReferencePolicy, check for RefNotPermitted again
+			err = resources.Delete(ctx, referencePolicy)
+			require.NoError(t, err)
+
+			require.Eventually(t, httpRouteStatusCheckRefNotPermitted, checkTimeout, checkInterval, "route status not set in allotted time")
 
 			err = resources.Delete(ctx, gw)
 			require.NoError(t, err)
@@ -1156,22 +1208,36 @@ func tcpRouteStatusCheck(ctx context.Context, resources *resources.Resources, ga
 	}
 }
 
+func createConditionCheck(conditionType, status) bool {
+	return func(condition []meta.Condition) bool {
+		for _, condition := range conditions {
+			if condition.Type == conditionType &&
+				condition.Status == status {
+				return true
+			}
+		}
+		return false
+	}
+}
+
+func createConditionCheckWithReason(conditionType, status, reason) bool {
+	return func(condition []meta.Condition) bool {
+		for _, condition := range conditions {
+			if condition.Type == conditionType &&
+				condition.Status == status &&
+				condition.Reason == reason {
+				return true
+			}
+		}
+		return false
+	}
+}
+
 func routeRefErrors(conditions []meta.Condition) bool {
 	for _, condition := range conditions {
 		if condition.Type == "ResolvedRefs" &&
 			condition.Status == "False" &&
 			condition.Reason == "Errors" {
-			return true
-		}
-	}
-	return false
-}
-
-func routeRefNotPermitted(conditions []meta.Condition) bool {
-	for _, condition := range conditions {
-		if condition.Type == "ResolvedRefs" &&
-			condition.Status == "False" &&
-			condition.Reason == "RefNotPermitted" {
 			return true
 		}
 	}
