@@ -1073,7 +1073,7 @@ func TestHTTPRouteReferencePolicyLifecycle(t *testing.T) {
 				resources,
 				gatewayName,
 				routeName,
-				namespace,
+				routeNamespace,
 				createConditionCheckWithReason(
 					"ResolvedRefs",
 					"False",
@@ -1112,7 +1112,7 @@ func TestHTTPRouteReferencePolicyLifecycle(t *testing.T) {
 				resources,
 				gatewayName,
 				routeName,
-				namespace,
+				routeNamespace,
 				createConditionCheckWithReason(
 					"ResolvedRefs",
 					"True",
