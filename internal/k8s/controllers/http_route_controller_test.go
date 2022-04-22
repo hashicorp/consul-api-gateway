@@ -67,6 +67,7 @@ func TestHTTPRoute(t *testing.T) {
 			}
 
 			controller := &HTTPRouteReconciler{
+				Context:        context.Background(),
 				Client:         client,
 				Log:            hclog.NewNullLogger(),
 				ControllerName: mockControllerName,

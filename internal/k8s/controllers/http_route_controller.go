@@ -20,6 +20,7 @@ import (
 
 // HTTPRouteReconciler reconciles a HTTPRoute object
 type HTTPRouteReconciler struct {
+	Context        context.Context
 	Client         gatewayclient.Client
 	Log            hclog.Logger
 	ControllerName string
@@ -165,7 +166,7 @@ func (r *HTTPRouteReconciler) getReferencePolicyObjectsFrom(refPolicy *gateway.R
 
 	for _, from := range refPolicy.Spec.From {
 		// TODO: search by from.Group and from.Kind instead of assuming HTTPRoute
-		routes, err := r.Client.GetHTTPRoutesInNamespace(context.TODO(), string(from.Namespace))
+		routes, err := r.Client.GetHTTPRoutesInNamespace(r.Context, string(from.Namespace))
 		if err != nil {
 			r.Log.Error("error fetching routes", err)
 			return matches
