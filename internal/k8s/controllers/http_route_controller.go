@@ -167,7 +167,7 @@ func (r *HTTPRouteReconciler) getReferencePolicyObjectsFrom(refPolicy *gateway.R
 		// TODO: search by from.Group and from.Kind instead of assuming HTTPRoute
 		routes, err := r.Client.GetHTTPRoutesInNamespace(context.TODO(), string(from.Namespace))
 		if err != nil {
-			// TODO: is there a better way to handle this error?
+			r.Log.Error("error fetching routes", err)
 			return matches
 		}
 
