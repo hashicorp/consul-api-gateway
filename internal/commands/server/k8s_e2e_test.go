@@ -786,7 +786,9 @@ func TestTCPMeshService(t *testing.T) {
 				gatewayName,
 				routeOneName,
 				namespace,
-				createConditionCheckWithReason("ResolvedRefs", "False", "Errors"),
+				createConditionsCheck([]meta.Condition{
+					{Type: "ResolvedRefs", Status: "False", Reason: "Errors"},
+				}),
 			), checkTimeout, checkInterval, "route status not set in allotted time")
 
 			// route 2
@@ -1085,11 +1087,10 @@ func TestHTTPRouteReferencePolicyLifecycle(t *testing.T) {
 				gatewayName,
 				routeName,
 				routeNamespace,
-				createConditionCheckWithReason(
-					"ResolvedRefs",
-					"False",
-					"RefNotPermitted",
-				),
+				createConditionsCheck([]meta.Condition{
+					{Type: "Accepted", Status: "False"},
+					{Type: "ResolvedRefs", Status: "False", Reason: "RefNotPermitted"},
+				}),
 			)
 			require.Eventually(t, httpRouteStatusCheckRefNotPermitted, checkTimeout, checkInterval, "route status not set in allotted time")
 
@@ -1241,41 +1242,22 @@ func createConditionsCheck(expected []meta.Condition) func([]meta.Condition) boo
 	}
 }
 
-func createConditionCheck(conditionType string, status meta.ConditionStatus) func([]meta.Condition) bool {
-	return func(conditions []meta.Condition) bool {
-		for _, condition := range conditions {
-			if condition.Type == conditionType &&
-				condition.Status == status {
-				return true
-			}
-		}
-		return false
-	}
-}
-
-func createConditionCheckWithReason(conditionType string, status meta.ConditionStatus, reason string) func([]meta.Condition) bool {
-	return func(conditions []meta.Condition) bool {
-		for _, condition := range conditions {
-			if condition.Type == conditionType &&
-				condition.Status == status &&
-				condition.Reason == reason {
-				return true
-			}
-		}
-		return false
-	}
-}
-
 func conditionAccepted(conditions []meta.Condition) bool {
-	return createConditionCheck("Accepted", "True")(conditions)
+	return createConditionsCheck([]meta.Condition{
+		{Type: "Accepted", Status: "True"},
+	})(conditions)
 }
 
 func conditionReady(conditions []meta.Condition) bool {
-	return createConditionCheck("Ready", "True")(conditions)
+	return createConditionsCheck([]meta.Condition{
+		{Type: "Ready", Status: "True"},
+	})(conditions)
 }
 
 func conditionInSync(conditions []meta.Condition) bool {
-	return createConditionCheck("InSync", "True")(conditions)
+	return createConditionsCheck([]meta.Condition{
+		{Type: "InSync", Status: "True"},
+	})(conditions)
 }
 
 func createGateway(ctx context.Context, t *testing.T, cfg *envconf.Config, gatewayName string, gc *gateway.GatewayClass, listenerPort gateway.PortNumber, listenerAllowedRoutes *gateway.AllowedRoutes) *gateway.Gateway {
