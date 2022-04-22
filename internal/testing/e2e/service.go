@@ -291,7 +291,7 @@ func deployMeshService(ctx context.Context, cfg *envconf.Config, protocol string
 		consulNamespace = consulNamespaces[0]
 	}
 	servicePort := 8080
-	namespace := Namespace(ctx)
+	namespace := Namespaces(ctx)[0]
 	name := envconf.RandomName("mesh", 16)
 	client := ConsulClient(ctx)
 	consulPort := ConsulGRPCPort(ctx)
