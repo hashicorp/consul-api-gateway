@@ -18,31 +18,26 @@ func SetUpStack(hostRoute string) env.Func {
 	return func(ctx context.Context, cfg *envconf.Config) (context.Context, error) {
 		var err error
 		kindClusterName := envconf.RandomName("consul-api-gateway-test", 30)
-		namespaces := []string{
-			envconf.RandomName("test-ns1", 16),
-			envconf.RandomName("test-ns2", 16),
-		}
+		namespace := envconf.RandomName("test", 16)
 
 		ctx = SetHostRoute(ctx, hostRoute)
 
 		for _, f := range []env.Func{
 			SetClusterName(kindClusterName),
-			SetNamespaces(namespaces),
+			SetNamespace(namespace),
 			CrossCompileProject,
 			BuildDockerImage,
 			CreateKindCluster(kindClusterName),
 			LoadKindDockerImage(kindClusterName),
-			// TODO: is there a cleaner way to iterate over namespaces?
-			envfuncs.CreateNamespace(namespaces[0]),
-			envfuncs.CreateNamespace(namespaces[1]),
+			envfuncs.CreateNamespace(namespace),
 			InstallGatewayCRDs,
-			CreateServiceAccount(namespaces[0], "consul-api-gateway", getBasePath()+"/config/rbac/role.yaml"),
-			CreateTestConsulContainer(kindClusterName, namespaces[0]),
+			CreateServiceAccount(namespace, "consul-api-gateway", getBasePath()+"/config/rbac/role.yaml"),
+			CreateTestConsulContainer(kindClusterName, namespace),
 			CreateConsulACLPolicy,
 			CreateConsulAuthMethod(),
 			CreateConsulNamespace,
 			InstallConsulAPIGatewayCRDs,
-			CreateTestGatewayServer(namespaces[0]),
+			CreateTestGatewayServer(namespace),
 		} {
 			ctx, err = f(ctx, cfg)
 			if err != nil {
@@ -55,13 +50,11 @@ func SetUpStack(hostRoute string) env.Func {
 
 func TearDownStack(ctx context.Context, cfg *envconf.Config) (context.Context, error) {
 	var err error
-	namespaces := Namespaces(ctx)
+	namespace := Namespace(ctx)
 
 	for _, f := range []env.Func{
 		DestroyTestGatewayServer,
-		// TODO: is there a cleaner way to iterate over namespaces?
-		envfuncs.DeleteNamespace(namespaces[0]),
-		envfuncs.DeleteNamespace(namespaces[1]),
+		envfuncs.DeleteNamespace(namespace),
 		DestroyKindCluster(ClusterName(ctx)),
 	} {
 		ctx, err = f(ctx, cfg)

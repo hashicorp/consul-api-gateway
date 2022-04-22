@@ -241,7 +241,7 @@ func consulCASecret(namespace string, caCert *testing.CertificateInfo) client.Ob
 }
 
 func consulPodIP(ctx context.Context, cfg *envconf.Config, deployment *apps.Deployment) (string, error) {
-	namespace := Namespaces(ctx)[0]
+	namespace := Namespace(ctx)
 	resourcesClient := cfg.Client().Resources(namespace)
 
 	pod := &core.Pod{}

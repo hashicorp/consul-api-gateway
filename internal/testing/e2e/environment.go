@@ -13,18 +13,18 @@ type clusterNameContext struct{}
 var namespaceContextKey = namespaceContext{}
 var clusterNameContextKey = clusterNameContext{}
 
-func SetNamespaces(namespaces []string) env.Func {
+func SetNamespace(namespace string) env.Func {
 	return func(ctx context.Context, cfg *envconf.Config) (context.Context, error) {
-		return context.WithValue(ctx, namespaceContextKey, namespaces), nil
+		return context.WithValue(ctx, namespaceContextKey, namespace), nil
 	}
 }
 
-func Namespaces(ctx context.Context) []string {
-	namespaces := ctx.Value(namespaceContextKey)
-	if namespaces == nil {
-		panic("must run this with an integration test that has called SetNamespaces")
+func Namespace(ctx context.Context) string {
+	namespace := ctx.Value(namespaceContextKey)
+	if namespace == nil {
+		panic("must run this with an integration test that has called SetNamespace")
 	}
-	return namespaces.([]string)
+	return namespace.(string)
 }
 
 func SetClusterName(name string) env.Func {
