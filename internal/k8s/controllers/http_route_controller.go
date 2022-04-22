@@ -80,8 +80,7 @@ func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 func (r *HTTPRouteReconciler) referencePolicyToRouteRequests(object client.Object) []reconcile.Request {
 	// TODO: Is there a safer way I could typecheck this with
 	// object.GetObjectKind() or something before casting?
-	refPolicy := *object.(*gateway.ReferencePolicy)
-	r.Log.Info("event for ReferencePolicy", "object", refPolicy)
+	refPolicy := object.(*gateway.ReferencePolicy)
 
 	routes := r.getRoutesAffectedByReferencePolicy(refPolicy)
 	requests := []reconcile.Request{}
@@ -98,7 +97,7 @@ func (r *HTTPRouteReconciler) referencePolicyToRouteRequests(object client.Objec
 	return requests
 }
 
-func (r *HTTPRouteReconciler) getRoutesAffectedByReferencePolicy(refPolicy gateway.ReferencePolicy) []gateway.HTTPRoute {
+func (r *HTTPRouteReconciler) getRoutesAffectedByReferencePolicy(refPolicy *gateway.ReferencePolicy) []gateway.HTTPRoute {
 	matches := []gateway.HTTPRoute{}
 
 	// toSelectors := []fields.Selector{}
@@ -161,7 +160,7 @@ func (r *HTTPRouteReconciler) getRoutesAffectedByReferencePolicy(refPolicy gatew
 	return matches
 }
 
-func (r *HTTPRouteReconciler) getReferencePolicyObjectsFrom(refPolicy gateway.ReferencePolicy) []gateway.HTTPRoute {
+func (r *HTTPRouteReconciler) getReferencePolicyObjectsFrom(refPolicy *gateway.ReferencePolicy) []gateway.HTTPRoute {
 	matches := []gateway.HTTPRoute{}
 
 	for _, from := range refPolicy.Spec.From {
