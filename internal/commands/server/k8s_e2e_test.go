@@ -780,7 +780,14 @@ func TestTCPMeshService(t *testing.T) {
 			err = resources.Create(ctx, routeOne)
 			require.NoError(t, err)
 
-			require.Eventually(t, tcpRouteStatusCheck(ctx, resources, gatewayName, routeOneName, namespace, routeRefErrors), checkTimeout, checkInterval, "route status not set in allotted time")
+			require.Eventually(t, tcpRouteStatusCheck(
+				ctx,
+				resources,
+				gatewayName,
+				routeOneName,
+				namespace,
+				createConditionCheckWithReason("ResolvedRefs", "False", "Errors"),
+			), checkTimeout, checkInterval, "route status not set in allotted time")
 
 			// route 2
 			meshServiceGroup := gateway.Group(apigwv1alpha1.Group)
@@ -1108,6 +1115,15 @@ func TestHTTPRouteReferencePolicyLifecycle(t *testing.T) {
 			err = resources.Create(ctx, referencePolicy)
 			require.NoError(t, err)
 
+			// Wait for RefenecePolicy to exist before attempting to create Route
+			require.Eventually(t, func() bool {
+				updated := &gateway.ReferencePolicy{}
+				if err := resources.Get(ctx, refPolicyName, namespace, updated); err != nil {
+					return false
+				}
+				return true
+			}, checkTimeout, checkInterval, "reference policy does not exist in allotted time")
+
 			// FIXME: should it be possible to create an invalid route before an
 			// allowing ReferencePolicy exists?
 			err = resources.Create(ctx, route)
@@ -1122,10 +1138,9 @@ func TestHTTPRouteReferencePolicyLifecycle(t *testing.T) {
 				gatewayName,
 				routeName,
 				routeNamespace,
-				createConditionCheckWithReason(
-					"ResolvedRefs",
+				createConditionCheck(
+					"Accepted",
 					"True",
-					"ResolvedRefs",
 				),
 			), checkTimeout, checkInterval, "route status not set in allotted time")
 
@@ -1219,7 +1234,7 @@ func tcpRouteStatusCheck(ctx context.Context, resources *resources.Resources, ga
 	}
 }
 
-func createConditionCheck(conditionType string, status meta.ConditionStatus, reason string) func([]meta.Condition) bool {
+func createConditionCheck(conditionType string, status meta.ConditionStatus) func([]meta.Condition) bool {
 	return func(conditions []meta.Condition) bool {
 		for _, condition := range conditions {
 			if condition.Type == conditionType &&
@@ -1244,45 +1259,16 @@ func createConditionCheckWithReason(conditionType string, status meta.ConditionS
 	}
 }
 
-func routeRefErrors(conditions []meta.Condition) bool {
-	for _, condition := range conditions {
-		if condition.Type == "ResolvedRefs" &&
-			condition.Status == "False" &&
-			condition.Reason == "Errors" {
-			return true
-		}
-	}
-	return false
-}
-
 func conditionAccepted(conditions []meta.Condition) bool {
-	for _, condition := range conditions {
-		if condition.Type == "Accepted" ||
-			condition.Status == "True" {
-			return true
-		}
-	}
-	return false
+	return createConditionCheck("Accepted", "True")(conditions)
 }
 
 func conditionReady(conditions []meta.Condition) bool {
-	for _, condition := range conditions {
-		if condition.Type == "Ready" &&
-			condition.Status == "True" {
-			return true
-		}
-	}
-	return false
+	return createConditionCheck("Ready", "True")(conditions)
 }
 
 func conditionInSync(conditions []meta.Condition) bool {
-	for _, condition := range conditions {
-		if condition.Type == "InSync" &&
-			condition.Status == "True" {
-			return true
-		}
-	}
-	return false
+	return createConditionCheck("InSync", "True")(conditions)
 }
 
 func createGateway(ctx context.Context, t *testing.T, cfg *envconf.Config, gatewayName string, gc *gateway.GatewayClass, listenerPort gateway.PortNumber, listenerAllowedRoutes *gateway.AllowedRoutes) *gateway.Gateway {
