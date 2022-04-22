@@ -1068,18 +1068,18 @@ func TestHTTPRouteReferencePolicyLifecycle(t *testing.T) {
 			// Expect that route sets
 			// ResolvedRefs{ status: False, reason: RefNotPermitted }
 			// due to missing ReferencePolicy for BackendRef in other namespace
-            httpRouteStatusCheckRefNotPermitted := httpRouteStatusCheck(
-                ctx,
-                resources,
-                gatewayName,
-                routeName,
-                namespace,
-                createConditionCheckWithReason(
-                    gateway.RouteConditionTypeResolvedRefs,
-                    "False",
-                    gateway.RouteConditionReasonRefNotPermitted
-                )
-            )
+			httpRouteStatusCheckRefNotPermitted := httpRouteStatusCheck(
+				ctx,
+				resources,
+				gatewayName,
+				routeName,
+				namespace,
+				createConditionCheckWithReason(
+					"ResolvedRefs",
+					"False",
+					"RefNotPermitted",
+				),
+			)
 			require.Eventually(t, httpRouteStatusCheckRefNotPermitted, checkTimeout, checkInterval, "route status not set in allotted time")
 
 			// create ReferencePolicy allowing BackendRef
@@ -1108,17 +1108,17 @@ func TestHTTPRouteReferencePolicyLifecycle(t *testing.T) {
 			// ResolvedRefs{ status: True, reason: ResolvedRefs }
 			// now that ReferencePolicy allows BackendRef in other namespace
 			require.Eventually(t, httpRouteStatusCheck(
-                ctx,
-                resources,
-                gatewayName,
-                routeName,
-                namespace,
-                createConditionCheckWithReason(
-                    gateway.RouteConditionTypeResolvedRefs,
-                    "True",
-                    gateway.RouteConditionReasonResolvedRefs
-                )
-            ), checkTimeout, checkInterval, "route status not set in allotted time")
+				ctx,
+				resources,
+				gatewayName,
+				routeName,
+				namespace,
+				createConditionCheckWithReason(
+					"ResolvedRefs",
+					"True",
+					"ResolvedRefs",
+				),
+			), checkTimeout, checkInterval, "route status not set in allotted time")
 
 			checkRoute(t, checkPort, "/", serviceOne.Name, map[string]string{
 				"Host": "test.foo",
@@ -1208,8 +1208,8 @@ func tcpRouteStatusCheck(ctx context.Context, resources *resources.Resources, ga
 	}
 }
 
-func createConditionCheck(conditionType, status) bool {
-	return func(condition []meta.Condition) bool {
+func createConditionCheck(conditionType string, status meta.ConditionStatus, reason string) func([]meta.Condition) bool {
+	return func(conditions []meta.Condition) bool {
 		for _, condition := range conditions {
 			if condition.Type == conditionType &&
 				condition.Status == status {
@@ -1220,8 +1220,8 @@ func createConditionCheck(conditionType, status) bool {
 	}
 }
 
-func createConditionCheckWithReason(conditionType, status, reason) bool {
-	return func(condition []meta.Condition) bool {
+func createConditionCheckWithReason(conditionType string, status meta.ConditionStatus, reason string) func([]meta.Condition) bool {
+	return func(conditions []meta.Condition) bool {
 		for _, condition := range conditions {
 			if condition.Type == conditionType &&
 				condition.Status == status &&
