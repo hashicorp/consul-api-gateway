@@ -1046,6 +1046,7 @@ func TestHTTPRouteReferencePolicyLifecycle(t *testing.T) {
 			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionReady), checkTimeout, checkInterval, "no gateway found in the allotted time")
 
 			port := gateway.PortNumber(serviceOne.Spec.Ports[0].Port)
+			gwNamespace := gateway.Namespace(namespace)
 			route := &gateway.HTTPRoute{
 				ObjectMeta: meta.ObjectMeta{
 					Name:      routeName,
@@ -1054,7 +1055,8 @@ func TestHTTPRouteReferencePolicyLifecycle(t *testing.T) {
 				Spec: gateway.HTTPRouteSpec{
 					CommonRouteSpec: gateway.CommonRouteSpec{
 						ParentRefs: []gateway.ParentRef{{
-							Name: gateway.ObjectName(gatewayName),
+							Name:      gateway.ObjectName(gatewayName),
+							Namespace: &gwNamespace,
 						}},
 					},
 					Hostnames: []gateway.Hostname{"test.foo"},
