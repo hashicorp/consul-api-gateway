@@ -5,12 +5,36 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/hashicorp/consul/api"
+	"github.com/hashicorp/consul/sdk/testutil"
 	"github.com/hashicorp/go-hclog"
 	"github.com/stretchr/testify/require"
 )
 
+const testToken = "6d1b28fc-3ccf-4a26-ab19-1ba1c103ade3"
+
+func testConsul(t *testing.T, aclEnabled bool) *api.Client {
+	t.Helper()
+	consulSrv, err := testutil.NewTestServerConfigT(t, func(c *testutil.TestServerConfig) {
+		c.ACL.Enabled = aclEnabled
+		c.ACLMasterToken = testToken
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = consulSrv.Stop()
+	})
+
+	consulSrv.WaitForLeader(t)
+
+	cfg := api.DefaultConfig()
+	cfg.Address = consulSrv.HTTPAddr
+	consul, err := api.NewClient(cfg)
+	require.NoError(t, err)
+	return consul
+}
+
 func TestServer_FindGateways(t *testing.T) {
-	s := NewServer("", hclog.NewNullLogger())
+	s := NewServer("", testConsul(t, false), hclog.NewNullLogger())
 	testServer := httptest.NewServer(s)
 	defer testServer.Close()
 

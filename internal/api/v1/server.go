@@ -6,6 +6,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/hashicorp/consul-api-gateway/internal/api/middleware"
+	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
 )
 
@@ -14,13 +15,15 @@ import (
 var _ ServerInterface = &Server{}
 
 type Server struct {
-	logger hclog.Logger
+	logger       hclog.Logger
+	consulClient *api.Client
 }
 
-func NewServer(url string, logger hclog.Logger) http.Handler {
-	s := &Server{logger: logger}
+func NewServer(url string, consulClient *api.Client, logger hclog.Logger) http.Handler {
+	s := &Server{consulClient: consulClient, logger: logger}
 	r := chi.NewRouter()
-	r.Use(middleware.JSONContentType)
+	//attach middleware
+	r.Use(middleware.JSONContentType, s.consulTokenMiddleware)
 	return HandlerWithOptions(s, ChiServerOptions{
 		BaseURL:    url,
 		BaseRouter: r,
