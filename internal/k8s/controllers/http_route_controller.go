@@ -79,8 +79,6 @@ func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // BackendRefs selectable by the To fields, but currently we just revalidate
 // all Routes allowed in the From Namespaces
 func (r *HTTPRouteReconciler) referencePolicyToRouteRequests(object client.Object) []reconcile.Request {
-	// TODO: Is there a safer way I could typecheck this with
-	// object.GetObjectKind() or something before casting?
 	refPolicy := object.(*gateway.ReferencePolicy)
 
 	routes := r.getRoutesAffectedByReferencePolicy(refPolicy)
