@@ -1068,7 +1068,7 @@ func TestHTTPRouteReferencePolicyLifecycle(t *testing.T) {
 			// Expect that route sets
 			// ResolvedRefs{ status: False, reason: RefNotPermitted }
 			// due to missing ReferencePolicy for BackendRef in other namespace
-			require.Eventually(t, httpRouteStatusCheck(ctx, resources, gatewayName, routeOneName, namespace, routeRefNotPermitted), checkTimeout, checkInterval, "route status not set in allotted time")
+			require.Eventually(t, httpRouteStatusCheck(ctx, resources, gatewayName, routeName, namespace, routeRefNotPermitted), checkTimeout, checkInterval, "route status not set in allotted time")
 
 			// TODO: create ReferencePolicy, check route ResolvedRefs true
 
