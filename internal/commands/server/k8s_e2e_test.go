@@ -1032,8 +1032,7 @@ func TestHTTPRouteReferencePolicyLifecycle(t *testing.T) {
 			err = resources.Create(ctx, gc)
 			require.NoError(t, err)
 
-			// FIXME: should this use a different port?
-			checkPort := e2e.HTTPFlattenedPort(ctx)
+			checkPort := e2e.HTTPReferencePolicyPort(ctx)
 
 			// Allow routes to bind from a different namespace for testing
 			// cross-namespace ReferencePolicy enforcement

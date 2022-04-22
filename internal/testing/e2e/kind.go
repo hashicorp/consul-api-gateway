@@ -40,6 +40,9 @@ nodes:
   - containerPort: {{ .HTTPSFlattenedPort }}
     hostPort: {{ .HTTPSFlattenedPort }}
     protocol: TCP
+  - containerPort: {{ .HTTPSReferencePolicyPort }}
+    hostPort: {{ .HTTPSReferencePolicyPort }}
+    protocol: TCP
   - containerPort: {{ .GRPCPort }}
     hostPort: {{ .GRPCPort }}
     protocol: TCP
@@ -66,31 +69,33 @@ func init() {
 
 // based off github.com/kubernetes-sigs/e2e-framework/support/kind
 type kindCluster struct {
-	name               string
-	e                  *gexe.Echo
-	kubecfgFile        string
-	config             string
-	httpsPort          int
-	httpsFlattenedPort int
-	grpcPort           int
-	extraHTTPPort      int
-	extraTCPPort       int
-	extraTCPTLSPort    int
-	extraTCPTLSPortTwo int
+	name                     string
+	e                        *gexe.Echo
+	kubecfgFile              string
+	config                   string
+	httpsPort                int
+	httpsFlattenedPort       int
+	httpsReferencePolicyPort int
+	grpcPort                 int
+	extraHTTPPort            int
+	extraTCPPort             int
+	extraTCPTLSPort          int
+	extraTCPTLSPortTwo       int
 }
 
 func newKindCluster(name string) *kindCluster {
-	ports := freeport.MustTake(7)
+	ports := freeport.MustTake(8)
 	return &kindCluster{
-		name:               name,
-		e:                  gexe.New(),
-		httpsPort:          ports[0],
-		httpsFlattenedPort: ports[1],
-		grpcPort:           ports[2],
-		extraHTTPPort:      ports[3],
-		extraTCPPort:       ports[4],
-		extraTCPTLSPort:    ports[5],
-		extraTCPTLSPortTwo: ports[6],
+		name:                     name,
+		e:                        gexe.New(),
+		httpsPort:                ports[0],
+		httpsFlattenedPort:       ports[1],
+		httpsReferencePolicyPort: ports[2],
+		grpcPort:                 ports[3],
+		extraHTTPPort:            ports[4],
+		extraTCPPort:             ports[5],
+		extraTCPTLSPort:          ports[6],
+		extraTCPTLSPortTwo:       ports[7],
 	}
 }
 
@@ -99,21 +104,23 @@ func (k *kindCluster) Create() (string, error) {
 
 	var kindConfig bytes.Buffer
 	err := kindTemplate.Execute(&kindConfig, &struct {
-		HTTPSPort          int
-		HTTPSFlattenedPort int
-		GRPCPort           int
-		ExtraTCPPort       int
-		ExtraTCPTLSPort    int
-		ExtraTCPTLSPortTwo int
-		ExtraHTTPPort      int
+		HTTPSPort                int
+		HTTPSFlattenedPort       int
+		HTTPSReferencePolicyPort int
+		GRPCPort                 int
+		ExtraTCPPort             int
+		ExtraTCPTLSPort          int
+		ExtraTCPTLSPortTwo       int
+		ExtraHTTPPort            int
 	}{
-		HTTPSPort:          k.httpsPort,
-		HTTPSFlattenedPort: k.httpsFlattenedPort,
-		GRPCPort:           k.grpcPort,
-		ExtraTCPPort:       k.extraTCPPort,
-		ExtraTCPTLSPort:    k.extraTCPTLSPort,
-		ExtraTCPTLSPortTwo: k.extraTCPTLSPortTwo,
-		ExtraHTTPPort:      k.extraHTTPPort,
+		HTTPSPort:                k.httpsPort,
+		HTTPSFlattenedPort:       k.httpsFlattenedPort,
+		HTTPSReferencePolicyPort: k.httpsReferencePolicyPort,
+		GRPCPort:                 k.grpcPort,
+		ExtraTCPPort:             k.extraTCPPort,
+		ExtraTCPTLSPort:          k.extraTCPTLSPort,
+		ExtraTCPTLSPortTwo:       k.extraTCPTLSPortTwo,
+		ExtraHTTPPort:            k.extraHTTPPort,
 	})
 	if err != nil {
 		return "", err
