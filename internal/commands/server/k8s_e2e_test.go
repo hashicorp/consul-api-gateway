@@ -976,6 +976,7 @@ func TestHTTPRouteReferencePolicyLifecycle(t *testing.T) {
 			gatewayName := envconf.RandomName("gw", 16)
 			routeName := envconf.RandomName("route", 16)
 			routeNamespace := e2e.Namespaces(ctx)[1]
+			refPolicyName := envconf.RandomName("refpolicy", 16)
 
 			resources := cfg.Client().Resources(namespace)
 
@@ -1088,6 +1089,7 @@ func TestHTTPRouteReferencePolicyLifecycle(t *testing.T) {
 			serviceOneObjectName := gateway.ObjectName(serviceOne.Name)
 			referencePolicy := &gateway.ReferencePolicy{
 				ObjectMeta: meta.ObjectMeta{
+					Name:      refPolicyName,
 					Namespace: namespace,
 				},
 				Spec: gateway.ReferencePolicySpec{
