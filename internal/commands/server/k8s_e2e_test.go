@@ -1064,35 +1064,34 @@ func TestHTTPRouteReferencePolicyLifecycle(t *testing.T) {
 						BackendRefs: []gateway.HTTPBackendRef{{
 							BackendRef: gateway.BackendRef{
 								BackendObjectReference: gateway.BackendObjectReference{
-									Name: gateway.ObjectName(serviceOne.Name),
-									Port: &port,
+									Name:      gateway.ObjectName(serviceOne.Name),
+									Namespace: &gwNamespace,
+									Port:      &port,
 								},
 							},
 						}},
 					}},
 				},
 			}
-			// FIXME: invalid route not accepted by gateway is deleted by controller
-			// err = resources.Create(ctx, route)
-			// require.NoError(t, err)
+			err = resources.Create(ctx, route)
+			require.NoError(t, err)
 
 			// Expect that route sets
 			// ResolvedRefs{ status: False, reason: RefNotPermitted }
 			// due to missing ReferencePolicy for BackendRef in other namespace
-			// httpRouteStatusCheckRefNotPermitted := httpRouteStatusCheck(
-			// 	ctx,
-			// 	resources,
-			// 	gatewayName,
-			// 	routeName,
-			// 	routeNamespace,
-			// 	createConditionCheckWithReason(
-			// 		"ResolvedRefs",
-			// 		"False",
-			// 		"RefNotPermitted",
-			// 	),
-			// )
-			// FIXME: Should route be deleted by the controller if not accepted?
-			// require.Eventually(t, httpRouteStatusCheckRefNotPermitted, checkTimeout, checkInterval, "route status not set in allotted time")
+			httpRouteStatusCheckRefNotPermitted := httpRouteStatusCheck(
+				ctx,
+				resources,
+				gatewayName,
+				routeName,
+				routeNamespace,
+				createConditionCheckWithReason(
+					"ResolvedRefs",
+					"False",
+					"RefNotPermitted",
+				),
+			)
+			require.Eventually(t, httpRouteStatusCheckRefNotPermitted, checkTimeout, checkInterval, "route status not set in allotted time")
 
 			// create ReferencePolicy allowing BackendRef
 			serviceOneObjectName := gateway.ObjectName(serviceOne.Name)
@@ -1117,30 +1116,6 @@ func TestHTTPRouteReferencePolicyLifecycle(t *testing.T) {
 			err = resources.Create(ctx, referencePolicy)
 			require.NoError(t, err)
 
-			// Wait for RefenecePolicy to exist before attempting to create Route
-			require.Eventually(t, func() bool {
-				updated := &gateway.ReferencePolicy{}
-				if err := resources.Get(ctx, refPolicyName, namespace, updated); err != nil {
-					return false
-				}
-				return true
-			}, checkTimeout, checkInterval, "reference policy does not exist in allotted time")
-
-			// FIXME: should it be possible to create an invalid route before an
-			// allowing ReferencePolicy exists?
-			err = resources.Create(ctx, route)
-			require.NoError(t, err)
-
-			// DEBUG: Wait for Route to exist
-			require.Eventually(t, func() bool {
-				updated := &gateway.HTTPRoute{}
-				if err := resources.Get(ctx, routeName, routeNamespace, updated); err != nil {
-					return false
-				}
-				fmt.Printf("%#v", updated)
-				return true
-			}, checkTimeout, checkInterval, "route does not exist in allotted time")
-
 			// Expect that route sets
 			// ResolvedRefs{ status: True, reason: ResolvedRefs }
 			// now that ReferencePolicy allows BackendRef in other namespace
@@ -1150,12 +1125,13 @@ func TestHTTPRouteReferencePolicyLifecycle(t *testing.T) {
 				gatewayName,
 				routeName,
 				routeNamespace,
-				createConditionCheck(
-					"Accepted",
-					"True",
-				),
+				createConditionsCheck([]meta.Condition{
+					{Type: "Accepted", Status: "True"},
+					{Type: "ResolvedRefs", Status: "True", Reason: "ResolvedRefs"},
+				}),
 			), checkTimeout, checkInterval, "route status not set in allotted time")
 
+			// Check that route is successfully resolved and routing traffic
 			checkRoute(t, checkPort, "/", serviceOne.Name, map[string]string{
 				"Host": "test.foo",
 			}, "service one not routable in allotted time")
@@ -1163,10 +1139,7 @@ func TestHTTPRouteReferencePolicyLifecycle(t *testing.T) {
 			// Delete ReferencePolicy, check for RefNotPermitted again
 			err = resources.Delete(ctx, referencePolicy)
 			require.NoError(t, err)
-
-			// FIXME: this needs to instead check that the route has been removed
-			// from the listener if the controller is deleting evicted routes
-			// require.Eventually(t, httpRouteStatusCheckRefNotPermitted, checkTimeout, checkInterval, "route status not set in allotted time")
+			require.Eventually(t, httpRouteStatusCheckRefNotPermitted, checkTimeout, checkInterval, "route status not set in allotted time")
 
 			err = resources.Delete(ctx, gw)
 			require.NoError(t, err)
@@ -1243,6 +1216,28 @@ func tcpRouteStatusCheck(ctx context.Context, resources *resources.Resources, ga
 			}
 		}
 		return false
+	}
+}
+
+func createConditionsCheck(expected []meta.Condition) func([]meta.Condition) bool {
+	return func(actual []meta.Condition) bool {
+		for _, eCondition := range expected {
+			matched := false
+			for _, aCondition := range actual {
+				if aCondition.Type == eCondition.Type &&
+					aCondition.Status == eCondition.Status &&
+					// Match if expected condition doesn't define an expected reason
+					(aCondition.Reason == eCondition.Reason || eCondition.Reason == "") {
+					matched = true
+					break
+				}
+			}
+
+			if !matched {
+				return false
+			}
+		}
+		return true
 	}
 }
 
