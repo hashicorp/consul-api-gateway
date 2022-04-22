@@ -1129,6 +1129,16 @@ func TestHTTPRouteReferencePolicyLifecycle(t *testing.T) {
 			err = resources.Create(ctx, route)
 			require.NoError(t, err)
 
+			// DEBUG: Wait for Route to exist
+			require.Eventually(t, func() bool {
+				updated := &gateway.HTTPRoute{}
+				if err := resources.Get(ctx, routeName, routeNamespace, updated); err != nil {
+					return false
+				}
+				fmt.Printf("%#v", updated)
+				return true
+			}, checkTimeout, checkInterval, "route does not exist in allotted time")
+
 			// Expect that route sets
 			// ResolvedRefs{ status: True, reason: ResolvedRefs }
 			// now that ReferencePolicy allows BackendRef in other namespace
