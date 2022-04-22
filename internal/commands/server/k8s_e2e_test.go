@@ -78,7 +78,7 @@ func TestGatewayWithClassConfigChange(t *testing.T) {
 			firstGateway := createGateway(ctx, t, cfg, firstGatewayName, gc, 443, nil)
 			require.Eventually(t, func() bool {
 				err := resources.Get(ctx, firstGatewayName, namespace, firstGateway)
-				return err == nil && conditionAccepted(firstGateway.Status.Conditions)
+				return err == nil && conditionReady(firstGateway.Status.Conditions)
 			}, 60*time.Second, checkInterval, "no gateway found in the allotted time")
 			require.Eventually(t, gatewayStatusCheck(ctx, resources, firstGatewayName, namespace, conditionReady), 30*time.Second, checkInterval, "no gateway found in the allotted time")
 			checkGatewayConfigAnnotation(t, firstGateway, firstConfig)
@@ -96,7 +96,7 @@ func TestGatewayWithClassConfigChange(t *testing.T) {
 			secondGateway := createGateway(ctx, t, cfg, secondGatewayName, gc, 443, nil)
 			require.Eventually(t, func() bool {
 				err := resources.Get(ctx, secondGatewayName, namespace, secondGateway)
-				return err == nil && conditionAccepted(secondGateway.Status.Conditions)
+				return err == nil && conditionReady(secondGateway.Status.Conditions)
 			}, 30*time.Second, checkInterval, "no gateway found in the allotted time")
 			require.Eventually(t, gatewayStatusCheck(ctx, resources, secondGatewayName, namespace, conditionReady), 30*time.Second, checkInterval, "no gateway found in the allotted time")
 			checkGatewayConfigAnnotation(t, secondGateway, secondConfig)
@@ -139,7 +139,7 @@ func TestGatewayBasic(t *testing.T) {
 			created := &gateway.Gateway{}
 			require.Eventually(t, func() bool {
 				err := resources.Get(ctx, gatewayName, namespace, created)
-				return err == nil && conditionAccepted(created.Status.Conditions)
+				return err == nil && conditionReady(created.Status.Conditions)
 			}, checkTimeout, checkInterval, "no gateway found in the allotted time")
 
 			checkGatewayConfigAnnotation(t, created, gcc)
