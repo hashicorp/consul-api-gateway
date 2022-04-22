@@ -38,23 +38,30 @@ func TestServer_consulTokenMiddleware(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
+		// need to shadow this for parallel run
 		tt := tt
+
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			s := NewServer("", testConsul(t, tt.aclEnabled), hclog.Default())
+
+			s, err := NewServer("", testConsul(t, tt.aclEnabled), hclog.Default())
+			require.NoError(t, err)
+
 			testServer := httptest.NewServer(s)
 			defer testServer.Close()
+
 			req, err := http.NewRequest(http.MethodGet, testServer.URL+"/fake", nil)
 			require.NoError(t, err)
 			req.Header.Set(consulTokenHeader, tt.token)
 			resp, err := http.DefaultClient.Do(req)
 			require.NoError(t, err)
+
+			require.Equal(t, "application/json", resp.Header.Get("Content-Type"))
 			if tt.authorized {
-				require.Equal(t, http.StatusNotFound, resp.StatusCode)
+				require.Equal(t, http.StatusBadRequest, resp.StatusCode)
 			} else {
 				require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 			}
-
 		})
 	}
 }
