@@ -1069,18 +1069,18 @@ func TestHTTPRouteReferencePolicyLifecycle(t *testing.T) {
 			// Expect that route sets
 			// ResolvedRefs{ status: False, reason: RefNotPermitted }
 			// due to missing ReferencePolicy for BackendRef in other namespace
-			httpRouteStatusCheckRefNotPermitted := httpRouteStatusCheck(
-				ctx,
-				resources,
-				gatewayName,
-				routeName,
-				routeNamespace,
-				createConditionCheckWithReason(
-					"ResolvedRefs",
-					"False",
-					"RefNotPermitted",
-				),
-			)
+			// httpRouteStatusCheckRefNotPermitted := httpRouteStatusCheck(
+			// 	ctx,
+			// 	resources,
+			// 	gatewayName,
+			// 	routeName,
+			// 	routeNamespace,
+			// 	createConditionCheckWithReason(
+			// 		"ResolvedRefs",
+			// 		"False",
+			// 		"RefNotPermitted",
+			// 	),
+			// )
 			// FIXME: Should route be deleted by the controller if not accepted?
 			// require.Eventually(t, httpRouteStatusCheckRefNotPermitted, checkTimeout, checkInterval, "route status not set in allotted time")
 
