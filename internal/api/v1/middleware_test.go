@@ -5,16 +5,18 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
 	"github.com/stretchr/testify/require"
 )
 
 func TestServer_consulTokenMiddleware(t *testing.T) {
 	tests := []struct {
-		name       string
-		aclEnabled bool
-		token      string
-		authorized bool
+		name        string
+		aclEnabled  bool
+		token       string
+		createToken bool
+		authorized  bool
 	}{
 		{
 			name:       "acl disabled",
@@ -25,12 +27,20 @@ func TestServer_consulTokenMiddleware(t *testing.T) {
 			name:       "acl enabled and authorized",
 			aclEnabled: true,
 			token:      testToken,
-			authorized: true},
+			authorized: true,
+		},
 		{
-			name:       "acl enabled and unauthorized",
+			name:        "acl enabled and unauthorized token",
+			aclEnabled:  true,
+			createToken: true,
+			authorized:  false,
+		},
+		{
+			name:       "acl enabled and invalid token",
 			aclEnabled: true,
 			token:      "fake-token",
-			authorized: false},
+			authorized: false,
+		},
 		{
 			name:       "acl enabled and no token",
 			aclEnabled: true,
@@ -44,15 +54,23 @@ func TestServer_consulTokenMiddleware(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			s, err := NewServer("", testConsul(t, tt.aclEnabled), hclog.Default())
+			consul := testConsul(t, tt.aclEnabled)
+			s, err := NewServer("", consul, hclog.Default())
 			require.NoError(t, err)
+
+			token := tt.token
+			if tt.createToken {
+				aclToken, _, err := consul.ACL().TokenCreate(&api.ACLToken{}, nil)
+				require.NoError(t, err)
+				token = aclToken.SecretID
+			}
 
 			testServer := httptest.NewServer(s)
 			defer testServer.Close()
 
 			req, err := http.NewRequest(http.MethodGet, testServer.URL+"/fake", nil)
 			require.NoError(t, err)
-			req.Header.Set(consulTokenHeader, tt.token)
+			req.Header.Set(consulTokenHeader, token)
 			resp, err := http.DefaultClient.Do(req)
 			require.NoError(t, err)
 
