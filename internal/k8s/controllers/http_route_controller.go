@@ -3,8 +3,6 @@ package controllers
 import (
 	"context"
 
-	"k8s.io/apimachinery/pkg/fields"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -124,10 +122,4 @@ func (r *HTTPRouteReconciler) getReferencePolicyObjectsFrom(refPolicy *gateway.R
 	}
 
 	return matches
-}
-
-func groupKindToFieldSelector(gk schema.GroupKind) fields.Selector {
-	return fields.SelectorFromSet(fields.Set{
-		"kind": gk.Kind,
-	})
 }
