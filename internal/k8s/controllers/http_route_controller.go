@@ -99,62 +99,12 @@ func (r *HTTPRouteReconciler) referencePolicyToRouteRequests(object client.Objec
 func (r *HTTPRouteReconciler) getRoutesAffectedByReferencePolicy(refPolicy *gateway.ReferencePolicy) []gateway.HTTPRoute {
 	matches := []gateway.HTTPRoute{}
 
-	// toSelectors := []fields.Selector{}
-	// for _, to := range refPolicy.Spec.To {
-	// 	// When empty, the Kubernetes core API group is inferred.
-	// 	group := "core/v1"
-	// 	if to.Group != "" {
-	// 		group = string(to.Group)
-	// 	}
-
-	// 	toSelectors = append(toSelectors, groupKindToFieldSelector(schema.GroupKind{
-	// 		Group: group,
-	// 		Kind:  string(to.Kind),
-	// 	}))
-	// }
-
 	routes := r.getReferencePolicyObjectsFrom(refPolicy)
 
 	// TODO: match only routes with BackendRefs selectable by a
 	// ReferencePolicyTo instead of appending all routes. This seems expensive,
 	// so not sure if it would actually improve performance or not.
 	matches = append(matches, routes...)
-
-	// for _, route := range routes {
-	// 	routeMatched := false
-
-	// 	// TODO: should this use reflection to handle xRoute types? seems expensive
-	// 	for _, rule := range route.Spec.Rules {
-	// 		for range rule.BackendRefs {
-	// 			// Check if backendRef.BackendObjectReference is selectable by
-	// 			// the requirements in any refPolicy.Spec.To
-	// 			for _, selector := range toSelectors {
-	// 				if selector.Matches(fields.Set{
-	//                  "kind": backendRef.BackendObjectReference.Kind
-	//                  "metadata.name": backendRef.BackendObjectReference.Name
-	// 				}) {
-	// 					routeMatched = true
-	// 					matches = append(matches, route)
-
-	// 					// Exit toSelectors loop early if route has already been matched
-	// 					if routeMatched {
-	// 						break
-	// 					}
-	// 				}
-	// 			}
-
-	// 			// Exit BackendRefs loop early if route has already been matched
-	// 			if routeMatched {
-	// 				break
-	// 			}
-	// 		}
-
-	// 		// Exit Rules loop early if route has already been matched
-	// 		if routeMatched {
-	// 			break
-	// 		}
-	// 	}
-	// }
 
 	return matches
 }
