@@ -14,34 +14,16 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/common"
 	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
+	rcommon "github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/common"
+	rerrors "github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/errors"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/status"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	"github.com/hashicorp/consul-api-gateway/internal/store"
 	"github.com/hashicorp/go-hclog"
 )
 
-var (
-	supportedProtocols = map[gw.ProtocolType][]gw.RouteGroupKind{
-		gw.HTTPProtocolType: {{
-			Group: (*gw.Group)(&gw.GroupVersion.Group),
-			Kind:  "HTTPRoute",
-		}},
-		gw.HTTPSProtocolType: {{
-			Group: (*gw.Group)(&gw.GroupVersion.Group),
-			Kind:  "HTTPRoute",
-		}},
-		gw.TCPProtocolType: {{
-			Group: (*gw.Group)(&gw.GroupVersion.Group),
-			Kind:  "TCPRoute",
-		}},
-	}
-)
-
 const (
-	defaultListenerName          = "default"
-	annotationKeyPrefix          = "api-gateway.consul.hashicorp.com/"
-	tlsMinVersionAnnotationKey   = annotationKeyPrefix + "tls_min_version"
-	tlsMaxVersionAnnotationKey   = annotationKeyPrefix + "tls_max_version"
-	tlsCipherSuitesAnnotationKey = annotationKeyPrefix + "tls_cipher_suites"
+	defaultListenerName = "default"
 )
 
 type K8sListener struct {
@@ -51,7 +33,7 @@ type K8sListener struct {
 	listener        gw.Listener
 	client          gatewayclient.Client
 
-	status         ListenerStatus
+	status         *status.ListenerStatus
 	tls            core.TLSParams
 	routeCount     int32
 	supportedKinds []gw.RouteGroupKind
@@ -74,6 +56,7 @@ func NewK8sListener(gateway *gw.Gateway, listener gw.Listener, config K8sListene
 		client:          config.Client,
 		gateway:         gateway,
 		listener:        listener,
+		status:          &status.ListenerStatus{},
 	}
 }
 
@@ -122,7 +105,7 @@ func (l *K8sListener) validateTLS(ctx context.Context) error {
 	ref := *l.listener.TLS.CertificateRefs[0]
 	resource, err := l.resolveCertificateReference(ctx, ref)
 	if err != nil {
-		var certificateErr CertificateResolutionError
+		var certificateErr rerrors.CertificateResolutionError
 		if !errors.As(err, &certificateErr) {
 			return err
 		}
@@ -185,24 +168,6 @@ func (l *K8sListener) validateTLS(ctx context.Context) error {
 	return nil
 }
 
-var supportedTlsVersions = map[string]struct{}{
-	"TLS_AUTO": {},
-	"TLSv1_0":  {},
-	"TLSv1_1":  {},
-	"TLSv1_2":  {},
-	"TLSv1_3":  {},
-}
-
-var tlsVersionsWithConfigurableCipherSuites = map[string]struct{}{
-	// Remove these two if Envoy ever sets TLS 1.3 as default minimum
-	"":         {},
-	"TLS_AUTO": {},
-
-	"TLSv1_0": {},
-	"TLSv1_1": {},
-	"TLSv1_2": {},
-}
-
 func (l *K8sListener) validateUnsupported() {
 	// seems weird that we're looking at gateway fields for listener status
 	// but that's the weirdness of the spec
@@ -213,8 +178,8 @@ func (l *K8sListener) validateUnsupported() {
 }
 
 func (l *K8sListener) validateProtocols() {
-	supportedKinds, found := supportedProtocols[l.listener.Protocol]
-	if !found {
+	supportedKinds := rcommon.SupportedKindsFor(l.listener.Protocol)
+	if supportedKinds == nil {
 		l.status.Detached.UnsupportedProtocol = fmt.Errorf("unsupported protocol: %s", l.listener.Protocol)
 	}
 	l.supportedKinds = supportedKinds
@@ -273,12 +238,12 @@ func (l *K8sListener) resolveCertificateReference(ctx context.Context, ref gw.Se
 			return "", fmt.Errorf("error fetching secret: %w", err)
 		}
 		if cert == nil {
-			return "", NewCertificateResolutionErrorNotFound("certificate not found")
+			return "", rerrors.NewCertificateResolutionErrorNotFound("certificate not found")
 		}
 		return utils.NewK8sSecret(namespace, string(ref.Name)).String(), nil
 	// add more supported types here
 	default:
-		return "", NewCertificateResolutionErrorUnsupported(fmt.Sprintf("unsupported certificate type - group: %s, kind: %s", group, kind))
+		return "", rerrors.NewCertificateResolutionErrorUnsupported(fmt.Sprintf("unsupported certificate type - group: %s, kind: %s", group, kind))
 	}
 }
 
@@ -351,7 +316,7 @@ func (l *K8sListener) canBind(ctx context.Context, ref gw.ParentRef, route *K8sR
 		if !routeKindIsAllowedForListener(l.supportedKinds, route) {
 			l.logger.Trace("route kind not allowed for listener", "route", route.ID())
 			if must {
-				return false, NewBindErrorRouteKind("route kind not allowed for listener")
+				return false, rerrors.NewBindErrorRouteKind("route kind not allowed for listener")
 			}
 			return false, nil
 		}
@@ -363,7 +328,7 @@ func (l *K8sListener) canBind(ctx context.Context, ref gw.ParentRef, route *K8sR
 		if !allowed {
 			l.logger.Trace("route not allowed because of listener namespace policy", "route", route.ID())
 			if must {
-				return false, NewBindErrorListenerNamespacePolicy("route not allowed because of listener namespace policy")
+				return false, rerrors.NewBindErrorListenerNamespacePolicy("route not allowed because of listener namespace policy")
 			}
 			return false, nil
 		}
@@ -371,14 +336,14 @@ func (l *K8sListener) canBind(ctx context.Context, ref gw.ParentRef, route *K8sR
 		if !route.MatchesHostname(l.listener.Hostname) {
 			l.logger.Trace("route does not match listener hostname", "route", route.ID())
 			if must {
-				return false, NewBindErrorHostnameMismatch("route does not match listener hostname")
+				return false, rerrors.NewBindErrorHostnameMismatch("route does not match listener hostname")
 			}
 			return false, nil
 		}
 
 		// check if the route is valid, if not, then return a status about it being rejected
 		if !route.IsValid() {
-			return false, NewBindErrorRouteInvalid("route is in an invalid state and cannot bind")
+			return false, rerrors.NewBindErrorRouteInvalid("route is in an invalid state and cannot bind")
 		}
 		return true, nil
 	}

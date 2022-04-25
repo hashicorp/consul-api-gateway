@@ -86,8 +86,7 @@ type StatusTrackingRoute interface {
 // source integrations
 type Route interface {
 	ID() string
-	Compare(other Route) CompareResult
-	Resolve(listener Listener) *core.ResolvedRoute
+	Resolve(listener Listener) core.ResolvedRoute
 }
 
 // Store is used for persisting and querying gateways and routes
@@ -95,8 +94,8 @@ type Store interface {
 	GatewayExists(ctx context.Context, id core.GatewayID) (bool, error)
 	CanFetchSecrets(ctx context.Context, id core.GatewayID, secrets []string) (bool, error)
 	DeleteGateway(ctx context.Context, id core.GatewayID) error
-	UpsertGateway(ctx context.Context, gateway Gateway) error
+	UpsertGateway(ctx context.Context, gateway Gateway, updateConditionFn func(current Gateway) bool) error
 	DeleteRoute(ctx context.Context, id string) error
-	UpsertRoute(ctx context.Context, route Route) error
+	UpsertRoute(ctx context.Context, route Route, updateConditionFn func(current Route) bool) error
 	Sync(ctx context.Context) error
 }

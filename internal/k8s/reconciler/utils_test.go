@@ -17,6 +17,7 @@ import (
 	"github.com/hashicorp/go-hclog"
 
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient/mocks"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/state"
 )
 
 func TestRouteMatchesListener(t *testing.T) {
@@ -67,6 +68,10 @@ func TestHostnamesMatch(t *testing.T) {
 func TestRouteKindIsAllowedForListener(t *testing.T) {
 	t.Parallel()
 
+	factory := NewFactory(FactoryConfig{
+		Logger: hclog.NewNullLogger(),
+	})
+
 	routeMeta := meta.TypeMeta{}
 	routeMeta.SetGroupVersionKind(schema.GroupVersionKind{
 		Group:   gw.GroupVersion.Group,
@@ -76,23 +81,23 @@ func TestRouteKindIsAllowedForListener(t *testing.T) {
 	require.True(t, routeKindIsAllowedForListener([]gw.RouteGroupKind{{
 		Group: (*gw.Group)(&gw.GroupVersion.Group),
 		Kind:  "HTTPRoute",
-	}}, NewK8sRoute(&gw.HTTPRoute{
+	}}, factory.NewRoute(&gw.HTTPRoute{
 		TypeMeta: routeMeta,
-	}, K8sRouteConfig{
-		Logger: hclog.NewNullLogger(),
-	})))
+	}, state.NewRouteState())))
 	require.False(t, routeKindIsAllowedForListener([]gw.RouteGroupKind{{
 		Group: (*gw.Group)(&gw.GroupVersion.Group),
 		Kind:  "TCPRoute",
-	}}, NewK8sRoute(&gw.HTTPRoute{
+	}}, factory.NewRoute(&gw.HTTPRoute{
 		TypeMeta: routeMeta,
-	}, K8sRouteConfig{
-		Logger: hclog.NewNullLogger(),
-	})))
+	}, state.NewRouteState())))
 }
 
 func TestRouteAllowedForListenerNamespaces(t *testing.T) {
 	t.Parallel()
+
+	factory := NewFactory(FactoryConfig{
+		Logger: hclog.NewNullLogger(),
+	})
 
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -105,13 +110,11 @@ func TestRouteAllowedForListenerNamespaces(t *testing.T) {
 		Namespaces: &gw.RouteNamespaces{
 			From: &same,
 		},
-	}, NewK8sRoute(&gw.HTTPRoute{
+	}, factory.NewRoute(&gw.HTTPRoute{
 		ObjectMeta: meta.ObjectMeta{
 			Namespace: "expected",
 		},
-	}, K8sRouteConfig{
-		Logger: hclog.NewNullLogger(),
-	}), client)
+	}, state.NewRouteState()), client)
 	require.NoError(t, err)
 	require.True(t, allowed)
 
@@ -119,13 +122,11 @@ func TestRouteAllowedForListenerNamespaces(t *testing.T) {
 		Namespaces: &gw.RouteNamespaces{
 			From: &same,
 		},
-	}, NewK8sRoute(&gw.HTTPRoute{
+	}, factory.NewRoute(&gw.HTTPRoute{
 		ObjectMeta: meta.ObjectMeta{
 			Namespace: "other",
 		},
-	}, K8sRouteConfig{
-		Logger: hclog.NewNullLogger(),
-	}), client)
+	}, state.NewRouteState()), client)
 	require.NoError(t, err)
 	require.False(t, allowed)
 
@@ -135,13 +136,11 @@ func TestRouteAllowedForListenerNamespaces(t *testing.T) {
 		Namespaces: &gw.RouteNamespaces{
 			From: &all,
 		},
-	}, NewK8sRoute(&gw.HTTPRoute{
+	}, factory.NewRoute(&gw.HTTPRoute{
 		ObjectMeta: meta.ObjectMeta{
 			Namespace: "other",
 		},
-	}, K8sRouteConfig{
-		Logger: hclog.NewNullLogger(),
-	}), client)
+	}, state.NewRouteState()), client)
 	require.NoError(t, err)
 	require.True(t, allowed)
 
@@ -166,13 +165,11 @@ func TestRouteAllowedForListenerNamespaces(t *testing.T) {
 				},
 			},
 		},
-	}, NewK8sRoute(&gw.HTTPRoute{
+	}, factory.NewRoute(&gw.HTTPRoute{
 		ObjectMeta: meta.ObjectMeta{
 			Namespace: "expected",
 		},
-	}, K8sRouteConfig{
-		Logger: hclog.NewNullLogger(),
-	}), client)
+	}, state.NewRouteState()), client)
 	require.NoError(t, err)
 	require.False(t, allowed)
 
@@ -186,13 +183,11 @@ func TestRouteAllowedForListenerNamespaces(t *testing.T) {
 				},
 			},
 		},
-	}, NewK8sRoute(&gw.HTTPRoute{
+	}, factory.NewRoute(&gw.HTTPRoute{
 		ObjectMeta: meta.ObjectMeta{
 			Namespace: "expected",
 		},
-	}, K8sRouteConfig{
-		Logger: hclog.NewNullLogger(),
-	}), client)
+	}, state.NewRouteState()), client)
 	require.NoError(t, err)
 	require.True(t, allowed)
 
@@ -206,13 +201,11 @@ func TestRouteAllowedForListenerNamespaces(t *testing.T) {
 				}},
 			},
 		},
-	}, NewK8sRoute(&gw.HTTPRoute{
+	}, factory.NewRoute(&gw.HTTPRoute{
 		ObjectMeta: meta.ObjectMeta{
 			Namespace: "expected",
 		},
-	}, K8sRouteConfig{
-		Logger: hclog.NewNullLogger(),
-	}), client)
+	}, state.NewRouteState()), client)
 	require.Error(t, err)
 
 	// unknown
@@ -221,13 +214,11 @@ func TestRouteAllowedForListenerNamespaces(t *testing.T) {
 		Namespaces: &gw.RouteNamespaces{
 			From: &unknown,
 		},
-	}, NewK8sRoute(&gw.HTTPRoute{
+	}, factory.NewRoute(&gw.HTTPRoute{
 		ObjectMeta: meta.ObjectMeta{
 			Namespace: "expected",
 		},
-	}, K8sRouteConfig{
-		Logger: hclog.NewNullLogger(),
-	}), client)
+	}, state.NewRouteState()), client)
 	require.NoError(t, err)
 	require.False(t, allowed)
 }
@@ -322,44 +313,6 @@ func TestListenerStatusEqual(t *testing.T) {
 			Group: &groupTwo,
 			Kind:  kindTwo,
 		}},
-	}))
-}
-
-func TestListenerStatusesEqual(t *testing.T) {
-	t.Parallel()
-
-	require.True(t, listenerStatusesEqual([]gw.ListenerStatus{}, []gw.ListenerStatus{}))
-	require.False(t, listenerStatusesEqual([]gw.ListenerStatus{}, []gw.ListenerStatus{{}}))
-	require.False(t, listenerStatusesEqual([]gw.ListenerStatus{{
-		Name: "expected",
-	}}, []gw.ListenerStatus{{
-		Name: "other",
-	}}))
-}
-
-func TestParentStatusEqual(t *testing.T) {
-	t.Parallel()
-
-	require.True(t, parentStatusEqual(gw.RouteParentStatus{}, gw.RouteParentStatus{}))
-	require.False(t, parentStatusEqual(gw.RouteParentStatus{}, gw.RouteParentStatus{
-		ControllerName: "other",
-	}))
-	require.False(t, parentStatusEqual(gw.RouteParentStatus{}, gw.RouteParentStatus{
-		ParentRef: gw.ParentRef{
-			Name: "other",
-		},
-	}))
-}
-
-func TestGatewayStatusEqual(t *testing.T) {
-	t.Parallel()
-
-	require.True(t, gatewayStatusEqual(gw.GatewayStatus{}, gw.GatewayStatus{}))
-	require.False(t, gatewayStatusEqual(gw.GatewayStatus{}, gw.GatewayStatus{
-		Conditions: []meta.Condition{{}},
-	}))
-	require.False(t, gatewayStatusEqual(gw.GatewayStatus{}, gw.GatewayStatus{
-		Listeners: []gw.ListenerStatus{{}},
 	}))
 }
 

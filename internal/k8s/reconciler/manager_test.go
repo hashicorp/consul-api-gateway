@@ -91,7 +91,7 @@ func TestUpsertGateway(t *testing.T) {
 	require.Equal(t, expected, manager.UpsertGateway(context.Background(), inner))
 
 	client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(nil, nil).Times(2)
-	store.EXPECT().UpsertGateway(gomock.Any(), gomock.Any())
+	store.EXPECT().UpsertGateway(gomock.Any(), gomock.Any(), gomock.Any())
 	require.NoError(t, manager.UpsertGateway(context.Background(), inner))
 }
 
@@ -124,7 +124,7 @@ func TestUpsertHTTPRoute(t *testing.T) {
 	require.NoError(t, manager.UpsertHTTPRoute(context.Background(), &gw.HTTPRoute{}))
 
 	manager.namespaceMap[types.NamespacedName{Name: "gateway"}] = ""
-	store.EXPECT().UpsertRoute(gomock.Any(), gomock.Any()).Return(nil)
+	store.EXPECT().UpsertRoute(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 	require.NoError(t, manager.UpsertHTTPRoute(context.Background(), &gw.HTTPRoute{
 		Spec: gw.HTTPRouteSpec{
 			CommonRouteSpec: gw.CommonRouteSpec{
@@ -136,7 +136,7 @@ func TestUpsertHTTPRoute(t *testing.T) {
 	}))
 
 	client.EXPECT().IsManagedRoute(gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil)
-	store.EXPECT().UpsertRoute(gomock.Any(), gomock.Any()).Return(nil)
+	store.EXPECT().UpsertRoute(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 	require.NoError(t, manager.UpsertHTTPRoute(context.Background(), &gw.HTTPRoute{}))
 
 	client.EXPECT().IsManagedRoute(gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil)
@@ -174,28 +174,8 @@ func TestUpsertTCPRoute(t *testing.T) {
 	})
 
 	client.EXPECT().IsManagedRoute(gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil)
-	store.EXPECT().UpsertRoute(gomock.Any(), gomock.Any()).Return(nil)
+	store.EXPECT().UpsertRoute(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 	require.NoError(t, manager.UpsertTCPRoute(context.Background(), &gw.TCPRoute{}))
-}
-
-func TestUpsertTLSRoute(t *testing.T) {
-	t.Parallel()
-
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-	client := mocks.NewMockClient(ctrl)
-	store := storeMocks.NewMockStore(ctrl)
-
-	manager := NewReconcileManager(ManagerConfig{
-		Client:                client,
-		Logger:                hclog.NewNullLogger(),
-		Store:                 store,
-		ConsulNamespaceMapper: testNamespaceMapper,
-	})
-
-	client.EXPECT().IsManagedRoute(gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil)
-	store.EXPECT().UpsertRoute(gomock.Any(), gomock.Any()).Return(nil)
-	require.NoError(t, manager.UpsertTLSRoute(context.Background(), &gw.TLSRoute{}))
 }
 
 func TestDeleteGatewayClass(t *testing.T) {
@@ -268,26 +248,4 @@ func TestDeleteTCPRoute(t *testing.T) {
 
 	store.EXPECT().DeleteRoute(gomock.Any(), gomock.Any()).Return(nil)
 	require.NoError(t, manager.DeleteTCPRoute(context.Background(), types.NamespacedName{}))
-}
-
-func TestDeleteTLSRoute(t *testing.T) {
-	t.Parallel()
-
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-	store := storeMocks.NewMockStore(ctrl)
-
-	manager := NewReconcileManager(ManagerConfig{
-		Logger:                hclog.NewNullLogger(),
-		Store:                 store,
-		ConsulNamespaceMapper: testNamespaceMapper,
-	})
-
-	expected := errors.New("expected")
-
-	store.EXPECT().DeleteRoute(gomock.Any(), gomock.Any()).Return(expected)
-	require.Equal(t, expected, manager.DeleteTLSRoute(context.Background(), types.NamespacedName{}))
-
-	store.EXPECT().DeleteRoute(gomock.Any(), gomock.Any()).Return(nil)
-	require.NoError(t, manager.DeleteTLSRoute(context.Background(), types.NamespacedName{}))
 }
