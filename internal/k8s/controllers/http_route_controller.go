@@ -71,7 +71,7 @@ func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // For UpdateEvents which contain both a new and old object, this transformation
 // function is run on both objects and both sets of Requests are enqueued.
 //
-// This is needed to reconcile any objects matched by  both current and prior
+// This is needed to reconcile any objects matched by both current and prior
 // state in case a ReferencePolicy has been modified to revoke permission from a
 // namespace or to a service
 //
