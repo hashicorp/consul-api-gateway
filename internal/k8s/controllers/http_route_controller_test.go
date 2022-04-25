@@ -103,6 +103,14 @@ func TestHTTPRouteReferencePolicyToRouteRequests(t *testing.T) {
 		}},
 	}
 
+	tcpRouteSpec := gw.TCPRouteSpec{
+		Rules: []gw.TCPRouteRule{{
+			BackendRefs: []gw.BackendRef{{
+				BackendObjectReference: backendObjRef,
+			}},
+		}},
+	}
+
 	refPolicy := gw.ReferencePolicy{
 		TypeMeta:   metav1.TypeMeta{Kind: "ReferencePolicy"},
 		ObjectMeta: metav1.ObjectMeta{Namespace: "namespace3"},
@@ -119,23 +127,27 @@ func TestHTTPRouteReferencePolicyToRouteRequests(t *testing.T) {
 	}
 
 	client := gatewayclient.NewTestClient(
-		&gw.HTTPRouteList{
-			Items: []gw.HTTPRoute{
-				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "httproute",
-						Namespace: "namespace1",
-					},
-					Spec: httpRouteSpec,
-				},
-				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "httproute",
-						Namespace: "namespace2",
-					},
-					Spec: httpRouteSpec,
-				},
+		nil,
+		&gw.HTTPRoute{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "httproute",
+				Namespace: "namespace1",
 			},
+			Spec: httpRouteSpec,
+		},
+		&gw.HTTPRoute{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "httproute",
+				Namespace: "namespace2",
+			},
+			Spec: httpRouteSpec,
+		},
+		&gw.TCPRoute{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "httproute",
+				Namespace: "namespace1",
+			},
+			Spec: tcpRouteSpec,
 		},
 		&refPolicy,
 	)
