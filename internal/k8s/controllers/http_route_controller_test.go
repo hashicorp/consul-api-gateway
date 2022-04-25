@@ -7,12 +7,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
@@ -20,8 +15,6 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient/mocks"
 	reconcilerMocks "github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/mocks"
 	"github.com/hashicorp/go-hclog"
-
-	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 )
 
 var (
@@ -125,7 +118,7 @@ func TestHTTPRouteReferencePolicyToRouteRequests(t *testing.T) {
 		},
 	}
 
-	gatewayclient := NewTestClient(
+	client := gatewayclient.NewTestClient(
 		&gw.HTTPRouteList{
 			Items: []gw.HTTPRoute{
 				{
@@ -148,7 +141,7 @@ func TestHTTPRouteReferencePolicyToRouteRequests(t *testing.T) {
 	)
 
 	controller := &HTTPRouteReconciler{
-		Client:         gatewayclient,
+		Client:         client,
 		Log:            hclog.NewNullLogger(),
 		ControllerName: mockControllerName,
 		Manager:        reconcilerMocks.NewMockReconcileManager(ctrl),
@@ -162,24 +155,4 @@ func TestHTTPRouteReferencePolicyToRouteRequests(t *testing.T) {
 			Namespace: "namespace1",
 		},
 	}}, requests)
-}
-
-// FIXME: this should be refactored into a test utility package
-func NewTestClient(list client.ObjectList, objects ...client.Object) gatewayclient.Client {
-	scheme := runtime.NewScheme()
-	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
-	utilruntime.Must(gw.AddToScheme(scheme))
-	apigwv1alpha1.RegisterTypes(scheme)
-
-	builder := fake.
-		NewClientBuilder().
-		WithScheme(scheme)
-	if list != nil {
-		builder = builder.WithLists(list)
-	}
-	if len(objects) > 0 {
-		builder = builder.WithObjects(objects...)
-	}
-
-	return gatewayclient.New(builder.Build(), scheme, "")
 }
