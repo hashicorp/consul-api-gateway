@@ -90,6 +90,7 @@ type consulTestEnvironment struct {
 	httpPort                int
 	httpFlattenedPort       int
 	httpReferencePolicyPort int
+	tcpReferencePolicyPort  int
 	grpcPort                int
 	extraHTTPPort           int
 	extraTCPPort            int
@@ -111,6 +112,7 @@ func CreateTestConsulContainer(name, namespace string) env.Func {
 		httpsPort := cluster.httpsPort
 		httpFlattenedPort := cluster.httpsFlattenedPort
 		httpReferencePolicyPort := cluster.httpsReferencePolicyPort
+		tcpReferencePolicyPort := cluster.tcpReferencePolicyPort
 		grpcPort := cluster.grpcPort
 		extraTCPPort := cluster.extraTCPPort
 		extraTCPTLSPort := cluster.extraTCPTLSPort
@@ -204,6 +206,7 @@ func CreateTestConsulContainer(name, namespace string) env.Func {
 			httpPort:                httpsPort,
 			httpFlattenedPort:       httpFlattenedPort,
 			httpReferencePolicyPort: httpReferencePolicyPort,
+			tcpReferencePolicyPort:  tcpReferencePolicyPort,
 			grpcPort:                grpcPort,
 			extraHTTPPort:           extraHTTPPort,
 			extraTCPPort:            extraTCPPort,
@@ -496,6 +499,14 @@ func HTTPReferencePolicyPort(ctx context.Context) int {
 		panic("must run this with an integration test that has called CreateTestConsul")
 	}
 	return consulEnvironment.(*consulTestEnvironment).httpReferencePolicyPort
+}
+
+func TCPReferencePolicyPort(ctx context.Context) int {
+	consulEnvironment := ctx.Value(consulTestContextKey)
+	if consulEnvironment == nil {
+		panic("must run this with an integration test that has called CreateTestConsul")
+	}
+	return consulEnvironment.(*consulTestEnvironment).tcpReferencePolicyPort
 }
 
 func ConsulHTTPPort(ctx context.Context) int {
