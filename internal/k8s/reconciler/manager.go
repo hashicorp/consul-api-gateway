@@ -14,7 +14,7 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/common"
 	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
-	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/state"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/validators"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/service"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	"github.com/hashicorp/consul-api-gateway/internal/store"
@@ -47,6 +47,8 @@ type GatewayReconcileManager struct {
 	store                 store.Store
 	gatewayClasses        *K8sGatewayClasses
 	Resolver              service.BackendResolver
+	GatewayValidator      *validators.GatewayValidator
+	RouteValidator        *validators.RouteValidator
 	Factory               *Factory
 	consulNamespaceMapper common.ConsulNamespaceMapper
 
@@ -89,6 +91,8 @@ func NewReconcileManager(config ManagerConfig) *GatewayReconcileManager {
 			Deployer:       deployer,
 			Resolver:       resolver,
 		}),
+		GatewayValidator:      validators.NewGatewayValidator(config.Client),
+		RouteValidator:        validators.NewRouteValidator(resolver, config.Client),
 		Resolver:              resolver,
 		gatewayClasses:        NewK8sGatewayClasses(config.Logger.Named("gatewayclasses"), config.Client),
 		namespaceMap:          make(map[types.NamespacedName]string),
@@ -166,23 +170,22 @@ func (m *GatewayReconcileManager) UpsertGateway(ctx context.Context, g *gw.Gatew
 		return m.client.Update(ctx, g)
 	}
 
+	// Calling validate outside of the upsert process allows us to re-resolve any
+	// external references and set the statuses accordingly.
 	consulNamespace := m.consulNamespaceMapper(g.GetNamespace())
+	service := m.Factory.deployer.Service(config, g)
+	state, err := m.GatewayValidator.Validate(ctx, g, service)
+	if err != nil {
+		return err
+	}
 
 	m.namespaceMap[utils.NamespacedName(g)] = consulNamespace
 	gateway := m.Factory.NewGateway(NewGatewayConfig{
 		Gateway:         g,
 		Config:          config,
-		State:           state.InitialGatewayState(g),
+		State:           state,
 		ConsulNamespace: consulNamespace,
 	})
-
-	// Calling validate outside of the upsert process allows us to re-resolve any
-	// external references and set the statuses accordingly. Since we actually
-	// have other object updates triggering reconciliation loops, this is necessary
-	// prior to dirty-checking on upsert.
-	if err := gateway.Validate(ctx); err != nil {
-		return err
-	}
 
 	return m.store.UpsertGateway(ctx, gateway, func(current store.Gateway) bool {
 		if current == nil {
@@ -212,15 +215,15 @@ func (m *GatewayReconcileManager) upsertRoute(ctx context.Context, r Route, pare
 		return nil
 	}
 
-	route := m.Factory.NewRoute(r, state.NewRouteState())
-
 	// Calling validate outside of the upsert process allows us to re-resolve any
-	// external references and set the statuses accordingly. Since we actually
-	// have other object updates triggering reconciliation loops, this is necessary
-	// prior to dirty-checking on upsert.
-	if err := route.Validate(ctx); err != nil {
+	// external references and set the statuses accordingly.
+	state, err := m.RouteValidator.Validate(ctx, r)
+	if err != nil {
 		return err
 	}
+
+	route := m.Factory.NewRoute(r, state)
+
 	return m.store.UpsertRoute(ctx, route, func(current store.Route) bool {
 		if current == nil {
 			return true
