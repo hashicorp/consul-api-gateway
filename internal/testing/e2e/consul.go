@@ -83,19 +83,20 @@ func init() {
 }
 
 type consulTestEnvironment struct {
-	ca                 []byte
-	consulClient       *api.Client
-	token              string
-	policy             *api.ACLPolicy
-	httpPort           int
-	httpFlattenedPort  int
-	grpcPort           int
-	extraHTTPPort      int
-	extraTCPPort       int
-	extraTCPTLSPort    int
-	extraTCPTLSPortTwo int
-	namespace          string
-	ip                 string
+	ca                      []byte
+	consulClient            *api.Client
+	token                   string
+	policy                  *api.ACLPolicy
+	httpPort                int
+	httpFlattenedPort       int
+	httpReferencePolicyPort int
+	grpcPort                int
+	extraHTTPPort           int
+	extraTCPPort            int
+	extraTCPTLSPort         int
+	extraTCPTLSPortTwo      int
+	namespace               string
+	ip                      string
 }
 
 func CreateTestConsulContainer(name, namespace string) env.Func {
@@ -109,6 +110,7 @@ func CreateTestConsulContainer(name, namespace string) env.Func {
 		cluster := clusterVal.(*kindCluster)
 		httpsPort := cluster.httpsPort
 		httpFlattenedPort := cluster.httpsFlattenedPort
+		httpReferencePolicyPort := cluster.httpsReferencePolicyPort
 		grpcPort := cluster.grpcPort
 		extraTCPPort := cluster.extraTCPPort
 		extraTCPTLSPort := cluster.extraTCPTLSPort
@@ -197,16 +199,17 @@ func CreateTestConsulContainer(name, namespace string) env.Func {
 		}
 
 		env := &consulTestEnvironment{
-			ca:                 rootCA.CertBytes,
-			consulClient:       consulClient,
-			httpPort:           httpsPort,
-			httpFlattenedPort:  httpFlattenedPort,
-			grpcPort:           grpcPort,
-			extraHTTPPort:      extraHTTPPort,
-			extraTCPPort:       extraTCPPort,
-			extraTCPTLSPort:    extraTCPTLSPort,
-			extraTCPTLSPortTwo: extraTCPTLSPortTwo,
-			ip:                 ip,
+			ca:                      rootCA.CertBytes,
+			consulClient:            consulClient,
+			httpPort:                httpsPort,
+			httpFlattenedPort:       httpFlattenedPort,
+			httpReferencePolicyPort: httpReferencePolicyPort,
+			grpcPort:                grpcPort,
+			extraHTTPPort:           extraHTTPPort,
+			extraTCPPort:            extraTCPPort,
+			extraTCPTLSPort:         extraTCPTLSPort,
+			extraTCPTLSPortTwo:      extraTCPTLSPortTwo,
+			ip:                      ip,
 		}
 
 		return context.WithValue(ctx, consulTestContextKey, env), nil
@@ -485,6 +488,14 @@ func HTTPFlattenedPort(ctx context.Context) int {
 		panic("must run this with an integration test that has called CreateTestConsul")
 	}
 	return consulEnvironment.(*consulTestEnvironment).httpFlattenedPort
+}
+
+func HTTPReferencePolicyPort(ctx context.Context) int {
+	consulEnvironment := ctx.Value(consulTestContextKey)
+	if consulEnvironment == nil {
+		panic("must run this with an integration test that has called CreateTestConsul")
+	}
+	return consulEnvironment.(*consulTestEnvironment).httpReferencePolicyPort
 }
 
 func ConsulHTTPPort(ctx context.Context) int {

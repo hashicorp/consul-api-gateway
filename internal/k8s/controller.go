@@ -189,6 +189,7 @@ func (k *Kubernetes) Start(ctx context.Context) error {
 	}
 
 	err = (&controllers.HTTPRouteReconciler{
+		Context:        ctx,
 		Client:         gwClient,
 		Log:            k.logger.Named("HTTPRoute"),
 		Manager:        reconcileManager,

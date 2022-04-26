@@ -75,10 +75,10 @@ func TestGatewayWithClassConfigChange(t *testing.T) {
 
 			// Create a Gateway and wait for it to be ready
 			firstGatewayName := envconf.RandomName("gw", 16)
-			firstGateway := createGateway(ctx, t, cfg, firstGatewayName, gc, 443)
+			firstGateway := createGateway(ctx, t, cfg, firstGatewayName, gc, 443, nil)
 			require.Eventually(t, func() bool {
 				err := resources.Get(ctx, firstGatewayName, namespace, firstGateway)
-				return err == nil && conditionAccepted(firstGateway.Status.Conditions)
+				return err == nil && conditionReady(firstGateway.Status.Conditions)
 			}, 60*time.Second, checkInterval, "no gateway found in the allotted time")
 			require.Eventually(t, gatewayStatusCheck(ctx, resources, firstGatewayName, namespace, conditionReady), 30*time.Second, checkInterval, "no gateway found in the allotted time")
 			checkGatewayConfigAnnotation(t, firstGateway, firstConfig)
@@ -93,10 +93,10 @@ func TestGatewayWithClassConfigChange(t *testing.T) {
 
 			// Create a second Gateway and wait for it to be ready
 			secondGatewayName := envconf.RandomName("gw", 16)
-			secondGateway := createGateway(ctx, t, cfg, secondGatewayName, gc, 443)
+			secondGateway := createGateway(ctx, t, cfg, secondGatewayName, gc, 443, nil)
 			require.Eventually(t, func() bool {
 				err := resources.Get(ctx, secondGatewayName, namespace, secondGateway)
-				return err == nil && conditionAccepted(secondGateway.Status.Conditions)
+				return err == nil && conditionReady(secondGateway.Status.Conditions)
 			}, 30*time.Second, checkInterval, "no gateway found in the allotted time")
 			require.Eventually(t, gatewayStatusCheck(ctx, resources, secondGatewayName, namespace, conditionReady), 30*time.Second, checkInterval, "no gateway found in the allotted time")
 			checkGatewayConfigAnnotation(t, secondGateway, secondConfig)
@@ -129,7 +129,7 @@ func TestGatewayBasic(t *testing.T) {
 				return err == nil && conditionAccepted(created.Status.Conditions)
 			}, checkTimeout, checkInterval, "gatewayclass not accepted in the allotted time")
 
-			_ = createGateway(ctx, t, cfg, gatewayName, gc, 443)
+			_ = createGateway(ctx, t, cfg, gatewayName, gc, 443, nil)
 
 			require.Eventually(t, func() bool {
 				err := resources.Get(ctx, gatewayName, namespace, &apps.Deployment{})
@@ -139,7 +139,7 @@ func TestGatewayBasic(t *testing.T) {
 			created := &gateway.Gateway{}
 			require.Eventually(t, func() bool {
 				err := resources.Get(ctx, gatewayName, namespace, created)
-				return err == nil && conditionAccepted(created.Status.Conditions)
+				return err == nil && conditionReady(created.Status.Conditions)
 			}, checkTimeout, checkInterval, "no gateway found in the allotted time")
 
 			checkGatewayConfigAnnotation(t, created, gcc)
@@ -190,7 +190,7 @@ func TestServiceListeners(t *testing.T) {
 			gatewayName := envconf.RandomName("gw", 16)
 			_, gc := createGatewayClass(ctx, t, cfg)
 
-			gw := createGateway(ctx, t, cfg, gatewayName, gc, 443)
+			gw := createGateway(ctx, t, cfg, gatewayName, gc, 443, nil)
 
 			require.Eventually(t, func() bool {
 				service := &core.Service{}
@@ -294,7 +294,7 @@ func TestHTTPRouteFlattening(t *testing.T) {
 			require.NoError(t, err)
 
 			checkPort := e2e.HTTPFlattenedPort(ctx)
-			gw := createGateway(ctx, t, cfg, gatewayName, gc, gateway.PortNumber(checkPort))
+			gw := createGateway(ctx, t, cfg, gatewayName, gc, gateway.PortNumber(checkPort), nil)
 			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionReady), checkTimeout, checkInterval, "no gateway found in the allotted time")
 
 			port := gateway.PortNumber(serviceOne.Spec.Ports[0].Port)
@@ -462,7 +462,7 @@ func TestHTTPMeshService(t *testing.T) {
 			err = resources.Create(ctx, gc)
 			require.NoError(t, err)
 
-			gw := createGateway(ctx, t, cfg, gatewayName, gc, gateway.PortNumber(e2e.HTTPPort(ctx)))
+			gw := createGateway(ctx, t, cfg, gatewayName, gc, gateway.PortNumber(e2e.HTTPPort(ctx)), nil)
 			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionReady), checkTimeout, checkInterval, "no gateway found in the allotted time")
 
 			// route 1
@@ -780,7 +780,16 @@ func TestTCPMeshService(t *testing.T) {
 			err = resources.Create(ctx, routeOne)
 			require.NoError(t, err)
 
-			require.Eventually(t, tcpRouteStatusCheck(ctx, resources, gatewayName, routeOneName, namespace, routeRefErrors), checkTimeout, checkInterval, "route status not set in allotted time")
+			require.Eventually(t, tcpRouteStatusCheck(
+				ctx,
+				resources,
+				gatewayName,
+				routeOneName,
+				namespace,
+				createConditionsCheck([]meta.Condition{
+					{Type: "ResolvedRefs", Status: "False", Reason: "Errors"},
+				}),
+			), checkTimeout, checkInterval, "route status not set in allotted time")
 
 			// route 2
 			meshServiceGroup := gateway.Group(apigwv1alpha1.Group)
@@ -964,6 +973,192 @@ func TestTCPMeshService(t *testing.T) {
 	testenv.Test(t, feature.Feature())
 }
 
+func TestHTTPRouteReferencePolicyLifecycle(t *testing.T) {
+	feature := features.New("http route reference policy").
+		Assess("http route controller watches reference policy", func(ctx context.Context, t *testing.T, cfg *envconf.Config) context.Context {
+			serviceOne, err := e2e.DeployHTTPMeshService(ctx, cfg)
+			require.NoError(t, err)
+
+			namespace := e2e.Namespace(ctx)
+			configName := envconf.RandomName("gcc", 16)
+			className := envconf.RandomName("gc", 16)
+			gatewayName := envconf.RandomName("gw", 16)
+			routeName := envconf.RandomName("route", 16)
+			routeNamespace := envconf.RandomName("ns", 16)
+			refPolicyName := envconf.RandomName("refpolicy", 16)
+
+			resources := cfg.Client().Resources(namespace)
+
+			gcc := &apigwv1alpha1.GatewayClassConfig{
+				ObjectMeta: meta.ObjectMeta{
+					Name: configName,
+				},
+				Spec: apigwv1alpha1.GatewayClassConfigSpec{
+					ImageSpec: apigwv1alpha1.ImageSpec{
+						ConsulAPIGateway: e2e.DockerImage(ctx),
+					},
+					UseHostPorts: true,
+					LogLevel:     "trace",
+					ConsulSpec: apigwv1alpha1.ConsulSpec{
+						Address: hostRoute,
+						Scheme:  "https",
+						PortSpec: apigwv1alpha1.PortSpec{
+							GRPC: e2e.ConsulGRPCPort(ctx),
+							HTTP: e2e.ConsulHTTPPort(ctx),
+						},
+						AuthSpec: apigwv1alpha1.AuthSpec{
+							Method:  "consul-api-gateway",
+							Account: "consul-api-gateway",
+						},
+					},
+				},
+			}
+			err = resources.Create(ctx, gcc)
+			require.NoError(t, err)
+
+			gc := &gateway.GatewayClass{
+				ObjectMeta: meta.ObjectMeta{
+					Name: className,
+				},
+				Spec: gateway.GatewayClassSpec{
+					ControllerName: k8s.ControllerName,
+					ParametersRef: &gateway.ParametersReference{
+						Group: apigwv1alpha1.Group,
+						Kind:  apigwv1alpha1.GatewayClassConfigKind,
+						Name:  configName,
+					},
+				},
+			}
+			err = resources.Create(ctx, gc)
+			require.NoError(t, err)
+
+			checkPort := e2e.HTTPReferencePolicyPort(ctx)
+
+			// Allow routes to bind from a different namespace for testing
+			// cross-namespace ReferencePolicy enforcement
+			all := gateway.NamespacesFromAll
+			allowedRoutes := &gateway.AllowedRoutes{
+				Namespaces: &gateway.RouteNamespaces{
+					From: &all,
+				},
+			}
+
+			gw := createGateway(ctx, t, cfg, gatewayName, gc, gateway.PortNumber(checkPort), allowedRoutes)
+			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionReady), checkTimeout, checkInterval, "no gateway found in the allotted time")
+
+			// Create a different namespace for the route
+			ns := &core.Namespace{
+				ObjectMeta: meta.ObjectMeta{
+					Name: routeNamespace,
+				},
+			}
+			err = resources.Create(ctx, ns)
+			require.NoError(t, err)
+
+			port := gateway.PortNumber(serviceOne.Spec.Ports[0].Port)
+			gwNamespace := gateway.Namespace(namespace)
+			route := &gateway.HTTPRoute{
+				ObjectMeta: meta.ObjectMeta{
+					Name:      routeName,
+					Namespace: routeNamespace,
+				},
+				Spec: gateway.HTTPRouteSpec{
+					CommonRouteSpec: gateway.CommonRouteSpec{
+						ParentRefs: []gateway.ParentRef{{
+							Name:      gateway.ObjectName(gatewayName),
+							Namespace: &gwNamespace,
+						}},
+					},
+					Hostnames: []gateway.Hostname{"test.foo"},
+					Rules: []gateway.HTTPRouteRule{{
+						BackendRefs: []gateway.HTTPBackendRef{{
+							BackendRef: gateway.BackendRef{
+								BackendObjectReference: gateway.BackendObjectReference{
+									Name:      gateway.ObjectName(serviceOne.Name),
+									Namespace: &gwNamespace,
+									Port:      &port,
+								},
+							},
+						}},
+					}},
+				},
+			}
+			err = resources.Create(ctx, route)
+			require.NoError(t, err)
+
+			// Expect that route sets
+			// ResolvedRefs{ status: False, reason: RefNotPermitted }
+			// due to missing ReferencePolicy for BackendRef in other namespace
+			httpRouteStatusCheckRefNotPermitted := httpRouteStatusCheck(
+				ctx,
+				resources,
+				gatewayName,
+				routeName,
+				routeNamespace,
+				createConditionsCheck([]meta.Condition{
+					{Type: "Accepted", Status: "False"},
+					{Type: "ResolvedRefs", Status: "False", Reason: "RefNotPermitted"},
+				}),
+			)
+			require.Eventually(t, httpRouteStatusCheckRefNotPermitted, checkTimeout, checkInterval, "route status not set in allotted time")
+
+			// create ReferencePolicy allowing BackendRef
+			serviceOneObjectName := gateway.ObjectName(serviceOne.Name)
+			referencePolicy := &gateway.ReferencePolicy{
+				ObjectMeta: meta.ObjectMeta{
+					Name:      refPolicyName,
+					Namespace: namespace,
+				},
+				Spec: gateway.ReferencePolicySpec{
+					From: []gateway.ReferencePolicyFrom{{
+						Group:     "gateway.networking.k8s.io",
+						Kind:      "HTTPRoute",
+						Namespace: gateway.Namespace(routeNamespace),
+					}},
+					To: []gateway.ReferencePolicyTo{{
+						Group: "",
+						Kind:  "Service",
+						Name:  &serviceOneObjectName,
+					}},
+				},
+			}
+			err = resources.Create(ctx, referencePolicy)
+			require.NoError(t, err)
+
+			// Expect that route sets
+			// ResolvedRefs{ status: True, reason: ResolvedRefs }
+			// now that ReferencePolicy allows BackendRef in other namespace
+			require.Eventually(t, httpRouteStatusCheck(
+				ctx,
+				resources,
+				gatewayName,
+				routeName,
+				routeNamespace,
+				createConditionsCheck([]meta.Condition{
+					{Type: "Accepted", Status: "True"},
+					{Type: "ResolvedRefs", Status: "True", Reason: "ResolvedRefs"},
+				}),
+			), checkTimeout, checkInterval, "route status not set in allotted time")
+
+			// Check that route is successfully resolved and routing traffic
+			checkRoute(t, checkPort, "/", serviceOne.Name, map[string]string{
+				"Host": "test.foo",
+			}, "service one not routable in allotted time")
+
+			// Delete ReferencePolicy, check for RefNotPermitted again
+			err = resources.Delete(ctx, referencePolicy)
+			require.NoError(t, err)
+			require.Eventually(t, httpRouteStatusCheckRefNotPermitted, checkTimeout, checkInterval, "route status not set in allotted time")
+
+			err = resources.Delete(ctx, gw)
+			require.NoError(t, err)
+
+			return ctx
+		})
+
+	testenv.Test(t, feature.Feature())
+}
+
 func gatewayStatusCheck(ctx context.Context, resources *resources.Resources, gatewayName, namespace string, checkFn func([]meta.Condition) bool) func() bool {
 	return func() bool {
 		updated := &gateway.Gateway{}
@@ -1003,6 +1198,21 @@ func listenerStatusCheck(ctx context.Context, resources *resources.Resources, ga
 	}
 }
 
+func httpRouteStatusCheck(ctx context.Context, resources *resources.Resources, gatewayName, routeName, namespace string, checkFn func([]meta.Condition) bool) func() bool {
+	return func() bool {
+		updated := &gateway.HTTPRoute{}
+		if err := resources.Get(ctx, routeName, namespace, updated); err != nil {
+			return false
+		}
+		for _, status := range updated.Status.Parents {
+			if string(status.ParentRef.Name) == gatewayName {
+				return checkFn(status.Conditions)
+			}
+		}
+		return false
+	}
+}
+
 func tcpRouteStatusCheck(ctx context.Context, resources *resources.Resources, gatewayName, routeName, namespace string, checkFn func([]meta.Condition) bool) func() bool {
 	return func() bool {
 		updated := &gateway.TCPRoute{}
@@ -1018,48 +1228,47 @@ func tcpRouteStatusCheck(ctx context.Context, resources *resources.Resources, ga
 	}
 }
 
-func routeRefErrors(conditions []meta.Condition) bool {
-	for _, condition := range conditions {
-		if condition.Type == "ResolvedRefs" &&
-			condition.Status == "False" &&
-			condition.Reason == "Errors" {
-			return true
+func createConditionsCheck(expected []meta.Condition) func([]meta.Condition) bool {
+	return func(actual []meta.Condition) bool {
+		for _, eCondition := range expected {
+			matched := false
+			for _, aCondition := range actual {
+				if aCondition.Type == eCondition.Type &&
+					aCondition.Status == eCondition.Status &&
+					// Match if expected condition doesn't define an expected reason
+					(aCondition.Reason == eCondition.Reason || eCondition.Reason == "") {
+					matched = true
+					break
+				}
+			}
+
+			if !matched {
+				return false
+			}
 		}
+		return true
 	}
-	return false
 }
 
 func conditionAccepted(conditions []meta.Condition) bool {
-	for _, condition := range conditions {
-		if condition.Type == "Accepted" ||
-			condition.Status == "True" {
-			return true
-		}
-	}
-	return false
+	return createConditionsCheck([]meta.Condition{
+		{Type: "Accepted", Status: "True"},
+	})(conditions)
 }
 
 func conditionReady(conditions []meta.Condition) bool {
-	for _, condition := range conditions {
-		if condition.Type == "Ready" &&
-			condition.Status == "True" {
-			return true
-		}
-	}
-	return false
+	return createConditionsCheck([]meta.Condition{
+		{Type: "Ready", Status: "True"},
+	})(conditions)
 }
 
 func conditionInSync(conditions []meta.Condition) bool {
-	for _, condition := range conditions {
-		if condition.Type == "InSync" &&
-			condition.Status == "True" {
-			return true
-		}
-	}
-	return false
+	return createConditionsCheck([]meta.Condition{
+		{Type: "InSync", Status: "True"},
+	})(conditions)
 }
 
-func createGateway(ctx context.Context, t *testing.T, cfg *envconf.Config, gatewayName string, gc *gateway.GatewayClass, listenerPort gateway.PortNumber) *gateway.Gateway {
+func createGateway(ctx context.Context, t *testing.T, cfg *envconf.Config, gatewayName string, gc *gateway.GatewayClass, listenerPort gateway.PortNumber, listenerAllowedRoutes *gateway.AllowedRoutes) *gateway.Gateway {
 	t.Helper()
 
 	namespace := e2e.Namespace(ctx)
@@ -1084,6 +1293,7 @@ func createGateway(ctx context.Context, t *testing.T, cfg *envconf.Config, gatew
 						Namespace: &gatewayNamespace,
 					}},
 				},
+				AllowedRoutes: listenerAllowedRoutes,
 			}},
 		},
 	}
