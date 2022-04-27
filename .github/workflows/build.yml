@@ -116,3 +116,5 @@ jobs:
           arch: ${{matrix.arch}}
           tags: |
             docker.io/hashicorp/${{env.repo}}:${{env.version}}
+          dev_tags: |
+            docker.io/hashicorppreview/${{env.repo}}:${{env.version}}
