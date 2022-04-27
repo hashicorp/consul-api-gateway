@@ -136,6 +136,7 @@ Supported features are marked with a grey checkbox
     - [x] TCPRoute
     - [ ] TLSRoute
     - [ ] UDPRoute
+    - [ ] Gateway
   - [x] To
     - [x] Service
     - [ ] Secret
