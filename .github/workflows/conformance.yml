@@ -85,7 +85,7 @@ jobs:
       - name: Setup Kind cluster
         uses: ./consul-api-gateway/.github/actions/setup-kind
         with:
-          load-docker-image: "hashicorppreview/consul-api-gateway:0.2.0"
+          load-docker-image: ""
           metallb-config-path: "./consul-api-gateway/internal/testing/conformance/metallb-config.yaml"
 
       - name: Install Consul API Gateway CRDs
