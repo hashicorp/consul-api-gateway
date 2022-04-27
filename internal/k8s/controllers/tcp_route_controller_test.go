@@ -18,17 +18,17 @@ import (
 )
 
 var (
-	httpRouteName = types.NamespacedName{
-		Name:      "http-route",
+	tcpRouteName = types.NamespacedName{
+		Name:      "tcp-route",
 		Namespace: "default",
 	}
 )
 
-func TestHTTPRouteSetup(t *testing.T) {
-	require.Error(t, (&HTTPRouteReconciler{}).SetupWithManager(nil))
+func TestTCPRouteSetup(t *testing.T) {
+	require.Error(t, (&TCPRouteReconciler{}).SetupWithManager(nil))
 }
 
-func TestHTTPRoute(t *testing.T) {
+func TestTCPRoute(t *testing.T) {
 	t.Parallel()
 
 	for _, test := range []struct {
@@ -40,13 +40,13 @@ func TestHTTPRoute(t *testing.T) {
 		name: "get-error",
 		err:  errExpected,
 		expectationCB: func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager) {
-			client.EXPECT().GetHTTPRoute(gomock.Any(), httpRouteName).Return(nil, errExpected)
+			client.EXPECT().GetTCPRoute(gomock.Any(), tcpRouteName).Return(nil, errExpected)
 		},
 	}, {
 		name: "deleted",
 		expectationCB: func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager) {
-			client.EXPECT().GetHTTPRoute(gomock.Any(), httpRouteName).Return(nil, nil)
-			reconciler.EXPECT().DeleteHTTPRoute(gomock.Any(), httpRouteName)
+			client.EXPECT().GetTCPRoute(gomock.Any(), tcpRouteName).Return(nil, nil)
+			reconciler.EXPECT().DeleteTCPRoute(gomock.Any(), tcpRouteName)
 		},
 	}} {
 		t.Run(test.name, func(t *testing.T) {
@@ -59,7 +59,7 @@ func TestHTTPRoute(t *testing.T) {
 				test.expectationCB(client, reconciler)
 			}
 
-			controller := &HTTPRouteReconciler{
+			controller := &TCPRouteReconciler{
 				Context:        context.Background(),
 				Client:         client,
 				Log:            hclog.NewNullLogger(),
@@ -67,10 +67,9 @@ func TestHTTPRoute(t *testing.T) {
 				Manager:        reconciler,
 			}
 			result, err := controller.Reconcile(context.Background(), reconcile.Request{
-				NamespacedName: httpRouteName,
+				NamespacedName: tcpRouteName,
 			})
 			if test.err != nil {
-				require.Error(t, err)
 				require.ErrorIs(t, err, test.err)
 			} else {
 				require.NoError(t, err)
@@ -80,7 +79,7 @@ func TestHTTPRoute(t *testing.T) {
 	}
 }
 
-func TestHTTPRouteReferencePolicyToRouteRequests(t *testing.T) {
+func TestTCPRouteReferencePolicyToRouteRequests(t *testing.T) {
 	t.Parallel()
 
 	ctrl := gomock.NewController(t)
@@ -117,7 +116,7 @@ func TestHTTPRouteReferencePolicyToRouteRequests(t *testing.T) {
 		Spec: gw.ReferencePolicySpec{
 			From: []gw.ReferencePolicyFrom{{
 				Group:     "gateway.networking.k8s.io",
-				Kind:      "HTTPRoute",
+				Kind:      "TCPRoute",
 				Namespace: "namespace1",
 			}},
 			To: []gw.ReferencePolicyTo{{
@@ -135,13 +134,6 @@ func TestHTTPRouteReferencePolicyToRouteRequests(t *testing.T) {
 			},
 			Spec: httpRouteSpec,
 		},
-		&gw.HTTPRoute{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "httproute",
-				Namespace: "namespace2",
-			},
-			Spec: httpRouteSpec,
-		},
 		&gw.TCPRoute{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "tcproute",
@@ -149,10 +141,17 @@ func TestHTTPRouteReferencePolicyToRouteRequests(t *testing.T) {
 			},
 			Spec: tcpRouteSpec,
 		},
+		&gw.TCPRoute{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "tcproute",
+				Namespace: "namespace2",
+			},
+			Spec: tcpRouteSpec,
+		},
 		&refPolicy,
 	)
 
-	controller := &HTTPRouteReconciler{
+	controller := &TCPRouteReconciler{
 		Client:         client,
 		Log:            hclog.NewNullLogger(),
 		ControllerName: mockControllerName,
@@ -163,7 +162,7 @@ func TestHTTPRouteReferencePolicyToRouteRequests(t *testing.T) {
 
 	require.Equal(t, []reconcile.Request{{
 		NamespacedName: types.NamespacedName{
-			Name:      "httproute",
+			Name:      "tcproute",
 			Namespace: "namespace1",
 		},
 	}}, requests)

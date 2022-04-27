@@ -7,12 +7,7 @@ import (
 	apps "k8s.io/api/apps/v1"
 	core "k8s.io/api/core/v1"
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	gateway "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	"github.com/stretchr/testify/assert"
@@ -24,7 +19,7 @@ import (
 func TestGetGateway(t *testing.T) {
 	t.Parallel()
 
-	gatewayclient := newTestClient(nil, &gateway.Gateway{
+	gatewayclient := NewTestClient(nil, &gateway.Gateway{
 		ObjectMeta: meta.ObjectMeta{
 			Name:      "gateway",
 			Namespace: "namespace",
@@ -49,7 +44,7 @@ func TestGetGateway(t *testing.T) {
 func TestGetGatewayClassConfig(t *testing.T) {
 	t.Parallel()
 
-	gatewayclient := newTestClient(nil, &apigwv1alpha1.GatewayClassConfig{
+	gatewayclient := NewTestClient(nil, &apigwv1alpha1.GatewayClassConfig{
 		ObjectMeta: meta.ObjectMeta{
 			Name: "gatewayclassconfig",
 		},
@@ -71,7 +66,7 @@ func TestGetGatewayClassConfig(t *testing.T) {
 func TestGetHTTPRoute(t *testing.T) {
 	t.Parallel()
 
-	gatewayclient := newTestClient(nil, &gateway.HTTPRoute{
+	gatewayclient := NewTestClient(nil, &gateway.HTTPRoute{
 		ObjectMeta: meta.ObjectMeta{
 			Name:      "httproute",
 			Namespace: "namespace",
@@ -103,7 +98,7 @@ func TestGetHTTPRoute(t *testing.T) {
 func TestGetHTTPRoutesInNamespace(t *testing.T) {
 	t.Parallel()
 
-	gatewayclient := newTestClient(nil, &gateway.HTTPRoute{
+	gatewayclient := NewTestClient(nil, &gateway.HTTPRoute{
 		ObjectMeta: meta.ObjectMeta{
 			Name:      "httproute",
 			Namespace: "namespace1",
@@ -122,7 +117,7 @@ func TestGetHTTPRoutesInNamespace(t *testing.T) {
 func TestGetGatewayClass(t *testing.T) {
 	t.Parallel()
 
-	gatewayclient := newTestClient(nil, &gateway.GatewayClass{
+	gatewayclient := NewTestClient(nil, &gateway.GatewayClass{
 		ObjectMeta: meta.ObjectMeta{
 			Name: "gatewayclass",
 		},
@@ -144,7 +139,7 @@ func TestGetGatewayClass(t *testing.T) {
 func TestDeploymentForGateway(t *testing.T) {
 	t.Parallel()
 
-	gatewayclient := newTestClient(nil, &apps.Deployment{
+	gatewayclient := NewTestClient(nil, &apps.Deployment{
 		ObjectMeta: meta.ObjectMeta{
 			Name:      "gateway",
 			Namespace: "namespace",
@@ -182,7 +177,7 @@ func TestDeploymentForGateway(t *testing.T) {
 func TestEnsureFinalizer(t *testing.T) {
 	t.Parallel()
 
-	gatewayclient := newTestClient(nil, &gateway.GatewayClass{
+	gatewayclient := NewTestClient(nil, &gateway.GatewayClass{
 		ObjectMeta: meta.ObjectMeta{
 			Name: "gatewayclass",
 		},
@@ -216,7 +211,7 @@ func TestEnsureFinalizer(t *testing.T) {
 func TestRemoveFinalizer(t *testing.T) {
 	t.Parallel()
 
-	gatewayclient := newTestClient(nil, &gateway.GatewayClass{
+	gatewayclient := NewTestClient(nil, &gateway.GatewayClass{
 		ObjectMeta: meta.ObjectMeta{
 			Name:       "gatewayclass",
 			Finalizers: []string{"finalizer", "other"},
@@ -258,7 +253,7 @@ func TestRemoveFinalizer(t *testing.T) {
 func TestGatewayClassesUsingConfig(t *testing.T) {
 	t.Parallel()
 
-	gatewayClient := newTestClient(&gateway.GatewayClassList{
+	gatewayClient := NewTestClient(&gateway.GatewayClassList{
 		Items: []gateway.GatewayClass{
 			{
 				ObjectMeta: meta.ObjectMeta{Name: "gatewayclass1"},
@@ -305,7 +300,7 @@ func TestGatewayClassesUsingConfig(t *testing.T) {
 func TestGatewayClassConfigInUse(t *testing.T) {
 	t.Parallel()
 
-	gatewayclient := newTestClient(&gateway.GatewayClassList{
+	gatewayclient := NewTestClient(&gateway.GatewayClassList{
 		Items: []gateway.GatewayClass{{
 			ObjectMeta: meta.ObjectMeta{
 				Name: "gatewayclass",
@@ -339,7 +334,7 @@ func TestGatewayClassConfigInUse(t *testing.T) {
 func TestGatewayClassInUse(t *testing.T) {
 	t.Parallel()
 
-	gatewayclient := newTestClient(&gateway.GatewayList{
+	gatewayclient := NewTestClient(&gateway.GatewayList{
 		Items: []gateway.Gateway{{
 			ObjectMeta: meta.ObjectMeta{
 				Name: "gateway",
@@ -366,7 +361,7 @@ func TestGatewayClassInUse(t *testing.T) {
 	require.False(t, used)
 }
 func TestPodWithLabelsNoItems(t *testing.T) {
-	gatewayclient := newTestClient(nil)
+	gatewayclient := NewTestClient(nil)
 
 	pod, err := gatewayclient.PodWithLabels(context.Background(), map[string]string{
 		"label": "test",
@@ -379,7 +374,7 @@ func TestPodWithLabelsOneItem(t *testing.T) {
 	labels := map[string]string{
 		"label": "test",
 	}
-	gatewayclient := newTestClient(&core.PodList{
+	gatewayclient := NewTestClient(&core.PodList{
 		Items: []core.Pod{{
 			ObjectMeta: meta.ObjectMeta{
 				Labels: labels,
@@ -397,7 +392,7 @@ func TestPodWithLabelsMultipleItems(t *testing.T) {
 		"label": "test",
 	}
 	now := meta.Now()
-	gatewayclient := newTestClient(&core.PodList{
+	gatewayclient := NewTestClient(&core.PodList{
 		Items: []core.Pod{{
 			ObjectMeta: meta.ObjectMeta{
 				Labels:            labels,
@@ -420,23 +415,4 @@ func TestPodWithLabelsMultipleItems(t *testing.T) {
 	pod, err := gatewayclient.PodWithLabels(context.Background(), labels)
 	require.NoError(t, err)
 	require.NotNil(t, pod)
-}
-
-func newTestClient(list client.ObjectList, objects ...client.Object) Client {
-	scheme := runtime.NewScheme()
-	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
-	utilruntime.Must(gateway.AddToScheme(scheme))
-	apigwv1alpha1.RegisterTypes(scheme)
-
-	builder := fake.
-		NewClientBuilder().
-		WithScheme(scheme)
-	if list != nil {
-		builder = builder.WithLists(list)
-	}
-	if len(objects) > 0 {
-		builder = builder.WithObjects(objects...)
-	}
-
-	return New(builder.Build(), scheme, "")
 }

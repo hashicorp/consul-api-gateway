@@ -43,6 +43,9 @@ nodes:
   - containerPort: {{ .HTTPSReferencePolicyPort }}
     hostPort: {{ .HTTPSReferencePolicyPort }}
     protocol: TCP
+  - containerPort: {{ .TCPReferencePolicyPort }}
+    hostPort: {{ .TCPReferencePolicyPort }}
+    protocol: TCP
   - containerPort: {{ .GRPCPort }}
     hostPort: {{ .GRPCPort }}
     protocol: TCP
@@ -76,6 +79,7 @@ type kindCluster struct {
 	httpsPort                int
 	httpsFlattenedPort       int
 	httpsReferencePolicyPort int
+	tcpReferencePolicyPort   int
 	grpcPort                 int
 	extraHTTPPort            int
 	extraTCPPort             int
@@ -84,18 +88,19 @@ type kindCluster struct {
 }
 
 func newKindCluster(name string) *kindCluster {
-	ports := freeport.MustTake(8)
+	ports := freeport.MustTake(9)
 	return &kindCluster{
 		name:                     name,
 		e:                        gexe.New(),
 		httpsPort:                ports[0],
 		httpsFlattenedPort:       ports[1],
 		httpsReferencePolicyPort: ports[2],
-		grpcPort:                 ports[3],
-		extraHTTPPort:            ports[4],
-		extraTCPPort:             ports[5],
-		extraTCPTLSPort:          ports[6],
-		extraTCPTLSPortTwo:       ports[7],
+		tcpReferencePolicyPort:   ports[3],
+		grpcPort:                 ports[4],
+		extraHTTPPort:            ports[5],
+		extraTCPPort:             ports[6],
+		extraTCPTLSPort:          ports[7],
+		extraTCPTLSPortTwo:       ports[8],
 	}
 }
 
@@ -107,6 +112,7 @@ func (k *kindCluster) Create() (string, error) {
 		HTTPSPort                int
 		HTTPSFlattenedPort       int
 		HTTPSReferencePolicyPort int
+		TCPReferencePolicyPort   int
 		GRPCPort                 int
 		ExtraTCPPort             int
 		ExtraTCPTLSPort          int
@@ -116,6 +122,7 @@ func (k *kindCluster) Create() (string, error) {
 		HTTPSPort:                k.httpsPort,
 		HTTPSFlattenedPort:       k.httpsFlattenedPort,
 		HTTPSReferencePolicyPort: k.httpsReferencePolicyPort,
+		TCPReferencePolicyPort:   k.tcpReferencePolicyPort,
 		GRPCPort:                 k.grpcPort,
 		ExtraTCPPort:             k.extraTCPPort,
 		ExtraTCPTLSPort:          k.extraTCPTLSPort,

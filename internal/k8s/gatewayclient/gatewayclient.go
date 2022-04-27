@@ -35,6 +35,7 @@ type Client interface {
 	GetHTTPRoute(ctx context.Context, key types.NamespacedName) (*gateway.HTTPRoute, error)
 	GetHTTPRoutesInNamespace(ctx context.Context, ns string) ([]gateway.HTTPRoute, error)
 	GetTCPRoute(ctx context.Context, key types.NamespacedName) (*gateway.TCPRoute, error)
+	GetTCPRoutesInNamespace(ctx context.Context, ns string) ([]gateway.TCPRoute, error)
 	GetMeshService(ctx context.Context, key types.NamespacedName) (*apigwv1alpha1.MeshService, error)
 	GetNamespace(ctx context.Context, key types.NamespacedName) (*core.Namespace, error)
 
@@ -269,6 +270,14 @@ func (g *gatewayClient) GetTCPRoute(ctx context.Context, key types.NamespacedNam
 		return nil, NewK8sError(err)
 	}
 	return route, nil
+}
+
+func (g *gatewayClient) GetTCPRoutesInNamespace(ctx context.Context, ns string) ([]gateway.TCPRoute, error) {
+	routeList := &gateway.TCPRouteList{}
+	if err := g.Client.List(ctx, routeList, client.InNamespace(ns)); err != nil {
+		return []gateway.TCPRoute{}, NewK8sError(err)
+	}
+	return routeList.Items, nil
 }
 
 func (g *gatewayClient) GetMeshService(ctx context.Context, key types.NamespacedName) (*apigwv1alpha1.MeshService, error) {
