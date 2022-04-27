@@ -125,6 +125,7 @@ const (
 // GENERATED from statuses.yaml, DO NOT EDIT DIRECTLY
 
 import (
+	"encoding/json"
 	"errors"
 	"testing"
 
@@ -181,6 +182,29 @@ func Test{{ $status.Kind }}Status(t *testing.T) {
 	require.False(t, status.Valid())
 {{end}}{{end}}{{end}}}
 
+{{ range $index, $conditionType := $status.Types }}
+func Test{{ $status.Kind }}{{ $conditionType.Name }}StatusMarshaling(t *testing.T) {
+	t.Parallel()
+
+	status := {{ $status.Kind }}{{ $conditionType.Name }}Status{
+		{{- range $error := $conditionType.Errors }}
+		{{ $error.Name }}: {{ if $error.String }}"{{ $error.Name }}"{{ else }}errors.New("{{ $error.Name }}"){{ end }},{{end}}
+	}
+
+	data, err := json.Marshal(&status)
+	require.NoError(t, err)
+	unmarshaled := {{ $status.Kind }}{{ $conditionType.Name }}Status{}
+	err = json.Unmarshal(data, &unmarshaled)
+	require.NoError(t, err)
+
+	{{- range $error := $conditionType.Errors }}
+	{{ if $error.String }}
+	require.Equal(t, status.{{ $error.Name }}, unmarshaled.{{ $error.Name }})
+	{{ else }}
+	require.Equal(t, status.{{ $error.Name }}.Error(), unmarshaled.{{ $error.Name }}.Error())
+{{end}}{{end}}}
+{{ end }}
+
 {{end}}
 `
 	statusTemplate = `package status
@@ -188,6 +212,9 @@ func Test{{ $status.Kind }}Status(t *testing.T) {
 // GENERATED from statuses.yaml, DO NOT EDIT DIRECTLY
 
 import (
+	"encoding/json"
+	"errors"
+
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -231,6 +258,39 @@ func (s {{ $status.Kind}}{{ $conditionType.Name }}Status) Condition(generation i
 		ObservedGeneration: generation,
 		LastTransitionTime: meta.Now(),
 	}
+}
+
+// MarshalJSON marshals a {{ $status.Kind}}{{ $conditionType.Name }}Status value to JSON
+func (s {{ $status.Kind}}{{ $conditionType.Name }}Status) MarshalJSON() ([]byte, error) {
+	data := map[string]string{}
+	{{- range $error := $conditionType.Errors }}
+	{{ if $error.String }}
+	data["{{ $error.Name }}"] = s.{{ $error.Name }}
+	{{ else }}
+	if s.{{ $error.Name }} != nil {
+		data["{{ $error.Name }}"] = s.{{ $error.Name }}.Error()
+	}
+	{{ end }}
+	{{ end }}
+	return json.Marshal(data)
+}
+
+// UnmarshalJSON unmarshals a {{ $status.Kind}}{{ $conditionType.Name }}Status from JSON
+func (s *{{ $status.Kind}}{{ $conditionType.Name }}Status) UnmarshalJSON(b []byte) error {
+	data := map[string]string{}
+	if err := json.Unmarshal(b, &data); err != nil {
+		return err
+	}
+	{{- range $error := $conditionType.Errors }}
+	{{ if $error.String }}
+	s.{{ $error.Name }} = data["{{ $error.Name }}"]
+	{{ else }}
+	if err, ok := data["{{ $error.Name }}"]; ok {
+		s.{{ $error.Name }} = errors.New(err)
+	}
+	{{ end }}
+	{{ end }}
+	return nil
 }
 
 {{ if not $conditionType.Ignore -}}

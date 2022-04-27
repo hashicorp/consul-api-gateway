@@ -91,8 +91,6 @@ func TestConvertHTTPRoute(t *testing.T) {
 						},
 					},
 				},
-			}, {
-				Type: service.HTTPRouteReference,
 			}},
 		},
 		expected: `
@@ -108,29 +106,29 @@ func TestConvertHTTPRoute(t *testing.T) {
 			"Matches": [
 				{
 					"Path": {
-						"Type": 1,
+						"Type": "HTTPPathMatchExact",
 						"Value": "/"
 					},
 					"Headers": [
 						{
-							"Type": 1,
+							"Type": "HTTPHeaderMatchExact",
 							"Name": "a",
 							"Value": "b"
 						}
 					],
 					"Query": [
 						{
-							"Type": 1,
+							"Type": "HTTPQueryMatchExact",
 							"Name": "a",
 							"Value": "b"
 						}
 					],
-					"Method": 7
+					"Method": "POST"
 				}
 			],
 			"Filters": [
 				{
-					"Type": 1,
+					"Type": "HTTPRedirectFilter",
 					"Header": {
 						"Set": null,
 						"Add": null,
@@ -144,7 +142,7 @@ func TestConvertHTTPRoute(t *testing.T) {
 					}
 				},
 				{
-					"Type": 0,
+					"Type": "HTTPHeaderFilter",
 					"Header": {
 						"Set": {
 							"x-a": "a"

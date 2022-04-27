@@ -1,6 +1,7 @@
 package state
 
 import (
+	"encoding/json"
 	"errors"
 
 	"github.com/hashicorp/consul-api-gateway/internal/core"
@@ -21,15 +22,16 @@ type GatewayState struct {
 	Listeners []*ListenerState
 }
 
-func InitialGatewayState(g *gw.Gateway) *GatewayState {
+func InitialGatewayState(namespace string, g *gw.Gateway) *GatewayState {
 	state := &GatewayState{
-		Generation: g.GetGeneration(),
+		Generation:      g.GetGeneration(),
+		ConsulNamespace: namespace,
 	}
 	for _, listener := range g.Spec.Listeners {
 		state.Listeners = append(state.Listeners, &ListenerState{
 			Name:     listener.Name,
 			Protocol: listener.Protocol,
-			Routes:   make(map[string]core.ResolvedRoute),
+			Routes:   make(ResolvedRoutes),
 		})
 	}
 	return state
@@ -67,9 +69,41 @@ func (g *GatewayState) GetStatus(gateway *gw.Gateway) gw.GatewayStatus {
 	}
 }
 
+type ResolvedRoutes map[string]core.ResolvedRoute
+
+func (r *ResolvedRoutes) UnmarshalJSON(b []byte) error {
+	*r = map[string]core.ResolvedRoute{}
+
+	stored := map[string][]byte{}
+	if err := json.Unmarshal(b, &stored); err != nil {
+		return err
+	}
+	for k, v := range stored {
+		route, err := core.UnmarshalRoute(v)
+		if err != nil {
+			return err
+		}
+		(*r)[k] = route
+	}
+
+	return nil
+}
+
+func (r ResolvedRoutes) MarshalJSON() ([]byte, error) {
+	stored := map[string][]byte{}
+	for k, v := range r {
+		route, err := core.MarshalRoute(v)
+		if err != nil {
+			return nil, err
+		}
+		stored[k] = route
+	}
+	return json.Marshal(stored)
+}
+
 // ListenerState holds ephemeral state for listeners
 type ListenerState struct {
-	Routes   map[string]core.ResolvedRoute
+	Routes   ResolvedRoutes
 	Protocol gw.ProtocolType
 	Name     gw.SectionName
 	TLS      core.TLSParams

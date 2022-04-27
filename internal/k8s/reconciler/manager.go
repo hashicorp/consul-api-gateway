@@ -46,10 +46,10 @@ type GatewayReconcileManager struct {
 
 	store                 store.Store
 	gatewayClasses        *K8sGatewayClasses
-	Resolver              service.BackendResolver
-	GatewayValidator      *validators.GatewayValidator
-	RouteValidator        *validators.RouteValidator
-	Factory               *Factory
+	gatewayValidator      *validators.GatewayValidator
+	routeValidator        *validators.RouteValidator
+	deployer              *GatewayDeployer
+	statusUpdater         *StatusUpdater
 	consulNamespaceMapper common.ConsulNamespaceMapper
 
 	namespaceMap map[types.NamespacedName]string
@@ -80,20 +80,15 @@ func NewReconcileManager(config ManagerConfig) *GatewayReconcileManager {
 		Logger:   config.Logger,
 		Client:   config.Client,
 	})
+	statusUpdater := NewStatusUpdater(config.Logger, config.Client, deployer, config.ControllerName)
 
 	return &GatewayReconcileManager{
-		logger: config.Logger,
-		client: config.Client,
-		Factory: NewFactory(FactoryConfig{
-			ControllerName: config.ControllerName,
-			Logger:         config.Logger,
-			Client:         config.Client,
-			Deployer:       deployer,
-			Resolver:       resolver,
-		}),
-		GatewayValidator:      validators.NewGatewayValidator(config.Client),
-		RouteValidator:        validators.NewRouteValidator(resolver, config.Client),
-		Resolver:              resolver,
+		logger:                config.Logger,
+		client:                config.Client,
+		statusUpdater:         statusUpdater,
+		deployer:              deployer,
+		gatewayValidator:      validators.NewGatewayValidator(config.ConsulNamespaceMapper, config.Client),
+		routeValidator:        validators.NewRouteValidator(resolver, config.Client),
 		gatewayClasses:        NewK8sGatewayClasses(config.Logger.Named("gatewayclasses"), config.Client),
 		namespaceMap:          make(map[types.NamespacedName]string),
 		consulNamespaceMapper: config.ConsulNamespaceMapper,
@@ -173,19 +168,14 @@ func (m *GatewayReconcileManager) UpsertGateway(ctx context.Context, g *gw.Gatew
 	// Calling validate outside of the upsert process allows us to re-resolve any
 	// external references and set the statuses accordingly.
 	consulNamespace := m.consulNamespaceMapper(g.GetNamespace())
-	service := m.Factory.deployer.Service(config, g)
-	state, err := m.GatewayValidator.Validate(ctx, g, service)
+	service := m.deployer.Service(config, g)
+	state, err := m.gatewayValidator.Validate(ctx, g, service)
 	if err != nil {
 		return err
 	}
 
 	m.namespaceMap[utils.NamespacedName(g)] = consulNamespace
-	gateway := m.Factory.NewGateway(NewGatewayConfig{
-		Gateway:         g,
-		Config:          config,
-		State:           state,
-		ConsulNamespace: consulNamespace,
-	})
+	gateway := NewGateway(config, g, state)
 
 	return m.store.UpsertGateway(ctx, gateway, func(current store.Gateway) bool {
 		if current == nil {
@@ -217,12 +207,12 @@ func (m *GatewayReconcileManager) upsertRoute(ctx context.Context, r Route, pare
 
 	// Calling validate outside of the upsert process allows us to re-resolve any
 	// external references and set the statuses accordingly.
-	state, err := m.RouteValidator.Validate(ctx, r)
+	state, err := m.routeValidator.Validate(ctx, r)
 	if err != nil {
 		return err
 	}
 
-	route := m.Factory.NewRoute(r, state)
+	route := NewRoute(r, state)
 
 	return m.store.UpsertRoute(ctx, route, func(current store.Route) bool {
 		if current == nil {

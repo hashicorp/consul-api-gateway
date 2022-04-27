@@ -15,7 +15,7 @@ import (
 
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient/mocks"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/state"
-	"github.com/hashicorp/go-hclog"
+	"github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 )
 
 func TestBinder(t *testing.T) {
@@ -373,10 +373,7 @@ func TestBinder(t *testing.T) {
 			defer ctrl.Finish()
 			client := mocks.NewMockClient(ctrl)
 
-			factory := NewFactory(FactoryConfig{
-				Logger: hclog.NewNullLogger(),
-			})
-			gatewayState := state.InitialGatewayState(test.gateway)
+			gatewayState := state.InitialGatewayState("", test.gateway)
 			if test.listenerError != nil {
 				gatewayState.Listeners[0].Status.Ready.Invalid = test.listenerError
 			}
@@ -384,12 +381,15 @@ func TestBinder(t *testing.T) {
 				client.EXPECT().GetNamespace(gomock.Any(), gomock.Any()).Return(test.namespace, nil)
 			}
 
-			binder := NewBinder(client, test.gateway, gatewayState)
-			listeners := binder.Bind(context.Background(), factory.NewRoute(test.route, state.NewRouteState()))
+			binder := NewBinder(client)
+			gateway := NewGateway(v1alpha1.GatewayClassConfig{}, test.gateway, gatewayState)
+			route := NewRoute(test.route, state.NewRouteState())
+			bound, err := binder.Bind(context.Background(), gateway, route)
+			require.NoError(t, err)
 			if test.didBind {
-				require.NotEmpty(t, listeners)
+				require.True(t, bound)
 			} else {
-				require.Empty(t, listeners)
+				require.False(t, bound)
 			}
 		})
 	}
@@ -397,10 +397,6 @@ func TestBinder(t *testing.T) {
 
 func TestRouteAllowedForListenerNamespaces(t *testing.T) {
 	t.Parallel()
-
-	factory := NewFactory(FactoryConfig{
-		Logger: hclog.NewNullLogger(),
-	})
 
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -413,7 +409,7 @@ func TestRouteAllowedForListenerNamespaces(t *testing.T) {
 		Namespaces: &gw.RouteNamespaces{
 			From: &same,
 		},
-	}, factory.NewRoute(&gw.HTTPRoute{
+	}, NewRoute(&gw.HTTPRoute{
 		ObjectMeta: meta.ObjectMeta{
 			Namespace: "expected",
 		},
@@ -425,7 +421,7 @@ func TestRouteAllowedForListenerNamespaces(t *testing.T) {
 		Namespaces: &gw.RouteNamespaces{
 			From: &same,
 		},
-	}, factory.NewRoute(&gw.HTTPRoute{
+	}, NewRoute(&gw.HTTPRoute{
 		ObjectMeta: meta.ObjectMeta{
 			Namespace: "other",
 		},
@@ -439,7 +435,7 @@ func TestRouteAllowedForListenerNamespaces(t *testing.T) {
 		Namespaces: &gw.RouteNamespaces{
 			From: &all,
 		},
-	}, factory.NewRoute(&gw.HTTPRoute{
+	}, NewRoute(&gw.HTTPRoute{
 		ObjectMeta: meta.ObjectMeta{
 			Namespace: "other",
 		},
@@ -468,7 +464,7 @@ func TestRouteAllowedForListenerNamespaces(t *testing.T) {
 				},
 			},
 		},
-	}, factory.NewRoute(&gw.HTTPRoute{
+	}, NewRoute(&gw.HTTPRoute{
 		ObjectMeta: meta.ObjectMeta{
 			Namespace: "expected",
 		},
@@ -486,7 +482,7 @@ func TestRouteAllowedForListenerNamespaces(t *testing.T) {
 				},
 			},
 		},
-	}, factory.NewRoute(&gw.HTTPRoute{
+	}, NewRoute(&gw.HTTPRoute{
 		ObjectMeta: meta.ObjectMeta{
 			Namespace: "expected",
 		},
@@ -504,7 +500,7 @@ func TestRouteAllowedForListenerNamespaces(t *testing.T) {
 				}},
 			},
 		},
-	}, factory.NewRoute(&gw.HTTPRoute{
+	}, NewRoute(&gw.HTTPRoute{
 		ObjectMeta: meta.ObjectMeta{
 			Namespace: "expected",
 		},
@@ -517,7 +513,7 @@ func TestRouteAllowedForListenerNamespaces(t *testing.T) {
 		Namespaces: &gw.RouteNamespaces{
 			From: &unknown,
 		},
-	}, factory.NewRoute(&gw.HTTPRoute{
+	}, NewRoute(&gw.HTTPRoute{
 		ObjectMeta: meta.ObjectMeta{
 			Namespace: "expected",
 		},
@@ -529,10 +525,6 @@ func TestRouteAllowedForListenerNamespaces(t *testing.T) {
 func TestRouteKindIsAllowedForListener(t *testing.T) {
 	t.Parallel()
 
-	factory := NewFactory(FactoryConfig{
-		Logger: hclog.NewNullLogger(),
-	})
-
 	routeMeta := meta.TypeMeta{}
 	routeMeta.SetGroupVersionKind(schema.GroupVersionKind{
 		Group:   gw.GroupVersion.Group,
@@ -542,13 +534,13 @@ func TestRouteKindIsAllowedForListener(t *testing.T) {
 	require.True(t, routeKindIsAllowedForListener([]gw.RouteGroupKind{{
 		Group: (*gw.Group)(&gw.GroupVersion.Group),
 		Kind:  "HTTPRoute",
-	}}, factory.NewRoute(&gw.HTTPRoute{
+	}}, NewRoute(&gw.HTTPRoute{
 		TypeMeta: routeMeta,
 	}, state.NewRouteState())))
 	require.False(t, routeKindIsAllowedForListener([]gw.RouteGroupKind{{
 		Group: (*gw.Group)(&gw.GroupVersion.Group),
 		Kind:  "TCPRoute",
-	}}, factory.NewRoute(&gw.HTTPRoute{
+	}}, NewRoute(&gw.HTTPRoute{
 		TypeMeta: routeMeta,
 	}, state.NewRouteState())))
 }

@@ -19,7 +19,7 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/consul"
 	"github.com/hashicorp/consul-api-gateway/internal/envoy"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s"
-	"github.com/hashicorp/consul-api-gateway/internal/store/memory"
+	"github.com/hashicorp/consul-api-gateway/internal/store"
 	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 	"github.com/hashicorp/go-hclog"
 )
@@ -57,7 +57,7 @@ func (p *gatewayTestEnvironment) run(ctx context.Context, namespace string, cfg 
 	}
 	k8sSecretClient.AddToMultiClient(secretClient)
 
-	controller, err := k8s.New(nullLogger, &k8s.Config{
+	k8sConfig := k8s.Config{
 		SDSServerHost: HostRoute(ctx),
 		SDSServerPort: 9090,
 		RestConfig:    serviceAccountClient.RESTConfig(),
@@ -65,15 +65,14 @@ func (p *gatewayTestEnvironment) run(ctx context.Context, namespace string, cfg 
 		ConsulNamespaceConfig: k8s.ConsulNamespaceConfig{
 			ConsulDestinationNamespace: ConsulNamespace(ctx),
 		},
-	})
+	}
+	controller, err := k8s.New(nullLogger, &k8sConfig)
 	if err != nil {
 		return err
 	}
 
-	store := memory.NewStore(memory.StoreConfig{
-		Adapter: consulAdapters.NewSyncAdapter(nullLogger, consulClient),
-		Logger:  nullLogger,
-	})
+	adapter := consulAdapters.NewSyncAdapter(nullLogger, consulClient)
+	store := store.New(k8s.StoreConfig(adapter, controller.Client(), nullLogger, k8sConfig))
 
 	controller.SetConsul(consulClient)
 	controller.SetStore(store)

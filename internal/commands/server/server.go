@@ -15,7 +15,7 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/k8s"
 	"github.com/hashicorp/consul-api-gateway/internal/metrics"
 	"github.com/hashicorp/consul-api-gateway/internal/profiling"
-	"github.com/hashicorp/consul-api-gateway/internal/store/memory"
+	"github.com/hashicorp/consul-api-gateway/internal/store"
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
 )
@@ -70,10 +70,8 @@ func RunServer(config ServerConfig) int {
 		return 1
 	}
 
-	store := memory.NewStore(memory.StoreConfig{
-		Adapter: consulAdapters.NewSyncAdapter(config.Logger.Named("consul-adapter"), consulClient),
-		Logger:  config.Logger.Named("state"),
-	})
+	adapter := consulAdapters.NewSyncAdapter(config.Logger.Named("consul-adapter"), consulClient)
+	store := store.New(k8s.StoreConfig(adapter, controller.Client(), config.Logger, *config.K8sConfig))
 
 	controller.SetConsul(consulClient)
 	controller.SetStore(store)

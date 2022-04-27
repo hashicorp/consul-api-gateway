@@ -1,22 +1,16 @@
 package reconciler
 
 import (
-	"context"
-	"encoding/json"
-	"fmt"
 	"strings"
 
-	"github.com/hashicorp/go-hclog"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	"github.com/hashicorp/consul-api-gateway/internal/core"
-	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/converters"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/state"
-	"github.com/hashicorp/consul-api-gateway/internal/k8s/service"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	"github.com/hashicorp/consul-api-gateway/internal/store"
 )
@@ -30,14 +24,22 @@ type Route interface {
 type K8sRoute struct {
 	Route
 	RouteState *state.RouteState
-
-	controllerName string
-	logger         hclog.Logger
-	client         gatewayclient.Client
-	resolver       service.BackendResolver
 }
 
-var _ store.StatusTrackingRoute = &K8sRoute{}
+var _ store.Route = &K8sRoute{}
+
+type storedRoute struct {
+	GVK        schema.GroupVersionKind
+	Route      []byte
+	RouteState *state.RouteState
+}
+
+func NewRoute(route Route, state *state.RouteState) *K8sRoute {
+	return &K8sRoute{
+		Route:      route,
+		RouteState: state,
+	}
+}
 
 func (r *K8sRoute) ID() string {
 	switch r.Route.(type) {
@@ -94,7 +96,7 @@ func hostnamesMatch(a, b gw.Hostname) bool {
 	return a == b
 }
 
-func (r *K8sRoute) CommonRouteSpec() gw.CommonRouteSpec {
+func (r *K8sRoute) commonRouteSpec() gw.CommonRouteSpec {
 	switch route := r.Route.(type) {
 	case *gw.HTTPRoute:
 		return route.Spec.CommonRouteSpec
@@ -114,31 +116,13 @@ func (r *K8sRoute) routeStatus() gw.RouteStatus {
 	return gw.RouteStatus{}
 }
 
-func (r *K8sRoute) SetStatus(updated gw.RouteStatus) {
+func (r *K8sRoute) setStatus(updated gw.RouteStatus) {
 	switch route := r.Route.(type) {
 	case *gw.HTTPRoute:
 		route.Status.RouteStatus = updated
 	case *gw.TCPRoute:
 		route.Status.RouteStatus = updated
 	}
-}
-
-func (r *K8sRoute) SyncStatus(ctx context.Context) error {
-	if status, ok := r.RouteState.ParentStatuses.NeedsUpdate(r.routeStatus(), r.controllerName, r.GetGeneration()); ok {
-		r.SetStatus(status)
-
-		if r.logger.IsTrace() {
-			status, err := json.MarshalIndent(status, "", "  ")
-			if err == nil {
-				r.logger.Trace("syncing route status", "status", string(status))
-			}
-		}
-		if err := r.client.UpdateStatus(ctx, r.Route); err != nil {
-			return fmt.Errorf("error updating route status: %w", err)
-		}
-	}
-
-	return nil
 }
 
 func (r *K8sRoute) resolve(namespace string, gateway *gw.Gateway, listener gw.Listener) core.ResolvedRoute {
@@ -176,7 +160,7 @@ func (r *K8sRoute) resolve(namespace string, gateway *gw.Gateway, listener gw.Li
 	return nil
 }
 
-func (r *K8sRoute) Parents() []gw.ParentRef {
+func (r *K8sRoute) parents() []gw.ParentRef {
 	// filter for this controller
 	switch route := r.Route.(type) {
 	case *gw.HTTPRoute:
@@ -189,20 +173,6 @@ func (r *K8sRoute) Parents() []gw.ParentRef {
 		return route.Spec.ParentRefs
 	}
 	return nil
-}
-
-func (r *K8sRoute) OnGatewayRemoved(gateway store.Gateway) {
-	k8sGateway, ok := gateway.(*K8sGateway)
-	if ok {
-		parent := utils.NamespacedName(k8sGateway.Gateway)
-		for _, p := range r.Parents() {
-			gatewayName, isGateway := utils.ReferencesGateway(r.GetNamespace(), p)
-			if isGateway && gatewayName == parent {
-				r.RouteState.Remove(p)
-				return
-			}
-		}
-	}
 }
 
 func HTTPRouteID(namespacedName types.NamespacedName) string {
