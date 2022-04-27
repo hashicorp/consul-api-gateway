@@ -50,7 +50,7 @@ Supported features are marked with a grey checkbox
           - [x] "api-gateway.consul.hashicorp.com/tls_max_version"
           - [x] "api-gateway.consul.hashicorp.com/tls_cipher_suites"
     - [x] ~~Addresses~~ *not supported*
-  - [x] Deployment *based off of a snapshot of GatewayClass configuration at time of Gateway creation as per spec suggestions* 
+  - [x] Deployment *based off of a snapshot of GatewayClass configuration at time of Gateway creation as per spec suggestions*
   - [ ] Status
     - [ ] Addresses
     - [x] Listeners
@@ -61,7 +61,7 @@ Supported features are marked with a grey checkbox
         - [x] ~~RouteConflict~~ *unused due to the spec's confusion between when to accept a route or not, we choose not to accept routes that don't match whatever routing support the listener has*
       - [x] Detached
         - [x] Attached
-        - [x] ~~PortUnavailable~~ *unused, as the only time a port will be unavailable is if we can't schedule the Gateway due to host port binding, which will result in a gateway `Schedule` status of `NoResources`* 
+        - [x] ~~PortUnavailable~~ *unused, as the only time a port will be unavailable is if we can't schedule the Gateway due to host port binding, which will result in a gateway `Schedule` status of `NoResources`*
         - [x] ~~UnsupportedExtension~~ *unused, not sure what the spec is referring to by "extensions" for listeners*
         - [x] UnsupportedProtocol *marked for any non-HTTP/HTTPS protocols for now*
         - [x] UnsupportedAddress *set if the user specified an address for the gateway*
