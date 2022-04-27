@@ -8,3 +8,4 @@ cover.out
 demo-deployment
 bin
 pkg/bin
+go-changelog/

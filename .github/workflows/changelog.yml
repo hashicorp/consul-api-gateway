@@ -1,0 +1,42 @@
+# This workflow checks that there is either a 'pr/no-changelog' label applied to a PR
+# or there is a .changelog/<pr_number>.txt file containing a changelog entry with
+# one or more valid changelog notes
+name: changelog
+on:
+  pull_request:
+    types: [opened, synchronize, labeled]
+    # Runs on PRs to main and all release branches
+    branches:
+      - main
+      - release/*
+
+jobs:
+  validate:
+    # If there  a `pr/no-changelog` label we ignore this check
+    if: "!contains(github.event.pull_request.labels.*.name, 'pr/no-changelog')"
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0 # by default the checkout action doesn't checkout all branches
+      # Go 1.16 or later needed for building changelog-check from source
+      - uses: ./.github/actions/goenv
+        with:
+          go-version: '1.17'
+      - name: Check for changelog entry in diff
+        run: |
+          pull_request_base_main=$(expr "${{ github.event.pull_request.base.ref }}" = "main")
+
+          # For PRs against the main branch, the changelog file name should match
+          # the PR number
+          if [ pull_request_base_main ]; then
+            enforce_matching=1
+            changelog_file_path=".changelog/${{ github.event.pull_request.number }}.txt"
+          else
+            changelog_file_path=".changelog/*(_)+([[:digit:]]).txt"
+          fi
+
+          # Fail status check if non-zero exit code is returned
+          ./scripts/changelog-check.sh ${changelog_file_path} ${enforce_matching}
