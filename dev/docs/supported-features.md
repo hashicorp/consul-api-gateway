@@ -2,7 +2,7 @@
 Below is a list of the Kubernetes Gateway API features supported in the current release of the
 Consul API Gateway.
 
-Consul API Gateway version: **v0.1.0**
+Consul API Gateway version: **v0.2.0**
 Suppoorted K8s Gateway API version: **v1alpha2**
 
 Supported features are marked with a grey checkbox
@@ -130,3 +130,13 @@ Supported features are marked with a grey checkbox
 - [x] TCPRoute - we are limited by Consul's ability to only route to a single TCP-based upstream, so TCP-based Gateway listeners only support a single TCPRoute with a single rule with a single backend; otherwise, either the TCPRoute is considered invalid or the Gateway status is set as having conflicting routes.
 - [ ] TLSRoute - TODO
 - [x] UDPRoute *not supported*
+- [x] ReferencePolicy - Routes currently require ReferencePolicies for all BackendRefs, and do not support partial acceptance if any BackendRefs are unpermitted
+  - [x] From
+    - [x] HTTPRoute
+    - [x] TCPRoute
+    - [ ] TLSRoute
+    - [ ] UDPRoute
+    - [ ] Gateway
+  - [x] To
+    - [x] Service
+    - [ ] Secret
