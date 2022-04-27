@@ -200,6 +200,7 @@ func (k *Kubernetes) Start(ctx context.Context) error {
 	}
 
 	err = (&controllers.TCPRouteReconciler{
+		Context:        ctx,
 		Client:         gwClient,
 		Log:            k.logger.Named("TCPRoute"),
 		Manager:        reconcileManager,
