@@ -1,21 +1,15 @@
-package reconciler
+package converters
 
 import (
 	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"k8s.io/apimachinery/pkg/types"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/state"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/service"
 )
-
-func TestHTTPRouteID(t *testing.T) {
-	t.Parallel()
-
-	require.Equal(t, "http-namespace/name", HTTPRouteID(types.NamespacedName{Namespace: "namespace", Name: "name"}))
-}
 
 func TestConvertHTTPRoute(t *testing.T) {
 	t.Parallel()
@@ -104,7 +98,7 @@ func TestConvertHTTPRoute(t *testing.T) {
 		expected: `
 {
 	"Meta": null,
-	"Name": "kitchen-sink",
+	"Name": "",
 	"Namespace": "",
 	"Hostnames": [
 		"*"
@@ -195,7 +189,7 @@ func TestConvertHTTPRoute(t *testing.T) {
 		expected: `
 {
 	"Meta": null,
-	"Name": "hostnames",
+	"Name": "",
 	"Namespace": "",
 	"Hostnames": [
 		"*"
@@ -205,8 +199,16 @@ func TestConvertHTTPRoute(t *testing.T) {
 `,
 	}} {
 		t.Run(test.name, func(t *testing.T) {
-			resolved := convertHTTPRoute(test.namespace, test.hostname, test.name, test.meta, test.route, &K8sRoute{references: test.references})
-
+			converter := &HTTPRouteConverter{
+				namespace: test.namespace,
+				hostname:  test.hostname,
+				meta:      test.meta,
+				route:     test.route,
+				state: &state.RouteState{
+					References: test.references,
+				},
+			}
+			resolved := converter.Convert()
 			data, err := json.MarshalIndent(resolved, "", "  ")
 			require.NoError(t, err)
 			require.JSONEq(t, test.expected, string(data))

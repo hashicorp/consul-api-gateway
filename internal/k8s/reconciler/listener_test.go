@@ -14,6 +14,9 @@ import (
 
 	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient/mocks"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/common"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/state"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/status"
 	"github.com/hashicorp/consul-api-gateway/internal/store"
 	storeMocks "github.com/hashicorp/consul-api-gateway/internal/store/mocks"
 	"github.com/hashicorp/go-hclog"
@@ -46,9 +49,9 @@ func TestListenerValidate(t *testing.T) {
 	})
 	require.NoError(t, listener.Validate(context.Background()))
 	condition := listener.status.Ready.Condition(0)
-	require.Equal(t, ListenerConditionReasonInvalid, condition.Reason)
+	require.Equal(t, status.ListenerConditionReasonInvalid, condition.Reason)
 	condition = listener.status.Detached.Condition(0)
-	require.Equal(t, ListenerConditionReasonUnsupportedProtocol, condition.Reason)
+	require.Equal(t, status.ListenerConditionReasonUnsupportedProtocol, condition.Reason)
 
 	listener = NewK8sListener(&gw.Gateway{}, gw.Listener{
 		Protocol: gw.HTTPProtocolType,
@@ -62,7 +65,7 @@ func TestListenerValidate(t *testing.T) {
 	})
 	require.NoError(t, listener.Validate(context.Background()))
 	condition = listener.status.ResolvedRefs.Condition(0)
-	require.Equal(t, ListenerConditionReasonInvalidRouteKinds, condition.Reason)
+	require.Equal(t, status.ListenerConditionReasonInvalidRouteKinds, condition.Reason)
 
 	// Addresses
 	listener = NewK8sListener(&gw.Gateway{
@@ -76,7 +79,7 @@ func TestListenerValidate(t *testing.T) {
 	})
 	require.NoError(t, listener.Validate(context.Background()))
 	condition = listener.status.Detached.Condition(0)
-	require.Equal(t, ListenerConditionReasonUnsupportedAddress, condition.Reason)
+	require.Equal(t, status.ListenerConditionReasonUnsupportedAddress, condition.Reason)
 
 	// TLS validations
 	listener = NewK8sListener(&gw.Gateway{}, gw.Listener{
@@ -86,7 +89,7 @@ func TestListenerValidate(t *testing.T) {
 	})
 	require.NoError(t, listener.Validate(context.Background()))
 	condition = listener.status.Ready.Condition(0)
-	require.Equal(t, ListenerConditionReasonInvalid, condition.Reason)
+	require.Equal(t, status.ListenerConditionReasonInvalid, condition.Reason)
 
 	mode := gw.TLSModePassthrough
 	listener = NewK8sListener(&gw.Gateway{}, gw.Listener{
@@ -99,7 +102,7 @@ func TestListenerValidate(t *testing.T) {
 	})
 	require.NoError(t, listener.Validate(context.Background()))
 	condition = listener.status.Ready.Condition(0)
-	require.Equal(t, ListenerConditionReasonInvalid, condition.Reason)
+	require.Equal(t, status.ListenerConditionReasonInvalid, condition.Reason)
 
 	listener = NewK8sListener(&gw.Gateway{}, gw.Listener{
 		Protocol: gw.HTTPSProtocolType,
@@ -109,7 +112,7 @@ func TestListenerValidate(t *testing.T) {
 	})
 	require.NoError(t, listener.Validate(context.Background()))
 	condition = listener.status.ResolvedRefs.Condition(0)
-	require.Equal(t, ListenerConditionReasonInvalidCertificateRef, condition.Reason)
+	require.Equal(t, status.ListenerConditionReasonInvalidCertificateRef, condition.Reason)
 
 	listener = NewK8sListener(&gw.Gateway{}, gw.Listener{
 		Protocol: gw.HTTPSProtocolType,
@@ -139,7 +142,7 @@ func TestListenerValidate(t *testing.T) {
 	client.EXPECT().GetSecret(gomock.Any(), gomock.Any()).Return(nil, nil)
 	require.NoError(t, listener.Validate(context.Background()))
 	condition = listener.status.ResolvedRefs.Condition(0)
-	require.Equal(t, ListenerConditionReasonInvalidCertificateRef, condition.Reason)
+	require.Equal(t, status.ListenerConditionReasonInvalidCertificateRef, condition.Reason)
 
 	listener = NewK8sListener(&gw.Gateway{}, gw.Listener{
 		Protocol: gw.HTTPSProtocolType,
@@ -180,7 +183,7 @@ func TestListenerValidate(t *testing.T) {
 	})
 	require.NoError(t, listener.Validate(context.Background()))
 	condition = listener.status.ResolvedRefs.Condition(0)
-	require.Equal(t, ListenerConditionReasonInvalidCertificateRef, condition.Reason)
+	require.Equal(t, status.ListenerConditionReasonInvalidCertificateRef, condition.Reason)
 
 	listener = NewK8sListener(&gw.Gateway{}, gw.Listener{
 		Protocol: gw.HTTPSProtocolType,
@@ -203,7 +206,7 @@ func TestListenerValidate(t *testing.T) {
 	}, nil)
 	require.NoError(t, listener.Validate(context.Background()))
 	condition = listener.status.Ready.Condition(0)
-	require.Equal(t, ListenerConditionReasonReady, condition.Reason)
+	require.Equal(t, status.ListenerConditionReasonReady, condition.Reason)
 	require.Equal(t, "TLSv1_2", listener.tls.MinVersion)
 
 	listener = NewK8sListener(&gw.Gateway{}, gw.Listener{
@@ -227,7 +230,7 @@ func TestListenerValidate(t *testing.T) {
 	}, nil)
 	require.NoError(t, listener.Validate(context.Background()))
 	condition = listener.status.Ready.Condition(0)
-	require.Equal(t, ListenerConditionReasonInvalid, condition.Reason)
+	require.Equal(t, status.ListenerConditionReasonInvalid, condition.Reason)
 	require.Equal(t, "unrecognized TLS min version", condition.Message)
 
 	listener = NewK8sListener(&gw.Gateway{}, gw.Listener{
@@ -251,7 +254,7 @@ func TestListenerValidate(t *testing.T) {
 	}, nil)
 	require.NoError(t, listener.Validate(context.Background()))
 	condition = listener.status.Ready.Condition(0)
-	require.Equal(t, ListenerConditionReasonReady, condition.Reason)
+	require.Equal(t, status.ListenerConditionReasonReady, condition.Reason)
 	require.Equal(t, []string{"TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256"}, listener.tls.CipherSuites)
 
 	listener = NewK8sListener(&gw.Gateway{}, gw.Listener{
@@ -276,7 +279,7 @@ func TestListenerValidate(t *testing.T) {
 	}, nil)
 	require.NoError(t, listener.Validate(context.Background()))
 	condition = listener.status.Ready.Condition(0)
-	require.Equal(t, ListenerConditionReasonInvalid, condition.Reason)
+	require.Equal(t, status.ListenerConditionReasonInvalid, condition.Reason)
 	require.Equal(t, "configuring TLS cipher suites is only supported for TLS 1.2 and earlier", condition.Message)
 
 	listener = NewK8sListener(&gw.Gateway{}, gw.Listener{
@@ -300,7 +303,7 @@ func TestListenerValidate(t *testing.T) {
 	}, nil)
 	require.NoError(t, listener.Validate(context.Background()))
 	condition = listener.status.Ready.Condition(0)
-	require.Equal(t, ListenerConditionReasonInvalid, condition.Reason)
+	require.Equal(t, status.ListenerConditionReasonInvalid, condition.Reason)
 	require.Equal(t, "unrecognized or unsupported TLS cipher suite: foo", condition.Message)
 }
 
@@ -375,6 +378,10 @@ func TestListenerStatusConditions(t *testing.T) {
 func TestListenerCanBind(t *testing.T) {
 	t.Parallel()
 
+	factory := NewFactory(FactoryConfig{
+		Logger: hclog.NewNullLogger(),
+	})
+
 	// alternative type
 	listener := NewK8sListener(&gw.Gateway{}, gw.Listener{}, K8sListenerConfig{
 		Logger: hclog.NewNullLogger(),
@@ -387,9 +394,7 @@ func TestListenerCanBind(t *testing.T) {
 	listener = NewK8sListener(&gw.Gateway{}, gw.Listener{}, K8sListenerConfig{
 		Logger: hclog.NewNullLogger(),
 	})
-	canBind, err = listener.CanBind(context.Background(), NewK8sRoute(&gw.HTTPRoute{}, K8sRouteConfig{
-		Logger: hclog.NewNullLogger(),
-	}))
+	canBind, err = listener.CanBind(context.Background(), factory.NewRoute(&gw.HTTPRoute{}, state.NewRouteState()))
 	require.NoError(t, err)
 	require.False(t, canBind)
 
@@ -401,7 +406,7 @@ func TestListenerCanBind(t *testing.T) {
 	}, gw.Listener{}, K8sListenerConfig{
 		Logger: hclog.NewNullLogger(),
 	})
-	canBind, err = listener.CanBind(context.Background(), NewK8sRoute(&gw.HTTPRoute{
+	canBind, err = listener.CanBind(context.Background(), factory.NewRoute(&gw.HTTPRoute{
 		Spec: gw.HTTPRouteSpec{
 			CommonRouteSpec: gw.CommonRouteSpec{
 				ParentRefs: []gw.ParentRef{{
@@ -409,9 +414,7 @@ func TestListenerCanBind(t *testing.T) {
 				}},
 			},
 		},
-	}, K8sRouteConfig{
-		Logger: hclog.NewNullLogger(),
-	}))
+	}, state.NewRouteState()))
 	require.NoError(t, err)
 	require.True(t, canBind)
 
@@ -424,7 +427,7 @@ func TestListenerCanBind(t *testing.T) {
 		Logger: hclog.NewNullLogger(),
 	})
 	listener.status.Ready.Invalid = errors.New("invalid")
-	canBind, err = listener.CanBind(context.Background(), NewK8sRoute(&gw.HTTPRoute{
+	canBind, err = listener.CanBind(context.Background(), factory.NewRoute(&gw.HTTPRoute{
 		Spec: gw.HTTPRouteSpec{
 			CommonRouteSpec: gw.CommonRouteSpec{
 				ParentRefs: []gw.ParentRef{{
@@ -432,15 +435,17 @@ func TestListenerCanBind(t *testing.T) {
 				}},
 			},
 		},
-	}, K8sRouteConfig{
-		Logger: hclog.NewNullLogger(),
-	}))
+	}, state.NewRouteState()))
 	require.NoError(t, err)
 	require.False(t, canBind)
 }
 
 func TestListenerCanBind_RouteKind(t *testing.T) {
 	t.Parallel()
+
+	factory := NewFactory(FactoryConfig{
+		Logger: hclog.NewNullLogger(),
+	})
 
 	routeMeta := meta.TypeMeta{}
 	routeMeta.SetGroupVersionKind(schema.GroupVersionKind{
@@ -460,7 +465,7 @@ func TestListenerCanBind_RouteKind(t *testing.T) {
 		Logger: hclog.NewNullLogger(),
 	})
 	require.NoError(t, listener.Validate(context.Background()))
-	canBind, err := listener.CanBind(context.Background(), NewK8sRoute(&gw.UDPRoute{
+	canBind, err := listener.CanBind(context.Background(), factory.NewRoute(&gw.UDPRoute{
 		TypeMeta: routeMeta,
 		Spec: gw.UDPRouteSpec{
 			CommonRouteSpec: gw.CommonRouteSpec{
@@ -469,9 +474,7 @@ func TestListenerCanBind_RouteKind(t *testing.T) {
 				}},
 			},
 		},
-	}, K8sRouteConfig{
-		Logger: hclog.NewNullLogger(),
-	}))
+	}, state.NewRouteState()))
 	require.NoError(t, err)
 	require.False(t, canBind)
 
@@ -485,10 +488,10 @@ func TestListenerCanBind_RouteKind(t *testing.T) {
 	}, K8sListenerConfig{
 		Logger: hclog.NewNullLogger(),
 	})
-	listener.supportedKinds = supportedProtocols[gw.HTTPProtocolType]
-	_, err = listener.CanBind(context.Background(), NewK8sRoute(&gw.UDPRoute{
+	listener.supportedKinds = common.SupportedKindsFor(gw.HTTPProtocolType)
+	_, err = listener.CanBind(context.Background(), factory.NewRoute(&gw.TCPRoute{
 		TypeMeta: routeMeta,
-		Spec: gw.UDPRouteSpec{
+		Spec: gw.TCPRouteSpec{
 			CommonRouteSpec: gw.CommonRouteSpec{
 				ParentRefs: []gw.ParentRef{{
 					Name:        "gateway",
@@ -496,14 +499,16 @@ func TestListenerCanBind_RouteKind(t *testing.T) {
 				}},
 			},
 		},
-	}, K8sRouteConfig{
-		Logger: hclog.NewNullLogger(),
-	}))
+	}, state.NewRouteState()))
 	require.Error(t, err)
 }
 
 func TestListenerCanBind_AllowedNamespaces(t *testing.T) {
 	t.Parallel()
+
+	factory := NewFactory(FactoryConfig{
+		Logger: hclog.NewNullLogger(),
+	})
 
 	name := gw.SectionName("listener")
 	same := gw.NamespacesFromSame
@@ -532,8 +537,8 @@ func TestListenerCanBind_AllowedNamespaces(t *testing.T) {
 	}, K8sListenerConfig{
 		Logger: hclog.NewNullLogger(),
 	})
-	listener.supportedKinds = supportedProtocols[gw.HTTPProtocolType]
-	_, err := listener.CanBind(context.Background(), NewK8sRoute(&gw.HTTPRoute{
+	listener.supportedKinds = common.SupportedKindsFor(gw.HTTPProtocolType)
+	_, err := listener.CanBind(context.Background(), factory.NewRoute(&gw.HTTPRoute{
 		TypeMeta: routeMeta,
 		Spec: gw.HTTPRouteSpec{
 			CommonRouteSpec: gw.CommonRouteSpec{
@@ -544,11 +549,9 @@ func TestListenerCanBind_AllowedNamespaces(t *testing.T) {
 				}},
 			},
 		},
-	}, K8sRouteConfig{
-		Logger: hclog.NewNullLogger(),
-	}))
+	}, state.NewRouteState()))
 	require.Error(t, err)
-	canBind, err := listener.CanBind(context.Background(), NewK8sRoute(&gw.HTTPRoute{
+	canBind, err := listener.CanBind(context.Background(), factory.NewRoute(&gw.HTTPRoute{
 		TypeMeta: routeMeta,
 		Spec: gw.HTTPRouteSpec{
 			CommonRouteSpec: gw.CommonRouteSpec{
@@ -558,9 +561,7 @@ func TestListenerCanBind_AllowedNamespaces(t *testing.T) {
 				}},
 			},
 		},
-	}, K8sRouteConfig{
-		Logger: hclog.NewNullLogger(),
-	}))
+	}, state.NewRouteState()))
 	require.NoError(t, err)
 	require.False(t, canBind)
 
@@ -586,8 +587,8 @@ func TestListenerCanBind_AllowedNamespaces(t *testing.T) {
 	}, K8sListenerConfig{
 		Logger: hclog.NewNullLogger(),
 	})
-	listener.supportedKinds = supportedProtocols[gw.HTTPProtocolType]
-	_, err = listener.CanBind(context.Background(), NewK8sRoute(&gw.HTTPRoute{
+	listener.supportedKinds = common.SupportedKindsFor(gw.HTTPProtocolType)
+	_, err = listener.CanBind(context.Background(), factory.NewRoute(&gw.HTTPRoute{
 		TypeMeta: routeMeta,
 		Spec: gw.HTTPRouteSpec{
 			CommonRouteSpec: gw.CommonRouteSpec{
@@ -598,11 +599,9 @@ func TestListenerCanBind_AllowedNamespaces(t *testing.T) {
 				}},
 			},
 		},
-	}, K8sRouteConfig{
-		Logger: hclog.NewNullLogger(),
-	}))
+	}, state.NewRouteState()))
 	require.Error(t, err)
-	_, err = listener.CanBind(context.Background(), NewK8sRoute(&gw.HTTPRoute{
+	_, err = listener.CanBind(context.Background(), factory.NewRoute(&gw.HTTPRoute{
 		TypeMeta: routeMeta,
 		Spec: gw.HTTPRouteSpec{
 			CommonRouteSpec: gw.CommonRouteSpec{
@@ -612,14 +611,16 @@ func TestListenerCanBind_AllowedNamespaces(t *testing.T) {
 				}},
 			},
 		},
-	}, K8sRouteConfig{
-		Logger: hclog.NewNullLogger(),
-	}))
+	}, state.NewRouteState()))
 	require.Error(t, err)
 }
 
 func TestListenerCanBind_HostnameMatch(t *testing.T) {
 	t.Parallel()
+
+	factory := NewFactory(FactoryConfig{
+		Logger: hclog.NewNullLogger(),
+	})
 
 	routeMeta := meta.TypeMeta{}
 	routeMeta.SetGroupVersionKind(schema.GroupVersionKind{
@@ -640,8 +641,8 @@ func TestListenerCanBind_HostnameMatch(t *testing.T) {
 	}, K8sListenerConfig{
 		Logger: hclog.NewNullLogger(),
 	})
-	listener.supportedKinds = supportedProtocols[gw.HTTPProtocolType]
-	_, err := listener.CanBind(context.Background(), NewK8sRoute(&gw.HTTPRoute{
+	listener.supportedKinds = common.SupportedKindsFor(gw.HTTPProtocolType)
+	_, err := listener.CanBind(context.Background(), factory.NewRoute(&gw.HTTPRoute{
 		TypeMeta: routeMeta,
 		Spec: gw.HTTPRouteSpec{
 			CommonRouteSpec: gw.CommonRouteSpec{
@@ -652,12 +653,10 @@ func TestListenerCanBind_HostnameMatch(t *testing.T) {
 			},
 			Hostnames: []gw.Hostname{"other"},
 		},
-	}, K8sRouteConfig{
-		Logger: hclog.NewNullLogger(),
-	}))
+	}, state.NewRouteState()))
 	require.Error(t, err)
 
-	canBind, err := listener.CanBind(context.Background(), NewK8sRoute(&gw.HTTPRoute{
+	canBind, err := listener.CanBind(context.Background(), factory.NewRoute(&gw.HTTPRoute{
 		TypeMeta: routeMeta,
 		Spec: gw.HTTPRouteSpec{
 			CommonRouteSpec: gw.CommonRouteSpec{
@@ -667,15 +666,17 @@ func TestListenerCanBind_HostnameMatch(t *testing.T) {
 			},
 			Hostnames: []gw.Hostname{"other"},
 		},
-	}, K8sRouteConfig{
-		Logger: hclog.NewNullLogger(),
-	}))
+	}, state.NewRouteState()))
 	require.NoError(t, err)
 	require.False(t, canBind)
 }
 
 func TestListenerCanBind_NameMatch(t *testing.T) {
 	t.Parallel()
+
+	factory := NewFactory(FactoryConfig{
+		Logger: hclog.NewNullLogger(),
+	})
 
 	name := gw.SectionName("listener")
 	otherName := gw.SectionName("other")
@@ -689,7 +690,7 @@ func TestListenerCanBind_NameMatch(t *testing.T) {
 	}, K8sListenerConfig{
 		Logger: hclog.NewNullLogger(),
 	})
-	canBind, err := listener.CanBind(context.Background(), NewK8sRoute(&gw.HTTPRoute{
+	canBind, err := listener.CanBind(context.Background(), factory.NewRoute(&gw.HTTPRoute{
 		Spec: gw.HTTPRouteSpec{
 			CommonRouteSpec: gw.CommonRouteSpec{
 				ParentRefs: []gw.ParentRef{{
@@ -699,9 +700,7 @@ func TestListenerCanBind_NameMatch(t *testing.T) {
 			},
 			Hostnames: []gw.Hostname{"other"},
 		},
-	}, K8sRouteConfig{
-		Logger: hclog.NewNullLogger(),
-	}))
+	}, state.NewRouteState()))
 	require.NoError(t, err)
 	require.False(t, canBind)
 }

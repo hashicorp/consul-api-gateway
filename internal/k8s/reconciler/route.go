@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"reflect"
 
 	"github.com/hashicorp/go-hclog"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -15,6 +14,8 @@ import (
 
 	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/converters"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/state"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/service"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	"github.com/hashicorp/consul-api-gateway/internal/store"
@@ -28,16 +29,12 @@ type Route interface {
 
 type K8sRoute struct {
 	Route
+	RouteState *state.RouteState
 
 	controllerName string
 	logger         hclog.Logger
 	client         gatewayclient.Client
 	resolver       service.BackendResolver
-
-	references       service.RouteRuleReferenceMap
-	resolutionErrors *service.ResolutionErrors
-
-	parentStatuses map[string]*RouteStatus
 }
 
 var _ store.StatusTrackingRoute = &K8sRoute{}
@@ -47,19 +44,6 @@ type K8sRouteConfig struct {
 	Logger         hclog.Logger
 	Client         gatewayclient.Client
 	Resolver       service.BackendResolver
-}
-
-func NewK8sRoute(route Route, config K8sRouteConfig) *K8sRoute {
-	return &K8sRoute{
-		Route:            route,
-		controllerName:   config.ControllerName,
-		logger:           config.Logger.Named("route").With("name", route.GetName()),
-		client:           config.Client,
-		resolver:         config.Resolver,
-		references:       service.RouteRuleReferenceMap{},
-		resolutionErrors: service.NewResolutionErrors(),
-		parentStatuses:   make(map[string]*RouteStatus),
-	}
 }
 
 func (r *K8sRoute) parentKeyForGateway(parent types.NamespacedName) (string, bool) {
@@ -78,10 +62,6 @@ func (r *K8sRoute) ID() string {
 		return HTTPRouteID(utils.NamespacedName(r.Route))
 	case *gw.TCPRoute:
 		return TCPRouteID(utils.NamespacedName(r.Route))
-	case *gw.UDPRoute:
-		return UDPRouteID(utils.NamespacedName(r.Route))
-	case *gw.TLSRoute:
-		return TLSRouteID(utils.NamespacedName(r.Route))
 	}
 	return ""
 }
@@ -101,10 +81,6 @@ func (r *K8sRoute) CommonRouteSpec() gw.CommonRouteSpec {
 		return route.Spec.CommonRouteSpec
 	case *gw.TCPRoute:
 		return route.Spec.CommonRouteSpec
-	case *gw.UDPRoute:
-		return route.Spec.CommonRouteSpec
-	case *gw.TLSRoute:
-		return route.Spec.CommonRouteSpec
 	}
 	return gw.CommonRouteSpec{}
 }
@@ -114,10 +90,6 @@ func (r *K8sRoute) routeStatus() gw.RouteStatus {
 	case *gw.HTTPRoute:
 		return route.Status.RouteStatus
 	case *gw.TCPRoute:
-		return route.Status.RouteStatus
-	case *gw.UDPRoute:
-		return route.Status.RouteStatus
-	case *gw.TLSRoute:
 		return route.Status.RouteStatus
 	}
 	return gw.RouteStatus{}
@@ -129,131 +101,20 @@ func (r *K8sRoute) SetStatus(updated gw.RouteStatus) {
 		route.Status.RouteStatus = updated
 	case *gw.TCPRoute:
 		route.Status.RouteStatus = updated
-	case *gw.UDPRoute:
-		route.Status.RouteStatus = updated
-	case *gw.TLSRoute:
-		route.Status.RouteStatus = updated
-	}
-}
-
-func (r *K8sRoute) ParentStatuses() []gw.RouteParentStatus {
-	statuses := []gw.RouteParentStatus{}
-	for ref, status := range r.parentStatuses {
-		statuses = append(statuses, gw.RouteParentStatus{
-			ParentRef:      parseParent(ref),
-			ControllerName: gw.GatewayController(r.controllerName),
-			Conditions:     status.Conditions(r.GetGeneration()),
-		})
-	}
-	return statuses
-}
-
-func (r *K8sRoute) FilterParentStatuses() []gw.RouteParentStatus {
-	filtered := []gw.RouteParentStatus{}
-	for _, status := range r.routeStatus().Parents {
-		if status.ControllerName != gw.GatewayController(r.controllerName) {
-			filtered = append(filtered, status)
-			continue
-		}
-	}
-	return filtered
-}
-
-func (r *K8sRoute) MergedStatus() gw.RouteStatus {
-	return gw.RouteStatus{
-		Parents: sortParents(append(r.FilterParentStatuses(), r.ParentStatuses()...)),
-	}
-}
-
-func (r *K8sRoute) NeedsStatusUpdate() bool {
-	currentStatus := gw.RouteStatus{Parents: sortParents(r.routeStatus().Parents)}
-	updatedStatus := r.MergedStatus()
-	return !routeStatusEqual(currentStatus, updatedStatus)
-}
-
-func (r *K8sRoute) OnBindFailed(err error, gateway store.Gateway) {
-	k8sGateway, ok := gateway.(*K8sGateway)
-	if ok {
-		id, found := r.parentKeyForGateway(utils.NamespacedName(k8sGateway.gateway))
-		if found {
-			status, statusFound := r.parentStatuses[id]
-			if !statusFound {
-				status = &RouteStatus{}
-			}
-			var bindError BindError
-			if errors.As(err, &bindError) {
-				switch bindError.Kind() {
-				case BindErrorTypeHostnameMismatch:
-					status.Accepted.ListenerHostnameMismatch = err
-				case BindErrorTypeListenerNamespacePolicy:
-					status.Accepted.ListenerNamespacePolicy = err
-				case BindErrorTypeRouteKind:
-					status.Accepted.InvalidRouteKind = err
-				case BindErrorTypeRouteInvalid:
-					status.Accepted.BindError = err
-				}
-			} else {
-				status.Accepted.BindError = err
-			}
-			// set resolution errors - we can do this here because
-			// a route with resolution errors will always fail to bind
-			errorType, err := r.resolutionErrors.Flatten()
-			switch errorType {
-			case service.GenericResolutionErrorType:
-				status.ResolvedRefs.Errors = err
-			case service.ConsulServiceResolutionErrorType:
-				status.ResolvedRefs.ConsulServiceNotFound = err
-			case service.K8sServiceResolutionErrorType:
-				status.ResolvedRefs.ServiceNotFound = err
-			case service.RefNotPermittedErrorType:
-				status.ResolvedRefs.RefNotPermitted = err
-			}
-
-			r.parentStatuses[id] = status
-		}
-	}
-}
-
-func (r *K8sRoute) OnBound(gateway store.Gateway) {
-	k8sGateway, ok := gateway.(*K8sGateway)
-	if ok {
-		id, found := r.parentKeyForGateway(utils.NamespacedName(k8sGateway.gateway))
-		if found {
-			// clear out any existing errors on our statuses
-			if status, statusFound := r.parentStatuses[id]; statusFound {
-				status.Accepted = RouteAcceptedStatus{}
-				status.ResolvedRefs = RouteResolvedRefsStatus{}
-			} else {
-				r.parentStatuses[id] = &RouteStatus{}
-			}
-		}
-	}
-}
-
-func (r *K8sRoute) OnGatewayRemoved(gateway store.Gateway) {
-	k8sGateway, ok := gateway.(*K8sGateway)
-	if ok {
-		id, found := r.parentKeyForGateway(utils.NamespacedName(k8sGateway.gateway))
-		if found {
-			delete(r.parentStatuses, id)
-		}
 	}
 }
 
 func (r *K8sRoute) SyncStatus(ctx context.Context) error {
-	if r.NeedsStatusUpdate() {
-		status := r.routeStatus()
-		r.SetStatus(r.MergedStatus())
+	if status, ok := r.RouteState.ParentStatuses.NeedsUpdate(r.routeStatus(), r.controllerName, r.GetGeneration()); ok {
+		r.SetStatus(status)
 
 		if r.logger.IsTrace() {
-			status, err := json.MarshalIndent(r.routeStatus(), "", "  ")
+			status, err := json.MarshalIndent(status, "", "  ")
 			if err == nil {
 				r.logger.Trace("syncing route status", "status", string(status))
 			}
 		}
 		if err := r.client.UpdateStatus(ctx, r.Route); err != nil {
-			// reset the status so we sync again on a retry
-			r.SetStatus(status)
 			return fmt.Errorf("error updating route status: %w", err)
 		}
 	}
@@ -261,87 +122,46 @@ func (r *K8sRoute) SyncStatus(ctx context.Context) error {
 	return nil
 }
 
-func (r *K8sRoute) Compare(other store.Route) store.CompareResult {
-	if other == nil {
-		return store.CompareResultInvalid
-	}
-	if r == nil {
-		return store.CompareResultNotEqual
-	}
-
-	if otherRoute, ok := other.(*K8sRoute); ok {
-		if utils.ResourceVersionGreater(r.GetResourceVersion(), otherRoute.GetResourceVersion()) {
-			return store.CompareResultNewer
-		}
-
-		if r.isEqual(otherRoute) {
-			return store.CompareResultEqual
-		}
-		return store.CompareResultNotEqual
-	}
-	return store.CompareResultInvalid
-}
-
-func (r *K8sRoute) isEqual(k8sRoute *K8sRoute) bool {
-	if !reflect.DeepEqual(r.references, k8sRoute.references) || !reflect.DeepEqual(r.resolutionErrors, k8sRoute.resolutionErrors) {
-		return false
-	}
-
-	switch route := r.Route.(type) {
-	case *gw.HTTPRoute:
-		if otherRoute, ok := k8sRoute.Route.(*gw.HTTPRoute); ok {
-			return reflect.DeepEqual(route.Spec, otherRoute.Spec)
-		}
-		return false
-	case *gw.TCPRoute:
-		if otherRoute, ok := k8sRoute.Route.(*gw.TCPRoute); ok {
-			return reflect.DeepEqual(route.Spec, otherRoute.Spec)
-		}
-		return false
-	case *gw.UDPRoute:
-		if otherRoute, ok := k8sRoute.Route.(*gw.UDPRoute); ok {
-			return reflect.DeepEqual(route.Spec, otherRoute.Spec)
-		}
-		return false
-	case *gw.TLSRoute:
-		if otherRoute, ok := k8sRoute.Route.(*gw.TLSRoute); ok {
-			return reflect.DeepEqual(route.Spec, otherRoute.Spec)
-		}
-		return false
-	}
-	return false
-}
-
-func (r *K8sRoute) Resolve(listener store.Listener) *core.ResolvedRoute {
+func (r *K8sRoute) Resolve(listener store.Listener) core.ResolvedRoute {
 	k8sListener, ok := listener.(*K8sListener)
 	if !ok {
 		return nil
 	}
+	gateway := k8sListener.gateway
 
-	prefix := fmt.Sprintf("consul-api-gateway_%s_", k8sListener.gateway.Name)
 	namespace := k8sListener.consulNamespace
 	hostname := k8sListener.Config().Hostname
 	switch route := r.Route.(type) {
 	case *gw.HTTPRoute:
-		return convertHTTPRoute(namespace, hostname, prefix, map[string]string{
-			"external-source":                            "consul-api-gateway",
-			"consul-api-gateway/k8s/Gateway.Name":        k8sListener.gateway.Name,
-			"consul-api-gateway/k8s/Gateway.Namespace":   k8sListener.gateway.Namespace,
-			"consul-api-gateway/k8s/HTTPRoute.Name":      r.GetName(),
-			"consul-api-gateway/k8s/HTTPRoute.Namespace": r.GetNamespace(),
-		}, route, r)
+		return converters.NewHTTPRouteConverter(converters.HTTPRouteConverterConfig{
+			Namespace: namespace,
+			Hostname:  hostname,
+			Meta: map[string]string{
+				"external-source":                            "consul-api-gateway",
+				"consul-api-gateway/k8s/Gateway.Name":        gateway.Name,
+				"consul-api-gateway/k8s/Gateway.Namespace":   gateway.Namespace,
+				"consul-api-gateway/k8s/HTTPRoute.Name":      r.GetName(),
+				"consul-api-gateway/k8s/HTTPRoute.Namespace": r.GetNamespace(),
+			},
+			Route: route,
+			State: r.RouteState,
+		}).Convert()
 	case *gw.TCPRoute:
-		return convertTCPRoute(namespace, prefix, map[string]string{
-			"external-source":                           "consul-api-gateway",
-			"consul-api-gateway/k8s/Gateway.Name":       k8sListener.gateway.Name,
-			"consul-api-gateway/k8s/Gateway.Namespace":  k8sListener.gateway.Namespace,
-			"consul-api-gateway/k8s/TCPRoute.Name":      r.GetName(),
-			"consul-api-gateway/k8s/TCPRoute.Namespace": r.GetNamespace(),
-		}, route, r)
-	default:
-		// TODO: add other route types
-		return nil
+		return converters.NewTCPRouteConverter(converters.TCPRouteConverterConfig{
+			Namespace: namespace,
+			Hostname:  hostname,
+			Meta: map[string]string{
+				"external-source":                           "consul-api-gateway",
+				"consul-api-gateway/k8s/Gateway.Name":       gateway.Name,
+				"consul-api-gateway/k8s/Gateway.Namespace":  gateway.Namespace,
+				"consul-api-gateway/k8s/TCPRoute.Name":      r.GetName(),
+				"consul-api-gateway/k8s/TCPRoute.Namespace": r.GetNamespace(),
+			},
+			Route: route,
+			State: r.RouteState,
+		}).Convert()
 	}
+	return nil
 }
 
 func (r *K8sRoute) Parents() []gw.ParentRef {
@@ -375,27 +195,27 @@ func (r *K8sRoute) Validate(ctx context.Context) error {
 				} else if !allowed {
 					msg := fmt.Sprintf("Cross-namespace routing not allowed without matching ReferencePolicy for Service %q", getServiceID(ref.Name, ref.Namespace, route.GetNamespace()))
 					r.logger.Warn("Cross-namespace routing not allowed without matching ReferencePolicy", "refName", ref.Name, "refNamespace", ref.Namespace)
-					r.resolutionErrors.Add(service.NewRefNotPermittedError(msg))
+					r.RouteState.ResolutionErrors.Add(service.NewRefNotPermittedError(msg))
 					continue
 				}
 
-				reference, err := r.resolver.Resolve(ctx, ref.BackendObjectReference)
+				reference, err := r.resolver.Resolve(ctx, r.GetNamespace(), ref.BackendObjectReference)
 				if err != nil {
 					var resolutionError service.ResolutionError
 					if !errors.As(err, &resolutionError) {
 						return err
 					}
-					r.resolutionErrors.Add(resolutionError)
+					r.RouteState.ResolutionErrors.Add(resolutionError)
 					continue
 				}
 				reference.Reference.Set(&ref)
-				r.references.Add(routeRule, *reference)
+				r.RouteState.References.Add(routeRule, *reference)
 			}
 		}
 	case *gw.TCPRoute:
 		if len(route.Spec.Rules) != 1 {
 			err := service.NewResolutionError("a single tcp rule is required")
-			r.resolutionErrors.Add(err)
+			r.RouteState.ResolutionErrors.Add(err)
 			return nil
 		}
 
@@ -403,7 +223,7 @@ func (r *K8sRoute) Validate(ctx context.Context) error {
 
 		if len(rule.BackendRefs) != 1 {
 			err := service.NewResolutionError("a single backendRef per tcp rule is required")
-			r.resolutionErrors.Add(err)
+			r.RouteState.ResolutionErrors.Add(err)
 			return nil
 		}
 
@@ -417,27 +237,65 @@ func (r *K8sRoute) Validate(ctx context.Context) error {
 		} else if !allowed {
 			msg := fmt.Sprintf("Cross-namespace routing not allowed without matching ReferencePolicy for Service %q", getServiceID(ref.Name, ref.Namespace, route.GetNamespace()))
 			r.logger.Warn("Cross-namespace routing not allowed without matching ReferencePolicy", "refName", ref.Name, "refNamespace", ref.Namespace)
-			r.resolutionErrors.Add(service.NewRefNotPermittedError(msg))
+			r.RouteState.ResolutionErrors.Add(service.NewRefNotPermittedError(msg))
 			return nil
 		}
 
-		reference, err := r.resolver.Resolve(ctx, ref.BackendObjectReference)
+		reference, err := r.resolver.Resolve(ctx, r.GetNamespace(), ref.BackendObjectReference)
 		if err != nil {
 			var resolutionError service.ResolutionError
 			if !errors.As(err, &resolutionError) {
 				return err
 			}
-			r.resolutionErrors.Add(resolutionError)
+			r.RouteState.ResolutionErrors.Add(resolutionError)
 			return nil
 		}
 
 		reference.Reference.Set(&ref)
-		r.references.Add(routeRule, *reference)
+		r.RouteState.References.Add(routeRule, *reference)
 	}
 
 	return nil
 }
 
+func (r *K8sRoute) OnBindFailed(err error, gateway store.Gateway) {
+	k8sGateway, ok := gateway.(*K8sGateway)
+	if ok {
+		id, found := r.parentKeyForGateway(utils.NamespacedName(k8sGateway.Gateway))
+		if found {
+			r.RouteState.ParentStatuses.BindFailed(r.RouteState.ResolutionErrors, err, id)
+		}
+	}
+}
+
+func (r *K8sRoute) OnBound(gateway store.Gateway) {
+	k8sGateway, ok := gateway.(*K8sGateway)
+	if ok {
+		id, found := r.parentKeyForGateway(utils.NamespacedName(k8sGateway.Gateway))
+		if found {
+			r.RouteState.ParentStatuses.Bound(id)
+		}
+	}
+}
+
+func (r *K8sRoute) OnGatewayRemoved(gateway store.Gateway) {
+	k8sGateway, ok := gateway.(*K8sGateway)
+	if ok {
+		id, found := r.parentKeyForGateway(utils.NamespacedName(k8sGateway.Gateway))
+		if found {
+			r.RouteState.ParentStatuses.Remove(id)
+		}
+	}
+}
+
 func (r *K8sRoute) IsValid() bool {
-	return r.resolutionErrors.Empty()
+	return r.RouteState.ResolutionErrors.Empty()
+}
+
+func HTTPRouteID(namespacedName types.NamespacedName) string {
+	return "http-" + namespacedName.String()
+}
+
+func TCPRouteID(namespacedName types.NamespacedName) string {
+	return "tcp-" + namespacedName.String()
 }

@@ -420,20 +420,6 @@ func (m *MockStatusTrackingRoute) EXPECT() *MockStatusTrackingRouteMockRecorder 
 	return m.recorder
 }
 
-// Compare mocks base method.
-func (m *MockStatusTrackingRoute) Compare(other store.Route) store.CompareResult {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Compare", other)
-	ret0, _ := ret[0].(store.CompareResult)
-	return ret0
-}
-
-// Compare indicates an expected call of Compare.
-func (mr *MockStatusTrackingRouteMockRecorder) Compare(other interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Compare", reflect.TypeOf((*MockStatusTrackingRoute)(nil).Compare), other)
-}
-
 // ID mocks base method.
 func (m *MockStatusTrackingRoute) ID() string {
 	m.ctrl.T.Helper()
@@ -485,10 +471,10 @@ func (mr *MockStatusTrackingRouteMockRecorder) OnGatewayRemoved(gateway interfac
 }
 
 // Resolve mocks base method.
-func (m *MockStatusTrackingRoute) Resolve(listener store.Listener) *core.ResolvedRoute {
+func (m *MockStatusTrackingRoute) Resolve(listener store.Listener) core.ResolvedRoute {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Resolve", listener)
-	ret0, _ := ret[0].(*core.ResolvedRoute)
+	ret0, _ := ret[0].(core.ResolvedRoute)
 	return ret0
 }
 
@@ -535,20 +521,6 @@ func (m *MockRoute) EXPECT() *MockRouteMockRecorder {
 	return m.recorder
 }
 
-// Compare mocks base method.
-func (m *MockRoute) Compare(other store.Route) store.CompareResult {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Compare", other)
-	ret0, _ := ret[0].(store.CompareResult)
-	return ret0
-}
-
-// Compare indicates an expected call of Compare.
-func (mr *MockRouteMockRecorder) Compare(other interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Compare", reflect.TypeOf((*MockRoute)(nil).Compare), other)
-}
-
 // ID mocks base method.
 func (m *MockRoute) ID() string {
 	m.ctrl.T.Helper()
@@ -564,10 +536,10 @@ func (mr *MockRouteMockRecorder) ID() *gomock.Call {
 }
 
 // Resolve mocks base method.
-func (m *MockRoute) Resolve(listener store.Listener) *core.ResolvedRoute {
+func (m *MockRoute) Resolve(listener store.Listener) core.ResolvedRoute {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Resolve", listener)
-	ret0, _ := ret[0].(*core.ResolvedRoute)
+	ret0, _ := ret[0].(core.ResolvedRoute)
 	return ret0
 }
 
@@ -673,29 +645,29 @@ func (mr *MockStoreMockRecorder) Sync(ctx interface{}) *gomock.Call {
 }
 
 // UpsertGateway mocks base method.
-func (m *MockStore) UpsertGateway(ctx context.Context, gateway store.Gateway) error {
+func (m *MockStore) UpsertGateway(ctx context.Context, gateway store.Gateway, updateConditionFn func(store.Gateway) bool) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpsertGateway", ctx, gateway)
+	ret := m.ctrl.Call(m, "UpsertGateway", ctx, gateway, updateConditionFn)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // UpsertGateway indicates an expected call of UpsertGateway.
-func (mr *MockStoreMockRecorder) UpsertGateway(ctx, gateway interface{}) *gomock.Call {
+func (mr *MockStoreMockRecorder) UpsertGateway(ctx, gateway, updateConditionFn interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertGateway", reflect.TypeOf((*MockStore)(nil).UpsertGateway), ctx, gateway)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertGateway", reflect.TypeOf((*MockStore)(nil).UpsertGateway), ctx, gateway, updateConditionFn)
 }
 
 // UpsertRoute mocks base method.
-func (m *MockStore) UpsertRoute(ctx context.Context, route store.Route) error {
+func (m *MockStore) UpsertRoute(ctx context.Context, route store.Route, updateConditionFn func(store.Route) bool) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpsertRoute", ctx, route)
+	ret := m.ctrl.Call(m, "UpsertRoute", ctx, route, updateConditionFn)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // UpsertRoute indicates an expected call of UpsertRoute.
-func (mr *MockStoreMockRecorder) UpsertRoute(ctx, route interface{}) *gomock.Call {
+func (mr *MockStoreMockRecorder) UpsertRoute(ctx, route, updateConditionFn interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertRoute", reflect.TypeOf((*MockStore)(nil).UpsertRoute), ctx, route)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertRoute", reflect.TypeOf((*MockStore)(nil).UpsertRoute), ctx, route, updateConditionFn)
 }

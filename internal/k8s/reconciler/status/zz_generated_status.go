@@ -1,4 +1,4 @@
-package reconciler
+package status
 
 // GENERATED from statuses.yaml, DO NOT EDIT DIRECTLY
 

@@ -71,7 +71,7 @@ func (l *listenerState) SetRoute(route store.Route) {
 	l.logger.Trace("setting route on listener", "route", route.ID())
 	if resolved := route.Resolve(l.Listener); resolved != nil {
 		stored, found := l.routes[route.ID()]
-		if found && reflect.DeepEqual(stored, *resolved) {
+		if found && reflect.DeepEqual(stored, resolved) {
 			// don't bother updating if the route is the same
 			return
 		}
@@ -81,7 +81,7 @@ func (l *listenerState) SetRoute(route store.Route) {
 			}
 		}
 
-		l.routes[route.ID()] = *resolved
+		l.routes[route.ID()] = resolved
 
 		l.needsSync = true
 	}
