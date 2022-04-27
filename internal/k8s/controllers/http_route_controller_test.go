@@ -144,7 +144,7 @@ func TestHTTPRouteReferencePolicyToRouteRequests(t *testing.T) {
 		},
 		&gw.TCPRoute{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "httproute",
+				Name:      "tcproute",
 				Namespace: "namespace1",
 			},
 			Spec: tcpRouteSpec,
