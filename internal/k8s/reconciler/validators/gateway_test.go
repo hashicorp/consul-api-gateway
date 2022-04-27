@@ -19,6 +19,10 @@ import (
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
 )
 
+func noopMapper(namespace string) string {
+	return namespace
+}
+
 func TestGatewayValidate(t *testing.T) {
 	t.Parallel()
 
@@ -39,7 +43,7 @@ func TestGatewayValidate(t *testing.T) {
 		},
 	}
 
-	validator := NewGatewayValidator(client)
+	validator := NewGatewayValidator(noopMapper, client)
 	client.EXPECT().GetSecret(gomock.Any(), gomock.Any()).Return(nil, nil)
 	client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(nil, nil).Times(2)
 	_, err := validator.Validate(context.Background(), gateway, nil)
@@ -148,7 +152,7 @@ func TestGatewayValidateGatewayIP(t *testing.T) {
 			} else {
 				client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(pod, nil)
 			}
-			validator := NewGatewayValidator(client)
+			validator := NewGatewayValidator(noopMapper, client)
 			state := &state.GatewayState{}
 			service := serviceFor(config, gateway)
 			assert.NoError(t, validator.validateGatewayIP(context.Background(), state, gateway, service))
@@ -183,7 +187,7 @@ func TestGatewayValidate_ListenerProtocolConflicts(t *testing.T) {
 	}
 
 	client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(nil, nil).Times(2)
-	validator := NewGatewayValidator(client)
+	validator := NewGatewayValidator(noopMapper, client)
 	state, err := validator.Validate(context.Background(), gateway, nil)
 	require.NoError(t, err)
 	require.Equal(t, status.ListenerConditionReasonProtocolConflict, state.Listeners[0].Status.Conflicted.Condition(0).Reason)
@@ -216,7 +220,7 @@ func TestGatewayValidate_ListenerHostnameConflicts(t *testing.T) {
 	}
 
 	client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(nil, nil).Times(2)
-	validator := NewGatewayValidator(client)
+	validator := NewGatewayValidator(noopMapper, client)
 	state, err := validator.Validate(context.Background(), gateway, nil)
 	require.NoError(t, err)
 	require.Equal(t, status.ListenerConditionReasonHostnameConflict, state.Listeners[0].Status.Conflicted.Condition(0).Reason)
@@ -240,7 +244,7 @@ func TestGatewayValidate_Pods(t *testing.T) {
 	client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(&core.Pod{
 		Status: core.PodStatus{},
 	}, nil).Times(2)
-	validator := NewGatewayValidator(client)
+	validator := NewGatewayValidator(noopMapper, client)
 	state, err := validator.Validate(context.Background(), gateway, nil)
 	require.NoError(t, err)
 	require.Equal(t, status.GatewayConditionReasonUnknown, state.Status.Scheduled.Condition(0).Reason)
@@ -312,7 +316,7 @@ func TestListenerValidate(t *testing.T) {
 	defer ctrl.Finish()
 	client := mocks.NewMockClient(ctrl)
 
-	validator := NewGatewayValidator(client)
+	validator := NewGatewayValidator(noopMapper, client)
 
 	// protocols
 	listener := gw.Listener{}

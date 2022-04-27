@@ -18,17 +18,20 @@ import (
 )
 
 type GatewayValidator struct {
-	client gatewayclient.Client
+	client                gatewayclient.Client
+	consulNamespaceMapper common.ConsulNamespaceMapper
 }
 
-func NewGatewayValidator(client gatewayclient.Client) *GatewayValidator {
+func NewGatewayValidator(consulNamespaceMapper common.ConsulNamespaceMapper, client gatewayclient.Client) *GatewayValidator {
 	return &GatewayValidator{
-		client: client,
+		client:                client,
+		consulNamespaceMapper: consulNamespaceMapper,
 	}
 }
 
 func (g *GatewayValidator) Validate(ctx context.Context, gateway *gw.Gateway, service *core.Service) (*state.GatewayState, error) {
-	state := state.InitialGatewayState(gateway)
+	namespace := g.consulNamespaceMapper(gateway.Namespace)
+	state := state.InitialGatewayState(namespace, gateway)
 
 	if len(gateway.Spec.Addresses) != 0 {
 		state.Status.Ready.AddressNotAssigned = errors.New("gateway does not support requesting addresses")

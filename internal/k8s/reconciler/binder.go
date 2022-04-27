@@ -9,6 +9,7 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/errors"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/state"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
+	"github.com/hashicorp/consul-api-gateway/internal/store"
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	klabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
@@ -21,29 +22,31 @@ const (
 )
 
 type Binder struct {
-	Client       gatewayclient.Client
-	Gateway      *gw.Gateway
-	GatewayState *state.GatewayState
+	Client gatewayclient.Client
 }
 
-func NewBinder(client gatewayclient.Client, gateway *gw.Gateway, state *state.GatewayState) *Binder {
+var _ store.Binder = &Binder{}
+
+func NewBinder(client gatewayclient.Client) *Binder {
 	return &Binder{
-		Client:       client,
-		Gateway:      gateway,
-		GatewayState: state,
+		Client: client,
 	}
 }
 
-func (b *Binder) Bind(ctx context.Context, route *K8sRoute) []string {
+func (b *Binder) Bind(ctx context.Context, gateway store.Gateway, route store.Route) (bool, error) {
+	k8sGateway := gateway.(*K8sGateway)
+	k8sRoute := route.(*K8sRoute)
+
 	boundListeners := []string{}
-	for _, ref := range route.CommonRouteSpec().ParentRefs {
-		if namespacedName, isGateway := utils.ReferencesGateway(route.GetNamespace(), ref); isGateway {
-			expected := utils.NamespacedName(b.Gateway)
+	for _, ref := range k8sRoute.commonRouteSpec().ParentRefs {
+		if namespacedName, isGateway := utils.ReferencesGateway(k8sRoute.GetNamespace(), ref); isGateway {
+			expected := utils.NamespacedName(k8sGateway)
 			if expected == namespacedName {
-				for i, listener := range b.Gateway.Spec.Listeners {
-					state := b.GatewayState.Listeners[i]
-					if b.canBind(ctx, listener, state, ref, route) {
-						state.Routes[route.ID()] = route.resolve(b.GatewayState.ConsulNamespace, b.Gateway, listener)
+				gatewayState := k8sGateway.GatewayState
+				for i, listener := range k8sGateway.Spec.Listeners {
+					listenerState := gatewayState.Listeners[i]
+					if b.canBind(ctx, k8sGateway.Namespace, listener, listenerState, ref, k8sRoute) {
+						listenerState.Routes[route.ID()] = k8sRoute.resolve(gatewayState.ConsulNamespace, k8sGateway.Gateway, listener)
 						boundListeners = append(boundListeners, string(listener.Name))
 					}
 				}
@@ -51,10 +54,38 @@ func (b *Binder) Bind(ctx context.Context, route *K8sRoute) []string {
 		}
 	}
 
-	return boundListeners
+	return (len(boundListeners) != 0), nil
 }
 
-func (b *Binder) canBind(ctx context.Context, listener gw.Listener, state *state.ListenerState, ref gw.ParentRef, route *K8sRoute) bool {
+func (b *Binder) Unbind(ctx context.Context, gateway store.Gateway, route store.Route) (bool, error) {
+	k8sGateway := gateway.(*K8sGateway)
+	k8sRoute := route.(*K8sRoute)
+
+	routeID := k8sRoute.ID()
+	var removed bool
+	for _, listener := range k8sGateway.GatewayState.Listeners {
+		if _, ok := listener.Routes[routeID]; ok {
+			removed = true
+			removeGatewayStatus(k8sRoute, k8sGateway)
+			delete(listener.Routes, routeID)
+		}
+	}
+
+	return removed, nil
+}
+
+func removeGatewayStatus(route *K8sRoute, gateway *K8sGateway) {
+	parent := utils.NamespacedName(gateway.Gateway)
+	for _, p := range route.parents() {
+		gatewayName, isGateway := utils.ReferencesGateway(route.GetNamespace(), p)
+		if isGateway && gatewayName == parent {
+			route.RouteState.Remove(p)
+			return
+		}
+	}
+}
+
+func (b *Binder) canBind(ctx context.Context, namespace string, listener gw.Listener, state *state.ListenerState, ref gw.ParentRef, route *K8sRoute) bool {
 	if state.Status.Ready.HasError() {
 		return false
 	}
@@ -70,7 +101,7 @@ func (b *Binder) canBind(ctx context.Context, listener gw.Listener, state *state
 			return false
 		}
 
-		allowed, err := routeAllowedForListenerNamespaces(ctx, b.Gateway.Namespace, listener.AllowedRoutes, route, b.Client)
+		allowed, err := routeAllowedForListenerNamespaces(ctx, namespace, listener.AllowedRoutes, route, b.Client)
 		if err != nil {
 			route.RouteState.BindFailed(fmt.Errorf("error checking listener namespaces: %w", err), ref)
 			return false

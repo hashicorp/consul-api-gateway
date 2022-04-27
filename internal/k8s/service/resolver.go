@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -12,7 +13,6 @@ import (
 	"github.com/hashicorp/go-hclog"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	"github.com/hashicorp/consul-api-gateway/internal/common"
@@ -22,16 +22,16 @@ import (
 
 //go:generate mockgen -source ./resolver.go -destination ./mocks/resolver.go -package mocks BackendResolver
 
-type ResolvedReferenceType int
+type ResolvedReferenceType string
 
-type ServiceResolutionErrorType int
+type ServiceResolutionErrorType string
 
 const (
-	K8sServiceResolutionErrorType ServiceResolutionErrorType = iota
-	ConsulServiceResolutionErrorType
-	GenericResolutionErrorType
-	NoResolutionErrorType
-	RefNotPermittedErrorType
+	NoResolutionErrorType            ServiceResolutionErrorType = ""
+	K8sServiceResolutionErrorType    ServiceResolutionErrorType = "K8sServiceResolutionError"
+	ConsulServiceResolutionErrorType ServiceResolutionErrorType = "ConsulServiceResolutionError"
+	GenericResolutionErrorType       ServiceResolutionErrorType = "GenericResolutionError"
+	RefNotPermittedErrorType         ServiceResolutionErrorType = "RefNotPermittedError"
 )
 
 var errorTypePrefixMap = map[ServiceResolutionErrorType]string{
@@ -70,6 +70,19 @@ func (r ResolutionError) Error() string {
 
 type ResolutionErrors struct {
 	errors map[ServiceResolutionErrorType][]ResolutionError
+}
+
+func (r *ResolutionErrors) UnmarshalJSON(b []byte) error {
+	errors := make(map[ServiceResolutionErrorType][]ResolutionError)
+	if err := json.Unmarshal(b, &errors); err != nil {
+		return err
+	}
+	r.errors = errors
+	return nil
+}
+
+func (r ResolutionErrors) MarshalJSON() ([]byte, error) {
+	return json.Marshal(r.errors)
 }
 
 func NewResolutionErrors() *ResolutionErrors {
@@ -122,8 +135,7 @@ func (r *ResolutionErrors) Empty() bool {
 }
 
 const (
-	HTTPRouteReference ResolvedReferenceType = iota
-	ConsulServiceReference
+	ConsulServiceReference ResolvedReferenceType = "ConsulService"
 
 	MetaKeyKubeServiceName = "k8s-service-name"
 	MetaKeyKubeNS          = "k8s-namespace"
@@ -152,20 +164,14 @@ type ResolvedReference struct {
 	Type      ResolvedReferenceType
 	Reference *BackendReference
 	Consul    *ConsulService
-	object    client.Object
 }
 
-func NewConsulServiceReference(object client.Object, consul *ConsulService) *ResolvedReference {
+func NewConsulServiceReference(consul *ConsulService) *ResolvedReference {
 	return &ResolvedReference{
 		Type:      ConsulServiceReference,
 		Reference: &BackendReference{},
 		Consul:    consul,
-		object:    object,
 	}
-}
-
-func (r *ResolvedReference) Item() client.Object {
-	return r.object
 }
 
 type BackendResolver interface {
@@ -249,7 +255,7 @@ func (r *backendResolver) consulServiceForK8SService(ctx context.Context, namesp
 	return resolved, nil
 }
 
-func validateAgentConsulReference(services map[string]*api.AgentService, object client.Object) (*ResolvedReference, error) {
+func validateAgentConsulReference(services map[string]*api.AgentService) (*ResolvedReference, error) {
 	serviceName := ""
 	serviceNamespace := ""
 	for _, service := range services {
@@ -267,7 +273,7 @@ func validateAgentConsulReference(services map[string]*api.AgentService, object 
 				))
 		}
 	}
-	return NewConsulServiceReference(object, &ConsulService{
+	return NewConsulServiceReference(&ConsulService{
 		Name:      serviceName,
 		Namespace: serviceNamespace,
 	}), nil
@@ -314,7 +320,7 @@ func (r *backendResolver) findGlobalCatalogService(service *corev1.Service) (*Re
 			if len(nodeWithServices.Services) == 0 {
 				continue
 			}
-			resolved, err := validateAgentConsulReference(nodeWithServices.Services, service)
+			resolved, err := validateAgentConsulReference(nodeWithServices.Services)
 			if err != nil {
 				r.logger.Trace("error validating node services", "error", err, "node", node.Node)
 				return nil, err
@@ -376,7 +382,7 @@ func (r *backendResolver) findCatalogService(service *apigwv1alpha1.MeshService)
 	if len(services) == 0 {
 		return nil, NewConsulResolutionError(fmt.Sprintf("consul service (%s, %s) not found", consulNamespace, consulName))
 	}
-	resolved, err := validateCatalogConsulReference(services, service)
+	resolved, err := validateCatalogConsulReference(services)
 	if err != nil {
 		r.logger.Trace("error validating consul services", "error", err)
 		return nil, err
@@ -384,7 +390,7 @@ func (r *backendResolver) findCatalogService(service *apigwv1alpha1.MeshService)
 	return resolved, nil
 }
 
-func validateCatalogConsulReference(services []*api.CatalogService, object client.Object) (*ResolvedReference, error) {
+func validateCatalogConsulReference(services []*api.CatalogService) (*ResolvedReference, error) {
 	serviceName := ""
 	serviceNamespace := ""
 	for _, service := range services {
@@ -402,7 +408,7 @@ func validateCatalogConsulReference(services []*api.CatalogService, object clien
 				))
 		}
 	}
-	return NewConsulServiceReference(object, &ConsulService{
+	return NewConsulServiceReference(&ConsulService{
 		Name:      serviceName,
 		Namespace: serviceNamespace,
 	}), nil

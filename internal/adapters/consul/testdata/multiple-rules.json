@@ -8,23 +8,21 @@
     {
       "Matches": [
         {
-          "Type": 1,
           "Path": {
-            "Type": 1,
+            "Type": "HTTPPathMatchExact",
             "Value": "/prefix-1"
           }
         },
         {
-          "Type": 1,
           "Path": {
-            "Type": 1,
+            "Type": "HTTPPathMatchExact",
             "Value": "/other-1"
           }
         }
       ],
       "Filters": [
         {
-          "Type": 0,
+          "Type": "HTTPHeaderFilter",
           "Header": {
             "Set": {
               "x-set": "1"
@@ -38,7 +36,7 @@
           }
         },
         {
-          "Type": 0,
+          "Type": "HTTPHeaderFilter",
           "Header": {
             "Set": {
               "x-set-too": "1"
@@ -58,7 +56,7 @@
           "Weight": 1,
           "Filters": [
             {
-              "Type": 0,
+              "Type": "HTTPHeaderFilter",
               "Header": {
                 "Set": {
                   "x-set": "3"
@@ -81,7 +79,7 @@
           "Weight": 1,
           "Filters": [
             {
-              "Type": 0,
+              "Type": "HTTPHeaderFilter",
               "Header": {
                 "Add": {
                   "x-add": "4"
@@ -98,16 +96,15 @@
     {
       "Matches": [
         {
-          "Type": 1,
           "Path": {
-            "Type": 1,
+            "Type": "HTTPPathMatchExact",
             "Value": "/prefix-2"
           }
         }
       ],
       "Filters": [
         {
-          "Type": 0,
+          "Type": "HTTPHeaderFilter",
           "Header": {
             "Set": {
               "x-set-2": "5"
@@ -121,7 +118,7 @@
           }
         },
         {
-          "Type": 0,
+          "Type": "HTTPHeaderFilter",
           "Header": {
             "Set": {
               "x-set-2-too": "7"
@@ -141,7 +138,7 @@
           "Weight": 1,
           "Filters": [
             {
-              "Type": 0,
+              "Type": "HTTPHeaderFilter",
               "Header": {
                 "Set": {
                   "x-set-2": "6"
@@ -164,7 +161,7 @@
           "Weight": 1,
           "Filters": [
             {
-              "Type": 0,
+              "Type": "HTTPHeaderFilter",
               "Header": {
                 "Add": {
                   "x-add": "4"

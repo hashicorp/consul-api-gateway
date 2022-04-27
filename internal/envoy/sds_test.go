@@ -27,7 +27,6 @@ import (
 
 	"github.com/hashicorp/consul-api-gateway/internal/envoy/mocks"
 	"github.com/hashicorp/consul-api-gateway/internal/store"
-	"github.com/hashicorp/consul-api-gateway/internal/store/memory"
 	storeMocks "github.com/hashicorp/consul-api-gateway/internal/store/mocks"
 	gwTesting "github.com/hashicorp/consul-api-gateway/internal/testing"
 	"github.com/hashicorp/go-hclog"
@@ -42,7 +41,7 @@ func TestSDSRunCertificateVerification(t *testing.T) {
 		store := storeMocks.NewMockStore(ctrl)
 		gateway := storeMocks.NewMockGateway(ctrl)
 		store.EXPECT().GetGateway(gomock.Any(), gomock.Any()).MinTimes(1).Return(gateway, nil)
-		gateway.EXPECT().CanFetchSecrets(gomock.Any(), gomock.Any()).MinTimes(1).Return(true, nil)
+		gateway.EXPECT().CanFetchSecrets(gomock.Any()).MinTimes(1).Return(true)
 		return store
 	}, func(serverAddress string, fetcher *mocks.MockCertificateFetcher) {
 		fetcher.EXPECT().TLSCertificate().MinTimes(1).Return(&server.X509)
@@ -260,12 +259,13 @@ func runTestServer(t *testing.T, ca []byte, registryFn func(*gomock.Controller) 
 		Name: "test",
 	}, time.Now(), nil)
 
-	sds := NewSDSServer(hclog.NewNullLogger(), fetcher, secretClient, memory.NewStore(memory.StoreConfig{}))
+	var store store.Store = storeMocks.NewMockStore(ctrl)
+	if registryFn != nil {
+		store = registryFn(ctrl)
+	}
+	sds := NewSDSServer(hclog.NewNullLogger(), fetcher, secretClient, store)
 	sds.bindAddress = serverAddress
 	sds.protocol = "unix"
-	if registryFn != nil {
-		sds.store = registryFn(ctrl)
-	}
 
 	errEarlyTestTermination := errors.New("early termination")
 	done := make(chan error, 1)
