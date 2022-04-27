@@ -70,7 +70,6 @@ func TestTCPRoute(t *testing.T) {
 				NamespacedName: tcpRouteName,
 			})
 			if test.err != nil {
-				require.Error(t, err)
 				require.ErrorIs(t, err, test.err)
 			} else {
 				require.NoError(t, err)
