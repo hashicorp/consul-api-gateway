@@ -966,6 +966,7 @@ func TestTCPMeshService(t *testing.T) {
 			// supported by Envoy defaults
 			checkTCPTLSRoute(t, listenerOnePort, &tls.Config{
 				InsecureSkipVerify: true,
+				MinVersion:         tls.VersionTLS10,
 				MaxVersion:         tls.VersionTLS11,
 			}, "remote error: tls: protocol version not supported", "connection not rejected with expected error in allotted time")
 
@@ -973,6 +974,7 @@ func TestTCPMeshService(t *testing.T) {
 			checkTCPTLSRoute(t, listenerTwoPort, &tls.Config{
 				InsecureSkipVerify: true,
 				CipherSuites:       []uint16{tls.TLS_RSA_WITH_AES_128_CBC_SHA},
+				MinVersion:         tls.VersionTLS10,
 				MaxVersion:         tls.VersionTLS11,
 			}, serviceTwo.Name, "service not routable in allotted time")
 
