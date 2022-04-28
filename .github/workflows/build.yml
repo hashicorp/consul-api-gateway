@@ -1,9 +1,10 @@
 name: build
 
 on:
+  pull_request:
+    types: ["opened", "synchronize"]
   push:
-    branches:    
-      - 'release/**'
+    branches: ["release/**", "main"]
 
 env:
   CGO_ENABLED: 0
@@ -21,6 +22,7 @@ jobs:
         run: |
           make version
           echo "::set-output name=product-version::$(make version)"
+
   generate-metadata-file:
     needs: get-product-version
     runs-on: ubuntu-latest
@@ -103,18 +105,44 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
+
       # we currently have the +ent as part of the verion string so removing it here
       # we should separate this from the version going forward 
-      - name: Remove + from version
+      - name: Remove +ent from version
         run: |
           echo "version=$(echo $version | sed 's/+ent//g')" >> $GITHUB_ENV
-      - name: Docker Build (Action)
+
+      - name: Docker Build (release branch)
         uses: hashicorp/actions-docker-build@v1
+        if: ${{ github.event_name == 'push' && startsWith(github.ref_name, 'release/') }}
+        with:
+          version: ${{ env.version }}
+          target: default
+          arch: ${{ matrix.arch }}
+          tags: |
+            hashicorp/${{ env.repo }}:${{ env.version }}
+          dev_tags: |
+            hashicorppreview/${{ env.repo }}:${{ env.version }}
+            hashicorppreview/${{ env.repo }}:${{ github.sha }}
+
+      - name: Docker Build (main branch)
+        uses: hashicorp/actions-docker-build@v1
+        if: ${{ github.event_name == 'push' && github.ref_name == 'main' }}
+        with:
+          version: ${{ env.version }}
+          target: default
+          arch: ${{ matrix.arch }}
+          dev_tags: |
+            hashicorppreview/${{ env.repo }}:latest
+            hashicorppreview/${{ env.repo }}:${{ github.sha }}
+
+      - name: Docker Build (PR)
+        uses: hashicorp/actions-docker-build@v1
+        if: ${{ github.event_name == 'pull_request' }}
         with:
           version: ${{env.version}}
           target: default
-          arch: ${{matrix.arch}}
-          tags: |
-            docker.io/hashicorp/${{env.repo}}:${{env.version}}
+          arch: ${{ matrix.arch }}
           dev_tags: |
-            docker.io/hashicorppreview/${{env.repo}}:${{env.version}}
+            hashicorppreview/${{ env.repo }}:pr-${{ github.event.number }}
+            hashicorppreview/${{ env.repo }}:${{ github.sha }}
