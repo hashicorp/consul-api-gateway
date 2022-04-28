@@ -1,5 +1,9 @@
 ## UNRELEASED
 
+## 0.3.0 ()
+changelog-build -last-release v0.2.0 -entries-dir .changelog/ -changelog-template .changelog/changelog.tmpl -note-template .changelog/release-note.tmpl -this-release a0ac9052b4c475c2862492f69d8cc031accb22b6
+
+
 ## 0.2.0 (April 27, 2022)
 
 BREAKING CHANGES:
