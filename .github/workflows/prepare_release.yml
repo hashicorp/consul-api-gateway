@@ -1,0 +1,130 @@
+name: prepare_release
+
+on:
+  push:
+    branches: ['prepare-release-workflow']
+
+  workflow_dispatch:
+    inputs:
+      new-min-consul-version:
+        description: 'The new minimum version of Consul (no "v" prefix)'
+        required: true
+        type: string
+      new-min-consul-k8s-version:
+        description: 'The new minimum version of Consul K8s (no "v" prefix)'
+        required: true
+        type: string
+
+jobs:
+  update-versions:
+    runs-on: ubuntu-latest
+    env:
+      NEW_CONSUL_REQ: ${{ github.event.inputs.new-min-consul-version || '1.13.0' }}
+      NEW_CONSUL_K8S_REQ: ${{ github.event.inputs.new-min-consul-k8s-version || '0.44.0' }}
+
+    steps:
+
+      - name: Checkout consul-api-gateway
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: "0"
+
+      - name: Set version being released
+        run: |
+          VERSION=$(make version)
+          echo "NEW_API_GATEWAY_VERSION<<EOF" >> $GITHUB_ENV
+          echo "$VERSION" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+      - name: Update version.go
+        uses: jacobtomlinson/gha-find-replace@v2
+        with:
+          include: 'internal/version/version.go'
+          find: 'Version = "[0-9\.]+"'
+          replace: 'Version = "${{ env.NEW_API_GATEWAY_VERSION }}"'
+
+      - name: Update deployment.yaml
+        uses: 'jacobtomlinson/gha-find-replace@v2'
+        with:
+          include: config/deployment/deployment.yaml
+          find: 'image: hashicorp/consul-api-gateway:[0-9\.]+'
+          replace: 'image: hashicorp/consul-api-gateway:${{ env.NEW_API_GATEWAY_VERSION }}'
+
+      - name: Update example-setup.md
+        uses: jacobtomlinson/gha-find-replace@v2
+        with:
+          include: 'dev/docs/example-setup.md'
+          find: 'ref=v[0-9\.]+'
+          replace: 'ref=v${{ env.NEW_API_GATEWAY_VERSION }}'
+
+      - name: Update README.md (Consul version)
+        uses: jacobtomlinson/gha-find-replace@v2
+        with:
+          include: 'README.md'
+          find: 'The installed version of Consul must be `v[0-9\.]+` or greater.'
+          replace: 'The installed version of Consul must be `v${{ env.NEW_CONSUL_REQ }}` or greater.'
+
+      - name: Update README.md (Consul K8s version)
+        uses: jacobtomlinson/gha-find-replace@v2
+        with:
+          include: 'README.md'
+          find: 'The Consul Helm chart must be version `[0-9\.]+` or greater.'
+          replace: 'The Consul Helm chart must be version `${{ env.NEW_CONSUL_K8S_REQ }}` or greater.'
+
+      - name: Setup Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: 1.18
+
+      - name: Update release_branches config
+        # TODO Make more robust in the future, could currently be a major or minor release
+        if: endsWith(env.NEW_API_GATEWAY_VERSION, '.0')
+        run: |
+          sudo apt-get -y install jq
+          go install github.com/mattolenik/hclq@latest
+          MINOR_VERSION=${NEW_API_GATEWAY_VERSION%.*}
+          NEW_RELEASE_BRANCH=release/$MINOR_VERSION.x
+          export NV=$(cat .release/ci.hcl | hclq get 'project.consul-api-gateway.github.release_branches[]' | jq -c ". += [\"$NEW_RELEASE_BRANCH\"]")
+          hclq --in=.release/ci.hcl --out=.release/ci.hcl set 'project.consul-api-gateway.github.release_branches[]' $NV
+
+      - name: Regenerate golden files
+        run: make generate-golden-files
+
+      - name: Get current date
+        id: get-current-date
+        run: echo "::set-output name=date::$(date +'%B %d, %Y')"
+
+      - name: Generate changelog patch
+        id: generate-changelog-patch
+        run: | # Pass via environment variable to keep multiline in tact
+          export LAST_RELEASE_GIT_TAG=$(git tag --sort=committerdate | tail -1)
+          CHANGELOG_PATCH=$(make changelog)
+          echo "CHANGELOG_PATCH<<EOF" >> $GITHUB_ENV
+          echo "$CHANGELOG_PATCH" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+      - name: Update CHANGELOG.md
+        uses: jacobtomlinson/gha-find-replace@v2
+        with:
+          include: 'CHANGELOG.md'
+          find: |
+            ## UNRELEASED
+
+          replace: |
+            ## UNRELEASED
+            
+            ## ${{ env.NEW_API_GATEWAY_VERSION }} (${{ steps.get-current-date.outputs.date }})
+            ${{ env.CHANGELOG_PATCH }}
+          regex: false
+
+      - name: Create branch
+        uses: stefanzweifel/git-auto-commit-action@v4
+        with:
+          branch: 'v${{ env.NEW_API_GATEWAY_VERSION }}-release-prep'
+          commit_message: |
+            Prepare for release of v${{ env.NEW_API_GATEWAY_VERSION }}
+            Consul API Gateway version being released: `${{ env.NEW_API_GATEWAY_VERSION }}`
+            Now requires:
+            - consul: `${{ env.NEW_CONSUL_REQ }}`
+            - consul-k8s: `${{ env.NEW_CONSUL_K8S_REQ }}`
+          create_branch: true

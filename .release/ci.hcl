@@ -13,8 +13,7 @@ project "consul-api-gateway" {
 }
 
 event "merge" {
-  // "entrypoint" to use if build is not run automatically
-  // i.e. send "merge" complete signal to orchestrator to trigger build
+  // "entrypoint" to use if build is not run automatically i.e. send "merge" complete signal to orchestrator to trigger build
 }
 
 event "build" {
@@ -112,8 +111,7 @@ event "promote-dev-docker" {
 ## they should be added to the end of the file after the verify event stanza.
 
 event "trigger-staging" {
-// This event is dispatched by the bob trigger-promotion command
-// and is required - do not delete.
+// This event is dispatched by the bob trigger-promotion command and is required - do not delete.
 }
 
 event "promote-staging" {
@@ -144,8 +142,7 @@ event "promote-staging-docker" {
 }
 
 event "trigger-production" {
-// This event is dispatched by the bob trigger-promotion command
-// and is required - do not delete.
+// This event is dispatched by the bob trigger-promotion command and is required - do not delete.
 }
 
 event "promote-production" {

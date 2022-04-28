@@ -62,7 +62,7 @@ endif
 ifeq (, $(LAST_RELEASE_GIT_TAG))
 	@echo "Please set the LAST_RELEASE_GIT_TAG environment variable to generate a changelog section of notes since the last release."
 else
-	changelog-build -last-release ${LAST_RELEASE_GIT_TAG} -entries-dir .changelog/ -changelog-template .changelog/changelog.tmpl -note-template .changelog/release-note.tmpl -this-release $(shell git rev-parse HEAD)
+	@changelog-build -last-release ${LAST_RELEASE_GIT_TAG} -entries-dir .changelog/ -changelog-template .changelog/changelog.tmpl -note-template .changelog/release-note.tmpl -this-release $(shell git rev-parse HEAD)
 endif
 
 .PHONY: changelog-entry
