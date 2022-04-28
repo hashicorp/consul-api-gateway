@@ -106,7 +106,7 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
-      # we currently have the +ent as part of the verion string so removing it here
+      # we currently have the +ent as part of the version string so removing it here
       # we should separate this from the version going forward 
       - name: Remove +ent from version
         run: |
@@ -132,6 +132,8 @@ jobs:
           version: ${{ env.version }}
           target: default
           arch: ${{ matrix.arch }}
+          tags: |
+            hashicorp/${{ env.repo }}:${{ env.version }}
           dev_tags: |
             hashicorppreview/${{ env.repo }}:latest
             hashicorppreview/${{ env.repo }}:${{ github.sha }}
@@ -143,6 +145,8 @@ jobs:
           version: ${{env.version}}
           target: default
           arch: ${{ matrix.arch }}
+          tags: |
+            hashicorp/${{ env.repo }}:${{ env.version }}
           dev_tags: |
             hashicorppreview/${{ env.repo }}:pr-${{ github.event.number }}
             hashicorppreview/${{ env.repo }}:${{ github.sha }}
