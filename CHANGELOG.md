@@ -1,5 +1,13 @@
 ## UNRELEASED
 
+IMPROVEMENTS:
+
+* go: build with Go 1.18 [[GH-167](https://github.com/hashicorp/consul-api-gateway/issues/167)]
+
+BUG FIXES:
+
+* k8s/reconciler: gateway addresses have invalid empty string when LoadBalancer services use a hostname for ExternalIP (like EKS) [[GH-187](https://github.com/hashicorp/consul-api-gateway/issues/187)]
+
 ## 0.2.0 (April 27, 2022)
 
 BREAKING CHANGES:
