@@ -5,7 +5,7 @@ on:
   pull_request:
     branches: ["main", "release/**"]
 env:
-  GO_VERSION: '1.18'
+  GO_VERSION: '1.17'
   CONSUL_LICENSE: ${{ secrets.CONSUL_LICENSE }}
 jobs:
   lint:
@@ -35,7 +35,7 @@ jobs:
     name: unit test (consul-version=${{ matrix.consul-version }})
     strategy:
       matrix:
-        consul-version:
+        consul-version: 
         - 1.11.5
         - 1.12.0
         - 1.11.5+ent
@@ -86,7 +86,7 @@ jobs:
     name: e2e tests (consul-image=${{ matrix.consul-image }})
     strategy:
       matrix:
-        consul-image:
+        consul-image: 
         - 'hashicorp/consul:1.11.5'
         - 'hashicorp/consul-enterprise:1.11.5-ent'
         - 'hashicorp/consul:1.12.0'

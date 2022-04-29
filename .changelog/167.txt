@@ -1,3 +1,0 @@
-```release-note:enhancement
-go: build with Go 1.18
-```
