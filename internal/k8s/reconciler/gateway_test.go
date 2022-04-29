@@ -103,6 +103,9 @@ func TestGatewayValidateGatewayIP(t *testing.T) {
 					{
 						IP: "4.4.4.4",
 					},
+					{
+						Hostname: "this.is.a.hostname",
+					},
 				},
 			},
 		},
@@ -110,7 +113,7 @@ func TestGatewayValidateGatewayIP(t *testing.T) {
 
 	for _, tc := range []struct {
 		// What IP address do we expect the Gateway to be assigned?
-		expectedIP string
+		expectedIPs []string
 
 		// Should the mock client expect a request for the Service?
 		// If false, the mock client expects a request for the Pod instead.
@@ -120,22 +123,22 @@ func TestGatewayValidateGatewayIP(t *testing.T) {
 		serviceType *core.ServiceType
 	}{
 		{
-			expectedIP:        pod.Status.PodIP,
+			expectedIPs:       []string{pod.Status.PodIP},
 			expectedIPFromSvc: false,
 			serviceType:       nil,
 		},
 		{
-			expectedIP:        pod.Status.HostIP,
+			expectedIPs:       []string{pod.Status.HostIP},
 			expectedIPFromSvc: false,
 			serviceType:       serviceType(core.ServiceTypeNodePort),
 		},
 		{
-			expectedIP:        svc.Status.LoadBalancer.Ingress[0].IP,
+			expectedIPs:       []string{svc.Status.LoadBalancer.Ingress[0].IP, svc.Status.LoadBalancer.Ingress[1].Hostname},
 			expectedIPFromSvc: true,
 			serviceType:       serviceType(core.ServiceTypeLoadBalancer),
 		},
 		{
-			expectedIP:        svc.Spec.ClusterIP,
+			expectedIPs:       []string{svc.Spec.ClusterIP},
 			expectedIPFromSvc: true,
 			serviceType:       serviceType(core.ServiceTypeClusterIP),
 		},
@@ -163,8 +166,8 @@ func TestGatewayValidateGatewayIP(t *testing.T) {
 			}
 			assert.NoError(t, gateway.validateGatewayIP(context.Background()))
 
-			require.Len(t, gateway.addresses, 1)
-			assert.Equal(t, tc.expectedIP, gateway.addresses[0])
+			require.Len(t, gateway.addresses, len(tc.expectedIPs))
+			assert.Equal(t, tc.expectedIPs, gateway.addresses)
 
 			assert.True(t, gateway.serviceReady)
 		})

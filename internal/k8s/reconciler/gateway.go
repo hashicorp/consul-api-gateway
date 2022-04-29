@@ -187,8 +187,14 @@ func (g *K8sGateway) assignGatewayIPFromServiceIngress(ctx context.Context, serv
 	}
 
 	for _, ingress := range updated.Status.LoadBalancer.Ingress {
-		g.serviceReady = true
-		g.addresses = append(g.addresses, ingress.IP)
+		if ingress.IP != "" {
+			g.serviceReady = true
+			g.addresses = append(g.addresses, ingress.IP)
+		}
+		if ingress.Hostname != "" {
+			g.serviceReady = true
+			g.addresses = append(g.addresses, ingress.Hostname)
+		}
 	}
 
 	return nil
