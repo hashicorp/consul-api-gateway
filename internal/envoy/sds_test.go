@@ -26,7 +26,9 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/hashicorp/consul-api-gateway/internal/envoy/mocks"
+	"github.com/hashicorp/consul-api-gateway/internal/store"
 	"github.com/hashicorp/consul-api-gateway/internal/store/memory"
+	storeMocks "github.com/hashicorp/consul-api-gateway/internal/store/mocks"
 	gwTesting "github.com/hashicorp/consul-api-gateway/internal/testing"
 	"github.com/hashicorp/go-hclog"
 )
@@ -36,11 +38,12 @@ func TestSDSRunCertificateVerification(t *testing.T) {
 
 	ca, server, client := gwTesting.DefaultCertificates()
 
-	err := runTestServer(t, ca.CertBytes, func(ctrl *gomock.Controller) GatewaySecretRegistry {
-		gatewayRegistry := mocks.NewMockGatewaySecretRegistry(ctrl)
-		gatewayRegistry.EXPECT().GatewayExists(gomock.Any(), gomock.Any()).MinTimes(1).Return(true, nil)
-		gatewayRegistry.EXPECT().CanFetchSecrets(gomock.Any(), gomock.Any(), gomock.Any()).MinTimes(1).Return(true, nil)
-		return gatewayRegistry
+	err := runTestServer(t, ca.CertBytes, func(ctrl *gomock.Controller) store.Store {
+		store := storeMocks.NewMockStore(ctrl)
+		gateway := storeMocks.NewMockGateway(ctrl)
+		store.EXPECT().GetGateway(gomock.Any(), gomock.Any()).MinTimes(1).Return(gateway, nil)
+		gateway.EXPECT().CanFetchSecrets(gomock.Any(), gomock.Any()).MinTimes(1).Return(true, nil)
+		return store
 	}, func(serverAddress string, fetcher *mocks.MockCertificateFetcher) {
 		fetcher.EXPECT().TLSCertificate().MinTimes(1).Return(&server.X509)
 
@@ -171,10 +174,10 @@ func TestSDSSPIFFENoMatchingGateway(t *testing.T) {
 
 	ca, server, client := gwTesting.DefaultCertificates()
 
-	err := runTestServer(t, ca.CertBytes, func(ctrl *gomock.Controller) GatewaySecretRegistry {
-		gatewayRegistry := mocks.NewMockGatewaySecretRegistry(ctrl)
-		gatewayRegistry.EXPECT().GatewayExists(gomock.Any(), gomock.Any()).MinTimes(1).Return(false, nil)
-		return gatewayRegistry
+	err := runTestServer(t, ca.CertBytes, func(ctrl *gomock.Controller) store.Store {
+		store := storeMocks.NewMockStore(ctrl)
+		store.EXPECT().GetGateway(gomock.Any(), gomock.Any()).MinTimes(1).Return(nil, nil)
+		return store
 	}, func(serverAddress string, fetcher *mocks.MockCertificateFetcher) {
 		fetcher.EXPECT().TLSCertificate().Return(&server.X509)
 		err := testClientSDS(t, serverAddress, client, ca.CertBytes)
@@ -225,7 +228,7 @@ func testClientSDS(t *testing.T, address string, cert *gwTesting.CertificateInfo
 	})
 }
 
-func runTestServer(t *testing.T, ca []byte, registryFn func(*gomock.Controller) GatewaySecretRegistry, callback func(serverAddress string, fetcher *mocks.MockCertificateFetcher)) error {
+func runTestServer(t *testing.T, ca []byte, registryFn func(*gomock.Controller) store.Store, callback func(serverAddress string, fetcher *mocks.MockCertificateFetcher)) error {
 	t.Helper()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -261,7 +264,7 @@ func runTestServer(t *testing.T, ca []byte, registryFn func(*gomock.Controller) 
 	sds.bindAddress = serverAddress
 	sds.protocol = "unix"
 	if registryFn != nil {
-		sds.gatewayRegistry = registryFn(ctrl)
+		sds.store = registryFn(ctrl)
 	}
 
 	errEarlyTestTermination := errors.New("early termination")

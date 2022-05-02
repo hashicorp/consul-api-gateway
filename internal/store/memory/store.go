@@ -3,7 +3,6 @@ package memory
 import (
 	"context"
 	"errors"
-	"reflect"
 	"sync"
 	"sync/atomic"
 
@@ -22,7 +21,7 @@ type Store struct {
 	logger  hclog.Logger
 	adapter core.SyncAdapter
 
-	gateways map[core.GatewayID]*gatewayState
+	gateways map[core.GatewayID]store.Gateway
 	routes   map[string]store.Route
 
 	// This mutex acts as a stop-the-world type
@@ -48,32 +47,8 @@ func NewStore(config StoreConfig) *Store {
 		logger:   config.Logger,
 		adapter:  config.Adapter,
 		routes:   make(map[string]store.Route),
-		gateways: make(map[core.GatewayID]*gatewayState),
+		gateways: make(map[core.GatewayID]store.Gateway),
 	}
-}
-
-func (s *Store) GatewayExists(ctx context.Context, id core.GatewayID) (bool, error) {
-	s.mutex.RLock()
-	defer s.mutex.RUnlock()
-
-	_, found := s.gateways[id]
-	return found, nil
-}
-
-func (s *Store) CanFetchSecrets(ctx context.Context, id core.GatewayID, secrets []string) (bool, error) {
-	s.mutex.RLock()
-	defer s.mutex.RUnlock()
-
-	gateway, found := s.gateways[id]
-	if !found {
-		return false, nil
-	}
-	for _, secret := range secrets {
-		if _, found := gateway.secrets[secret]; !found {
-			return false, nil
-		}
-	}
-	return true, nil
 }
 
 func (s *Store) GetGateway(ctx context.Context, id core.GatewayID) (store.Gateway, error) {
@@ -84,20 +59,20 @@ func (s *Store) GetGateway(ctx context.Context, id core.GatewayID) (store.Gatewa
 	if !found {
 		return nil, nil
 	}
-	return gateway.Gateway, nil
+	return gateway, nil
 }
 
-func (s *Store) syncGateway(ctx context.Context, gateway *gatewayState) error {
-	if tracker, ok := gateway.Gateway.(store.StatusTrackingGateway); ok {
+func (s *Store) syncGateway(ctx context.Context, gateway store.Gateway) error {
+	if tracker, ok := gateway.(store.StatusTrackingGateway); ok {
 		return tracker.TrackSync(ctx, func() (bool, error) {
-			return gateway.Sync(ctx)
+			return s.adapter.Sync(ctx, gateway.Resolve())
 		})
 	}
-	_, err := gateway.Sync(ctx)
+	_, err := s.adapter.Sync(ctx, gateway.Resolve())
 	return err
 }
 
-func (s *Store) syncGateways(ctx context.Context, gateways ...*gatewayState) error {
+func (s *Store) syncGateways(ctx context.Context, gateways ...store.Gateway) error {
 	var syncGroup multierror.Group
 
 	for _, gw := range gateways {
@@ -137,7 +112,7 @@ func (s *Store) syncRouteStatuses(ctx context.Context) error {
 // access any potentially references stored from previous callbacks in the
 // status updating callbacks in our interfaces -- otherwise proper locking
 // is needed.
-func (s *Store) sync(ctx context.Context, gateways ...*gatewayState) error {
+func (s *Store) sync(ctx context.Context, gateways ...store.Gateway) error {
 	var syncGroup multierror.Group
 
 	if gateways == nil {
@@ -166,9 +141,8 @@ func (s *Store) DeleteRoute(ctx context.Context, id string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	s.logger.Trace("deleting route", "id", id)
 	for _, gateway := range s.gateways {
-		gateway.Remove(id)
+		gateway.Remove(ctx, id)
 	}
 
 	delete(s.routes, id)
@@ -192,7 +166,7 @@ func (s *Store) UpsertRoute(ctx context.Context, route store.Route, updateCondit
 
 	// bind to gateways
 	for _, gateway := range s.gateways {
-		gateway.TryBind(ctx, route)
+		gateway.Bind(ctx, route)
 	}
 
 	// sync the gateways to consul and route statuses to k8s
@@ -206,29 +180,16 @@ func (s *Store) UpsertGateway(ctx context.Context, gateway store.Gateway, update
 	id := gateway.ID()
 
 	current, found := s.gateways[id]
-	var currentGW store.Gateway
-	if found {
-		currentGW = current.Gateway
-	}
-
-	if updateConditionFn != nil && !updateConditionFn(currentGW) {
+	if updateConditionFn != nil && !updateConditionFn(current) {
 		// No-op
 		return nil
 	}
 
-	updated := newGatewayState(s.logger, gateway, s.adapter)
-	s.gateways[id] = updated
+	s.gateways[id] = gateway
 
 	// bind routes to this gateway
 	for _, route := range s.routes {
-		updated.TryBind(ctx, route)
-	}
-
-	if found && reflect.DeepEqual(current.Resolve(), updated.Resolve()) {
-		// we have the exact same render tree, mark the gateway as already synced
-		for _, listener := range updated.listeners {
-			listener.MarkSynced()
-		}
+		gateway.Bind(ctx, route)
 	}
 
 	if !found {
@@ -238,7 +199,7 @@ func (s *Store) UpsertGateway(ctx context.Context, gateway store.Gateway, update
 	}
 
 	// sync the gateway to consul and any updated route statuses
-	return s.sync(ctx, s.gateways[id])
+	return s.sync(ctx, gateway)
 }
 
 func (s *Store) DeleteGateway(ctx context.Context, id core.GatewayID) error {

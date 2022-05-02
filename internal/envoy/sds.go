@@ -24,6 +24,7 @@ import (
 
 	grpcint "github.com/hashicorp/consul-api-gateway/internal/grpc"
 	"github.com/hashicorp/consul-api-gateway/internal/metrics"
+	"github.com/hashicorp/consul-api-gateway/internal/store"
 )
 
 //go:generate mockgen -source ./sds.go -destination ./mocks/sds.go -package mocks CertificateFetcher
@@ -47,24 +48,24 @@ type CertificateFetcher interface {
 
 // SDSServer wraps a gRPC-based SDS Delta server
 type SDSServer struct {
-	logger          hclog.Logger
-	fetcher         CertificateFetcher
-	server          *grpc.Server
-	client          SecretClient
-	bindAddress     string
-	protocol        string
-	gatewayRegistry GatewaySecretRegistry
+	logger      hclog.Logger
+	fetcher     CertificateFetcher
+	server      *grpc.Server
+	client      SecretClient
+	bindAddress string
+	protocol    string
+	store       store.Store
 }
 
 // NEWSDSServer initializes an SDSServer instance
-func NewSDSServer(logger hclog.Logger, fetcher CertificateFetcher, client SecretClient, registry GatewaySecretRegistry) *SDSServer {
+func NewSDSServer(logger hclog.Logger, fetcher CertificateFetcher, client SecretClient, store store.Store) *SDSServer {
 	return &SDSServer{
-		logger:          logger,
-		fetcher:         fetcher,
-		client:          client,
-		bindAddress:     defaultGRPCBindAddress,
-		protocol:        "tcp",
-		gatewayRegistry: registry,
+		logger:      logger,
+		fetcher:     fetcher,
+		client:      client,
+		bindAddress: defaultGRPCBindAddress,
+		protocol:    "tcp",
+		store:       store,
 	}
 }
 
@@ -97,13 +98,13 @@ func (s *SDSServer) Run(ctx context.Context) error {
 			},
 			ClientAuth: tls.RequireAndVerifyClientCert,
 		})),
-		grpc.StreamInterceptor(SPIFFEStreamMiddleware(s.logger, s.fetcher, s.gatewayRegistry)),
+		grpc.StreamInterceptor(SPIFFEStreamMiddleware(s.logger, s.fetcher, s.store)),
 	}
 	s.server = grpc.NewServer(opts...)
 
 	resourceCache := cache.NewLinearCache(resource.SecretType, cache.WithLogger(wrapEnvoyLogger(s.logger.Named("cache"))))
 	secretManager := NewSecretManager(s.client, resourceCache, s.logger.Named("secret-manager"))
-	handler := NewRequestHandler(s.logger.Named("handler"), s.gatewayRegistry, secretManager)
+	handler := NewRequestHandler(s.logger.Named("handler"), s.store, secretManager)
 	sdsServer := server.NewServer(childCtx, resourceCache, handler)
 	secretservice.RegisterSecretDiscoveryServiceServer(s.server, sdsServer)
 	listener, err := net.Listen(s.protocol, s.bindAddress)

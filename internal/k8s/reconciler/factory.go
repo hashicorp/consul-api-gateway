@@ -64,19 +64,6 @@ func (f *Factory) initializeGateway(gateway *K8sGateway) *K8sGateway {
 	gateway.client = f.client
 	gateway.deployer = f.deployer
 
-	// get rid of this
-	listeners := []*K8sListener{}
-	for index, listener := range gateway.Spec.Listeners {
-		k8sListener := NewK8sListener(gateway.Gateway, listener, K8sListenerConfig{
-			ConsulNamespace: gateway.consulNamespace,
-			Logger:          logger,
-			Client:          f.client,
-		})
-		k8sListener.status = &(gateway.GatewayState.Listeners[index].Status)
-		listeners = append(listeners, k8sListener)
-	}
-	gateway.listeners = listeners
-
 	return gateway
 }
 

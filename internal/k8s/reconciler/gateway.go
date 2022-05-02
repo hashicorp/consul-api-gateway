@@ -3,12 +3,7 @@ package reconciler
 import (
 	"context"
 	"encoding/json"
-	"errors"
-	"fmt"
-	"strings"
 
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/types"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	"github.com/hashicorp/consul-api-gateway/internal/core"
@@ -21,6 +16,10 @@ import (
 	"github.com/hashicorp/go-hclog"
 )
 
+const (
+	defaultListenerName = "default"
+)
+
 type K8sGateway struct {
 	*gw.Gateway
 	GatewayState *state.GatewayState
@@ -30,8 +29,6 @@ type K8sGateway struct {
 	logger          hclog.Logger
 	client          gatewayclient.Client
 	config          apigwv1alpha1.GatewayClassConfig
-
-	listeners []*K8sListener
 }
 
 var _ store.StatusTrackingGateway = &K8sGateway{}
@@ -44,248 +41,6 @@ type K8sGatewayConfig struct {
 	Config          apigwv1alpha1.GatewayClassConfig
 	Logger          hclog.Logger
 	Client          gatewayclient.Client
-}
-
-func (g *K8sGateway) Validate(ctx context.Context) error {
-	g.GatewayState.Status = status.GatewayStatus{}
-	g.validateListenerConflicts()
-
-	if err := g.validatePods(ctx); err != nil {
-		return err
-	}
-
-	if err := g.validateGatewayIP(ctx); err != nil {
-		return err
-	}
-
-	for _, listener := range g.listeners {
-		if err := listener.Validate(ctx); err != nil {
-			return err
-		}
-		if listener.status.Ready.Invalid != nil {
-			g.GatewayState.Status.Ready.ListenersNotValid = errors.New("gateway listeners not valid")
-		}
-	}
-
-	return nil
-}
-
-type mergedListener struct {
-	port      gw.PortNumber
-	listeners []int
-	protocols map[string]struct{}
-	hostnames map[string]struct{}
-}
-
-func (g *K8sGateway) mergeListenersByPort() map[gw.PortNumber]mergedListener {
-	mergedListeners := make(map[gw.PortNumber]mergedListener)
-	for index, listener := range g.listeners {
-		merged, found := mergedListeners[listener.listener.Port]
-		if !found {
-			merged = mergedListener{
-				port:      listener.listener.Port,
-				protocols: make(map[string]struct{}),
-				hostnames: make(map[string]struct{}),
-			}
-		}
-		merged.listeners = append(merged.listeners, index)
-		merged.protocols[string(listener.listener.Protocol)] = struct{}{}
-		if listener.listener.Hostname != nil {
-			merged.hostnames[string(*listener.listener.Hostname)] = struct{}{}
-		}
-		mergedListeners[listener.listener.Port] = merged
-	}
-	return mergedListeners
-}
-
-func (g *K8sGateway) validateListenerConflicts() {
-	for _, merged := range g.mergeListenersByPort() {
-		if len(merged.protocols) > 1 {
-			conflict := fmt.Errorf("listeners have conflicting protocols for port: %s", setToCSV(merged.protocols))
-			for _, index := range merged.listeners {
-				g.GatewayState.Listeners[index].Status.Conflicted.ProtocolConflict = conflict
-			}
-		}
-		if len(merged.hostnames) > 1 {
-			conflict := fmt.Errorf("listeners have conflicting hostnames for port: %s", setToCSV(merged.protocols))
-			for _, index := range merged.listeners {
-				g.GatewayState.Listeners[index].Status.Conflicted.HostnameConflict = conflict
-			}
-		}
-	}
-}
-
-// validateGatewayIP ensures that the appropriate IP addresses are assigned to the
-// Gateway.
-func (g *K8sGateway) validateGatewayIP(ctx context.Context) error {
-	// remove this when add in validators
-	service := g.deployer.Service(g.config, g.Gateway)
-	if service == nil {
-		return g.assignGatewayIPFromPod(ctx)
-	}
-
-	switch service.Spec.Type {
-	case corev1.ServiceTypeLoadBalancer:
-		return g.assignGatewayIPFromServiceIngress(ctx, service)
-	case corev1.ServiceTypeClusterIP:
-		return g.assignGatewayIPFromService(ctx, service)
-	case corev1.ServiceTypeNodePort:
-		/* For serviceType: NodePort, there isn't a consistent way to guarantee access to the
-		 * service from outside the k8s cluster. For now, we're putting the IP address of the
-		 * nodes that the gateway pods are running on.
-		 * The practitioner will have to understand that they may need to port forward into the
-		 * cluster (in the case of Kind) or open firewall rules (in the case of GKE) in order to
-		 * access the gateway from outside the cluster.
-		 */
-		return g.assignGatewayIPFromPodHost(ctx)
-	default:
-		return fmt.Errorf("unsupported service type: %s", service.Spec.Type)
-	}
-}
-
-// assignGatewayIPFromServiceIngress retrieves the external load balancer
-// ingress IP for the Service and assigns it to the Gateway
-func (g *K8sGateway) assignGatewayIPFromServiceIngress(ctx context.Context, service *corev1.Service) error {
-	updated, err := g.client.GetService(ctx, types.NamespacedName{Namespace: service.Namespace, Name: service.Name})
-	if err != nil {
-		return err
-	}
-
-	if updated == nil {
-		g.GatewayState.Status.Scheduled.NotReconciled = errors.New("service not found")
-		return nil
-	}
-
-	for _, ingress := range updated.Status.LoadBalancer.Ingress {
-		g.GatewayState.ServiceReady = true
-		g.GatewayState.Addresses = append(g.GatewayState.Addresses, ingress.IP)
-	}
-
-	return nil
-}
-
-// assignGatewayIPFromService retrieves the internal cluster IP for the
-// Service and assigns it to the Gateway
-func (g *K8sGateway) assignGatewayIPFromService(ctx context.Context, service *corev1.Service) error {
-	updated, err := g.client.GetService(ctx, types.NamespacedName{Namespace: service.Namespace, Name: service.Name})
-	if err != nil {
-		return err
-	}
-
-	if updated == nil {
-		g.GatewayState.Status.Scheduled.NotReconciled = errors.New("service not found")
-		return nil
-	}
-
-	if updated.Spec.ClusterIP != "" {
-		g.GatewayState.ServiceReady = true
-		g.GatewayState.Addresses = append(g.GatewayState.Addresses, updated.Spec.ClusterIP)
-	}
-
-	return nil
-}
-
-// assignGatewayIPFromPod retrieves the internal IP for the Pod and assigns
-// it to the Gateway.
-func (g *K8sGateway) assignGatewayIPFromPod(ctx context.Context) error {
-	pod, err := g.client.PodWithLabels(ctx, utils.LabelsForGateway(g.Gateway))
-	if err != nil {
-		return err
-	}
-
-	if pod == nil {
-		g.GatewayState.Status.Scheduled.NotReconciled = errors.New("pod not found")
-		return nil
-	}
-
-	if pod.Status.PodIP != "" {
-		g.GatewayState.ServiceReady = true
-		g.GatewayState.Addresses = append(g.GatewayState.Addresses, pod.Status.PodIP)
-	}
-
-	return nil
-}
-
-// assignGatewayIPFromPodHost retrieves the (potentially) externally accessible
-// IP address for the host that the Pod is running on and assigns it to the Gateway.
-// This IP address is not always externally accessible and may require additional
-// work by the practitioner such as port-forwarding or opening firewall rules to make
-// it externally accessible.
-func (g *K8sGateway) assignGatewayIPFromPodHost(ctx context.Context) error {
-	pod, err := g.client.PodWithLabels(ctx, utils.LabelsForGateway(g.Gateway))
-	if err != nil {
-		return err
-	}
-
-	if pod == nil {
-		g.GatewayState.Status.Scheduled.NotReconciled = errors.New("pod not found")
-		return nil
-	}
-
-	if pod.Status.HostIP != "" {
-		g.GatewayState.ServiceReady = true
-		g.GatewayState.Addresses = append(g.GatewayState.Addresses, pod.Status.HostIP)
-	}
-
-	return nil
-}
-
-func (g *K8sGateway) validatePods(ctx context.Context) error {
-	pod, err := g.client.PodWithLabels(ctx, utils.LabelsForGateway(g.Gateway))
-	if err != nil {
-		return err
-	}
-
-	g.validatePodConditions(pod)
-
-	return nil
-}
-
-func (g *K8sGateway) validatePodConditions(pod *corev1.Pod) {
-	if pod == nil {
-		g.GatewayState.Status.Scheduled.NotReconciled = errors.New("pod not found")
-		return
-	}
-
-	switch pod.Status.Phase {
-	case corev1.PodPending:
-		g.validatePodStatusPending(pod)
-	case corev1.PodRunning:
-		g.validatePodStatusRunning(pod)
-	case corev1.PodSucceeded:
-		// this should never happen, occurs when the pod terminates
-		// with a 0 status code, consider this a failed deployment
-		fallthrough
-	case corev1.PodFailed:
-		// we have a failed deployment, set the status accordingly
-		// for now we just consider the pods unschedulable.
-		g.GatewayState.Status.Scheduled.PodFailed = errors.New("pod not running")
-	default: // Unknown pod status
-		// we don't have a known pod status, just consider this unreconciled
-		g.GatewayState.Status.Scheduled.Unknown = errors.New("pod status unknown")
-	}
-}
-
-func (g *K8sGateway) validatePodStatusPending(pod *corev1.Pod) {
-	for _, condition := range pod.Status.Conditions {
-		if condition.Type == corev1.PodScheduled && condition.Status == corev1.ConditionFalse &&
-			strings.Contains(condition.Reason, "Unschedulable") {
-			g.GatewayState.Status.Scheduled.NoResources = errors.New(condition.Message)
-			return
-		}
-	}
-	// if no conditions exist, or we haven't found a specific above condition, just default
-	// to not reconciled
-	g.GatewayState.Status.Scheduled.NotReconciled = errors.New("pod conditions not found")
-}
-
-func (g *K8sGateway) validatePodStatusRunning(pod *corev1.Pod) {
-	for _, condition := range pod.Status.Conditions {
-		if condition.Type == corev1.PodReady && condition.Status == corev1.ConditionTrue {
-			g.GatewayState.PodReady = true
-			return
-		}
-	}
 }
 
 func (g *K8sGateway) ID() core.GatewayID {
@@ -303,47 +58,70 @@ func (g *K8sGateway) Meta() map[string]string {
 	}
 }
 
-func (g *K8sGateway) Listeners() []store.Listener {
-	listeners := []store.Listener{}
-
-	for _, listener := range g.listeners {
-		listeners = append(listeners, listener)
-	}
-
-	return listeners
-}
-
-func (g *K8sGateway) ShouldUpdate(other store.Gateway) bool {
-	if other == nil {
-		return false
-	}
-
-	if g == nil {
-		return true
-	}
-
-	otherGateway, ok := other.(*K8sGateway)
-	if !ok {
-		return false
-	}
-
-	return !utils.ResourceVersionGreater(g.Gateway.ResourceVersion, otherGateway.Gateway.ResourceVersion)
-}
-
-func (g *K8sGateway) ShouldBind(route store.Route) bool {
+// Bind returns the name of the listeners to which a route bound
+func (g *K8sGateway) Bind(ctx context.Context, route store.Route) []string {
 	k8sRoute, ok := route.(*K8sRoute)
 	if !ok {
-		return false
+		return nil
 	}
 
-	for _, ref := range k8sRoute.CommonRouteSpec().ParentRefs {
-		if namespacedName, isGateway := utils.ReferencesGateway(k8sRoute.GetNamespace(), ref); isGateway {
-			if utils.NamespacedName(g.Gateway) == namespacedName {
-				return true
-			}
+	return NewBinder(g.client, g.Gateway, g.GatewayState).Bind(ctx, k8sRoute)
+}
+
+func (g *K8sGateway) Remove(ctx context.Context, routeID string) error {
+	for _, listener := range g.GatewayState.Listeners {
+		delete(listener.Routes, routeID)
+	}
+
+	return nil
+}
+
+func (g *K8sGateway) Resolve() core.ResolvedGateway {
+	listeners := []core.ResolvedListener{}
+	for i, listener := range g.Gateway.Spec.Listeners {
+		state := g.GatewayState.Listeners[i]
+		if state.Valid() {
+			listeners = append(listeners, g.resolveListener(state, listener))
 		}
 	}
-	return false
+	return core.ResolvedGateway{
+		ID:        g.ID(),
+		Meta:      g.Meta(),
+		Listeners: listeners,
+	}
+}
+
+func (g *K8sGateway) CanFetchSecrets(ctx context.Context, secrets []string) (bool, error) {
+	certificates := make(map[string]struct{})
+	for _, listener := range g.GatewayState.Listeners {
+		for _, cert := range listener.TLS.Certificates {
+			certificates[cert] = struct{}{}
+		}
+	}
+	for _, secret := range secrets {
+		if _, found := certificates[secret]; !found {
+			return false, nil
+		}
+	}
+	return true, nil
+}
+
+func (g *K8sGateway) resolveListener(state *state.ListenerState, listener gw.Listener) core.ResolvedListener {
+	routes := []core.ResolvedRoute{}
+	for _, route := range state.Routes {
+		routes = append(routes, route)
+	}
+	protocol, _ := utils.ProtocolToConsul(state.Protocol)
+
+	return core.ResolvedListener{
+		Name:     listenerName(listener),
+		Hostname: listenerHostname(listener),
+		Port:     int(listener.Port),
+		Protocol: protocol,
+		TLS:      state.TLS,
+		Routes:   routes,
+	}
+
 }
 
 func (g *K8sGateway) TrackSync(ctx context.Context, sync func() (bool, error)) error {
@@ -377,10 +155,16 @@ func (g *K8sGateway) TrackSync(ctx context.Context, sync func() (bool, error)) e
 	return nil
 }
 
-func setToCSV(set map[string]struct{}) string {
-	values := []string{}
-	for value := range set {
-		values = append(values, value)
+func listenerHostname(listener gw.Listener) string {
+	if listener.Hostname != nil {
+		return string(*listener.Hostname)
 	}
-	return strings.Join(values, ", ")
+	return ""
+}
+
+func listenerName(listener gw.Listener) string {
+	if listener.Name != "" {
+		return string(listener.Name)
+	}
+	return defaultListenerName
 }

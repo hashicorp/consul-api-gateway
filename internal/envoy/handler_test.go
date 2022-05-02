@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/hashicorp/consul-api-gateway/internal/envoy/mocks"
+	storeMocks "github.com/hashicorp/consul-api-gateway/internal/store/mocks"
 	"github.com/hashicorp/go-hclog"
 )
 
@@ -27,9 +28,11 @@ func TestOnStreamRequest(t *testing.T) {
 	defer ctrl.Finish()
 
 	secrets := mocks.NewMockSecretManager(ctrl)
-	registry := mocks.NewMockGatewaySecretRegistry(ctrl)
-	registry.EXPECT().CanFetchSecrets(gomock.Any(), gomock.Any(), requestedSecrets).Return(true, nil)
-	handler := NewRequestHandler(hclog.NewNullLogger(), registry, secrets)
+	store := storeMocks.NewMockStore(ctrl)
+	gateway := storeMocks.NewMockGateway(ctrl)
+	store.EXPECT().GetGateway(gomock.Any(), gomock.Any()).Return(gateway, nil)
+	gateway.EXPECT().CanFetchSecrets(gomock.Any(), gomock.Any()).Return(true, nil)
+	handler := NewRequestHandler(hclog.NewNullLogger(), store, secrets)
 
 	request := &discovery.DiscoveryRequest{
 		ResourceNames: requestedSecrets,
@@ -57,9 +60,11 @@ func TestOnStreamRequest_PermissionError(t *testing.T) {
 	defer ctrl.Finish()
 
 	secrets := mocks.NewMockSecretManager(ctrl)
-	registry := mocks.NewMockGatewaySecretRegistry(ctrl)
-	registry.EXPECT().CanFetchSecrets(gomock.Any(), gomock.Any(), requestedSecrets).Return(false, nil)
-	handler := NewRequestHandler(hclog.NewNullLogger(), registry, secrets)
+	store := storeMocks.NewMockStore(ctrl)
+	gateway := storeMocks.NewMockGateway(ctrl)
+	store.EXPECT().GetGateway(gomock.Any(), gomock.Any()).Return(gateway, nil)
+	gateway.EXPECT().CanFetchSecrets(gomock.Any(), gomock.Any()).Return(false, nil)
+	handler := NewRequestHandler(hclog.NewNullLogger(), store, secrets)
 
 	request := &discovery.DiscoveryRequest{
 		ResourceNames: requestedSecrets,
@@ -87,9 +92,11 @@ func TestOnStreamRequest_SetResourcesForNodeError(t *testing.T) {
 
 	expectedErr := errors.New("error")
 	secrets := mocks.NewMockSecretManager(ctrl)
-	registry := mocks.NewMockGatewaySecretRegistry(ctrl)
-	registry.EXPECT().CanFetchSecrets(gomock.Any(), gomock.Any(), requestedSecrets).Return(true, nil)
-	handler := NewRequestHandler(hclog.NewNullLogger(), registry, secrets)
+	store := storeMocks.NewMockStore(ctrl)
+	gateway := storeMocks.NewMockGateway(ctrl)
+	store.EXPECT().GetGateway(gomock.Any(), gomock.Any()).Return(gateway, nil)
+	gateway.EXPECT().CanFetchSecrets(gomock.Any(), gomock.Any()).Return(true, nil)
+	handler := NewRequestHandler(hclog.NewNullLogger(), store, secrets)
 
 	request := &discovery.DiscoveryRequest{
 		ResourceNames: requestedSecrets,
@@ -117,9 +124,11 @@ func TestOnStreamRequest_Graceful(t *testing.T) {
 	defer ctrl.Finish()
 
 	secrets := mocks.NewMockSecretManager(ctrl)
-	registry := mocks.NewMockGatewaySecretRegistry(ctrl)
-	registry.EXPECT().CanFetchSecrets(gomock.Any(), gomock.Any(), requestedSecrets).Return(true, nil)
-	handler := NewRequestHandler(hclog.NewNullLogger(), registry, secrets)
+	store := storeMocks.NewMockStore(ctrl)
+	gateway := storeMocks.NewMockGateway(ctrl)
+	store.EXPECT().GetGateway(gomock.Any(), gomock.Any()).Return(gateway, nil)
+	gateway.EXPECT().CanFetchSecrets(gomock.Any(), gomock.Any()).Return(true, nil)
+	handler := NewRequestHandler(hclog.NewNullLogger(), store, secrets)
 
 	request := &discovery.DiscoveryRequest{
 		ResourceNames: requestedSecrets,
@@ -146,9 +155,11 @@ func TestOnStreamClosed(t *testing.T) {
 	defer ctrl.Finish()
 
 	secrets := mocks.NewMockSecretManager(ctrl)
-	registry := mocks.NewMockGatewaySecretRegistry(ctrl)
-	registry.EXPECT().CanFetchSecrets(gomock.Any(), gomock.Any(), requestedSecrets).Return(true, nil)
-	handler := NewRequestHandler(hclog.NewNullLogger(), registry, secrets)
+	store := storeMocks.NewMockStore(ctrl)
+	gateway := storeMocks.NewMockGateway(ctrl)
+	store.EXPECT().GetGateway(gomock.Any(), gomock.Any()).Return(gateway, nil)
+	gateway.EXPECT().CanFetchSecrets(gomock.Any(), gomock.Any()).Return(true, nil)
+	handler := NewRequestHandler(hclog.NewNullLogger(), store, secrets)
 
 	request := &discovery.DiscoveryRequest{
 		ResourceNames: requestedSecrets,
@@ -173,8 +184,8 @@ func TestOnStreamClosed_Graceful(t *testing.T) {
 	defer ctrl.Finish()
 
 	secrets := mocks.NewMockSecretManager(ctrl)
-	registry := mocks.NewMockGatewaySecretRegistry(ctrl)
-	handler := NewRequestHandler(hclog.NewNullLogger(), registry, secrets)
+	store := storeMocks.NewMockStore(ctrl)
+	handler := NewRequestHandler(hclog.NewNullLogger(), store, secrets)
 
 	// no-ops instead of panics without setting up the stream context in the open call
 	handler.OnStreamClosed(1)
@@ -187,8 +198,8 @@ func TestOnStreamOpen(t *testing.T) {
 	defer ctrl.Finish()
 
 	secrets := mocks.NewMockSecretManager(ctrl)
-	registry := mocks.NewMockGatewaySecretRegistry(ctrl)
-	handler := NewRequestHandler(hclog.NewNullLogger(), registry, secrets)
+	store := storeMocks.NewMockStore(ctrl)
+	handler := NewRequestHandler(hclog.NewNullLogger(), store, secrets)
 
 	// errors on non secret requests
 	err := handler.OnStreamOpen(context.Background(), 1, resource.ClusterType)
