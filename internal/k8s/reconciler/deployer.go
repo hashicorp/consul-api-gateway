@@ -67,17 +67,19 @@ func (d *GatewayDeployer) ensureServiceAccount(ctx context.Context, config apigw
 func (d *GatewayDeployer) ensureDeployment(ctx context.Context, namespace string, config apigwv1alpha1.GatewayClassConfig, gateway *gw.Gateway) error {
 	deployment := d.Deployment(namespace, config, gateway)
 	mutated := deployment.DeepCopy()
-	if updated, err := d.client.CreateOrUpdateDeployment(ctx, mutated, func() error {
+	
+	updated, err := d.client.CreateOrUpdateDeployment(ctx, mutated, func() error {
 		mutated = apigwv1alpha1.MergeDeployment(deployment, mutated)
 		return d.client.SetControllerOwnership(gateway, mutated)
-	}); err != nil {
+	})
+	if err != nil {
 		return fmt.Errorf("failed to create or update gateway deployment: %w", err)
-	} else if updated {
-		if d.logger.IsTrace() {
-			data, err := json.MarshalIndent(mutated, "", "  ")
-			if err == nil {
-				d.logger.Trace("created or updated gateway deployment", "deployment", string(data))
-			}
+	}
+	
+	if updated && d.logger.IsTrace() {
+		data, err := json.MarshalIndent(mutated, "", "  ")
+		if err == nil {
+			d.logger.Trace("created or updated gateway deployment", "deployment", string(data))
 		}
 	}
 
