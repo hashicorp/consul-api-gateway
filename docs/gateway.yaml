@@ -7,133 +7,69 @@ fields:
     supported: false
   - name: gatewayClassName
     type: string
-    description: GatewayClassName used for this Gateway. This is the name
-      of a GatewayClass resource.
+    description: The name of a GatewayClass resource used for this Gateway.
   - name: listeners
     type: array<object>
-    description: "Listeners associated with this Gateway. Listeners define
+    description: |
+      Listeners associated with this Gateway. Listeners define
       logical endpoints that are bound on this Gateway's addresses. At
-      least one Listener MUST be specified. \n Each listener in a Gateway
-      must have a unique combination of Hostname, Port, and Protocol.
-      \n An implementation MAY group Listeners by Port and then collapse
-      each group of Listeners into a single Listener if the implementation
-      determines that the Listeners in the group are \"compatible\". An
-      implementation MAY also group together and collapse compatible Listeners
-      belonging to different Gateways. \n For example, an implementation
-      might consider Listeners to be compatible with each other if all
-      of the following conditions are met: \n 1. Either each Listener
-      within the group specifies the \"HTTP\"    Protocol or each Listener
-      within the group specifies either    the \"HTTPS\" or \"TLS\" Protocol.
-      \n 2. Each Listener within the group specifies a Hostname that is
-      unique    within the group. \n 3. As a special case, one Listener
-      within a group may omit Hostname,    in which case this Listener
-      matches when no other Listener    matches. \n If the implementation
-      does collapse compatible Listeners, the hostname provided in the
-      incoming client request MUST be matched to a Listener to find the
-      correct set of Routes. The incoming hostname MUST be matched using
-      the Hostname field for each Listener in order of most to least specific.
-      That is, exact matches must be processed before wildcard matches.
-      \n If this field specifies multiple Listeners that have the same
-      Port value but are not compatible, the implementation must raise
-      a \"Conflicted\" condition in the Listener status. \n Support: Core"
+      least one listener MUST be specified. 
+      
+      Each listener in a Gateway must have a unique combination of Hostname, Port, and Protocol.
     items:
-      description: Listener embodies the concept of a logical endpoint
-        where a Gateway accepts network connections.
       fields:
         - name: allowedRoutes
           type: object
-          description: "AllowedRoutes defines the types of routes that
+          description: |
+            AllowedRoutes defines the types of routes that
             MAY be attached to a Listener and the trusted namespaces where
-            those Route resources MAY be present. \n Although a client
-            request may match multiple route rules, only one rule may
-            ultimately receive the request. Matching precedence MUST be
-            determined in order of the following criteria: \n * The most
-            specific match as defined by the Route type. * The oldest
-            Route based on creation timestamp. For example, a Route with
-            \  a creation timestamp of \"2020-09-08 01:02:03\" is given
-            precedence over   a Route with a creation timestamp of \"2020-09-08
-            01:02:04\". * If everything else is equivalent, the Route
-            appearing first in   alphabetical order (namespace/name) should
-            be given precedence. For   example, foo/bar is given precedence
-            over foo/baz. \n All valid rules within a Route attached to
-            this Listener should be implemented. Invalid Route rules can
-            be ignored (sometimes that will mean the full Route). If a
-            Route rule transitions from valid to invalid, support for
-            that Route rule should be dropped to ensure consistency. For
-            example, even if a filter specified by a Route rule is invalid,
-            the rest of the rules within that Route should still be supported.
-            \n Support: Core"
+            those Route resources MAY be present.
           fields:
             - name: kinds
-              type: array<object>
-              description: "Kinds specifies the groups and kinds of Routes
-                that are allowed to bind to this Gateway Listener. When
-                unspecified or empty, the kinds of Routes selected are
-                determined using the Listener protocol. \n A RouteGroupKind
-                MUST correspond to kinds of Routes that are compatible
-                with the application protocol specified in the Listener's
-                Protocol field. If an implementation does not support
-                or recognize this resource type, it MUST set the \"ResolvedRefs\"
-                condition to False for this Listener with the \"InvalidRouteKinds\"
-                reason. \n Support: Core"
-              items:
-                description: RouteGroupKind indicates the group and kind
-                  of a Route resource.
-                fields:
-                  - name: group
-                    type: string
-                    default: gateway.networking.k8s.io
-                    description: Group is the group of the Route.
-                  - name: kind
-                    type: string
-                    description: Kind is the kind of the Route.
+              supported: false
             - name: namespaces
               type: object
-              description: "Namespaces indicates namespaces from which
+              description: |
+                Namespaces indicates namespaces from which
                 Routes may be attached to this Listener. This is restricted
-                to the namespace of this Gateway by default. \n Support:
-                Core"
+                to the namespace of this Gateway by default.
               fields:
                 - name: from
                   type: string
                   default: Same
-                  description: "From indicates where Routes will be selected
-                    for this Gateway. Possible values are: * All: Routes
-                    in all namespaces may be used by this Gateway. * Selector:
-                    Routes in namespaces selected by the selector may
-                    be used by   this Gateway. * Same: Only Routes in
-                    the same namespace may be used by this Gateway. \n
-                    Support: Core"
+                  description: |
+                    From indicates where Routes will be selected
+                    for this Gateway."
                   enum: ["All", "Selector", "Same"]
                 - name: selector
                   type: object
                   description: "Selector must be specified when From is
                     set to \"Selector\". In that case, only Routes in
                     Namespaces matching this Selector will be selected
-                    by this Gateway. This field is ignored for other values
-                    of \"From\". \n Support: Core"
+                    by this Gateway."
                   fields:
                     - name: matchExpressions
                       type: array<object>
-                      description: matchExpressions is a list of label
+                      description: |
+                        matchExpressions is a list of label
                         selector requirements. The requirements are ANDed.
                       items:
-                        description: A label selector requirement is a
-                          selector that contains values, a key, and an
-                          operator that relates the key and values.
                         fields:
                           - name: key
                             type: string
-                            description: key is the label key that the
+                            description: |
+                              key is the label key that the
                               selector applies to.
                           - name: operator
                             type: string
-                            description: operator represents a key's relationship
+                            description: |
+                              operator represents a key's relationship
                               to a set of values. Valid operators are
                               In, NotIn, Exists and DoesNotExist.
                           - name: values
                             type: array<string>
-                            description: values is an array of string
+                            description: |
+                              values is an array of string
                               values. If the operator is In or NotIn,
                               the values array must be non-empty. If the
                               operator is Exists or DoesNotExist, the
@@ -141,7 +77,8 @@ fields:
                               replaced during a strategic merge patch.
                     - name: matchLabels
                       type: map<string, string>
-                      description: matchLabels is a map of {key,value}
+                      description: |
+                        matchLabels is a map of {key,value}
                         pairs. A single {key,value} in the matchLabels
                         map is equivalent to an element of matchExpressions,
                         whose key field is "key", the operator is "In",
@@ -149,125 +86,62 @@ fields:
                         requirements are ANDed.
         - name: hostname
           type: string
-          description: "Hostname specifies the virtual hostname to match
-            for protocol types that define this concept. When unspecified,
-            all hostnames are matched. This field is ignored for protocols
-            that don't require hostname based matching. \n Implementations
-            MUST apply Hostname matching appropriately for each of the
-            following protocols: \n * TLS: The Listener Hostname MUST
-            match the SNI. * HTTP: The Listener Hostname MUST match the
-            Host header of the request. * HTTPS: The Listener Hostname
-            SHOULD match at both the TLS and HTTP   protocol layers as
-            described above. If an implementation does not   ensure that
-            both the SNI and Host header match the Listener hostname,
-            \  it MUST clearly document that. \n For HTTPRoute and TLSRoute
-            resources, there is an interaction with the `spec.hostnames`
-            array. When both listener and route specify hostnames, there
-            MUST be an intersection between the values for a Route to
-            be accepted. For more information, refer to the Route specific
-            Hostnames documentation. \n Support: Core"
+          description: |
+            Hostname specifies the virtual hostname to match for HTTP or HTTPS-based listeners. When unspecified,
+            all hostnames are matched. This is implemented by checking the HTTP Host header sent on a client request.
         - name: name
           type: string
-          description: "Name is the name of the Listener. This name MUST
-            be unique within a Gateway. \n Support: Core"
+          description: "Name is the name of the Listener. This name MUST be unique within a Gateway."
         - name: port
           type: integer
-          description: "Port is the network port. Multiple listeners may
-            use the same port, subject to the Listener compatibility rules.
-            \n Support: Core"
+          description: "Port is the network port of a listener."
         - name: protocol
           type: string
-          description: "Protocol specifies the network protocol this listener
-            expects to receive. \n Support: Core"
+          description: "Protocol specifies the network protocol this listener expects to receive."
+          enum: ["HTTP", "HTTPS", "TCP"]
         - name: tls
           type: object
-          description: "TLS is the TLS configuration for the Listener.
-            This field is required if the Protocol field is \"HTTPS\"
-            or \"TLS\". It is invalid to set this field if the Protocol
-            field is \"HTTP\", \"TCP\", or \"UDP\". \n The association
-            of SNIs to Certificate defined in GatewayTLSConfig is defined
-            based on the Hostname field for this listener. \n The GatewayClass
-            MUST use the longest matching SNI out of all available certificates
-            for any TLS handshake. \n Support: Core"
+          description: |
+            TLS is the TLS configuration for the Listener.
+            This field is required if the Protocol field is "HTTPS".
+            It is invalid to set this field if the Protocol
+            field is "HTTP" or "TCP".
           fields:
             - name: certificateRefs
               type: array<object>
-              description: "CertificateRefs contains a series of references
+              description: |
+                CertificateRefs contains a series of references
                 to Kubernetes objects that contains TLS certificates and
                 private keys. These certificates are used to establish
                 a TLS handshake for requests that match the hostname of
-                the associated listener. \n A single CertificateRef to
-                a Kubernetes Secret has \"Core\" support. Implementations
-                MAY choose to support attaching multiple certificates
-                to a Listener, but this behavior is implementation-specific.
-                \n References to a resource in different namespace are
-                invalid UNLESS there is a ReferencePolicy in the target
-                namespace that allows the certificate to be attached.
-                If a ReferencePolicy does not allow this reference, the
-                \"ResolvedRefs\" condition MUST be set to False for this
-                listener with the \"InvalidCertificateRef\" reason. \n
-                This field is required to have at least one element when
-                the mode is set to \"Terminate\" (default) and is optional
-                otherwise. \n CertificateRefs can reference to standard
-                Kubernetes resources, i.e. Secret, or implementation-specific
-                custom resources. \n Support: Core - A single reference
-                to a Kubernetes Secret of type kubernetes.io/tls \n Support:
-                Implementation-specific (More than one reference or other
-                resource types)"
+                the associated listener. Each reference must be a Kubernetes
+                Secret, and, if using a Secret in a namespace other than the
+                Gateway's, must have a corresponding ReferencePolicy created.
               items:
-                description: "SecretObjectReference identifies an API
-                  object including its namespace, defaulting to Secret.
-                  \n The API object must be valid in the cluster; the
-                  Group and Kind must be registered in the cluster for
-                  this reference to be valid. \n References to objects
-                  with invalid Group and Kind are not valid, and must
-                  be rejected by the implementation, with appropriate
-                  Conditions set on the containing object."
                 fields:
                   - name: group
-                    type: string
-                    default: ""
-                    description: Group is the group of the referent. For
-                      example, "networking.k8s.io". When unspecified (empty
-                      string), core API group is inferred.
+                    supported: false
                   - name: kind
-                    type: string
-                    default: Secret
-                    description: Kind is kind of the referent. For example
-                      "HTTPRoute" or "Service".
+                    supported: false
                   - name: name
                     type: string
-                    description: Name is the name of the referent.
+                    description: Name is the name of the Kubernetes Secret.
                   - name: namespace
                     type: string
-                    description: "Namespace is the namespace of the backend.
-                      When unspecified, the local namespace is inferred.
-                      \n Note that when a namespace is specified, a ReferencePolicy
-                      object is required in the referent namespace to
+                    description: |
+                      Namespace is the namespace of the Secret. When unspecified, the local namespace is inferred.
+                      
+                      Note that when a namespace is specified, a ReferencePolicy
+                      object is required in the specified namespace to
                       allow that namespace's owner to accept the reference.
-                      See the ReferencePolicy documentation for details.
-                      \n Support: Core"
             - name: mode
               type: string
               default: Terminate
-              description: "Mode defines the TLS behavior for the TLS
-                session initiated by the client. There are two possible
-                modes: \n - Terminate: The TLS session between the downstream
-                client   and the Gateway is terminated at the Gateway.
-                This mode requires   certificateRefs to be set and contain
-                at least one element. - Passthrough: The TLS session is
-                NOT terminated by the Gateway. This   implies that the
-                Gateway can't decipher the TLS stream except for   the
-                ClientHello message of the TLS protocol.   CertificateRefs
-                field is ignored in this mode. \n Support: Core"
-              enum: ["Terminate", "Passthrough"]
+              description: "Mode defines the TLS behavior for the TLS session initiated by the client. The only supported mode at this time is `Terminate`"
+              enum: ["Terminate"]
             - name: options
               type: map<string, string>
-              description: "Options are a list of key/value pairs to enable
-                extended TLS configuration for each implementation. For
-                example, configuring the minimum TLS version or supported
-                cipher suites. \n A set of common keys MAY be defined
-                by the API in the future. To avoid any ambiguity, implementation-specific
-                definitions MUST use domain-prefixed names, such as `example.com/my-custom-option`.
-                Un-prefixed names are reserved for key names defined by
-                Gateway API. \n Support: Implementation-specific"
+              description: |
+                Options are a list of key/value pairs to enable
+                extended TLS configuration for each implementation.
+              enum: ["api-gateway.consul.hashicorp.com/tls_min_version","api-gateway.consul.hashicorp.com/tls_max_version","api-gateway.consul.hashicorp.com/tls_cipher_suites",]
