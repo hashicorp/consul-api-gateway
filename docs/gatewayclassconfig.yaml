@@ -1,0 +1,77 @@
+kind: GatewayClassConfig
+version: consul.hashicorp.com/v1alpha1
+scope: Cluster
+description: GatewayClassConfig describes the configuration of a consul-api-gateway GatewayClass.
+fields:
+  - name: consul
+    type: object
+    description: Configuration information about connecting to Consul.
+    fields:
+      - name: address
+        type: string
+        description: The address of the consul server to communicate with
+          in the gateway pod. If not specified, the pod will attempt to
+          use a local agent on the host on which it is running.
+      - name: authentication
+        type: object
+        description: Consul authentication information
+        fields:
+          - name: account
+            type: string
+            description: The Kubernetes service account to authenticate as.
+          - name: managed
+            type: boolean
+            description: Whether deployments should be run with "managed" service accounts created by the gateway controller.
+          - name: method
+            type: string
+            description: The Consul auth method used for initial authentication by consul-api-gateway.
+          - name: namespace
+            type: string
+            description: The Consul namespace to use for authentication.
+      - name: ports
+        description: The information about Consul's ports
+        type: object
+        fields:
+          - name: grpc
+            type: integer
+            description: The grpc port for Consul's xDS server.
+          - name: http
+            type: integer
+            description: The port for Consul's HTTP server.
+      - name: scheme
+        type: string
+        description: The scheme to use for connecting to Consul.
+        enum: ["http", "https"]
+  - name: copyAnnotations
+    type: object
+    description: Annotation Information to copy to services or deployments
+    fields:
+      - name: service
+        type: array<string>
+        description: List of annotations to copy to the gateway service.
+  - name: image
+    type: object
+    description: Configuration information about the images to use
+    fields:
+      - name: consulAPIGateway
+        type: string
+        description: The image to use for consul-api-gateway.
+      - name: envoy
+        type: string
+        description: The image to use for Envoy.
+  - name: logLevel
+    type: string
+    description: Logging levels
+    enum: ["trace", "debug", "info", "warning", "error"]
+  - name: nodeSelector
+    type: map<string, string>
+    description: 'NodeSelector is a selector which must be true for the
+      pod to fit on a node. Selector which must match a node''s labels
+      for the pod to be scheduled on that node. More info: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/'
+  - name: serviceType
+    type: string
+    description: Service Type string describes ingress methods for a service
+    enum: ["ClusterIP", "NodePort", "LoadBalancer"]
+  - name: useHostPorts
+    type: boolean
+    description: If this is set, then the Envoy container ports are mapped to host ports.
