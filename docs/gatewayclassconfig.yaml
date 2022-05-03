@@ -1,5 +1,5 @@
 kind: GatewayClassConfig
-version: consul.hashicorp.com/v1alpha1
+version: api-gateway.consul.hashicorp.com/v1alpha1
 scope: Cluster
 description: GatewayClassConfig describes the configuration of a consul-api-gateway GatewayClass.
 fields:
