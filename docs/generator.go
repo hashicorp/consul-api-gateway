@@ -37,17 +37,21 @@ type DocField struct {
 	Items       DocItem    `yaml:"items"`
 }
 
-func RenderField(field DocField) string {
+func RenderField(field DocField) []string {
 	docString := fmt.Sprintf("- `%s` - (type: `%s`): %s", field.Name, field.Type, strings.Replace(field.Description, "\n", "", -1))
 
 	fields := []string{}
 	for _, field := range field.Fields {
-		fields = append(fields, "\t"+RenderField(field))
+		for _, f := range RenderField(field) {
+			fields = append(fields, "\t"+f)
+		}
 	}
 	for _, field := range field.Items.Fields {
-		fields = append(fields, "\t"+RenderField(field))
+		for _, f := range RenderField(field) {
+			fields = append(fields, "\t"+f)
+		}
 	}
-	return strings.Join(append([]string{docString}, fields...), "\n")
+	return append([]string{docString}, fields...)
 }
 
 const docTemplate = `
@@ -73,7 +77,7 @@ func RenderDoc(doc Doc) (string, error) {
 	}
 	fields := []string{}
 	for _, field := range doc.Fields {
-		fields = append(fields, RenderField(field))
+		fields = append(fields, RenderField(field)...)
 	}
 	return docString.String() + strings.Join(fields, "\n"), nil
 }
