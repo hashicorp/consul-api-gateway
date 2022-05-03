@@ -14,11 +14,12 @@ properties:
 - name: spec
   description: Spec defines the desired state of Gateway.
   properties:
-    name: addresses
-    description: "Addresses requested for this Gateway. If a value is set
-                  and the requested address is invalid or unavailable,
-                  it will be indicated in the associated entry in
-                  GatewayStatus.Addresses. \n The Addresses field represents a request
+    - name: addresses
+    description: "Addresses requested for this Gateway. If a value is set and
+      the requested address is invalid or unavailable, it will be indicated in
+      the associated entry in GatewayStatus.Addresses. The Addresses field
+
+      represents a request
                   for the address(es) on the \"outside of the Gateway\", that traffic
                   bound for this Gateway will use. This could be the IP address or
                   hostname of an external load balancer or other networking infrastructure,
@@ -29,30 +30,32 @@ properties:
                   manner, assigning an appropriate set of Addresses. \n The gateway will bind all Listeners to every GatewayAddress that it assigns
                   to the Gateway and display the status in a corresponding entry in GatewayStatus.Addresses.
                   \n Support: Extended"
-                items:
-                  description: GatewayAddress describes an address that can be bound
-                    to a Gateway.
-                  properties:
-                    type:
-                      default: IPAddress
-                      description: Type of the address.
-                      enum:
-                      - IPAddress
-                      - Hostname
-                      - NamedAddress
-                      type: string
-                    value:
-                      description: "Value of the address. The validity of the values
-                        will depend on the type and support by the controller. \n
-                        Examples: `1.2.3.4`, `128::1`, `my-ip-address`."
-                      maxLength: 253
-                      minLength: 1
-                      type: string
-                  required:
-                  - value
-                  type: object
-                maxItems: 16
-                type: array
+
+    items:
+      description: GatewayAddress describes an address that can be bound
+        to a Gateway.
+      properties:
+        type:
+          default: IPAddress
+          description: Type of the address.
+          enum:
+          - IPAddress
+          - Hostname
+          - NamedAddress
+          type: string
+        value:
+          description: "Value of the address. The validity of the values
+            will depend on the type and support by the controller. \n
+            Examples: `1.2.3.4`, `128::1`, `my-ip-address`."
+          maxLength: 253
+          minLength: 1
+          type: string
+      required:
+      - value
+      type: object
+    maxItems: 16
+    type: array
+
               gatewayClassName:
                 description: GatewayClassName used for this Gateway. This is the name
                   of a GatewayClass resource.
