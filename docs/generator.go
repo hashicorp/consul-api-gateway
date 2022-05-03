@@ -30,6 +30,7 @@ type DocItem struct {
 
 type DocField struct {
 	Name        string     `yaml:"name"`
+	Supported   *bool      `yaml:"supported"`
 	Type        string     `yaml:"type"`
 	Description string     `yaml:"description"`
 	Enum        []string   `yaml:"enum"`
@@ -38,6 +39,10 @@ type DocField struct {
 }
 
 func RenderField(field DocField) []string {
+	if field.Supported != nil && !*field.Supported {
+		return nil
+	}
+
 	docString := fmt.Sprintf("- `%s` - (type: `%s`): %s", field.Name, field.Type, strings.Replace(field.Description, "\n", "", -1))
 
 	fields := []string{}
