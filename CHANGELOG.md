@@ -1,10 +1,10 @@
 ## UNRELEASED
 
-## 0.2.1 (April 29, 2022)
-
 IMPROVEMENTS:
 
 * go: build with Go 1.18 [[GH-167](https://github.com/hashicorp/consul-api-gateway/issues/167)]
+
+## 0.2.1 (April 29, 2022)
 
 BUG FIXES:
 
