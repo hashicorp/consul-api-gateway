@@ -895,5 +895,4 @@ fields:
                       enum: ["Exact", "RegularExpression"]
                     - name: value
                       type: string
-                      description: Value is the value of HTTP query param
-                        to be matched.
+                      description: Value is the value of HTTP query param to be matched.
