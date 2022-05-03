@@ -32,15 +32,9 @@ fields:
         be registered in the cluster for this reference to be valid."
       fields:
         - name: group
-          type: string
-          default: gateway.networking.k8s.io
-          description: "Group is the group of the referent. \n Support:
-            Core"
+          supported: false
         - name: kind
-          type: string
-          default: Gateway
-          description: "Kind is kind of the referent. \n Support: Core
-            (Gateway) Support: Custom (Other Resources)"
+          supported: false
         - name: name
           type: string
           description: "Name is the name of the referent. \n Support: Core"

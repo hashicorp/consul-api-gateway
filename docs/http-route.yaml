@@ -60,13 +60,9 @@ fields:
         be registered in the cluster for this reference to be valid."
       fields:
         - name: group
-          type: string
-          default: gateway.networking.k8s.io
-          description: "Group is the group of the referent. \n Support: Core"
+          supported: false
         - name: kind
-          type: string
-          default: Gateway
-          description: "Kind is kind of the referent. \n Support: Core (Gateway) Support: Custom (Other Resources)"
+          supported: false
         - name: name
           type: string
           description: "Name is the name of the referent. \n Support: Core"
@@ -138,25 +134,7 @@ fields:
                     of the filter.
                   fields:
                     - name: extensionRef
-                      type: object
-                      description: "ExtensionRef is an optional, implementation-specific
-                      extension to the \"filter\" behavior.  For example,
-                      resource \"myroutefilter\" in group \"networking.example.net\").
-                      ExtensionRef MUST NOT be used for core and extended
-                      filters. \n Support: Implementation-specific"
-                      fields:
-                        - name: group
-                          type: string
-                          description: Group is the group of the referent.
-                            For example, "networking.k8s.io". When unspecified
-                            (empty string), core API group is inferred.
-                        - name: kind
-                          type: string
-                          description: Kind is kind of the referent. For
-                            example "HTTPRoute" or "Service".
-                        - name: name
-                          type: string
-                          description: Name is the name of the referent.
+                      supported: false
                     - name: requestHeaderModifier
                       type: object
                       description: "RequestHeaderModifier defines a schema
@@ -268,7 +246,7 @@ fields:
                       be resolved, the filter MUST NOT be skipped. Instead,
                       requests that would have been processed by that
                       filter MUST receive a HTTP error response. \n "
-                      enum: ["RequestHeaderModifier", "RequestMirror", "RequestRedirect", "ExtensionRef"]
+                      enum: ["RequestHeaderModifier"]
               - name: group
                 type: string
                 default: ""
@@ -336,26 +314,7 @@ fields:
               of the filter.
             fields:
               - name: extensionRef
-                type: object
-                description: "ExtensionRef is an optional, implementation-specific
-                  extension to the \"filter\" behavior.  For example,
-                  resource \"myroutefilter\" in group \"networking.example.net\").
-                  ExtensionRef MUST NOT be used for core and extended
-                  filters. \n Support: Implementation-specific"
-                fields:
-                  - name: group
-                    type: string
-                    description: |
-                      Group is the group of the referent.
-                      For example, "networking.k8s.io". When unspecified
-                      (empty string), core API group is inferred.
-                  - name: kind
-                    type: string
-                    description: Kind is kind of the referent. For
-                      example "HTTPRoute" or "Service".
-                  - name: name
-                    type: string
-                    description: Name is the name of the referent.
+                supported: false
               - name: requestHeaderModifier
                 type: object
                 description: "RequestHeaderModifier defines a schema
