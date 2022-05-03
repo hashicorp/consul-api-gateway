@@ -1,5 +1,5 @@
 
-##  (version: gateway.networking.k8s.io/v1alpha2, scope: Namespaced)
+## ReferencePolicy (version: gateway.networking.k8s.io/v1alpha2, scope: Namespaced)
 
 ReferencePolicy identifies kinds of resources in other namespaces that are trusted to reference the specified kinds of resources in the same namespace as the policy. 
  Each ReferencePolicy can be used to represent a unique trust relationship. Additional Reference Policies can be used to add to the set of trusted sources of inbound references for the namespace they are defined within. 

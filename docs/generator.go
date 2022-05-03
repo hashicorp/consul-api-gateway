@@ -59,7 +59,7 @@ const docTemplate = `
 `
 
 type Doc struct {
-	Kind        string     `yaml:"string"`
+	Kind        string     `yaml:"kind"`
 	Description string     `yaml:"description"`
 	Version     string     `yaml:"version"`
 	Scope       string     `yaml:"scope"`

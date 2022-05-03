@@ -1,5 +1,5 @@
 
-##  (version: gateway.networking.k8s.io/v1alpha2, scope: Cluster)
+## GatewayClass (version: gateway.networking.k8s.io/v1alpha2, scope: Cluster)
 
 GatewayClass describes a class of Gateways available to the user for creating Gateway resources. 
  It is recommended that this resource be used as a template for Gateways. This means that a Gateway is based on the state of the GatewayClass at the time it was created and changes to the GatewayClass or associated parameters are not propagated down to existing Gateways. This recommendation is intended to limit the blast radius of changes to GatewayClass or associated parameters. If implementations choose to propagate GatewayClass changes to existing Gateways, that MUST be clearly documented by the implementation. 

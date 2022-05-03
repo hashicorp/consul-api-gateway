@@ -1,5 +1,5 @@
 
-##  (version: api-gateway.consul.hashicorp.com/v1alpha1, scope: Cluster)
+## GatewayClassConfig (version: api-gateway.consul.hashicorp.com/v1alpha1, scope: Cluster)
 
 GatewayClassConfig describes the configuration of a consul-api-gateway GatewayClass.
 

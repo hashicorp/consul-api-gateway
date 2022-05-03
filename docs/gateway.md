@@ -1,5 +1,5 @@
 
-##  (version: gateway.networking.k8s.io/v1alpha2, scope: Namespaced)
+## Gateway (version: gateway.networking.k8s.io/v1alpha2, scope: Namespaced)
 
 A gateway represents an instance of service-traffic handling infrastructure. Gateways configure one or more listeners, which can bind to a set of IP address. Routes can then attach to a gateway listener to direct traffic from the gateway to a service.
 

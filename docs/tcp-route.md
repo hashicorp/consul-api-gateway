@@ -1,5 +1,5 @@
 
-##  (version: gateway.networking.k8s.io/v1alpha2, scope: Namespaced)
+## TCPRoute (version: gateway.networking.k8s.io/v1alpha2, scope: Namespaced)
 
 TCPRoute provides a way to route TCP requests. When combined with a Gateway listener, it can be used to forward connections on the port specified by the listener to a set of backends specified by the TCPRoute.
 
