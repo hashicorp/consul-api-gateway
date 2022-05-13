@@ -29,7 +29,6 @@ import (
 	gateway "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	"github.com/hashicorp/consul/api"
-	appsv1 "k8s.io/api/apps/v1"
 
 	"github.com/hashicorp/consul-api-gateway/internal/k8s"
 	"github.com/hashicorp/consul-api-gateway/internal/testing/e2e"
@@ -136,7 +135,7 @@ func TestGatewayWithReplicas(t *testing.T) {
 			checkGatewayConfigAnnotation(ctx, t, resources, gatewayName, namespace, gcc)
 
 			// Fetch the deployment created by the gateway and check the number of replicas
-			deployment := &appsv1.Deployment{}
+			deployment := &apps.Deployment{}
 			assert.NoError(t, resources.Get(ctx, gatewayName, namespace, deployment))
 			assert.Equal(t, numberOfReplicas, *deployment.Spec.Replicas)
 
@@ -172,7 +171,7 @@ func TestGatewayWithReplicasCanScale(t *testing.T) {
 			checkGatewayConfigAnnotation(ctx, t, resources, gatewayName, namespace, gcc)
 
 			// Fetch the deployment created by the gateway and check the number of replicas
-			deployment := &appsv1.Deployment{}
+			deployment := &apps.Deployment{}
 			assert.NoError(t, resources.Get(ctx, gatewayName, namespace, deployment))
 			assert.Equal(t, initialReplicas, *deployment.Spec.Replicas)
 
@@ -227,7 +226,7 @@ func TestGatewayWithReplicasRespectMinMax(t *testing.T) {
 			checkGatewayConfigAnnotation(ctx, t, resources, gatewayName, namespace, gatewayClassConfig)
 
 			// Fetch the deployment created by the gateway and check the number of replicas
-			deployment := &appsv1.Deployment{}
+			deployment := &apps.Deployment{}
 			require.NoError(t, resources.Get(ctx, gatewayName, namespace, deployment))
 			assert.Equal(t, initialReplicas, *deployment.Spec.Replicas)
 
@@ -408,7 +407,7 @@ func TestHTTPRouteFlattening(t *testing.T) {
 				},
 				Spec: gateway.HTTPRouteSpec{
 					CommonRouteSpec: gateway.CommonRouteSpec{
-						ParentRefs: []gateway.ParentRef{{
+						ParentRefs: []gateway.ParentReference{{
 							Name: gateway.ObjectName(gatewayName),
 						}},
 					},
@@ -443,7 +442,7 @@ func TestHTTPRouteFlattening(t *testing.T) {
 				},
 				Spec: gateway.HTTPRouteSpec{
 					CommonRouteSpec: gateway.CommonRouteSpec{
-						ParentRefs: []gateway.ParentRef{{
+						ParentRefs: []gateway.ParentReference{{
 							Name: gateway.ObjectName(gatewayName),
 						}},
 					},
@@ -545,7 +544,7 @@ func TestHTTPMeshService(t *testing.T) {
 				},
 				Spec: gateway.HTTPRouteSpec{
 					CommonRouteSpec: gateway.CommonRouteSpec{
-						ParentRefs: []gateway.ParentRef{{
+						ParentRefs: []gateway.ParentReference{{
 							Name: gateway.ObjectName(gatewayName),
 						}},
 					},
@@ -582,7 +581,7 @@ func TestHTTPMeshService(t *testing.T) {
 				},
 				Spec: gateway.HTTPRouteSpec{
 					CommonRouteSpec: gateway.CommonRouteSpec{
-						ParentRefs: []gateway.ParentRef{{
+						ParentRefs: []gateway.ParentReference{{
 							Name: gateway.ObjectName(gatewayName),
 						}},
 					},
@@ -634,7 +633,7 @@ func TestHTTPMeshService(t *testing.T) {
 				},
 				Spec: gateway.HTTPRouteSpec{
 					CommonRouteSpec: gateway.CommonRouteSpec{
-						ParentRefs: []gateway.ParentRef{{
+						ParentRefs: []gateway.ParentReference{{
 							Name: gateway.ObjectName(gatewayName),
 						}},
 					},
@@ -798,7 +797,7 @@ func TestTCPMeshService(t *testing.T) {
 				},
 				Spec: gateway.TCPRouteSpec{
 					CommonRouteSpec: gateway.CommonRouteSpec{
-						ParentRefs: []gateway.ParentRef{{
+						ParentRefs: []gateway.ParentReference{{
 							Name: gateway.ObjectName(gatewayName),
 						}},
 					},
@@ -849,7 +848,7 @@ func TestTCPMeshService(t *testing.T) {
 				},
 				Spec: gateway.TCPRouteSpec{
 					CommonRouteSpec: gateway.CommonRouteSpec{
-						ParentRefs: []gateway.ParentRef{{
+						ParentRefs: []gateway.ParentReference{{
 							Name: gateway.ObjectName(gatewayName),
 						}},
 					},
@@ -1079,7 +1078,7 @@ func TestReferencePolicyLifecycle(t *testing.T) {
 				},
 				Spec: gateway.HTTPRouteSpec{
 					CommonRouteSpec: gateway.CommonRouteSpec{
-						ParentRefs: []gateway.ParentRef{{
+						ParentRefs: []gateway.ParentReference{{
 							Name:      gateway.ObjectName(gatewayName),
 							Namespace: &gwNamespace,
 						}},
@@ -1125,7 +1124,7 @@ func TestReferencePolicyLifecycle(t *testing.T) {
 				},
 				Spec: gateway.TCPRouteSpec{
 					CommonRouteSpec: gateway.CommonRouteSpec{
-						ParentRefs: []gateway.ParentRef{{
+						ParentRefs: []gateway.ParentReference{{
 							Name:      gateway.ObjectName(gatewayName),
 							Namespace: &gwNamespace,
 						}},
@@ -1431,7 +1430,7 @@ func TestRouteParentRefChange(t *testing.T) {
 				},
 				Spec: gateway.HTTPRouteSpec{
 					CommonRouteSpec: gateway.CommonRouteSpec{
-						ParentRefs: []gateway.ParentRef{{
+						ParentRefs: []gateway.ParentReference{{
 							Name: gateway.ObjectName(firstGatewayName),
 						}},
 					},
@@ -1492,7 +1491,7 @@ func TestRouteParentRefChange(t *testing.T) {
 
 			// Update httpRoute from remote, then add second gateway ParentRef
 			require.NoError(t, resources.Get(ctx, httpRouteName, namespace, httpRoute))
-			httpRoute.Spec.CommonRouteSpec.ParentRefs = []gateway.ParentRef{
+			httpRoute.Spec.CommonRouteSpec.ParentRefs = []gateway.ParentReference{
 				{
 					Name:      gateway.ObjectName(firstGatewayName),
 					Namespace: &gwNamespace,
@@ -1537,7 +1536,7 @@ func TestRouteParentRefChange(t *testing.T) {
 
 			// Update httpRoute from remote, then remove first gateway ParentRef
 			require.NoError(t, resources.Get(ctx, httpRouteName, namespace, httpRoute))
-			httpRoute.Spec.CommonRouteSpec.ParentRefs = []gateway.ParentRef{{
+			httpRoute.Spec.CommonRouteSpec.ParentRefs = []gateway.ParentReference{{
 				Name:      gateway.ObjectName(secondGatewayName),
 				Namespace: &gwNamespace,
 			}}
@@ -1591,7 +1590,7 @@ func gatewayStatusCheck(ctx context.Context, resources *resources.Resources, gat
 
 func deploymentReplicasSetAsExpected(ctx context.Context, resources *resources.Resources, gatewayName, namespace string, expectedReplicas int32) func() bool {
 	return func() bool {
-		deployment := &appsv1.Deployment{}
+		deployment := &apps.Deployment{}
 		if err := resources.Get(ctx, gatewayName, namespace, deployment); err != nil {
 			return false
 		}
@@ -1862,7 +1861,7 @@ func createTCPRoute(ctx context.Context, t *testing.T, resources *resources.Reso
 		},
 		Spec: gateway.TCPRouteSpec{
 			CommonRouteSpec: gateway.CommonRouteSpec{
-				ParentRefs: []gateway.ParentRef{{
+				ParentRefs: []gateway.ParentReference{{
 					Name:        gateway.ObjectName(gatewayName),
 					SectionName: &listenerName,
 				}},

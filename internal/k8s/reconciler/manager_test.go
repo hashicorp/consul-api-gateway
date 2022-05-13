@@ -10,10 +10,11 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
+	"github.com/hashicorp/go-hclog"
+
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient/mocks"
 	storeMocks "github.com/hashicorp/consul-api-gateway/internal/store/mocks"
 	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
-	"github.com/hashicorp/go-hclog"
 )
 
 func testNamespaceMapper(namespace string) string {
@@ -128,7 +129,7 @@ func TestUpsertHTTPRoute(t *testing.T) {
 	require.NoError(t, manager.UpsertHTTPRoute(context.Background(), &gw.HTTPRoute{
 		Spec: gw.HTTPRouteSpec{
 			CommonRouteSpec: gw.CommonRouteSpec{
-				ParentRefs: []gw.ParentRef{{
+				ParentRefs: []gw.ParentReference{{
 					Name: "gateway",
 				}},
 			},

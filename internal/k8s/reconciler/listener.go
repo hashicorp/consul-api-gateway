@@ -351,7 +351,7 @@ func (l *K8sListener) CanBind(ctx context.Context, route store.Route) (bool, err
 	return false, nil
 }
 
-func (l *K8sListener) canBind(ctx context.Context, ref gw.ParentRef, route *K8sRoute) (bool, error) {
+func (l *K8sListener) canBind(ctx context.Context, ref gw.ParentReference, route *K8sRoute) (bool, error) {
 	if l.status.Ready.HasError() {
 		l.logger.Trace("listener not ready, unable to bind", "route", route.ID())
 		return false, nil

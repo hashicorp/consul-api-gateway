@@ -493,7 +493,7 @@ func TestListenerCanBind(t *testing.T) {
 	canBind, err = listener.CanBind(context.Background(), NewK8sRoute(&gw.HTTPRoute{
 		Spec: gw.HTTPRouteSpec{
 			CommonRouteSpec: gw.CommonRouteSpec{
-				ParentRefs: []gw.ParentRef{{
+				ParentRefs: []gw.ParentReference{{
 					Name: "gateway",
 				}},
 			},
@@ -516,7 +516,7 @@ func TestListenerCanBind(t *testing.T) {
 	canBind, err = listener.CanBind(context.Background(), NewK8sRoute(&gw.HTTPRoute{
 		Spec: gw.HTTPRouteSpec{
 			CommonRouteSpec: gw.CommonRouteSpec{
-				ParentRefs: []gw.ParentRef{{
+				ParentRefs: []gw.ParentReference{{
 					Name: "gateway",
 				}},
 			},
@@ -553,7 +553,7 @@ func TestListenerCanBind_RouteKind(t *testing.T) {
 		TypeMeta: routeMeta,
 		Spec: gw.UDPRouteSpec{
 			CommonRouteSpec: gw.CommonRouteSpec{
-				ParentRefs: []gw.ParentRef{{
+				ParentRefs: []gw.ParentReference{{
 					Name: "gateway",
 				}},
 			},
@@ -579,7 +579,7 @@ func TestListenerCanBind_RouteKind(t *testing.T) {
 		TypeMeta: routeMeta,
 		Spec: gw.UDPRouteSpec{
 			CommonRouteSpec: gw.CommonRouteSpec{
-				ParentRefs: []gw.ParentRef{{
+				ParentRefs: []gw.ParentReference{{
 					Name:        "gateway",
 					SectionName: &name,
 				}},
@@ -626,7 +626,7 @@ func TestListenerCanBind_AllowedNamespaces(t *testing.T) {
 		TypeMeta: routeMeta,
 		Spec: gw.HTTPRouteSpec{
 			CommonRouteSpec: gw.CommonRouteSpec{
-				ParentRefs: []gw.ParentRef{{
+				ParentRefs: []gw.ParentReference{{
 					Name:        "gateway",
 					Namespace:   &other,
 					SectionName: &name,
@@ -641,7 +641,7 @@ func TestListenerCanBind_AllowedNamespaces(t *testing.T) {
 		TypeMeta: routeMeta,
 		Spec: gw.HTTPRouteSpec{
 			CommonRouteSpec: gw.CommonRouteSpec{
-				ParentRefs: []gw.ParentRef{{
+				ParentRefs: []gw.ParentReference{{
 					Name:      "gateway",
 					Namespace: &other,
 				}},
@@ -680,7 +680,7 @@ func TestListenerCanBind_AllowedNamespaces(t *testing.T) {
 		TypeMeta: routeMeta,
 		Spec: gw.HTTPRouteSpec{
 			CommonRouteSpec: gw.CommonRouteSpec{
-				ParentRefs: []gw.ParentRef{{
+				ParentRefs: []gw.ParentReference{{
 					Name:        "gateway",
 					Namespace:   &other,
 					SectionName: &name,
@@ -695,7 +695,7 @@ func TestListenerCanBind_AllowedNamespaces(t *testing.T) {
 		TypeMeta: routeMeta,
 		Spec: gw.HTTPRouteSpec{
 			CommonRouteSpec: gw.CommonRouteSpec{
-				ParentRefs: []gw.ParentRef{{
+				ParentRefs: []gw.ParentReference{{
 					Name:      "gateway",
 					Namespace: &other,
 				}},
@@ -734,7 +734,7 @@ func TestListenerCanBind_HostnameMatch(t *testing.T) {
 		TypeMeta: routeMeta,
 		Spec: gw.HTTPRouteSpec{
 			CommonRouteSpec: gw.CommonRouteSpec{
-				ParentRefs: []gw.ParentRef{{
+				ParentRefs: []gw.ParentReference{{
 					Name:        "gateway",
 					SectionName: &name,
 				}},
@@ -750,7 +750,7 @@ func TestListenerCanBind_HostnameMatch(t *testing.T) {
 		TypeMeta: routeMeta,
 		Spec: gw.HTTPRouteSpec{
 			CommonRouteSpec: gw.CommonRouteSpec{
-				ParentRefs: []gw.ParentRef{{
+				ParentRefs: []gw.ParentReference{{
 					Name: "gateway",
 				}},
 			},
@@ -781,7 +781,7 @@ func TestListenerCanBind_NameMatch(t *testing.T) {
 	canBind, err := listener.CanBind(context.Background(), NewK8sRoute(&gw.HTTPRoute{
 		Spec: gw.HTTPRouteSpec{
 			CommonRouteSpec: gw.CommonRouteSpec{
-				ParentRefs: []gw.ParentRef{{
+				ParentRefs: []gw.ParentReference{{
 					Name:        "gateway",
 					SectionName: &otherName,
 				}},

@@ -344,7 +344,7 @@ func (r *K8sRoute) Resolve(listener store.Listener) *core.ResolvedRoute {
 	}
 }
 
-func (r *K8sRoute) Parents() []gw.ParentRef {
+func (r *K8sRoute) Parents() []gw.ParentReference {
 	// filter for this controller
 	switch route := r.Route.(type) {
 	case *gw.HTTPRoute:

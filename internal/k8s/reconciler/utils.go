@@ -273,8 +273,8 @@ func asJSON(item interface{}) string {
 	return string(data)
 }
 
-func parseParent(stringified string) gw.ParentRef {
-	var ref gw.ParentRef
+func parseParent(stringified string) gw.ParentReference {
+	var ref gw.ParentReference
 	if err := json.Unmarshal([]byte(stringified), &ref); err != nil {
 		// everything passed to this internally should be
 		// deserializable, if something is passed to it that

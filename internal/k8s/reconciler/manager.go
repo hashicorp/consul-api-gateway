@@ -280,7 +280,7 @@ func (m *GatewayReconcileManager) deleteUnmanagedRoute(ctx context.Context, rout
 	return true, nil
 }
 
-func (m *GatewayReconcileManager) managedByCachedGatewaysForRoute(namespace string, parents []gw.ParentRef) bool {
+func (m *GatewayReconcileManager) managedByCachedGatewaysForRoute(namespace string, parents []gw.ParentReference) bool {
 	for _, parent := range parents {
 		name, isGateway := utils.ReferencesGateway(namespace, parent)
 		if isGateway {
