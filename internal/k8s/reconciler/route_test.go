@@ -57,7 +57,7 @@ func TestRouteCommonRouteSpec(t *testing.T) {
 	}
 
 	expected := gw.CommonRouteSpec{
-		ParentRefs: []gw.ParentRef{{
+		ParentRefs: []gw.ParentReference{{
 			Name: "expected",
 		}},
 	}
@@ -91,7 +91,7 @@ func TestRouteFilterParentStatuses(t *testing.T) {
 	route := NewK8sRoute(&gw.HTTPRoute{
 		Spec: gw.HTTPRouteSpec{
 			CommonRouteSpec: gw.CommonRouteSpec{
-				ParentRefs: []gw.ParentRef{{
+				ParentRefs: []gw.ParentReference{{
 					Name: "expected",
 				}, {
 					Name: "other",
@@ -101,17 +101,17 @@ func TestRouteFilterParentStatuses(t *testing.T) {
 		Status: gw.HTTPRouteStatus{
 			RouteStatus: gw.RouteStatus{
 				Parents: []gw.RouteParentStatus{{
-					ParentRef: gw.ParentRef{
+					ParentRef: gw.ParentReference{
 						Name: "expected",
 					},
 					ControllerName: "expected",
 				}, {
-					ParentRef: gw.ParentRef{
+					ParentRef: gw.ParentReference{
 						Name: "expected",
 					},
 					ControllerName: "other",
 				}, {
-					ParentRef: gw.ParentRef{
+					ParentRef: gw.ParentReference{
 						Name: "other",
 					},
 					ControllerName: "other",
@@ -152,7 +152,7 @@ func TestRouteMergedStatusAndBinding(t *testing.T) {
 	inner := &gw.TLSRoute{
 		Spec: gw.TLSRouteSpec{
 			CommonRouteSpec: gw.CommonRouteSpec{
-				ParentRefs: []gw.ParentRef{{
+				ParentRefs: []gw.ParentReference{{
 					Name: "expected",
 				}, {
 					Name: "other",
@@ -162,17 +162,17 @@ func TestRouteMergedStatusAndBinding(t *testing.T) {
 		Status: gw.TLSRouteStatus{
 			RouteStatus: gw.RouteStatus{
 				Parents: []gw.RouteParentStatus{{
-					ParentRef: gw.ParentRef{
+					ParentRef: gw.ParentReference{
 						Name: "expected",
 					},
 					ControllerName: "expected",
 				}, {
-					ParentRef: gw.ParentRef{
+					ParentRef: gw.ParentReference{
 						Name: "expected",
 					},
 					ControllerName: "other",
 				}, {
-					ParentRef: gw.ParentRef{
+					ParentRef: gw.ParentReference{
 						Name: "other",
 					},
 					ControllerName: "other",
@@ -304,7 +304,7 @@ func TestRouteNeedsStatusUpdate(t *testing.T) {
 	route := NewK8sRoute(&gw.TCPRoute{
 		Spec: gw.TCPRouteSpec{
 			CommonRouteSpec: gw.CommonRouteSpec{
-				ParentRefs: []gw.ParentRef{{
+				ParentRefs: []gw.ParentReference{{
 					Name: "expected",
 				}, {
 					Name: "other",
@@ -314,17 +314,17 @@ func TestRouteNeedsStatusUpdate(t *testing.T) {
 		Status: gw.TCPRouteStatus{
 			RouteStatus: gw.RouteStatus{
 				Parents: []gw.RouteParentStatus{{
-					ParentRef: gw.ParentRef{
+					ParentRef: gw.ParentReference{
 						Name: "expected",
 					},
 					ControllerName: "expected",
 				}, {
-					ParentRef: gw.ParentRef{
+					ParentRef: gw.ParentReference{
 						Name: "expected",
 					},
 					ControllerName: "other",
 				}, {
-					ParentRef: gw.ParentRef{
+					ParentRef: gw.ParentReference{
 						Name: "other",
 					},
 					ControllerName: "other",
@@ -363,7 +363,7 @@ func TestRouteSetStatus(t *testing.T) {
 
 	expected := gw.RouteStatus{
 		Parents: []gw.RouteParentStatus{{
-			ParentRef: gw.ParentRef{
+			ParentRef: gw.ParentReference{
 				Name: "expected",
 			},
 		}},
@@ -406,7 +406,7 @@ func TestRouteParents(t *testing.T) {
 	}
 
 	expected := gw.CommonRouteSpec{
-		ParentRefs: []gw.ParentRef{{
+		ParentRefs: []gw.ParentReference{{
 			Name: "expected",
 		}},
 	}
@@ -741,7 +741,7 @@ func TestRouteSyncStatus(t *testing.T) {
 	inner := &gw.TLSRoute{
 		Spec: gw.TLSRouteSpec{
 			CommonRouteSpec: gw.CommonRouteSpec{
-				ParentRefs: []gw.ParentRef{{
+				ParentRefs: []gw.ParentReference{{
 					Name: "expected",
 				}, {
 					Name: "other",
@@ -751,17 +751,17 @@ func TestRouteSyncStatus(t *testing.T) {
 		Status: gw.TLSRouteStatus{
 			RouteStatus: gw.RouteStatus{
 				Parents: []gw.RouteParentStatus{{
-					ParentRef: gw.ParentRef{
+					ParentRef: gw.ParentReference{
 						Name: "expected",
 					},
 					ControllerName: "expected",
 				}, {
-					ParentRef: gw.ParentRef{
+					ParentRef: gw.ParentReference{
 						Name: "expected",
 					},
 					ControllerName: "other",
 				}, {
-					ParentRef: gw.ParentRef{
+					ParentRef: gw.ParentReference{
 						Name: "other",
 					},
 					ControllerName: "other",

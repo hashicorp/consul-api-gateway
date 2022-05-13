@@ -345,7 +345,7 @@ func TestParentStatusEqual(t *testing.T) {
 		ControllerName: "other",
 	}))
 	require.False(t, parentStatusEqual(gw.RouteParentStatus{}, gw.RouteParentStatus{
-		ParentRef: gw.ParentRef{
+		ParentRef: gw.ParentReference{
 			Name: "other",
 		},
 	}))

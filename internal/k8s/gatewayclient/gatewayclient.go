@@ -52,7 +52,7 @@ type Client interface {
 	// relationships
 
 	HasManagedDeployment(ctx context.Context, gw *gateway.Gateway) (bool, error)
-	IsManagedRoute(ctx context.Context, namespace string, parents []gateway.ParentRef) (bool, error)
+	IsManagedRoute(ctx context.Context, namespace string, parents []gateway.ParentReference) (bool, error)
 	GetConfigForGatewayClassName(ctx context.Context, name string) (apigwv1alpha1.GatewayClassConfig, bool, error)
 	DeploymentForGateway(ctx context.Context, gw *gateway.Gateway) (*apps.Deployment, error)
 	SetControllerOwnership(owner, object client.Object) error
@@ -480,7 +480,7 @@ func (g *gatewayClient) GetConfigForGatewayClassName(ctx context.Context, name s
 	return apigwv1alpha1.GatewayClassConfig{}, true, nil
 }
 
-func (g *gatewayClient) IsManagedRoute(ctx context.Context, namespace string, parents []gateway.ParentRef) (bool, error) {
+func (g *gatewayClient) IsManagedRoute(ctx context.Context, namespace string, parents []gateway.ParentReference) (bool, error) {
 	// we look up a list of deployments that are managed by us, and try and check our references based on them.
 	list := &apps.DeploymentList{}
 	if err := g.Client.List(ctx, list, client.MatchingLabels(map[string]string{

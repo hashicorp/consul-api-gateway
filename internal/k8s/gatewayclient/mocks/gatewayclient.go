@@ -425,7 +425,7 @@ func (mr *MockClientMockRecorder) HasManagedDeployment(ctx, gw interface{}) *gom
 }
 
 // IsManagedRoute mocks base method.
-func (m *MockClient) IsManagedRoute(ctx context.Context, namespace string, parents []v1alpha2.ParentRef) (bool, error) {
+func (m *MockClient) IsManagedRoute(ctx context.Context, namespace string, parents []v1alpha2.ParentReference) (bool, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IsManagedRoute", ctx, namespace, parents)
 	ret0, _ := ret[0].(bool)

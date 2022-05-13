@@ -10,7 +10,7 @@ var (
 	gatewayKind  = gw.Kind("Gateway")
 )
 
-func ReferencesGateway(namespace string, ref gw.ParentRef) (types.NamespacedName, bool) {
+func ReferencesGateway(namespace string, ref gw.ParentReference) (types.NamespacedName, bool) {
 	if ref.Group != nil && *ref.Group != gatewayGroup {
 		return types.NamespacedName{}, false
 	}
