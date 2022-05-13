@@ -100,8 +100,8 @@ jobs:
           kubectl kustomize ./ --output ./base/manifests.yaml
 
       - name: Run tests
-        working-directory: "gateway-api/conformance"
-        run: go test -v -timeout 10m ./ --gateway-class consul-api-gateway
+        working-directory: "consul-api-gateway/internal/testing/conformance"
+        run: go test -v -timeout 10m ./
 
       - name: Setup tmate session
         uses: mxschmitt/action-tmate@v3
