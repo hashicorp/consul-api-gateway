@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"os"
@@ -840,7 +841,7 @@ func TestTCPMeshService(t *testing.T) {
 			checkPort := e2e.TCPPort(ctx)
 
 			// only service 4 should be routable as we don't support routes with multiple rules or backend refs for TCP
-			checkTCPRoute(t, checkPort, serviceFour.Name, "service four not routable in allotted time")
+			checkTCPRoute(t, checkPort, serviceFour.Name, false, "service four not routable in allotted time")
 
 			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionInSync), checkTimeout, checkInterval, "gateway not synced in the allotted time")
 			return ctx
@@ -941,7 +942,7 @@ func TestTCPMeshService(t *testing.T) {
 
 			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionInSync), checkTimeout, checkInterval, "gateway not synced in the allotted time")
 
-			require.Eventually(t, listenerStatusCheck(ctx, resources, gatewayName, namespace, conditionReady), checkTimeout, checkInterval, "listeners not ready in the allotted time")
+			require.Eventually(t, listenerStatusCheck(ctx, resources, gatewayName, namespace, createListenerStatusConditionsFnCheck(conditionReady)), checkTimeout, checkInterval, "listeners not ready in the allotted time")
 
 			return ctx
 		})
@@ -976,12 +977,7 @@ func TestReferencePolicyLifecycle(t *testing.T) {
 
 			// Allow routes to bind from a different namespace for testing
 			// cross-namespace ReferencePolicy enforcement
-			all := gateway.NamespacesFromAll
-			allowedRoutes := &gateway.AllowedRoutes{
-				Namespaces: &gateway.RouteNamespaces{
-					From: &all,
-				},
-			}
+			fromSelector := gateway.NamespacesFromSelector
 
 			gwNamespace := gateway.Namespace(namespace)
 			gw := createGateway(ctx, t, resources, gatewayName, gc, []gateway.Listener{
@@ -995,15 +991,35 @@ func TestReferencePolicyLifecycle(t *testing.T) {
 							Namespace: &gwNamespace,
 						}},
 					},
-					// TODO: narrow this to httpRouteNamespace Selector instead of NamespacesFromAll
-					AllowedRoutes: allowedRoutes,
+					AllowedRoutes: &gateway.AllowedRoutes{
+						Namespaces: &gateway.RouteNamespaces{
+							From: &fromSelector,
+							Selector: &meta.LabelSelector{
+								MatchExpressions: []meta.LabelSelectorRequirement{{
+									Key:      "kubernetes.io/metadata.name",
+									Operator: "In",
+									Values:   []string{httpRouteNamespace},
+								}},
+							},
+						},
+					},
 				},
 				{
 					Name:     "tcp",
 					Port:     gateway.PortNumber(tcpCheckPort),
 					Protocol: gateway.TCPProtocolType,
-					// TODO: narrow this to tcpRouteNamespace Selector instead of NamespacesFromAll
-					AllowedRoutes: allowedRoutes,
+					AllowedRoutes: &gateway.AllowedRoutes{
+						Namespaces: &gateway.RouteNamespaces{
+							From: &fromSelector,
+							Selector: &meta.LabelSelector{
+								MatchExpressions: []meta.LabelSelectorRequirement{{
+									Key:      "kubernetes.io/metadata.name",
+									Operator: "In",
+									Values:   []string{tcpRouteNamespace},
+								}},
+							},
+						},
+					},
 				},
 			})
 			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionReady), checkTimeout, checkInterval, "no gateway found in the allotted time")
@@ -1197,17 +1213,51 @@ func TestReferencePolicyLifecycle(t *testing.T) {
 			), checkTimeout, checkInterval, "TCPRoute status not set in allotted time")
 
 			// Check that TCPRoute is successfully resolved and routing traffic
-			checkTCPRoute(t, tcpCheckPort, serviceTwo.Name, "service two not routable in allotted time")
+			checkTCPRoute(t, tcpCheckPort, serviceTwo.Name, false, "service two not routable in allotted time")
 
 			// Delete TCPRoute ReferencePolicy, check for RefNotPermitted again
+			// Check that Gateway has cleaned up stale route and is no longer routing traffic
 			err = resources.Delete(ctx, tcpRouteReferencePolicy)
 			require.NoError(t, err)
 			require.Eventually(t, tcpRouteStatusCheckRefNotPermitted, checkTimeout, checkInterval, "TCPRoute status not set in allotted time")
+			require.Eventually(t, listenerStatusCheck(
+				ctx,
+				resources,
+				gatewayName,
+				namespace,
+				func(actual gateway.ListenerStatus) bool {
+					if actual.Name == "tcp" && actual.AttachedRoutes == 0 {
+						return true
+					}
+					return false
+				},
+			), checkTimeout, checkInterval, "listeners not ready in the allotted time")
+			// The following error is logged but doesn't seem to get propagated up to be able to check it properly
+			// [WARN]  [core]grpc: Server.Serve failed to complete security handshake: remote error: tls: unknown certificate authority
+			checkTCPRoute(t, tcpCheckPort, "", true, "service two still routable in allotted time")
 
 			// Delete HTTPRoute ReferencePolicy, check for RefNotPermitted again
+			// Check that Gateway has cleaned up stale route and is no longer routing traffic
 			err = resources.Delete(ctx, httpRouteReferencePolicy)
 			require.NoError(t, err)
 			require.Eventually(t, httpRouteStatusCheckRefNotPermitted, checkTimeout, checkInterval, "HTTPRoute status not set in allotted time")
+			require.Eventually(t, listenerStatusCheck(
+				ctx,
+				resources,
+				gatewayName,
+				namespace,
+				func(actual gateway.ListenerStatus) bool {
+					if actual.Name == "https" && actual.AttachedRoutes == 0 {
+						return true
+					}
+					return false
+				},
+			), checkTimeout, checkInterval, "listeners not ready in the allotted time")
+			// TODO: when implementation is updated, this should be refactored to check for a 404 status code
+			// instead of a connection error
+			checkRouteError(t, httpCheckPort, "/", map[string]string{
+				"Host": "test.foo",
+			}, "service one still routable in allotted time")
 
 			err = resources.Delete(ctx, gw)
 			require.NoError(t, err)
@@ -1255,7 +1305,7 @@ func gatewayClassStatusCheck(ctx context.Context, resources *resources.Resources
 	}
 }
 
-func listenerStatusCheck(ctx context.Context, resources *resources.Resources, gatewayName, namespace string, checkFn func([]meta.Condition) bool) func() bool {
+func listenerStatusCheck(ctx context.Context, resources *resources.Resources, gatewayName, namespace string, checkFn func(gateway.ListenerStatus) bool) func() bool {
 	return func() bool {
 		updated := &gateway.Gateway{}
 		if err := resources.Get(ctx, gatewayName, namespace, updated); err != nil {
@@ -1263,12 +1313,12 @@ func listenerStatusCheck(ctx context.Context, resources *resources.Resources, ga
 		}
 
 		for _, listener := range updated.Status.Listeners {
-			if ok := checkFn(listener.Conditions); !ok {
-				return false
+			if ok := checkFn(listener); ok {
+				return true
 			}
 		}
 
-		return true
+		return false
 	}
 }
 
@@ -1299,6 +1349,16 @@ func tcpRouteStatusCheck(ctx context.Context, resources *resources.Resources, ga
 			}
 		}
 		return false
+	}
+}
+
+func createListenerStatusConditionsCheck(expected []meta.Condition) func(gateway.ListenerStatus) bool {
+	return createListenerStatusConditionsFnCheck(createConditionsCheck(expected))
+}
+
+func createListenerStatusConditionsFnCheck(checkFn func([]meta.Condition) bool) func(gateway.ListenerStatus) bool {
+	return func(actual gateway.ListenerStatus) bool {
+		return checkFn(actual.Conditions)
 	}
 }
 
@@ -1539,16 +1599,20 @@ func checkRoute(t *testing.T, port int, path, expected string, headers map[strin
 		}
 
 		resp, err := client.Do(req)
+		log.Print("RESPONSE_ERR: ", err)
 		if err != nil {
 			return false
 		}
 		defer resp.Body.Close()
 
 		data, err := io.ReadAll(resp.Body)
+		log.Print("READALL_DATA: ", string(data))
+		log.Print("READALL_ERR: ", err)
 		if err != nil {
 			return false
 		}
 
+		log.Print("STATUS_CODE: ", resp.StatusCode)
 		if resp.StatusCode != http.StatusOK {
 			return false
 		}
@@ -1557,7 +1621,32 @@ func checkRoute(t *testing.T, port int, path, expected string, headers map[strin
 	}, checkTimeout, checkInterval, message)
 }
 
-func checkTCPRoute(t *testing.T, port int, expected string, message string) {
+func checkRouteError(t *testing.T, port int, path string, headers map[string]string, message string) {
+	t.Helper()
+
+	require.Eventually(t, func() bool {
+		client := &http.Client{Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		}}
+		req, err := http.NewRequest("GET", fmt.Sprintf("https://localhost:%d%s", port, path), nil)
+		if err != nil {
+			return false
+		}
+
+		for k, v := range headers {
+			req.Header.Set(k, v)
+
+			if k == "Host" {
+				req.Host = v
+			}
+		}
+
+		_, err = client.Do(req)
+		return err != nil
+	}, checkTimeout, checkInterval, message)
+}
+
+func checkTCPRoute(t *testing.T, port int, expected string, exact bool, message string) {
 	t.Helper()
 
 	require.Eventually(t, func() bool {
@@ -1566,13 +1655,20 @@ func checkTCPRoute(t *testing.T, port int, expected string, message string) {
 			Port: port,
 		})
 		if err != nil {
+			log.Print("TCP_DIAL_ERROR: ", err)
 			return false
 		}
 		data, err := io.ReadAll(conn)
 		if err != nil {
+			log.Print("TCP_READALL_ERROR: ", err)
 			return false
 		}
-		return strings.HasPrefix(string(data), expected)
+		log.Print("TCP_READALL_DATA: ", string(data))
+		if exact {
+			return string(data) == expected
+		} else {
+			return strings.HasPrefix(string(data), expected)
+		}
 	}, checkTimeout, checkInterval, message)
 }
 
