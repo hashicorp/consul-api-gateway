@@ -1,4 +1,5 @@
 global:
+  imageK8S: "docker.mirror.hashicorp.services/hashicorpdev/consul-k8s-control-plane:latest"
   tls:
     enabled: true
 server:
