@@ -83,21 +83,23 @@ func init() {
 }
 
 type consulTestEnvironment struct {
-	ca                      []byte
-	consulClient            *api.Client
-	token                   string
-	policy                  *api.ACLPolicy
-	httpPort                int
-	httpFlattenedPort       int
-	httpReferencePolicyPort int
-	tcpReferencePolicyPort  int
-	grpcPort                int
-	extraHTTPPort           int
-	extraTCPPort            int
-	extraTCPTLSPort         int
-	extraTCPTLSPortTwo      int
-	namespace               string
-	ip                      string
+	ca                               []byte
+	consulClient                     *api.Client
+	token                            string
+	policy                           *api.ACLPolicy
+	httpPort                         int
+	httpFlattenedPort                int
+	httpReferencePolicyPort          int
+	tcpReferencePolicyPort           int
+	parentRefChangeFirstGatewayPort  int
+	parentRefChangeSecondGatewayPort int
+	grpcPort                         int
+	extraHTTPPort                    int
+	extraTCPPort                     int
+	extraTCPTLSPort                  int
+	extraTCPTLSPortTwo               int
+	namespace                        string
+	ip                               string
 }
 
 func CreateTestConsulContainer(name, namespace string) env.Func {
@@ -113,6 +115,8 @@ func CreateTestConsulContainer(name, namespace string) env.Func {
 		httpFlattenedPort := cluster.httpsFlattenedPort
 		httpReferencePolicyPort := cluster.httpsReferencePolicyPort
 		tcpReferencePolicyPort := cluster.tcpReferencePolicyPort
+		parentRefChangeFirstGatewayPort := cluster.parentRefChangeFirstGatewayPort
+		parentRefChangeSecondGatewayPort := cluster.parentRefChangeSecondGatewayPort
 		grpcPort := cluster.grpcPort
 		extraTCPPort := cluster.extraTCPPort
 		extraTCPTLSPort := cluster.extraTCPTLSPort
@@ -201,18 +205,20 @@ func CreateTestConsulContainer(name, namespace string) env.Func {
 		}
 
 		env := &consulTestEnvironment{
-			ca:                      rootCA.CertBytes,
-			consulClient:            consulClient,
-			httpPort:                httpsPort,
-			httpFlattenedPort:       httpFlattenedPort,
-			httpReferencePolicyPort: httpReferencePolicyPort,
-			tcpReferencePolicyPort:  tcpReferencePolicyPort,
-			grpcPort:                grpcPort,
-			extraHTTPPort:           extraHTTPPort,
-			extraTCPPort:            extraTCPPort,
-			extraTCPTLSPort:         extraTCPTLSPort,
-			extraTCPTLSPortTwo:      extraTCPTLSPortTwo,
-			ip:                      ip,
+			ca:                               rootCA.CertBytes,
+			consulClient:                     consulClient,
+			httpPort:                         httpsPort,
+			httpFlattenedPort:                httpFlattenedPort,
+			httpReferencePolicyPort:          httpReferencePolicyPort,
+			tcpReferencePolicyPort:           tcpReferencePolicyPort,
+			parentRefChangeFirstGatewayPort:  parentRefChangeFirstGatewayPort,
+			parentRefChangeSecondGatewayPort: parentRefChangeSecondGatewayPort,
+			grpcPort:                         grpcPort,
+			extraHTTPPort:                    extraHTTPPort,
+			extraTCPPort:                     extraTCPPort,
+			extraTCPTLSPort:                  extraTCPTLSPort,
+			extraTCPTLSPortTwo:               extraTCPTLSPortTwo,
+			ip:                               ip,
 		}
 
 		return context.WithValue(ctx, consulTestContextKey, env), nil
@@ -507,6 +513,22 @@ func TCPReferencePolicyPort(ctx context.Context) int {
 		panic("must run this with an integration test that has called CreateTestConsul")
 	}
 	return consulEnvironment.(*consulTestEnvironment).tcpReferencePolicyPort
+}
+
+func ParentRefChangeFirstGatewayPort(ctx context.Context) int {
+	consulEnvironment := ctx.Value(consulTestContextKey)
+	if consulEnvironment == nil {
+		panic("must run this with an integration test that has called CreateTestConsul")
+	}
+	return consulEnvironment.(*consulTestEnvironment).parentRefChangeFirstGatewayPort
+}
+
+func ParentRefChangeSecondGatewayPort(ctx context.Context) int {
+	consulEnvironment := ctx.Value(consulTestContextKey)
+	if consulEnvironment == nil {
+		panic("must run this with an integration test that has called CreateTestConsul")
+	}
+	return consulEnvironment.(*consulTestEnvironment).parentRefChangeSecondGatewayPort
 }
 
 func ConsulHTTPPort(ctx context.Context) int {

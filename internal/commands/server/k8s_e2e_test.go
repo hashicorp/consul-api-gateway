@@ -19,6 +19,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slices"
 	apps "k8s.io/api/apps/v1"
 	core "k8s.io/api/core/v1"
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -1225,12 +1226,7 @@ func TestReferencePolicyLifecycle(t *testing.T) {
 				resources,
 				gatewayName,
 				namespace,
-				func(actual gateway.ListenerStatus) bool {
-					if actual.Name == "tcp" && actual.AttachedRoutes == 0 {
-						return true
-					}
-					return false
-				},
+				listenerAttachedRoutes(0, "tcp"),
 			), checkTimeout, checkInterval, "listeners not ready in the allotted time")
 			// The following error is logged but doesn't seem to get propagated up to be able to check it properly
 			// [WARN]  [core]grpc: Server.Serve failed to complete security handshake: remote error: tls: unknown certificate authority
@@ -1246,12 +1242,7 @@ func TestReferencePolicyLifecycle(t *testing.T) {
 				resources,
 				gatewayName,
 				namespace,
-				func(actual gateway.ListenerStatus) bool {
-					if actual.Name == "https" && actual.AttachedRoutes == 0 {
-						return true
-					}
-					return false
-				},
+				listenerAttachedRoutes(0, "https"),
 			), checkTimeout, checkInterval, "listeners not ready in the allotted time")
 			// TODO: when implementation is updated, this should be refactored to check for a 404 status code
 			// instead of a connection error
@@ -1261,6 +1252,147 @@ func TestReferencePolicyLifecycle(t *testing.T) {
 
 			err = resources.Delete(ctx, gw)
 			require.NoError(t, err)
+
+			return ctx
+		})
+
+	testenv.Test(t, feature.Feature())
+}
+
+func TestRouteParentRefChange(t *testing.T) {
+	feature := features.New("route parentref change").
+		Assess("gateway behavior on route parentref change", func(ctx context.Context, t *testing.T, cfg *envconf.Config) context.Context {
+			serviceOne, err := e2e.DeployHTTPMeshService(ctx, cfg)
+			require.NoError(t, err)
+
+			namespace := e2e.Namespace(ctx)
+			gwNamespace := gateway.Namespace(namespace)
+			resources := cfg.Client().Resources(namespace)
+
+			// Create a GatewayClassConfig
+			_, gc := createGatewayClass(ctx, t, cfg, 1)
+			require.Eventually(t, gatewayClassStatusCheck(ctx, resources, gc.Name, namespace, conditionAccepted), 30*time.Second, checkInterval, "gatewayclass not accepted in the allotted time")
+
+			// Create a Gateway and wait for it to be ready
+			firstGatewayName := envconf.RandomName("gw", 16)
+			firstGatewayCheckPort := e2e.ParentRefChangeFirstGatewayPort(ctx)
+			firstGateway := createGateway(
+				ctx,
+				t,
+				cfg,
+				firstGatewayName,
+				gc,
+				[]gateway.Listener{createHTTPSListener(ctx, t, gateway.PortNumber(firstGatewayCheckPort))},
+			)
+			require.Eventually(t, gatewayStatusCheck(ctx, resources, firstGatewayName, namespace, conditionReady), 30*time.Second, checkInterval, "no gateway found in the allotted time")
+
+			// Create route with ParentRef targeting first gateway
+			httpRouteName := envconf.RandomName("httproute", 16)
+			httpPort := gateway.PortNumber(serviceOne.Spec.Ports[0].Port)
+			httpRoute := &gateway.HTTPRoute{
+				ObjectMeta: meta.ObjectMeta{
+					Name:      httpRouteName,
+					Namespace: namespace,
+				},
+				Spec: gateway.HTTPRouteSpec{
+					CommonRouteSpec: gateway.CommonRouteSpec{
+						ParentRefs: []gateway.ParentRef{{
+							Name: gateway.ObjectName(firstGatewayName),
+						}},
+					},
+					Rules: []gateway.HTTPRouteRule{{
+						BackendRefs: []gateway.HTTPBackendRef{{
+							BackendRef: gateway.BackendRef{
+								BackendObjectReference: gateway.BackendObjectReference{
+									Name: gateway.ObjectName(serviceOne.Name),
+									Port: &httpPort,
+								},
+							},
+						}},
+					}},
+				},
+			}
+			err = resources.Create(ctx, httpRoute)
+			require.NoError(t, err)
+
+			// Check that route binds to listener successfully
+			require.Eventually(t, httpRouteStatusCheck(
+				ctx,
+				resources,
+				firstGatewayName,
+				httpRouteName,
+				namespace,
+				createConditionsCheck([]meta.Condition{
+					{Type: "Accepted", Status: "True"},
+					{Type: "ResolvedRefs", Status: "True", Reason: "ResolvedRefs"},
+				}),
+			), checkTimeout, checkInterval, "HTTPRoute status not set in allotted time")
+			require.Eventually(t, listenerStatusCheck(
+				ctx,
+				resources,
+				firstGatewayName,
+				namespace,
+				listenerAttachedRoutes(1),
+			), checkTimeout, checkInterval, "listeners not ready in the allotted time")
+
+			// Check that HTTPRoute is successfully resolved and routing traffic
+			checkRoute(t, firstGatewayCheckPort, "/", serviceOne.Name, nil, "service one not routable in allotted time")
+
+			// Create a second Gateway and wait for it to be ready
+			secondGatewayName := envconf.RandomName("gw", 16)
+			secondGatewayCheckPort := e2e.ParentRefChangeSecondGatewayPort(ctx)
+			secondGateway := createGateway(
+				ctx,
+				t,
+				cfg,
+				secondGatewayName,
+				gc,
+				[]gateway.Listener{createHTTPSListener(ctx, t, gateway.PortNumber(secondGatewayCheckPort))},
+			)
+			require.Eventually(t, gatewayStatusCheck(ctx, resources, secondGatewayName, namespace, conditionReady), 30*time.Second, checkInterval, "no gateway found in the allotted time")
+
+			// Update httpRoute from remote, then switch ParentRef
+			require.NoError(t, resources.Get(ctx, httpRouteName, namespace, httpRoute))
+			httpRoute.Spec.CommonRouteSpec.ParentRefs = []gateway.ParentRef{{
+				Name:      gateway.ObjectName(secondGatewayName),
+				Namespace: &gwNamespace,
+			}}
+			require.NoError(t, resources.Update(ctx, httpRoute))
+
+			// Check that route binds to second gateway listener successfully
+			require.Eventually(t, httpRouteStatusCheck(
+				ctx,
+				resources,
+				secondGatewayName,
+				httpRouteName,
+				namespace,
+				conditionAccepted,
+			), checkTimeout, checkInterval, "HTTPRoute status not set in allotted time")
+			require.Eventually(t, listenerStatusCheck(
+				ctx,
+				resources,
+				secondGatewayName,
+				namespace,
+				listenerAttachedRoutes(1),
+			), checkTimeout, checkInterval, "listeners not ready in the allotted time")
+
+			// Check that route unbinds from first gateway listener successfully
+			require.Eventually(t, func() bool {
+				updated := &gateway.HTTPRoute{}
+				if err := resources.Get(ctx, httpRouteName, namespace, updated); err != nil {
+					return false
+				}
+				firstGatewayParentRefFound := false
+				for _, status := range updated.Status.Parents {
+					if string(status.ParentRef.Name) == firstGatewayName {
+						firstGatewayParentRefFound = true
+					}
+				}
+				return !firstGatewayParentRefFound
+			}, checkTimeout, checkInterval, "HTTPRoute status not unset in allotted time")
+
+			assert.NoError(t, resources.Delete(ctx, firstGateway))
+			assert.NoError(t, resources.Delete(ctx, secondGateway))
 
 			return ctx
 		})
@@ -1359,6 +1491,21 @@ func createListenerStatusConditionsCheck(expected []meta.Condition) func(gateway
 func createListenerStatusConditionsFnCheck(checkFn func([]meta.Condition) bool) func(gateway.ListenerStatus) bool {
 	return func(actual gateway.ListenerStatus) bool {
 		return checkFn(actual.Conditions)
+	}
+}
+
+func listenerAttachedRoutes(expectedRoutes int32, listenerNames ...string) func(gateway.ListenerStatus) bool {
+	return func(actual gateway.ListenerStatus) bool {
+		// Allow optionally specifying a specific listener name
+		if len(listenerNames) > 0 && !slices.Contains(listenerNames, string(actual.Name)) {
+			return false
+		}
+
+		if actual.AttachedRoutes == expectedRoutes {
+			return true
+		}
+
+		return false
 	}
 }
 
