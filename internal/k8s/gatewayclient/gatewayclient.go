@@ -38,6 +38,7 @@ type Client interface {
 	GetTCPRoutesInNamespace(ctx context.Context, ns string) ([]gateway.TCPRoute, error)
 	GetMeshService(ctx context.Context, key types.NamespacedName) (*apigwv1alpha1.MeshService, error)
 	GetNamespace(ctx context.Context, key types.NamespacedName) (*core.Namespace, error)
+	GetDeployment(ctx context.Context, key types.NamespacedName) (*apps.Deployment, error)
 
 	// finalizer helpers
 
@@ -228,6 +229,17 @@ func (g *gatewayClient) GetService(ctx context.Context, key types.NamespacedName
 		return nil, NewK8sError(err)
 	}
 	return svc, nil
+}
+
+func (g *gatewayClient) GetDeployment(ctx context.Context, key types.NamespacedName) (*apps.Deployment, error) {
+	depl := &apps.Deployment{}
+	if err := g.Client.Get(ctx, key, depl); err != nil {
+		if k8serrors.IsNotFound(err) {
+			return nil, nil
+		}
+		return nil, NewK8sError(err)
+	}
+	return depl, nil
 }
 
 func (g *gatewayClient) GetSecret(ctx context.Context, key types.NamespacedName) (*core.Secret, error) {

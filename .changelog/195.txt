@@ -1,0 +1,3 @@
+```release-note:feature
+Added a new configuration option called deploy to GatewayClassConfig that allows user to configure the number of consul-api-gateway instances that are deployed.
+```

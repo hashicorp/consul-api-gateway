@@ -23,6 +23,7 @@ var (
 		"static-mapping",
 		"clusterip",
 		"loadbalancer",
+		"multiple-instances",
 	}
 )
 

@@ -90,6 +90,19 @@ spec:
                       type: string
                     type: array
                 type: object
+              deploy:
+                description: Configuration information about how many instances to
+                  deploy
+                properties:
+                  defaultInstances:
+                    default: 1
+                    description: Number of gateway instances that should be deployed
+                      by default
+                    format: int32
+                    maximum: 10
+                    minimum: 1
+                    type: integer
+                type: object
               image:
                 description: Configuration information about the images to use
                 properties:
