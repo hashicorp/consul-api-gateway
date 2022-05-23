@@ -218,7 +218,7 @@ func TestListenerValidate(t *testing.T) {
 		assert.Equal(t, meta.ConditionTrue, condition.Status)
 	})
 
-	t.Run("Valid same-namespace secret ref", func(t *testing.T) {
+	t.Run("Valid same-namespace secret ref without ReferencePolicy", func(t *testing.T) {
 		listener := NewK8sListener(&gw.Gateway{}, gw.Listener{
 			Protocol: gw.HTTPSProtocolType,
 			TLS: &gw.GatewayTLSConfig{
