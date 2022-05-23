@@ -1374,6 +1374,9 @@ func TestRouteParentRefChange(t *testing.T) {
 				listenerAttachedRoutes(1),
 			), checkTimeout, checkInterval, "listeners not ready in the allotted time")
 
+			// Check that HTTPRoute is successfully resolved and routing traffic
+			checkRoute(t, secondGatewayCheckPort, "/", serviceOne.Name, nil, "service one not routable in allotted time")
+
 			// Check that route unbinds from first gateway listener successfully
 			require.Eventually(t, func() bool {
 				updated := &gateway.HTTPRoute{}
@@ -1387,6 +1390,19 @@ func TestRouteParentRefChange(t *testing.T) {
 				}
 				return true
 			}, checkTimeout, checkInterval, "HTTPRoute status not unset in allotted time")
+
+			// FIXME: why are attached routes not being pruned as expected in this case?
+			require.Eventually(t, listenerStatusCheck(
+				ctx,
+				resources,
+				firstGatewayName,
+				namespace,
+				listenerAttachedRoutes(0),
+			), checkTimeout, checkInterval, "listeners not ready in the allotted time")
+
+			// TODO: when implementation is updated, this should be refactored to check for a 404 status code
+			// instead of a connection error
+			checkRouteError(t, firstGatewayCheckPort, "/", nil, "service one still routable in allotted time")
 
 			assert.NoError(t, resources.Delete(ctx, firstGateway))
 			assert.NoError(t, resources.Delete(ctx, secondGateway))
