@@ -1,0 +1,3 @@
+```release-note:bug
+Clean up stale routes from gateway listeners when not able or allowed to bind, to prevent serving traffic for a detached route.
+```
