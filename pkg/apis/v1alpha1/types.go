@@ -52,17 +52,17 @@ type GatewayClassConfigSpec struct {
 	// Logging levels
 	LogLevel string `json:"logLevel,omitempty"`
 	// Configuration information about how many instances to deploy
-	DeploySpec DeploySpec `json:"deploy,omitempty"`
+	DeploymentSpec DeploymentSpec `json:"deployment,omitempty"`
 }
 
 // +k8s:deepcopy-gen=true
 
-type DeploySpec struct {
+type DeploymentSpec struct {
 	// +kubebuilder:default:=1
-	// +kubebuilder:validation:Maximum=10
+	// +kubebuilder:validation:Maximum=8
 	// +kubebuilder:validation:Minimum=1
-	//Number of gateway instances that should be deployed by default
-	Instances *int32 `json:"defaultInstances,omitempty"`
+	// Number of gateway instances that should be deployed by default
+	DefaultInstances *int32 `json:"defaultInstances,omitempty"`
 }
 
 type ConsulSpec struct {
@@ -202,15 +202,15 @@ func compareServices(a, b *corev1.Service) bool {
 	return true
 }
 
-// MergeDeploymentmerges a gateway deployment a onto b and returns b, overriding all of
+// MergeDeployment merges a gateway deployment a onto b and returns b, overriding all of
 // the fields that we'd normally set for a service deployment. It does not attempt
 // to change the service type
 func MergeDeployment(a, b *appsv1.Deployment, currentReplicas *int32) *appsv1.Deployment {
 	if !compareDeployments(a, b) {
 		b.Spec.Template = a.Spec.Template
 
-		//Dont override if replicas have already been set on deployment
-		//TODO this logic will likely need to be updated as part of CAPIGW-137
+		// Don't override if replicas have already been set on deployment
+		// TODO this logic will likely need to be updated as part of CAPIGW-137
 		if currentReplicas == nil {
 			b.Spec.Replicas = a.Spec.Replicas
 		}
@@ -242,7 +242,7 @@ func compareDeployments(a, b *appsv1.Deployment) bool {
 		}
 	}
 
-	if b.Spec.Replicas != a.Spec.Replicas {
+	if *b.Spec.Replicas != *a.Spec.Replicas {
 		return false
 	}
 

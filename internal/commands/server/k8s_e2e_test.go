@@ -153,10 +153,12 @@ func TestGatewayWithReplicas(t *testing.T) {
 			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionReady), 30*time.Second, checkInterval, "no gateway found in the allotted time")
 			checkGatewayConfigAnnotation(t, gateway, gatewayClassConfig)
 
+			// Fetch the deployment created by the gateway and check the number of replicas
 			deployment := &appsv1.Deployment{}
 			assert.NoError(t, resources.Get(ctx, gatewayName, namespace, deployment))
 			assert.Equal(t, numberOfReplicas, *deployment.Spec.Replicas)
 
+			// Cleanup
 			assert.NoError(t, resources.Delete(ctx, gateway))
 
 			return ctx
@@ -195,12 +197,16 @@ func TestGatewayWithReplicasCanScale(t *testing.T) {
 			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionReady), 30*time.Second, checkInterval, "no gateway found in the allotted time")
 			checkGatewayConfigAnnotation(t, gateway, gatewayClassConfig)
 
+			// Fetch the deployment created by the gateway and check the number of replicas
 			deployment := &appsv1.Deployment{}
 			assert.NoError(t, resources.Get(ctx, gatewayName, namespace, deployment))
 			assert.Equal(t, initialReplicas, *deployment.Spec.Replicas)
 
+			// Manually set the number of replicas on the deployment
 			deployment.Spec.Replicas = &finalReplicas
 			assert.NoError(t, resources.Update(ctx, deployment))
+
+			// Double check that the update wasn't overridden by the controller
 			assert.NoError(t, resources.Get(ctx, gatewayName, namespace, deployment))
 			assert.Equal(t, finalReplicas, *deployment.Spec.Replicas)
 
@@ -1556,8 +1562,8 @@ func createGatewayClass(ctx context.Context, t *testing.T, cfg *envconf.Config, 
 				ConsulAPIGateway: e2e.DockerImage(ctx),
 			},
 			ServiceType: serviceType(core.ServiceTypeNodePort),
-			DeploySpec: apigwv1alpha1.DeploySpec{
-				Instances: &defaultInstances,
+			DeploymentSpec: apigwv1alpha1.DeploymentSpec{
+				DefaultInstances: &defaultInstances,
 			},
 			ConsulSpec: apigwv1alpha1.ConsulSpec{
 				Address: hostRoute,

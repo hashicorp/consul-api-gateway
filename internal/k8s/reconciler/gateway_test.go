@@ -489,8 +489,8 @@ func TestGatewayTrackSync(t *testing.T) {
 		Client: client,
 		Config: apigwv1alpha1.GatewayClassConfig{
 			Spec: apigwv1alpha1.GatewayClassConfigSpec{
-				DeploySpec: apigwv1alpha1.DeploySpec{
-					Instances: &instances,
+				DeploymentSpec: apigwv1alpha1.DeploymentSpec{
+					DefaultInstances: &instances,
 				},
 			},
 		},

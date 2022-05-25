@@ -152,12 +152,12 @@ func (b *GatewayDeploymentBuilder) Build() *v1.Deployment {
 }
 
 func (b *GatewayDeploymentBuilder) instances() *int32 {
-	if b.gwConfig.Spec.DeploySpec.Instances == nil {
+	if b.gwConfig.Spec.DeploymentSpec.DefaultInstances == nil {
 		instances := defaultInstances
 		return &instances
 	}
 
-	return b.gwConfig.Spec.DeploySpec.Instances
+	return b.gwConfig.Spec.DeploymentSpec.DefaultInstances
 }
 
 func (b *GatewayDeploymentBuilder) podSpec() corev1.PodSpec {
