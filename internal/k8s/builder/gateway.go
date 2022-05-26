@@ -126,6 +126,7 @@ func (b *GatewayDeploymentBuilder) Validate() error {
 
 func (b *GatewayDeploymentBuilder) Build() *v1.Deployment {
 	labels := utils.LabelsForGateway(b.gateway)
+
 	return &v1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      b.gateway.Name,
@@ -133,6 +134,7 @@ func (b *GatewayDeploymentBuilder) Build() *v1.Deployment {
 			Labels:    labels,
 		},
 		Spec: v1.DeploymentSpec{
+			Replicas: b.instances(),
 			Selector: &metav1.LabelSelector{
 				MatchLabels: labels,
 			},
@@ -149,18 +151,29 @@ func (b *GatewayDeploymentBuilder) Build() *v1.Deployment {
 	}
 }
 
+func (b *GatewayDeploymentBuilder) instances() *int32 {
+	if b.gwConfig.Spec.DeploymentSpec.DefaultInstances == nil {
+		instances := defaultInstances
+		return &instances
+	}
+
+	return b.gwConfig.Spec.DeploymentSpec.DefaultInstances
+}
+
 func (b *GatewayDeploymentBuilder) podSpec() corev1.PodSpec {
 	volumes, mounts := b.volumes()
 	defaultServiceAccount := ""
 	if b.gwConfig.Spec.ConsulSpec.AuthSpec.Managed {
 		defaultServiceAccount = b.gateway.Name
 	}
+
 	return corev1.PodSpec{
 		NodeSelector:       b.gwConfig.Spec.NodeSelector,
 		ServiceAccountName: orDefault(b.gwConfig.Spec.ConsulSpec.AuthSpec.Account, defaultServiceAccount),
 		// the init container copies the binary into the
 		// next envoy container so we can decouple the envoy
 		// versions from our version of consul-api-gateway.
+
 		InitContainers: []corev1.Container{{
 			Image:        orDefault(b.gwConfig.Spec.ImageSpec.ConsulAPIGateway, defaultImage),
 			Name:         "consul-api-gateway-init",

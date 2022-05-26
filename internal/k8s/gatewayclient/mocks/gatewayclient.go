@@ -199,6 +199,21 @@ func (mr *MockClientMockRecorder) GetConfigForGatewayClassName(ctx, name interfa
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetConfigForGatewayClassName", reflect.TypeOf((*MockClient)(nil).GetConfigForGatewayClassName), ctx, name)
 }
 
+// GetDeployment mocks base method.
+func (m *MockClient) GetDeployment(ctx context.Context, key types.NamespacedName) (*v1.Deployment, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetDeployment", ctx, key)
+	ret0, _ := ret[0].(*v1.Deployment)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetDeployment indicates an expected call of GetDeployment.
+func (mr *MockClientMockRecorder) GetDeployment(ctx, key interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDeployment", reflect.TypeOf((*MockClient)(nil).GetDeployment), ctx, key)
+}
+
 // GetGateway mocks base method.
 func (m *MockClient) GetGateway(ctx context.Context, key types.NamespacedName) (*v1alpha2.Gateway, error) {
 	m.ctrl.T.Helper()
