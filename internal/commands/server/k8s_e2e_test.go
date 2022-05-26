@@ -927,7 +927,6 @@ func TestReferencePolicyLifecycle(t *testing.T) {
 
 			resources := cfg.Client().Resources(namespace)
 
-			// Create a GatewayClassConfig
 			_, gc := createGatewayClass(ctx, t, cfg, 1)
 			require.Eventually(t, gatewayClassStatusCheck(ctx, resources, gc.Name, namespace, conditionAccepted), 30*time.Second, checkInterval, "gatewayclass not accepted in the allotted time")
 
