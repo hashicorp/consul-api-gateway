@@ -80,12 +80,8 @@ func TestGatewayWithClassConfigChange(t *testing.T) {
 			// Create a Gateway and wait for it to be ready
 			firstGatewayName := envconf.RandomName("gw", 16)
 			firstGateway := createGateway(ctx, t, cfg, firstGatewayName, gc, []gateway.Listener{httpsListener})
-			require.Eventually(t, func() bool {
-				err := resources.Get(ctx, firstGatewayName, namespace, firstGateway)
-				return err == nil && conditionReady(firstGateway.Status.Conditions)
-			}, 60*time.Second, checkInterval, "no gateway found in the allotted time")
-			require.Eventually(t, gatewayStatusCheck(ctx, resources, firstGatewayName, namespace, conditionReady), 30*time.Second, checkInterval, "no gateway found in the allotted time")
-			checkGatewayConfigAnnotation(t, firstGateway, firstConfig)
+			require.Eventually(t, gatewayStatusCheck(ctx, resources, firstGatewayName, namespace, conditionReady), checkTimeout, checkInterval, "no gateway found in the allotted time")
+			checkGatewayConfigAnnotation(ctx, t, resources, firstGatewayName, namespace, firstConfig)
 
 			// Modify GatewayClassConfig used for Gateway
 			secondConfig := &apigwv1alpha1.GatewayClassConfig{}
@@ -98,22 +94,11 @@ func TestGatewayWithClassConfigChange(t *testing.T) {
 			// Create a second Gateway and wait for it to be ready
 			secondGatewayName := envconf.RandomName("gw", 16)
 			secondGateway := createGateway(ctx, t, cfg, secondGatewayName, gc, []gateway.Listener{httpsListener})
-			require.Eventually(t, func() bool {
-				err := resources.Get(ctx, firstGatewayName, namespace, firstGateway)
-				return err == nil && conditionReady(firstGateway.Status.Conditions)
-			}, 60*time.Second, checkInterval, "no gateway found in the allotted time")
-			require.Eventually(t, gatewayStatusCheck(ctx, resources, firstGatewayName, namespace, conditionReady), 30*time.Second, checkInterval, "no gateway found in the allotted time")
-			checkGatewayConfigAnnotation(t, firstGateway, firstConfig)
-			require.Eventually(t, func() bool {
-				err := resources.Get(ctx, secondGatewayName, namespace, secondGateway)
-				return err == nil && conditionReady(secondGateway.Status.Conditions)
-			}, 30*time.Second, checkInterval, "no gateway found in the allotted time")
-			require.Eventually(t, gatewayStatusCheck(ctx, resources, secondGatewayName, namespace, conditionReady), 30*time.Second, checkInterval, "no gateway found in the allotted time")
-			checkGatewayConfigAnnotation(t, secondGateway, secondConfig)
+			require.Eventually(t, gatewayStatusCheck(ctx, resources, secondGatewayName, namespace, conditionReady), checkTimeout, checkInterval, "no gateway found in the allotted time")
 
 			// Verify that 1st Gateway retains initial GatewayClassConfig and 2nd Gateway retains updated GatewayClassConfig
-			checkGatewayConfigAnnotation(t, firstGateway, firstConfig)
-			checkGatewayConfigAnnotation(t, secondGateway, secondConfig)
+			checkGatewayConfigAnnotation(ctx, t, resources, firstGatewayName, namespace, firstConfig)
+			checkGatewayConfigAnnotation(ctx, t, resources, secondGatewayName, namespace, secondConfig)
 
 			assert.NoError(t, resources.Delete(ctx, firstGateway))
 			assert.NoError(t, resources.Delete(ctx, secondGateway))
@@ -151,7 +136,7 @@ func TestGatewayWithReplicas(t *testing.T) {
 			}, 60*time.Second, checkInterval, "no gateway found in the allotted time")
 
 			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionReady), 30*time.Second, checkInterval, "no gateway found in the allotted time")
-			checkGatewayConfigAnnotation(t, gateway, gatewayClassConfig)
+			checkGatewayConfigAnnotation(ctx, t, resources, gatewayName, namespace, gatewayClassConfig)
 
 			// Fetch the deployment created by the gateway and check the number of replicas
 			deployment := &appsv1.Deployment{}
@@ -195,7 +180,7 @@ func TestGatewayWithReplicasCanScale(t *testing.T) {
 			}, 60*time.Second, checkInterval, "no gateway found in the allotted time")
 
 			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionReady), 30*time.Second, checkInterval, "no gateway found in the allotted time")
-			checkGatewayConfigAnnotation(t, gateway, gatewayClassConfig)
+			checkGatewayConfigAnnotation(ctx, t, resources, gatewayName, namespace, gatewayClassConfig)
 
 			// Fetch the deployment created by the gateway and check the number of replicas
 			deployment := &appsv1.Deployment{}
@@ -230,20 +215,16 @@ func TestGatewayBasic(t *testing.T) {
 			require.Eventually(t, gatewayClassStatusCheck(ctx, resources, gc.Name, namespace, conditionAccepted), 30*time.Second, checkInterval, "gatewayclass not accepted in the allotted time")
 
 			httpsListener := createHTTPSListener(ctx, t, 443)
-			_ = createGateway(ctx, t, cfg, gatewayName, gc, []gateway.Listener{httpsListener})
+			gw := createGateway(ctx, t, cfg, gatewayName, gc, []gateway.Listener{httpsListener})
 
 			require.Eventually(t, func() bool {
 				err := resources.Get(ctx, gatewayName, namespace, &apps.Deployment{})
 				return err == nil
 			}, checkTimeout, checkInterval, "no deployment found in the allotted time")
 
-			created := &gateway.Gateway{}
-			require.Eventually(t, func() bool {
-				err := resources.Get(ctx, gatewayName, namespace, created)
-				return err == nil && conditionReady(created.Status.Conditions)
-			}, checkTimeout, checkInterval, "no gateway found in the allotted time")
+			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionReady), checkTimeout, checkInterval, "no gateway found in the allotted time")
 
-			checkGatewayConfigAnnotation(t, created, gcc)
+			checkGatewayConfigAnnotation(ctx, t, resources, gatewayName, namespace, gcc)
 
 			// check for the service being registered
 			client := e2e.ConsulClient(ctx)
@@ -264,7 +245,7 @@ func TestGatewayBasic(t *testing.T) {
 
 			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionReady), checkTimeout, checkInterval, "no gateway found in the allotted time")
 
-			err := resources.Delete(ctx, created)
+			err := resources.Delete(ctx, gw)
 			require.NoError(t, err)
 			require.Eventually(t, func() bool {
 				services, _, err := client.Catalog().Service(gatewayName, "", &api.QueryOptions{
@@ -1422,13 +1403,19 @@ func createTCPRoute(ctx context.Context, t *testing.T, resources *resources.Reso
 
 // checkGatewayConfigAnnotation verifies that the GatewayClassConfig was
 // correctly serialized into the expected annotation on the Gateway.
-func checkGatewayConfigAnnotation(t *testing.T, g *gateway.Gateway, gcc *apigwv1alpha1.GatewayClassConfig) {
+func checkGatewayConfigAnnotation(ctx context.Context, t *testing.T, resources *resources.Resources, gatewayName, namespace string, gcc *apigwv1alpha1.GatewayClassConfig) {
 	t.Helper()
 
 	expectedCfg, err := json.Marshal(gcc.Spec)
 	require.NoError(t, err)
 
-	actualCfg, ok := g.Annotations[`api-gateway.consul.hashicorp.com/config`]
+	gw := &gateway.Gateway{}
+	require.Eventually(t, func() bool {
+		err := resources.Get(ctx, gatewayName, namespace, gw)
+		return err == nil
+	}, checkTimeout, checkInterval, "no gateway found in the allotted time")
+
+	actualCfg, ok := gw.Annotations[`api-gateway.consul.hashicorp.com/config`]
 	assert.True(t, ok)
 	assert.Equal(t, string(expectedCfg), actualCfg)
 }
