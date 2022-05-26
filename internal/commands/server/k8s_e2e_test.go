@@ -345,8 +345,6 @@ func TestHTTPRouteFlattening(t *testing.T) {
 			require.NoError(t, err)
 
 			namespace := e2e.Namespace(ctx)
-			configName := envconf.RandomName("gcc", 16)
-			className := envconf.RandomName("gc", 16)
 			gatewayName := envconf.RandomName("gw", 16)
 			routeOneName := envconf.RandomName("route", 16)
 			routeTwoName := envconf.RandomName("route", 16)
@@ -356,48 +354,7 @@ func TestHTTPRouteFlattening(t *testing.T) {
 
 			resources := cfg.Client().Resources(namespace)
 
-			gcc := &apigwv1alpha1.GatewayClassConfig{
-				ObjectMeta: meta.ObjectMeta{
-					Name: configName,
-				},
-				Spec: apigwv1alpha1.GatewayClassConfigSpec{
-					ImageSpec: apigwv1alpha1.ImageSpec{
-						ConsulAPIGateway: e2e.DockerImage(ctx),
-					},
-					UseHostPorts: true,
-					LogLevel:     "trace",
-					ConsulSpec: apigwv1alpha1.ConsulSpec{
-						Address: hostRoute,
-						Scheme:  "https",
-						PortSpec: apigwv1alpha1.PortSpec{
-							GRPC: e2e.ConsulGRPCPort(ctx),
-							HTTP: e2e.ConsulHTTPPort(ctx),
-						},
-						AuthSpec: apigwv1alpha1.AuthSpec{
-							Method:  "consul-api-gateway",
-							Account: "consul-api-gateway",
-						},
-					},
-				},
-			}
-			err = resources.Create(ctx, gcc)
-			require.NoError(t, err)
-
-			gc := &gateway.GatewayClass{
-				ObjectMeta: meta.ObjectMeta{
-					Name: className,
-				},
-				Spec: gateway.GatewayClassSpec{
-					ControllerName: k8s.ControllerName,
-					ParametersRef: &gateway.ParametersReference{
-						Group: apigwv1alpha1.Group,
-						Kind:  apigwv1alpha1.GatewayClassConfigKind,
-						Name:  configName,
-					},
-				},
-			}
-			err = resources.Create(ctx, gc)
-			require.NoError(t, err)
+			_, gc := createGatewayClass(ctx, t, cfg, 1)
 
 			checkPort := e2e.HTTPFlattenedPort(ctx)
 			httpsListener := createHTTPSListener(ctx, t, gateway.PortNumber(checkPort))
