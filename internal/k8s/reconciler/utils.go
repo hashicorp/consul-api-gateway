@@ -217,11 +217,15 @@ func referenceAllowed(ctx context.Context, fromGK metav1.GroupKind, fromNamespac
 		// Check for a To that applies
 		for _, to := range refPolicy.Spec.To {
 			if toGK.Group == string(to.Group) && toGK.Kind == string(to.Kind) {
-				if to.Name == nil {
+				if to.Name == nil || *to.Name == "" {
 					// No name specified is treated as a wildcard within the namespace
 					return true, nil
 				}
-				return gw.ObjectName(toName) == *to.Name, nil
+
+				if gw.ObjectName(toName) == *to.Name {
+					// The ReferencePolicy specifically targets this object
+					return true, nil
+				}
 			}
 		}
 	}

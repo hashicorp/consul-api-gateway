@@ -431,42 +431,38 @@ func TestGatewayAllowedForSecretRef(t *testing.T) {
 			}
 
 			if tc.toNS != nil && tc.fromNS != *tc.toNS {
-				referencePolicy := gw.ReferencePolicy{
-					TypeMeta:   meta.TypeMeta{},
-					ObjectMeta: meta.ObjectMeta{Namespace: *tc.toNS},
-					Spec: gw.ReferencePolicySpec{
-						From: []gw.ReferencePolicyFrom{{
-							Group:     "gateway.networking.k8s.io",
-							Kind:      gw.Kind("Gateway"),
-							Namespace: gw.Namespace(tc.policyFromNS),
-						}},
-						To: []gw.ReferencePolicyTo{{
-							Group: "",
-							Kind:  "Secret",
-							Name:  toName,
-						}},
-					},
-				}
+				otherName := gw.ObjectName("blah")
 
-				throwawayPolicy := gw.ReferencePolicy{
-					ObjectMeta: meta.ObjectMeta{Namespace: *tc.toNS},
-					Spec: gw.ReferencePolicySpec{
-						From: []gw.ReferencePolicyFrom{{
-							Group:     "Kool & The Gang",
-							Kind:      "Jungle Boogie",
-							Namespace: "Wild And Peaceful",
-						}},
-						To: []gw.ReferencePolicyTo{{
-							Group: "does not exist",
-							Kind:  "does not exist",
-							Name:  nil,
-						}},
+				refPolicies := []gw.ReferencePolicy{
+					// Create a ReferencePolicy that does not match at all (kind, etc.)
+					{
+						ObjectMeta: meta.ObjectMeta{Namespace: *tc.toNS},
+						Spec: gw.ReferencePolicySpec{
+							From: []gw.ReferencePolicyFrom{{Group: "Kool & The Gang", Kind: "Jungle Boogie", Namespace: "Wild And Peaceful"}},
+							To:   []gw.ReferencePolicyTo{{Group: "does not exist", Kind: "does not exist", Name: nil}},
+						},
+					},
+					// Create a ReferencePolicy that matches completely except for To.Name
+					{
+						ObjectMeta: meta.ObjectMeta{Namespace: *tc.toNS},
+						Spec: gw.ReferencePolicySpec{
+							From: []gw.ReferencePolicyFrom{{Group: "gateway.networking.k8s.io", Kind: gw.Kind("Gateway"), Namespace: gw.Namespace(tc.policyFromNS)}},
+							To:   []gw.ReferencePolicyTo{{Group: "", Kind: "Secret", Name: &otherName}},
+						},
+					},
+					// Create a ReferencePolicy that matches completely
+					{
+						ObjectMeta: meta.ObjectMeta{Namespace: *tc.toNS},
+						Spec: gw.ReferencePolicySpec{
+							From: []gw.ReferencePolicyFrom{{Group: "gateway.networking.k8s.io", Kind: gw.Kind("Gateway"), Namespace: gw.Namespace(tc.policyFromNS)}},
+							To:   []gw.ReferencePolicyTo{{Group: "", Kind: "Secret", Name: toName}},
+						},
 					},
 				}
 
 				client.EXPECT().
 					GetReferencePoliciesInNamespace(gomock.Any(), *tc.toNS).
-					Return([]gw.ReferencePolicy{throwawayPolicy, referencePolicy}, nil)
+					Return(refPolicies, nil)
 			}
 
 			allowed, err := gatewayAllowedForSecretRef(context.Background(), gateway, secretRef, client)
