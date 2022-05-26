@@ -53,7 +53,7 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: status.hostIP
-        image: envoyproxy/envoy:v1.20-latest
+        image: envoyproxy/envoy-distroless:v1.22-latest
         name: consul-api-gateway
         ports:
         - containerPort: 20000
