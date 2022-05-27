@@ -63,7 +63,7 @@ jobs:
       matrix:
         goos: ["linux"]
         goarch: ["arm", "arm64", "386", "amd64"]
-        go: ["1.17.9"]
+        go: ["1.18.1"]
       fail-fast: true
 
     name: Go ${{ matrix.go }} ${{ matrix.goos }} ${{ matrix.goarch }} build

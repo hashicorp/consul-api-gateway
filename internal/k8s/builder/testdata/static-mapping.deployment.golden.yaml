@@ -7,6 +7,7 @@ metadata:
     api-gateway.consul.hashicorp.com/namespace: ""
   name: test-static-mapping
 spec:
+  replicas: 1
   selector:
     matchLabels:
       api-gateway.consul.hashicorp.com/created: "-62135596800"
@@ -82,7 +83,7 @@ spec:
         - cp
         - /bin/consul-api-gateway
         - /bootstrap/consul-api-gateway
-        image: hashicorp/consul-api-gateway:0.2.0
+        image: hashicorp/consul-api-gateway:0.2.1
         name: consul-api-gateway-init
         resources: {}
         volumeMounts:
