@@ -69,8 +69,11 @@ func TestGatewayWithClassConfigChange(t *testing.T) {
 			resources := cfg.Client().Resources(namespace)
 
 			// Create a GatewayClassConfig
-			firstConfig, gc := createGatewayClass(ctx, t, cfg, 1)
-			require.Eventually(t, gatewayClassStatusCheck(ctx, resources, gc.Name, namespace, conditionAccepted), 30*time.Second, checkInterval, "gatewayclass not accepted in the allotted time")
+			useHostPorts := false
+			firstConfig, gc := createGatewayClassWithParams(ctx, t, resources, GatewayClassConfigParams{
+				UseHostPorts: &useHostPorts,
+			})
+			require.Eventually(t, gatewayClassStatusCheck(ctx, resources, gc.Name, namespace, conditionAccepted), checkTimeout, checkInterval, "gatewayclass not accepted in the allotted time")
 
 			oldUseHostPorts := firstConfig.Spec.UseHostPorts
 
@@ -79,13 +82,9 @@ func TestGatewayWithClassConfigChange(t *testing.T) {
 
 			// Create a Gateway and wait for it to be ready
 			firstGatewayName := envconf.RandomName("gw", 16)
-			firstGateway := createGateway(ctx, t, cfg, firstGatewayName, gc, []gateway.Listener{httpsListener})
-			require.Eventually(t, func() bool {
-				err := resources.Get(ctx, firstGatewayName, namespace, firstGateway)
-				return err == nil && conditionReady(firstGateway.Status.Conditions)
-			}, 60*time.Second, checkInterval, "no gateway found in the allotted time")
-			require.Eventually(t, gatewayStatusCheck(ctx, resources, firstGatewayName, namespace, conditionReady), 30*time.Second, checkInterval, "no gateway found in the allotted time")
-			checkGatewayConfigAnnotation(t, firstGateway, firstConfig)
+			firstGateway := createGateway(ctx, t, resources, firstGatewayName, gc, []gateway.Listener{httpsListener})
+			require.Eventually(t, gatewayStatusCheck(ctx, resources, firstGatewayName, namespace, conditionReady), checkTimeout, checkInterval, "no gateway found in the allotted time")
+			checkGatewayConfigAnnotation(ctx, t, resources, firstGatewayName, namespace, firstConfig)
 
 			// Modify GatewayClassConfig used for Gateway
 			secondConfig := &apigwv1alpha1.GatewayClassConfig{}
@@ -97,23 +96,12 @@ func TestGatewayWithClassConfigChange(t *testing.T) {
 
 			// Create a second Gateway and wait for it to be ready
 			secondGatewayName := envconf.RandomName("gw", 16)
-			secondGateway := createGateway(ctx, t, cfg, secondGatewayName, gc, []gateway.Listener{httpsListener})
-			require.Eventually(t, func() bool {
-				err := resources.Get(ctx, firstGatewayName, namespace, firstGateway)
-				return err == nil && conditionReady(firstGateway.Status.Conditions)
-			}, 60*time.Second, checkInterval, "no gateway found in the allotted time")
-			require.Eventually(t, gatewayStatusCheck(ctx, resources, firstGatewayName, namespace, conditionReady), 30*time.Second, checkInterval, "no gateway found in the allotted time")
-			checkGatewayConfigAnnotation(t, firstGateway, firstConfig)
-			require.Eventually(t, func() bool {
-				err := resources.Get(ctx, secondGatewayName, namespace, secondGateway)
-				return err == nil && conditionReady(secondGateway.Status.Conditions)
-			}, 30*time.Second, checkInterval, "no gateway found in the allotted time")
-			require.Eventually(t, gatewayStatusCheck(ctx, resources, secondGatewayName, namespace, conditionReady), 30*time.Second, checkInterval, "no gateway found in the allotted time")
-			checkGatewayConfigAnnotation(t, secondGateway, secondConfig)
+			secondGateway := createGateway(ctx, t, resources, secondGatewayName, gc, []gateway.Listener{httpsListener})
+			require.Eventually(t, gatewayStatusCheck(ctx, resources, secondGatewayName, namespace, conditionReady), checkTimeout, checkInterval, "no gateway found in the allotted time")
 
 			// Verify that 1st Gateway retains initial GatewayClassConfig and 2nd Gateway retains updated GatewayClassConfig
-			checkGatewayConfigAnnotation(t, firstGateway, firstConfig)
-			checkGatewayConfigAnnotation(t, secondGateway, secondConfig)
+			checkGatewayConfigAnnotation(ctx, t, resources, firstGatewayName, namespace, firstConfig)
+			checkGatewayConfigAnnotation(ctx, t, resources, secondGatewayName, namespace, secondConfig)
 
 			assert.NoError(t, resources.Delete(ctx, firstGateway))
 			assert.NoError(t, resources.Delete(ctx, secondGateway))
@@ -133,25 +121,18 @@ func TestGatewayWithReplicas(t *testing.T) {
 
 			var numberOfReplicas int32 = 3
 
-			// Create a GatewayClassConfig
-			gatewayClassConfig, gatewayClass := createGatewayClass(ctx, t, cfg, numberOfReplicas)
-
-			require.Eventually(t, gatewayClassStatusCheck(ctx, resources, gatewayClass.Name, namespace, conditionAccepted), 30*time.Second, checkInterval, "gatewayclass not accepted in the allotted time")
-
-			// Create an HTTPS Gateway Listener to pass when creating gateways
-			httpsListener := createHTTPSListener(ctx, t, 443)
+			useHostPorts := false
+			gcc, gc := createGatewayClassWithParams(ctx, t, resources, GatewayClassConfigParams{
+				UseHostPorts:     &useHostPorts,
+				DefaultInstances: &numberOfReplicas,
+			})
+			require.Eventually(t, gatewayClassStatusCheck(ctx, resources, gc.Name, namespace, conditionAccepted), checkTimeout, checkInterval, "gatewayclass not accepted in the allotted time")
 
 			// Create a Gateway and wait for it to be ready
 			gatewayName := envconf.RandomName("gw", 16)
-			gateway := createGateway(ctx, t, cfg, gatewayName, gatewayClass, []gateway.Listener{httpsListener})
-
-			require.Eventually(t, func() bool {
-				err := resources.Get(ctx, gatewayName, namespace, gateway)
-				return err == nil && conditionReady(gateway.Status.Conditions)
-			}, 60*time.Second, checkInterval, "no gateway found in the allotted time")
-
-			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionReady), 30*time.Second, checkInterval, "no gateway found in the allotted time")
-			checkGatewayConfigAnnotation(t, gateway, gatewayClassConfig)
+			gw := createGateway(ctx, t, resources, gatewayName, gc, []gateway.Listener{createHTTPSListener(ctx, t, 443)})
+			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionReady), checkTimeout, checkInterval, "no gateway found in the allotted time")
+			checkGatewayConfigAnnotation(ctx, t, resources, gatewayName, namespace, gcc)
 
 			// Fetch the deployment created by the gateway and check the number of replicas
 			deployment := &appsv1.Deployment{}
@@ -159,7 +140,7 @@ func TestGatewayWithReplicas(t *testing.T) {
 			assert.Equal(t, numberOfReplicas, *deployment.Spec.Replicas)
 
 			// Cleanup
-			assert.NoError(t, resources.Delete(ctx, gateway))
+			assert.NoError(t, resources.Delete(ctx, gw))
 
 			return ctx
 		})
@@ -177,25 +158,18 @@ func TestGatewayWithReplicasCanScale(t *testing.T) {
 			var initialReplicas int32 = 3
 			var finalReplicas int32 = 8
 
-			// Create a GatewayClassConfig
-			gatewayClassConfig, gatewayClass := createGatewayClass(ctx, t, cfg, initialReplicas)
-
-			require.Eventually(t, gatewayClassStatusCheck(ctx, resources, gatewayClass.Name, namespace, conditionAccepted), 30*time.Second, checkInterval, "gatewayclass not accepted in the allotted time")
-
-			// Create an HTTPS Gateway Listener to pass when creating gateways
-			httpsListener := createHTTPSListener(ctx, t, 443)
+			useHostPorts := false
+			gcc, gc := createGatewayClassWithParams(ctx, t, resources, GatewayClassConfigParams{
+				UseHostPorts:     &useHostPorts,
+				DefaultInstances: &initialReplicas,
+			})
+			require.Eventually(t, gatewayClassStatusCheck(ctx, resources, gc.Name, namespace, conditionAccepted), checkTimeout, checkInterval, "gatewayclass not accepted in the allotted time")
 
 			// Create a Gateway and wait for it to be ready
 			gatewayName := envconf.RandomName("gw", 16)
-			gateway := createGateway(ctx, t, cfg, gatewayName, gatewayClass, []gateway.Listener{httpsListener})
-
-			require.Eventually(t, func() bool {
-				err := resources.Get(ctx, gatewayName, namespace, gateway)
-				return err == nil && conditionReady(gateway.Status.Conditions)
-			}, 60*time.Second, checkInterval, "no gateway found in the allotted time")
-
-			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionReady), 30*time.Second, checkInterval, "no gateway found in the allotted time")
-			checkGatewayConfigAnnotation(t, gateway, gatewayClassConfig)
+			gateway := createGateway(ctx, t, resources, gatewayName, gc, []gateway.Listener{createHTTPSListener(ctx, t, 443)})
+			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionReady), checkTimeout, checkInterval, "no gateway found in the allotted time")
+			checkGatewayConfigAnnotation(ctx, t, resources, gatewayName, namespace, gcc)
 
 			// Fetch the deployment created by the gateway and check the number of replicas
 			deployment := &appsv1.Deployment{}
@@ -225,29 +199,24 @@ func TestGatewayBasic(t *testing.T) {
 			resources := cfg.Client().Resources(namespace)
 
 			gatewayName := envconf.RandomName("gw", 16)
-			gcc, gc := createGatewayClass(ctx, t, cfg, 1)
 
-			require.Eventually(t, func() bool {
-				created := &gateway.GatewayClass{}
-				err := resources.Get(ctx, gc.Name, "", created)
-				return err == nil && conditionAccepted(created.Status.Conditions)
-			}, checkTimeout, checkInterval, "gatewayclass not accepted in the allotted time")
+			useHostPorts := false
+			gcc, gc := createGatewayClassWithParams(ctx, t, resources, GatewayClassConfigParams{
+				UseHostPorts: &useHostPorts,
+			})
+			require.Eventually(t, gatewayClassStatusCheck(ctx, resources, gc.Name, namespace, conditionAccepted), checkTimeout, checkInterval, "gatewayclass not accepted in the allotted time")
 
 			httpsListener := createHTTPSListener(ctx, t, 443)
-			_ = createGateway(ctx, t, cfg, gatewayName, gc, []gateway.Listener{httpsListener})
+			gw := createGateway(ctx, t, resources, gatewayName, gc, []gateway.Listener{httpsListener})
 
 			require.Eventually(t, func() bool {
 				err := resources.Get(ctx, gatewayName, namespace, &apps.Deployment{})
 				return err == nil
 			}, checkTimeout, checkInterval, "no deployment found in the allotted time")
 
-			created := &gateway.Gateway{}
-			require.Eventually(t, func() bool {
-				err := resources.Get(ctx, gatewayName, namespace, created)
-				return err == nil && conditionReady(created.Status.Conditions)
-			}, checkTimeout, checkInterval, "no gateway found in the allotted time")
+			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionReady), checkTimeout, checkInterval, "no gateway found in the allotted time")
 
-			checkGatewayConfigAnnotation(t, created, gcc)
+			checkGatewayConfigAnnotation(ctx, t, resources, gatewayName, namespace, gcc)
 
 			// check for the service being registered
 			client := e2e.ConsulClient(ctx)
@@ -268,7 +237,7 @@ func TestGatewayBasic(t *testing.T) {
 
 			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionReady), checkTimeout, checkInterval, "no gateway found in the allotted time")
 
-			err := resources.Delete(ctx, created)
+			err := resources.Delete(ctx, gw)
 			require.NoError(t, err)
 			require.Eventually(t, func() bool {
 				services, _, err := client.Catalog().Service(gatewayName, "", &api.QueryOptions{
@@ -293,10 +262,15 @@ func TestServiceListeners(t *testing.T) {
 			resources := cfg.Client().Resources(namespace)
 
 			gatewayName := envconf.RandomName("gw", 16)
-			_, gc := createGatewayClass(ctx, t, cfg, 1)
+
+			useHostPorts := false
+			_, gc := createGatewayClassWithParams(ctx, t, resources, GatewayClassConfigParams{
+				UseHostPorts: &useHostPorts,
+			})
+			require.Eventually(t, gatewayClassStatusCheck(ctx, resources, gc.Name, namespace, conditionAccepted), checkTimeout, checkInterval, "gatewayclass not accepted in the allotted time")
 
 			httpsListener := createHTTPSListener(ctx, t, 443)
-			gw := createGateway(ctx, t, cfg, gatewayName, gc, []gateway.Listener{httpsListener})
+			gw := createGateway(ctx, t, resources, gatewayName, gc, []gateway.Listener{httpsListener})
 
 			require.Eventually(t, func() bool {
 				service := &core.Service{}
@@ -345,8 +319,6 @@ func TestHTTPRouteFlattening(t *testing.T) {
 			require.NoError(t, err)
 
 			namespace := e2e.Namespace(ctx)
-			configName := envconf.RandomName("gcc", 16)
-			className := envconf.RandomName("gc", 16)
 			gatewayName := envconf.RandomName("gw", 16)
 			routeOneName := envconf.RandomName("route", 16)
 			routeTwoName := envconf.RandomName("route", 16)
@@ -356,52 +328,12 @@ func TestHTTPRouteFlattening(t *testing.T) {
 
 			resources := cfg.Client().Resources(namespace)
 
-			gcc := &apigwv1alpha1.GatewayClassConfig{
-				ObjectMeta: meta.ObjectMeta{
-					Name: configName,
-				},
-				Spec: apigwv1alpha1.GatewayClassConfigSpec{
-					ImageSpec: apigwv1alpha1.ImageSpec{
-						ConsulAPIGateway: e2e.DockerImage(ctx),
-					},
-					UseHostPorts: true,
-					LogLevel:     "trace",
-					ConsulSpec: apigwv1alpha1.ConsulSpec{
-						Address: hostRoute,
-						Scheme:  "https",
-						PortSpec: apigwv1alpha1.PortSpec{
-							GRPC: e2e.ConsulGRPCPort(ctx),
-							HTTP: e2e.ConsulHTTPPort(ctx),
-						},
-						AuthSpec: apigwv1alpha1.AuthSpec{
-							Method:  "consul-api-gateway",
-							Account: "consul-api-gateway",
-						},
-					},
-				},
-			}
-			err = resources.Create(ctx, gcc)
-			require.NoError(t, err)
-
-			gc := &gateway.GatewayClass{
-				ObjectMeta: meta.ObjectMeta{
-					Name: className,
-				},
-				Spec: gateway.GatewayClassSpec{
-					ControllerName: k8s.ControllerName,
-					ParametersRef: &gateway.ParametersReference{
-						Group: apigwv1alpha1.Group,
-						Kind:  apigwv1alpha1.GatewayClassConfigKind,
-						Name:  configName,
-					},
-				},
-			}
-			err = resources.Create(ctx, gc)
-			require.NoError(t, err)
+			_, gc := createGatewayClass(ctx, t, resources)
+			require.Eventually(t, gatewayClassStatusCheck(ctx, resources, gc.Name, namespace, conditionAccepted), checkTimeout, checkInterval, "gatewayclass not accepted in the allotted time")
 
 			checkPort := e2e.HTTPFlattenedPort(ctx)
 			httpsListener := createHTTPSListener(ctx, t, gateway.PortNumber(checkPort))
-			gw := createGateway(ctx, t, cfg, gatewayName, gc, []gateway.Listener{httpsListener})
+			gw := createGateway(ctx, t, resources, gatewayName, gc, []gateway.Listener{httpsListener})
 			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionReady), checkTimeout, checkInterval, "no gateway found in the allotted time")
 
 			port := gateway.PortNumber(serviceOne.Spec.Ports[0].Port)
@@ -516,8 +448,6 @@ func TestHTTPMeshService(t *testing.T) {
 			require.NoError(t, err)
 
 			namespace := e2e.Namespace(ctx)
-			configName := envconf.RandomName("gcc", 16)
-			className := envconf.RandomName("gc", 16)
 			gatewayName := envconf.RandomName("gw", 16)
 			routeOneName := envconf.RandomName("route", 16)
 			routeTwoName := envconf.RandomName("route", 16)
@@ -525,52 +455,11 @@ func TestHTTPMeshService(t *testing.T) {
 
 			resources := cfg.Client().Resources(namespace)
 
-			gcc := &apigwv1alpha1.GatewayClassConfig{
-				ObjectMeta: meta.ObjectMeta{
-					Name: configName,
-				},
-				Spec: apigwv1alpha1.GatewayClassConfigSpec{
-					ImageSpec: apigwv1alpha1.ImageSpec{
-						ConsulAPIGateway: e2e.DockerImage(ctx),
-					},
-					ServiceType:  serviceType(core.ServiceTypeNodePort),
-					UseHostPorts: true,
-					LogLevel:     "trace",
-					ConsulSpec: apigwv1alpha1.ConsulSpec{
-						Address: hostRoute,
-						Scheme:  "https",
-						PortSpec: apigwv1alpha1.PortSpec{
-							GRPC: e2e.ConsulGRPCPort(ctx),
-							HTTP: e2e.ConsulHTTPPort(ctx),
-						},
-						AuthSpec: apigwv1alpha1.AuthSpec{
-							Method:  "consul-api-gateway",
-							Account: "consul-api-gateway",
-						},
-					},
-				},
-			}
-			err = resources.Create(ctx, gcc)
-			require.NoError(t, err)
-
-			gc := &gateway.GatewayClass{
-				ObjectMeta: meta.ObjectMeta{
-					Name: className,
-				},
-				Spec: gateway.GatewayClassSpec{
-					ControllerName: k8s.ControllerName,
-					ParametersRef: &gateway.ParametersReference{
-						Group: apigwv1alpha1.Group,
-						Kind:  apigwv1alpha1.GatewayClassConfigKind,
-						Name:  configName,
-					},
-				},
-			}
-			err = resources.Create(ctx, gc)
-			require.NoError(t, err)
+			_, gc := createGatewayClass(ctx, t, resources)
+			require.Eventually(t, gatewayClassStatusCheck(ctx, resources, gc.Name, namespace, conditionAccepted), checkTimeout, checkInterval, "gatewayclass not accepted in the allotted time")
 
 			httpsListener := createHTTPSListener(ctx, t, gateway.PortNumber(e2e.HTTPPort(ctx)))
-			gw := createGateway(ctx, t, cfg, gatewayName, gc, []gateway.Listener{httpsListener})
+			gw := createGateway(ctx, t, resources, gatewayName, gc, []gateway.Listener{httpsListener})
 			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionReady), checkTimeout, checkInterval, "no gateway found in the allotted time")
 
 			// route 1
@@ -766,8 +655,6 @@ func TestTCPMeshService(t *testing.T) {
 			require.NoError(t, err)
 
 			namespace := e2e.Namespace(ctx)
-			configName := envconf.RandomName("gcc", 16)
-			className := envconf.RandomName("gc", 16)
 			gatewayName := envconf.RandomName("gw", 16)
 			routeOneName := envconf.RandomName("route", 16)
 			routeTwoName := envconf.RandomName("route", 16)
@@ -786,49 +673,8 @@ func TestTCPMeshService(t *testing.T) {
 				},
 			}))
 
-			gcc := &apigwv1alpha1.GatewayClassConfig{
-				ObjectMeta: meta.ObjectMeta{
-					Name: configName,
-				},
-				Spec: apigwv1alpha1.GatewayClassConfigSpec{
-					ImageSpec: apigwv1alpha1.ImageSpec{
-						ConsulAPIGateway: e2e.DockerImage(ctx),
-					},
-					ServiceType:  serviceType(core.ServiceTypeNodePort),
-					UseHostPorts: true,
-					LogLevel:     "trace",
-					ConsulSpec: apigwv1alpha1.ConsulSpec{
-						Address: hostRoute,
-						Scheme:  "https",
-						PortSpec: apigwv1alpha1.PortSpec{
-							GRPC: e2e.ConsulGRPCPort(ctx),
-							HTTP: e2e.ConsulHTTPPort(ctx),
-						},
-						AuthSpec: apigwv1alpha1.AuthSpec{
-							Method:  "consul-api-gateway",
-							Account: "consul-api-gateway",
-						},
-					},
-				},
-			}
-			err = resources.Create(ctx, gcc)
-			require.NoError(t, err)
-
-			gc := &gateway.GatewayClass{
-				ObjectMeta: meta.ObjectMeta{
-					Name: className,
-				},
-				Spec: gateway.GatewayClassSpec{
-					ControllerName: k8s.ControllerName,
-					ParametersRef: &gateway.ParametersReference{
-						Group: apigwv1alpha1.Group,
-						Kind:  apigwv1alpha1.GatewayClassConfigKind,
-						Name:  configName,
-					},
-				},
-			}
-			err = resources.Create(ctx, gc)
-			require.NoError(t, err)
+			_, gc := createGatewayClass(ctx, t, resources)
+			require.Eventually(t, gatewayClassStatusCheck(ctx, resources, gc.Name, namespace, conditionAccepted), checkTimeout, checkInterval, "gatewayclass not accepted in the allotted time")
 
 			gw := &gateway.Gateway{
 				ObjectMeta: meta.ObjectMeta{
@@ -943,8 +789,6 @@ func TestTCPMeshService(t *testing.T) {
 			require.NoError(t, err)
 
 			namespace := e2e.Namespace(ctx)
-			configName := envconf.RandomName("gcc", 16)
-			className := envconf.RandomName("gc", 16)
 			gatewayName := envconf.RandomName("gw", 16)
 			routeOneName := envconf.RandomName("route", 16)
 			routeTwoName := envconf.RandomName("route", 16)
@@ -956,49 +800,8 @@ func TestTCPMeshService(t *testing.T) {
 			gatewayNamespace := gateway.Namespace(namespace)
 			resources := cfg.Client().Resources(namespace)
 
-			gcc := &apigwv1alpha1.GatewayClassConfig{
-				ObjectMeta: meta.ObjectMeta{
-					Name: configName,
-				},
-				Spec: apigwv1alpha1.GatewayClassConfigSpec{
-					ImageSpec: apigwv1alpha1.ImageSpec{
-						ConsulAPIGateway: e2e.DockerImage(ctx),
-					},
-					ServiceType:  serviceType(core.ServiceTypeNodePort),
-					UseHostPorts: true,
-					LogLevel:     "trace",
-					ConsulSpec: apigwv1alpha1.ConsulSpec{
-						Address: hostRoute,
-						Scheme:  "https",
-						PortSpec: apigwv1alpha1.PortSpec{
-							GRPC: e2e.ConsulGRPCPort(ctx),
-							HTTP: e2e.ConsulHTTPPort(ctx),
-						},
-						AuthSpec: apigwv1alpha1.AuthSpec{
-							Method:  "consul-api-gateway",
-							Account: "consul-api-gateway",
-						},
-					},
-				},
-			}
-			err = resources.Create(ctx, gcc)
-			require.NoError(t, err)
-
-			gc := &gateway.GatewayClass{
-				ObjectMeta: meta.ObjectMeta{
-					Name: className,
-				},
-				Spec: gateway.GatewayClassSpec{
-					ControllerName: k8s.ControllerName,
-					ParametersRef: &gateway.ParametersReference{
-						Group: apigwv1alpha1.Group,
-						Kind:  apigwv1alpha1.GatewayClassConfigKind,
-						Name:  configName,
-					},
-				},
-			}
-			err = resources.Create(ctx, gc)
-			require.NoError(t, err)
+			_, gc := createGatewayClass(ctx, t, resources)
+			require.Eventually(t, gatewayClassStatusCheck(ctx, resources, gc.Name, namespace, conditionAccepted), checkTimeout, checkInterval, "gatewayclass not accepted in the allotted time")
 
 			gw := &gateway.Gateway{
 				ObjectMeta: meta.ObjectMeta{
@@ -1092,8 +895,6 @@ func TestReferencePolicyLifecycle(t *testing.T) {
 			require.NoError(t, err)
 
 			namespace := e2e.Namespace(ctx)
-			configName := envconf.RandomName("gcc", 16)
-			className := envconf.RandomName("gc", 16)
 			gatewayName := envconf.RandomName("gw", 16)
 			httpRouteName := envconf.RandomName("httproute", 16)
 			httpRouteNamespace := envconf.RandomName("ns", 16)
@@ -1104,48 +905,8 @@ func TestReferencePolicyLifecycle(t *testing.T) {
 
 			resources := cfg.Client().Resources(namespace)
 
-			gcc := &apigwv1alpha1.GatewayClassConfig{
-				ObjectMeta: meta.ObjectMeta{
-					Name: configName,
-				},
-				Spec: apigwv1alpha1.GatewayClassConfigSpec{
-					ImageSpec: apigwv1alpha1.ImageSpec{
-						ConsulAPIGateway: e2e.DockerImage(ctx),
-					},
-					UseHostPorts: true,
-					LogLevel:     "trace",
-					ConsulSpec: apigwv1alpha1.ConsulSpec{
-						Address: hostRoute,
-						Scheme:  "https",
-						PortSpec: apigwv1alpha1.PortSpec{
-							GRPC: e2e.ConsulGRPCPort(ctx),
-							HTTP: e2e.ConsulHTTPPort(ctx),
-						},
-						AuthSpec: apigwv1alpha1.AuthSpec{
-							Method:  "consul-api-gateway",
-							Account: "consul-api-gateway",
-						},
-					},
-				},
-			}
-			err = resources.Create(ctx, gcc)
-			require.NoError(t, err)
-
-			gc := &gateway.GatewayClass{
-				ObjectMeta: meta.ObjectMeta{
-					Name: className,
-				},
-				Spec: gateway.GatewayClassSpec{
-					ControllerName: k8s.ControllerName,
-					ParametersRef: &gateway.ParametersReference{
-						Group: apigwv1alpha1.Group,
-						Kind:  apigwv1alpha1.GatewayClassConfigKind,
-						Name:  configName,
-					},
-				},
-			}
-			err = resources.Create(ctx, gc)
-			require.NoError(t, err)
+			_, gc := createGatewayClass(ctx, t, resources)
+			require.Eventually(t, gatewayClassStatusCheck(ctx, resources, gc.Name, namespace, conditionAccepted), checkTimeout, checkInterval, "gatewayclass not accepted in the allotted time")
 
 			httpCheckPort := e2e.HTTPReferencePolicyPort(ctx)
 			tcpCheckPort := e2e.TCPReferencePolicyPort(ctx)
@@ -1160,7 +921,7 @@ func TestReferencePolicyLifecycle(t *testing.T) {
 			}
 
 			gwNamespace := gateway.Namespace(namespace)
-			gw := createGateway(ctx, t, cfg, gatewayName, gc, []gateway.Listener{
+			gw := createGateway(ctx, t, resources, gatewayName, gc, []gateway.Listener{
 				{
 					Name:     "https",
 					Port:     gateway.PortNumber(httpCheckPort),
@@ -1522,12 +1283,10 @@ func createHTTPSListener(ctx context.Context, t *testing.T, port gateway.PortNum
 	}
 }
 
-func createGateway(ctx context.Context, t *testing.T, cfg *envconf.Config, gatewayName string, gc *gateway.GatewayClass, listeners []gateway.Listener) *gateway.Gateway {
+func createGateway(ctx context.Context, t *testing.T, resources *resources.Resources, gatewayName string, gc *gateway.GatewayClass, listeners []gateway.Listener) *gateway.Gateway {
 	t.Helper()
 
 	namespace := e2e.Namespace(ctx)
-
-	resources := cfg.Client().Resources(namespace)
 
 	gw := &gateway.Gateway{
 		ObjectMeta: meta.ObjectMeta{
@@ -1546,24 +1305,48 @@ func createGateway(ctx context.Context, t *testing.T, cfg *envconf.Config, gatew
 	return gw
 }
 
-func createGatewayClass(ctx context.Context, t *testing.T, cfg *envconf.Config, defaultInstances int32) (*apigwv1alpha1.GatewayClassConfig, *gateway.GatewayClass) {
+type GatewayClassConfigParams struct {
+	UseHostPorts     *bool
+	DefaultInstances *int32
+}
+
+func createGatewayClass(ctx context.Context, t *testing.T, resources *resources.Resources) (*apigwv1alpha1.GatewayClassConfig, *gateway.GatewayClass) {
+	return createGatewayClassWithParams(ctx, t, resources, GatewayClassConfigParams{})
+}
+
+func createGatewayClassWithParams(ctx context.Context, t *testing.T, resources *resources.Resources, params GatewayClassConfigParams) (*apigwv1alpha1.GatewayClassConfig, *gateway.GatewayClass) {
 	t.Helper()
+
+	// Expose ports on the Docker host
+	// This will cause resource conflicts preventing a gateway from becoming ready
+	// if gateway listeners do not attempt to bind to a unique port
+	useHostPorts := true
+	if params.UseHostPorts != nil {
+		useHostPorts = *params.UseHostPorts
+	}
+
+	// Override default instances if specified in params
+	var defaultInstances int32 = 1
+	if params.DefaultInstances != nil {
+		defaultInstances = *params.DefaultInstances
+	}
 
 	namespace := e2e.Namespace(ctx)
 	configName := envconf.RandomName("gcc", 16)
 	className := envconf.RandomName("gc", 16)
 
-	resources := cfg.Client().Resources(namespace)
-
 	gcc := &apigwv1alpha1.GatewayClassConfig{
 		ObjectMeta: meta.ObjectMeta{
-			Name: configName,
+			Name:      configName,
+			Namespace: namespace,
 		},
 		Spec: apigwv1alpha1.GatewayClassConfigSpec{
 			ImageSpec: apigwv1alpha1.ImageSpec{
 				ConsulAPIGateway: e2e.DockerImage(ctx),
 			},
-			ServiceType: serviceType(core.ServiceTypeNodePort),
+			ServiceType:  serviceType(core.ServiceTypeNodePort),
+			UseHostPorts: useHostPorts,
+			LogLevel:     "trace",
 			DeploymentSpec: apigwv1alpha1.DeploymentSpec{
 				DefaultInstances: &defaultInstances,
 			},
@@ -1581,6 +1364,7 @@ func createGatewayClass(ctx context.Context, t *testing.T, cfg *envconf.Config, 
 			},
 		},
 	}
+
 	err := resources.Create(ctx, gcc)
 	require.NoError(t, err)
 
@@ -1635,13 +1419,19 @@ func createTCPRoute(ctx context.Context, t *testing.T, resources *resources.Reso
 
 // checkGatewayConfigAnnotation verifies that the GatewayClassConfig was
 // correctly serialized into the expected annotation on the Gateway.
-func checkGatewayConfigAnnotation(t *testing.T, g *gateway.Gateway, gcc *apigwv1alpha1.GatewayClassConfig) {
+func checkGatewayConfigAnnotation(ctx context.Context, t *testing.T, resources *resources.Resources, gatewayName, namespace string, gcc *apigwv1alpha1.GatewayClassConfig) {
 	t.Helper()
 
 	expectedCfg, err := json.Marshal(gcc.Spec)
 	require.NoError(t, err)
 
-	actualCfg, ok := g.Annotations[`api-gateway.consul.hashicorp.com/config`]
+	gw := &gateway.Gateway{}
+	require.Eventually(t, func() bool {
+		err := resources.Get(ctx, gatewayName, namespace, gw)
+		return err == nil
+	}, checkTimeout, checkInterval, "no gateway found in the allotted time")
+
+	actualCfg, ok := gw.Annotations[`api-gateway.consul.hashicorp.com/config`]
 	assert.True(t, ok)
 	assert.Equal(t, string(expectedCfg), actualCfg)
 }
