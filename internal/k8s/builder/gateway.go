@@ -124,7 +124,7 @@ func (b *GatewayDeploymentBuilder) Validate() error {
 	return nil
 }
 
-func (b *GatewayDeploymentBuilder) Build() *v1.Deployment {
+func (b *GatewayDeploymentBuilder) Build(currentReplicas *int32) *v1.Deployment {
 	labels := utils.LabelsForGateway(b.gateway)
 
 	return &v1.Deployment{
@@ -134,7 +134,7 @@ func (b *GatewayDeploymentBuilder) Build() *v1.Deployment {
 			Labels:    labels,
 		},
 		Spec: v1.DeploymentSpec{
-			Replicas: b.instances(),
+			Replicas: b.instances(currentReplicas),
 			Selector: &metav1.LabelSelector{
 				MatchLabels: labels,
 			},
@@ -151,13 +151,36 @@ func (b *GatewayDeploymentBuilder) Build() *v1.Deployment {
 	}
 }
 
-func (b *GatewayDeploymentBuilder) instances() *int32 {
-	if b.gwConfig.Spec.DeploymentSpec.DefaultInstances == nil {
-		instances := defaultInstances
-		return &instances
+func (b *GatewayDeploymentBuilder) instances(currentReplicas *int32) *int32 {
+
+	instanceValue := defaultInstances
+
+	//if currentReplicas is not nil use current value when building deployment
+	if currentReplicas != nil {
+		instanceValue = *currentReplicas
+	} else if b.gwConfig.Spec.DeploymentSpec.DefaultInstances != nil {
+		// otherwise use the default value on the GatewayClassConfig if set
+		instanceValue = *b.gwConfig.Spec.DeploymentSpec.DefaultInstances
 	}
 
-	return b.gwConfig.Spec.DeploymentSpec.DefaultInstances
+	if b.gwConfig.Spec.DeploymentSpec.MaxInstances != nil {
+
+		//check if over maximum and lower to maximum
+		maxValue := *b.gwConfig.Spec.DeploymentSpec.MaxInstances
+		if instanceValue > maxValue {
+			instanceValue = maxValue
+		}
+	}
+
+	if b.gwConfig.Spec.DeploymentSpec.MinInstances != nil {
+		//check if less than minimum and raise to minimum
+		minValue := *b.gwConfig.Spec.DeploymentSpec.MinInstances
+		if instanceValue < minValue {
+			instanceValue = minValue
+		}
+
+	}
+	return &instanceValue
 }
 
 func (b *GatewayDeploymentBuilder) podSpec() corev1.PodSpec {
