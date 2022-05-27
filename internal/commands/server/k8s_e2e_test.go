@@ -73,7 +73,7 @@ func TestGatewayWithClassConfigChange(t *testing.T) {
 			firstConfig, gc := createGatewayClassWithParams(ctx, t, resources, GatewayClassConfigParams{
 				UseHostPorts: &useHostPorts,
 			})
-			require.Eventually(t, gatewayClassStatusCheck(ctx, resources, gc.Name, namespace, conditionAccepted), 30*time.Second, checkInterval, "gatewayclass not accepted in the allotted time")
+			require.Eventually(t, gatewayClassStatusCheck(ctx, resources, gc.Name, namespace, conditionAccepted), checkTimeout, checkInterval, "gatewayclass not accepted in the allotted time")
 
 			oldUseHostPorts := firstConfig.Spec.UseHostPorts
 
@@ -204,7 +204,7 @@ func TestGatewayBasic(t *testing.T) {
 			gcc, gc := createGatewayClassWithParams(ctx, t, resources, GatewayClassConfigParams{
 				UseHostPorts: &useHostPorts,
 			})
-			require.Eventually(t, gatewayClassStatusCheck(ctx, resources, gc.Name, namespace, conditionAccepted), 30*time.Second, checkInterval, "gatewayclass not accepted in the allotted time")
+			require.Eventually(t, gatewayClassStatusCheck(ctx, resources, gc.Name, namespace, conditionAccepted), checkTimeout, checkInterval, "gatewayclass not accepted in the allotted time")
 
 			httpsListener := createHTTPSListener(ctx, t, 443)
 			gw := createGateway(ctx, t, resources, gatewayName, gc, []gateway.Listener{httpsListener})
@@ -267,7 +267,7 @@ func TestServiceListeners(t *testing.T) {
 			_, gc := createGatewayClassWithParams(ctx, t, resources, GatewayClassConfigParams{
 				UseHostPorts: &useHostPorts,
 			})
-			require.Eventually(t, gatewayClassStatusCheck(ctx, resources, gc.Name, namespace, conditionAccepted), 30*time.Second, checkInterval, "gatewayclass not accepted in the allotted time")
+			require.Eventually(t, gatewayClassStatusCheck(ctx, resources, gc.Name, namespace, conditionAccepted), checkTimeout, checkInterval, "gatewayclass not accepted in the allotted time")
 
 			httpsListener := createHTTPSListener(ctx, t, 443)
 			gw := createGateway(ctx, t, resources, gatewayName, gc, []gateway.Listener{httpsListener})
@@ -329,7 +329,7 @@ func TestHTTPRouteFlattening(t *testing.T) {
 			resources := cfg.Client().Resources(namespace)
 
 			_, gc := createGatewayClass(ctx, t, resources)
-			require.Eventually(t, gatewayClassStatusCheck(ctx, resources, gc.Name, namespace, conditionAccepted), 30*time.Second, checkInterval, "gatewayclass not accepted in the allotted time")
+			require.Eventually(t, gatewayClassStatusCheck(ctx, resources, gc.Name, namespace, conditionAccepted), checkTimeout, checkInterval, "gatewayclass not accepted in the allotted time")
 
 			checkPort := e2e.HTTPFlattenedPort(ctx)
 			httpsListener := createHTTPSListener(ctx, t, gateway.PortNumber(checkPort))
@@ -456,7 +456,7 @@ func TestHTTPMeshService(t *testing.T) {
 			resources := cfg.Client().Resources(namespace)
 
 			_, gc := createGatewayClass(ctx, t, resources)
-			require.Eventually(t, gatewayClassStatusCheck(ctx, resources, gc.Name, namespace, conditionAccepted), 30*time.Second, checkInterval, "gatewayclass not accepted in the allotted time")
+			require.Eventually(t, gatewayClassStatusCheck(ctx, resources, gc.Name, namespace, conditionAccepted), checkTimeout, checkInterval, "gatewayclass not accepted in the allotted time")
 
 			httpsListener := createHTTPSListener(ctx, t, gateway.PortNumber(e2e.HTTPPort(ctx)))
 			gw := createGateway(ctx, t, resources, gatewayName, gc, []gateway.Listener{httpsListener})
@@ -674,7 +674,7 @@ func TestTCPMeshService(t *testing.T) {
 			}))
 
 			_, gc := createGatewayClass(ctx, t, resources)
-			require.Eventually(t, gatewayClassStatusCheck(ctx, resources, gc.Name, namespace, conditionAccepted), 30*time.Second, checkInterval, "gatewayclass not accepted in the allotted time")
+			require.Eventually(t, gatewayClassStatusCheck(ctx, resources, gc.Name, namespace, conditionAccepted), checkTimeout, checkInterval, "gatewayclass not accepted in the allotted time")
 
 			gw := &gateway.Gateway{
 				ObjectMeta: meta.ObjectMeta{
@@ -801,7 +801,7 @@ func TestTCPMeshService(t *testing.T) {
 			resources := cfg.Client().Resources(namespace)
 
 			_, gc := createGatewayClass(ctx, t, resources)
-			require.Eventually(t, gatewayClassStatusCheck(ctx, resources, gc.Name, namespace, conditionAccepted), 30*time.Second, checkInterval, "gatewayclass not accepted in the allotted time")
+			require.Eventually(t, gatewayClassStatusCheck(ctx, resources, gc.Name, namespace, conditionAccepted), checkTimeout, checkInterval, "gatewayclass not accepted in the allotted time")
 
 			gw := &gateway.Gateway{
 				ObjectMeta: meta.ObjectMeta{
@@ -906,7 +906,7 @@ func TestReferencePolicyLifecycle(t *testing.T) {
 			resources := cfg.Client().Resources(namespace)
 
 			_, gc := createGatewayClass(ctx, t, resources)
-			require.Eventually(t, gatewayClassStatusCheck(ctx, resources, gc.Name, namespace, conditionAccepted), 30*time.Second, checkInterval, "gatewayclass not accepted in the allotted time")
+			require.Eventually(t, gatewayClassStatusCheck(ctx, resources, gc.Name, namespace, conditionAccepted), checkTimeout, checkInterval, "gatewayclass not accepted in the allotted time")
 
 			httpCheckPort := e2e.HTTPReferencePolicyPort(ctx)
 			tcpCheckPort := e2e.TCPReferencePolicyPort(ctx)
