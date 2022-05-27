@@ -121,7 +121,9 @@ func TestGatewayWithReplicas(t *testing.T) {
 
 			var numberOfReplicas int32 = 3
 
+			useHostPorts := false
 			gcc, gc := createGatewayClassWithParams(ctx, t, resources, GatewayClassConfigParams{
+				UseHostPorts:     &useHostPorts,
 				DefaultInstances: &numberOfReplicas,
 			})
 			require.Eventually(t, gatewayClassStatusCheck(ctx, resources, gc.Name, namespace, conditionAccepted), checkTimeout, checkInterval, "gatewayclass not accepted in the allotted time")
@@ -156,7 +158,9 @@ func TestGatewayWithReplicasCanScale(t *testing.T) {
 			var initialReplicas int32 = 3
 			var finalReplicas int32 = 8
 
+			useHostPorts := false
 			gcc, gc := createGatewayClassWithParams(ctx, t, resources, GatewayClassConfigParams{
+				UseHostPorts:     &useHostPorts,
 				DefaultInstances: &initialReplicas,
 			})
 			require.Eventually(t, gatewayClassStatusCheck(ctx, resources, gc.Name, namespace, conditionAccepted), checkTimeout, checkInterval, "gatewayclass not accepted in the allotted time")
