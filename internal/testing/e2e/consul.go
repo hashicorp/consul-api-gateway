@@ -22,8 +22,9 @@ import (
 	"sigs.k8s.io/e2e-framework/pkg/env"
 	"sigs.k8s.io/e2e-framework/pkg/envconf"
 
-	"github.com/hashicorp/consul-api-gateway/internal/testing"
 	"github.com/hashicorp/consul/api"
+
+	"github.com/hashicorp/consul-api-gateway/internal/testing"
 )
 
 const (
@@ -419,100 +420,52 @@ func consulDeployment(namespace string, httpsPort, grpcPort int) *apps.Deploymen
 }
 
 func ConsulClient(ctx context.Context) *api.Client {
-	consulEnvironment := ctx.Value(consulTestContextKey)
-	if consulEnvironment == nil {
-		panic("must run this with an integration test that has called CreateTestConsul")
-	}
-	return consulEnvironment.(*consulTestEnvironment).consulClient
+	return mustGetTestEnvironment(ctx).consulClient
 }
 
 func ConsulCA(ctx context.Context) []byte {
-	consulEnvironment := ctx.Value(consulTestContextKey)
-	if consulEnvironment == nil {
-		panic("must run this with an integration test that has called CreateTestConsul")
-	}
-	return consulEnvironment.(*consulTestEnvironment).ca
+	return mustGetTestEnvironment(ctx).ca
 
 }
 
 func ConsulInitialManagementToken(ctx context.Context) string {
-	consulEnvironment := ctx.Value(consulTestContextKey)
-	if consulEnvironment == nil {
-		panic("must run this with an integration test that has called CreateTestConsul")
-	}
-	return consulEnvironment.(*consulTestEnvironment).token
+	return mustGetTestEnvironment(ctx).token
 }
 
 func ConsulIP(ctx context.Context) string {
-	consulEnvironment := ctx.Value(consulTestContextKey)
-	if consulEnvironment == nil {
-		panic("must run this with an integration test that has called CreateTestConsul")
-	}
-	return consulEnvironment.(*consulTestEnvironment).ip
+	return mustGetTestEnvironment(ctx).ip
 }
 
 func ConsulGRPCPort(ctx context.Context) int {
-	consulEnvironment := ctx.Value(consulTestContextKey)
-	if consulEnvironment == nil {
-		panic("must run this with an integration test that has called CreateTestConsul")
-	}
-	return consulEnvironment.(*consulTestEnvironment).grpcPort
+	return mustGetTestEnvironment(ctx).grpcPort
 }
 
 func TCPPort(ctx context.Context) int {
-	consulEnvironment := ctx.Value(consulTestContextKey)
-	if consulEnvironment == nil {
-		panic("must run this with an integration test that has called CreateTestConsul")
-	}
-	return consulEnvironment.(*consulTestEnvironment).extraTCPPort
+	return mustGetTestEnvironment(ctx).extraTCPPort
 }
 
 func TCPTLSPort(ctx context.Context) int {
-	consulEnvironment := ctx.Value(consulTestContextKey)
-	if consulEnvironment == nil {
-		panic("must run this with an integration test that has called CreateTestConsul")
-	}
-	return consulEnvironment.(*consulTestEnvironment).extraTCPTLSPort
+	return mustGetTestEnvironment(ctx).extraTCPTLSPort
 }
 
 func ExtraTCPTLSPort(ctx context.Context) int {
-	consulEnvironment := ctx.Value(consulTestContextKey)
-	if consulEnvironment == nil {
-		panic("must run this with an integration test that has called CreateTestConsul")
-	}
-	return consulEnvironment.(*consulTestEnvironment).extraTCPTLSPortTwo
+	return mustGetTestEnvironment(ctx).extraTCPTLSPortTwo
 }
 
 func HTTPPort(ctx context.Context) int {
-	consulEnvironment := ctx.Value(consulTestContextKey)
-	if consulEnvironment == nil {
-		panic("must run this with an integration test that has called CreateTestConsul")
-	}
-	return consulEnvironment.(*consulTestEnvironment).extraHTTPPort
+	return mustGetTestEnvironment(ctx).extraHTTPPort
 }
 
 func HTTPFlattenedPort(ctx context.Context) int {
-	consulEnvironment := ctx.Value(consulTestContextKey)
-	if consulEnvironment == nil {
-		panic("must run this with an integration test that has called CreateTestConsul")
-	}
-	return consulEnvironment.(*consulTestEnvironment).httpFlattenedPort
+	return mustGetTestEnvironment(ctx).httpFlattenedPort
 }
 
 func HTTPReferencePolicyPort(ctx context.Context) int {
-	consulEnvironment := ctx.Value(consulTestContextKey)
-	if consulEnvironment == nil {
-		panic("must run this with an integration test that has called CreateTestConsul")
-	}
-	return consulEnvironment.(*consulTestEnvironment).httpReferencePolicyPort
+	return mustGetTestEnvironment(ctx).httpReferencePolicyPort
 }
 
 func TCPReferencePolicyPort(ctx context.Context) int {
-	consulEnvironment := ctx.Value(consulTestContextKey)
-	if consulEnvironment == nil {
-		panic("must run this with an integration test that has called CreateTestConsul")
-	}
-	return consulEnvironment.(*consulTestEnvironment).tcpReferencePolicyPort
+	return mustGetTestEnvironment(ctx).tcpReferencePolicyPort
 }
 
 func ParentRefChangeFirstGatewayPort(ctx context.Context) int {
@@ -532,19 +485,19 @@ func ParentRefChangeSecondGatewayPort(ctx context.Context) int {
 }
 
 func ConsulHTTPPort(ctx context.Context) int {
-	consulEnvironment := ctx.Value(consulTestContextKey)
-	if consulEnvironment == nil {
-		panic("must run this with an integration test that has called CreateTestConsul")
-	}
-	return consulEnvironment.(*consulTestEnvironment).httpPort
+	return mustGetTestEnvironment(ctx).httpPort
 }
 
 func ConsulNamespace(ctx context.Context) string {
+	return mustGetTestEnvironment(ctx).namespace
+}
+
+func mustGetTestEnvironment(ctx context.Context) *consulTestEnvironment {
 	consulEnvironment := ctx.Value(consulTestContextKey)
 	if consulEnvironment == nil {
 		panic("must run this with an integration test that has called CreateTestConsul")
 	}
-	return consulEnvironment.(*consulTestEnvironment).namespace
+	return consulEnvironment.(*consulTestEnvironment)
 }
 
 func CreateConsulACLPolicy(ctx context.Context, cfg *envconf.Config) (context.Context, error) {
