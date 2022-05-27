@@ -363,13 +363,122 @@ func TestGatewayStatusEqual(t *testing.T) {
 	}))
 }
 
+func TestGatewayAllowedForSecretRef(t *testing.T) {
+	type testCase struct {
+		name         string
+		fromNS       string
+		toNS         *string
+		toKind       *string
+		toName       string
+		policyFromNS string
+		policyToName *string
+		allowed      bool
+	}
+
+	ns1, ns2, ns3 := "namespace1", "namespace2", "namespace3"
+	secret1, secret2, secret3 := "secret1", "secret2", "secret3"
+
+	for _, tc := range []testCase{
+		{name: "unspecified-secret-namespace-allowed", fromNS: ns1, toNS: nil, toName: secret1, policyFromNS: ns1, policyToName: nil, allowed: true},
+		{name: "same-namespace-no-name-allowed", fromNS: ns1, toNS: &ns1, toName: secret1, policyFromNS: ns1, policyToName: nil, allowed: true},
+		{name: "same-namespace-with-name-allowed", fromNS: ns1, toNS: &ns1, toName: secret1, policyFromNS: ns1, policyToName: &secret1, allowed: true},
+		{name: "different-namespace-no-name-allowed", fromNS: ns1, toNS: &ns2, toName: secret2, policyFromNS: ns1, policyToName: nil, allowed: true},
+		{name: "different-namespace-with-name-allowed", fromNS: ns1, toNS: &ns2, toName: secret2, policyFromNS: ns1, policyToName: &secret2, allowed: true},
+		{name: "mismatched-policy-from-namespace-disallowed", fromNS: ns1, toNS: &ns2, toName: secret2, policyFromNS: ns3, policyToName: &secret2, allowed: false},
+		{name: "mismatched-policy-to-name-disallowed", fromNS: ns1, toNS: &ns2, toName: secret2, policyFromNS: ns1, policyToName: &secret3, allowed: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+			client := mocks.NewMockClient(ctrl)
+
+			group := gw.Group("")
+
+			secretRef := gw.SecretObjectReference{
+				Group: &group,
+				Name:  gw.ObjectName(tc.toName),
+			}
+
+			if tc.toNS != nil {
+				ns := gw.Namespace(*tc.toNS)
+				secretRef.Namespace = &ns
+			}
+
+			if tc.toKind != nil {
+				k := gw.Kind(*tc.toKind)
+				secretRef.Kind = &k
+			}
+
+			gateway := &gw.Gateway{
+				TypeMeta:   meta.TypeMeta{APIVersion: "gateway.networking.k8s.io/v1alpha2", Kind: "Gateway"},
+				ObjectMeta: meta.ObjectMeta{Namespace: tc.fromNS},
+				Spec: gw.GatewaySpec{
+					Listeners: []gw.Listener{{
+						TLS: &gw.GatewayTLSConfig{
+							CertificateRefs: []*gw.SecretObjectReference{{
+								Group: &group,
+								Name:  gw.ObjectName(tc.toName),
+							}},
+						},
+					}},
+				},
+			}
+
+			var toName *gw.ObjectName
+			if tc.policyToName != nil {
+				on := gw.ObjectName(*tc.policyToName)
+				toName = &on
+			}
+
+			if tc.toNS != nil && tc.fromNS != *tc.toNS {
+				otherName := gw.ObjectName("blah")
+
+				refPolicies := []gw.ReferencePolicy{
+					// Create a ReferencePolicy that does not match at all (kind, etc.)
+					{
+						ObjectMeta: meta.ObjectMeta{Namespace: *tc.toNS},
+						Spec: gw.ReferencePolicySpec{
+							From: []gw.ReferencePolicyFrom{{Group: "Kool & The Gang", Kind: "Jungle Boogie", Namespace: "Wild And Peaceful"}},
+							To:   []gw.ReferencePolicyTo{{Group: "does not exist", Kind: "does not exist", Name: nil}},
+						},
+					},
+					// Create a ReferencePolicy that matches completely except for To.Name
+					{
+						ObjectMeta: meta.ObjectMeta{Namespace: *tc.toNS},
+						Spec: gw.ReferencePolicySpec{
+							From: []gw.ReferencePolicyFrom{{Group: "gateway.networking.k8s.io", Kind: gw.Kind("Gateway"), Namespace: gw.Namespace(tc.policyFromNS)}},
+							To:   []gw.ReferencePolicyTo{{Group: "", Kind: "Secret", Name: &otherName}},
+						},
+					},
+					// Create a ReferencePolicy that matches completely
+					{
+						ObjectMeta: meta.ObjectMeta{Namespace: *tc.toNS},
+						Spec: gw.ReferencePolicySpec{
+							From: []gw.ReferencePolicyFrom{{Group: "gateway.networking.k8s.io", Kind: gw.Kind("Gateway"), Namespace: gw.Namespace(tc.policyFromNS)}},
+							To:   []gw.ReferencePolicyTo{{Group: "", Kind: "Secret", Name: toName}},
+						},
+					},
+				}
+
+				client.EXPECT().
+					GetReferencePoliciesInNamespace(gomock.Any(), *tc.toNS).
+					Return(refPolicies, nil)
+			}
+
+			allowed, err := gatewayAllowedForSecretRef(context.Background(), gateway, secretRef, client)
+			require.NoError(t, err)
+			assert.Equal(t, tc.allowed, allowed)
+		})
+	}
+}
+
 func TestRouteAllowedForBackendRef(t *testing.T) {
 	type testCase struct {
 		name         string
-		routeNS      string
-		backendNS    *string
-		backendKind  *string
-		backendName  string
+		fromNS       string
+		toNS         *string
+		toKind       *string
+		toName       string
 		policyFromNS string
 		policyToName *string
 		allowed      bool
@@ -379,13 +488,13 @@ func TestRouteAllowedForBackendRef(t *testing.T) {
 	backend1, backend2, backend3 := "backend1", "backend2", "backend3"
 
 	for _, tc := range []testCase{
-		{name: "unspecified-backend-namespace-allowed", routeNS: ns1, backendNS: nil, backendName: backend1, policyFromNS: ns1, policyToName: nil, allowed: true},
-		{name: "same-namespace-no-name-allowed", routeNS: ns1, backendNS: &ns1, backendName: backend1, policyFromNS: ns1, policyToName: nil, allowed: true},
-		{name: "same-namespace-with-name-allowed", routeNS: ns1, backendNS: &ns1, backendName: backend1, policyFromNS: ns1, policyToName: &backend1, allowed: true},
-		{name: "different-namespace-no-name-allowed", routeNS: ns1, backendNS: &ns2, backendName: backend2, policyFromNS: ns1, policyToName: nil, allowed: true},
-		{name: "different-namespace-with-name-allowed", routeNS: ns1, backendNS: &ns2, backendName: backend2, policyFromNS: ns1, policyToName: &backend2, allowed: true},
-		{name: "mismatched-policy-from-namespace-disallowed", routeNS: ns1, backendNS: &ns2, backendName: backend2, policyFromNS: ns3, policyToName: &backend2, allowed: false},
-		{name: "mismatched-policy-to-name-disallowed", routeNS: ns1, backendNS: &ns2, backendName: backend2, policyFromNS: ns1, policyToName: &backend3, allowed: false},
+		{name: "unspecified-backend-namespace-allowed", fromNS: ns1, toNS: nil, toName: backend1, policyFromNS: ns1, policyToName: nil, allowed: true},
+		{name: "same-namespace-no-name-allowed", fromNS: ns1, toNS: &ns1, toName: backend1, policyFromNS: ns1, policyToName: nil, allowed: true},
+		{name: "same-namespace-with-name-allowed", fromNS: ns1, toNS: &ns1, toName: backend1, policyFromNS: ns1, policyToName: &backend1, allowed: true},
+		{name: "different-namespace-no-name-allowed", fromNS: ns1, toNS: &ns2, toName: backend2, policyFromNS: ns1, policyToName: nil, allowed: true},
+		{name: "different-namespace-with-name-allowed", fromNS: ns1, toNS: &ns2, toName: backend2, policyFromNS: ns1, policyToName: &backend2, allowed: true},
+		{name: "mismatched-policy-from-namespace-disallowed", fromNS: ns1, toNS: &ns2, toName: backend2, policyFromNS: ns3, policyToName: &backend2, allowed: false},
+		{name: "mismatched-policy-to-name-disallowed", fromNS: ns1, toNS: &ns2, toName: backend2, policyFromNS: ns1, policyToName: &backend3, allowed: false},
 	} {
 		// Test each case for both HTTPRoute + TCPRoute which should function identically
 		for _, routeType := range []string{"HTTPRoute", "TCPRoute"} {
@@ -399,17 +508,17 @@ func TestRouteAllowedForBackendRef(t *testing.T) {
 				backendRef := gw.BackendRef{
 					BackendObjectReference: gw.BackendObjectReference{
 						Group: &group,
-						Name:  gw.ObjectName(tc.backendName),
+						Name:  gw.ObjectName(tc.toName),
 					},
 				}
 
-				if tc.backendNS != nil {
-					ns := gw.Namespace(*tc.backendNS)
+				if tc.toNS != nil {
+					ns := gw.Namespace(*tc.toNS)
 					backendRef.BackendObjectReference.Namespace = &ns
 				}
 
-				if tc.backendKind != nil {
-					k := gw.Kind(*tc.backendKind)
+				if tc.toKind != nil {
+					k := gw.Kind(*tc.toKind)
 					backendRef.Kind = &k
 				}
 
@@ -417,7 +526,7 @@ func TestRouteAllowedForBackendRef(t *testing.T) {
 				switch routeType {
 				case "HTTPRoute":
 					route = &gw.HTTPRoute{
-						ObjectMeta: meta.ObjectMeta{Namespace: tc.routeNS},
+						ObjectMeta: meta.ObjectMeta{Namespace: tc.fromNS},
 						TypeMeta:   meta.TypeMeta{APIVersion: "gateway.networking.k8s.io/v1alpha2", Kind: "HTTPRoute"},
 						Spec: gw.HTTPRouteSpec{
 							Rules: []gw.HTTPRouteRule{{
@@ -427,7 +536,7 @@ func TestRouteAllowedForBackendRef(t *testing.T) {
 					}
 				case "TCPRoute":
 					route = &gw.TCPRoute{
-						ObjectMeta: meta.ObjectMeta{Namespace: tc.routeNS},
+						ObjectMeta: meta.ObjectMeta{Namespace: tc.fromNS},
 						TypeMeta:   meta.TypeMeta{APIVersion: "gateway.networking.k8s.io/v1alpha2", Kind: "TCPRoute"},
 						Spec: gw.TCPRouteSpec{
 							Rules: []gw.TCPRouteRule{{
@@ -445,10 +554,10 @@ func TestRouteAllowedForBackendRef(t *testing.T) {
 					toName = &on
 				}
 
-				if tc.backendNS != nil && tc.routeNS != *tc.backendNS {
+				if tc.toNS != nil && tc.fromNS != *tc.toNS {
 					referencePolicy := gw.ReferencePolicy{
 						TypeMeta:   meta.TypeMeta{},
-						ObjectMeta: meta.ObjectMeta{Namespace: *tc.backendNS},
+						ObjectMeta: meta.ObjectMeta{Namespace: *tc.toNS},
 						Spec: gw.ReferencePolicySpec{
 							From: []gw.ReferencePolicyFrom{{
 								Group:     "gateway.networking.k8s.io",
@@ -464,7 +573,7 @@ func TestRouteAllowedForBackendRef(t *testing.T) {
 					}
 
 					throwawayPolicy := gw.ReferencePolicy{
-						ObjectMeta: meta.ObjectMeta{Namespace: *tc.backendNS},
+						ObjectMeta: meta.ObjectMeta{Namespace: *tc.toNS},
 						Spec: gw.ReferencePolicySpec{
 							From: []gw.ReferencePolicyFrom{{
 								Group:     "Kool & The Gang",
@@ -480,7 +589,7 @@ func TestRouteAllowedForBackendRef(t *testing.T) {
 					}
 
 					client.EXPECT().
-						GetReferencePoliciesInNamespace(gomock.Any(), *tc.backendNS).
+						GetReferencePoliciesInNamespace(gomock.Any(), *tc.toNS).
 						Return([]gw.ReferencePolicy{throwawayPolicy, referencePolicy}, nil)
 				}
 
