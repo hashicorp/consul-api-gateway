@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"net/http"
 	"os"
@@ -1789,20 +1788,20 @@ func checkRoute(t *testing.T, port int, path, expected string, headers map[strin
 		}
 
 		resp, err := client.Do(req)
-		log.Print("RESPONSE_ERR: ", err)
 		if err != nil {
+			t.Log(err)
 			return false
 		}
 		defer resp.Body.Close()
 
 		data, err := io.ReadAll(resp.Body)
-		log.Print("READALL_DATA: ", string(data))
-		log.Print("READALL_ERR: ", err)
 		if err != nil {
+			t.Log(err)
 			return false
 		}
+		t.Log(string(data))
 
-		log.Print("STATUS_CODE: ", resp.StatusCode)
+		t.Log("status code", resp.StatusCode)
 		if resp.StatusCode != http.StatusOK {
 			return false
 		}
@@ -1845,15 +1844,16 @@ func checkTCPRoute(t *testing.T, port int, expected string, exact bool, message 
 			Port: port,
 		})
 		if err != nil {
-			log.Print("TCP_DIAL_ERROR: ", err)
+			t.Log(err)
 			return false
 		}
 		data, err := io.ReadAll(conn)
 		if err != nil {
-			log.Print("TCP_READALL_ERROR: ", err)
+			t.Log(err)
 			return false
 		}
-		log.Print("TCP_READALL_DATA: ", string(data))
+		t.Log(string(data))
+
 		if exact {
 			return string(data) == expected
 		} else {
