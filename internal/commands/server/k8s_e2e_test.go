@@ -1426,13 +1426,12 @@ func TestRouteParentRefChange(t *testing.T) {
 				if err := resources.Get(ctx, httpRouteName, namespace, updated); err != nil {
 					return false
 				}
-				firstGatewayParentRefFound := false
 				for _, status := range updated.Status.Parents {
 					if string(status.ParentRef.Name) == firstGatewayName {
-						firstGatewayParentRefFound = true
+						return false
 					}
 				}
-				return !firstGatewayParentRefFound
+				return true
 			}, checkTimeout, checkInterval, "HTTPRoute status not unset in allotted time")
 
 			assert.NoError(t, resources.Delete(ctx, firstGateway))
