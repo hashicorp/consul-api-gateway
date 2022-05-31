@@ -54,15 +54,15 @@ func TestGatewayValidate(t *testing.T) {
 		},
 	})
 	client.EXPECT().GetSecret(gomock.Any(), gomock.Any()).Return(nil, nil)
-	client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(nil, nil).Times(2)
+	client.EXPECT().PodsWithLabels(gomock.Any(), gomock.Any()).Return(nil, nil).Times(2)
 	require.NoError(t, gateway.Validate(context.Background()))
 
 	expected := errors.New("expected")
-	client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(nil, nil).Times(2)
+	client.EXPECT().PodsWithLabels(gomock.Any(), gomock.Any()).Return(nil, nil).Times(2)
 	client.EXPECT().GetSecret(gomock.Any(), gomock.Any()).Return(nil, expected)
 	require.True(t, errors.Is(gateway.Validate(context.Background()), expected))
 
-	client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(nil, expected).Times(1)
+	client.EXPECT().PodsWithLabels(gomock.Any(), gomock.Any()).Return(nil, expected).Times(1)
 	require.True(t, errors.Is(gateway.Validate(context.Background()), expected))
 }
 
@@ -163,7 +163,7 @@ func TestGatewayValidateGatewayIP(t *testing.T) {
 			if tc.expectedIPFromSvc {
 				client.EXPECT().GetService(gomock.Any(), gomock.Any()).Return(svc, nil)
 			} else {
-				client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(pod, nil)
+				client.EXPECT().PodsWithLabels(gomock.Any(), gomock.Any()).Return([]core.Pod{*pod}, nil)
 			}
 			assert.NoError(t, gateway.validateGatewayIP(context.Background()))
 
@@ -206,7 +206,7 @@ func TestGatewayValidate_ListenerProtocolConflicts(t *testing.T) {
 		},
 		Client: client,
 	})
-	client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(nil, nil).Times(2)
+	client.EXPECT().PodsWithLabels(gomock.Any(), gomock.Any()).Return(nil, nil).Times(2)
 	require.NoError(t, gateway.Validate(context.Background()))
 	require.Equal(t, ListenerConditionReasonProtocolConflict, gateway.listeners["1"].status.Conflicted.Condition(0).Reason)
 	require.Equal(t, ListenerConditionReasonProtocolConflict, gateway.listeners["2"].status.Conflicted.Condition(0).Reason)
@@ -247,7 +247,7 @@ func TestGatewayValidate_ListenerHostnameConflicts(t *testing.T) {
 		},
 		Client: client,
 	})
-	client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(nil, nil).Times(2)
+	client.EXPECT().PodsWithLabels(gomock.Any(), gomock.Any()).Return(nil, nil).Times(2)
 	require.NoError(t, gateway.Validate(context.Background()))
 	require.Equal(t, ListenerConditionReasonHostnameConflict, gateway.listeners["1"].status.Conflicted.Condition(0).Reason)
 	require.Equal(t, ListenerConditionReasonHostnameConflict, gateway.listeners["2"].status.Conflicted.Condition(0).Reason)
@@ -278,37 +278,38 @@ func TestGatewayValidate_Pods(t *testing.T) {
 	})
 
 	// Pod has no/unknown status
-	client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(&core.Pod{
+	client.EXPECT().PodsWithLabels(gomock.Any(), gomock.Any()).Return([]core.Pod{{
 		Status: core.PodStatus{},
-	}, nil).Times(2)
+	}}, nil).Times(2)
 	require.NoError(t, gateway.Validate(context.Background()))
 	require.Equal(t, GatewayConditionReasonUnknown, gateway.status.Scheduled.Condition(0).Reason)
 
 	// Pod has pending status
-	client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(&core.Pod{
+	client.EXPECT().PodsWithLabels(gomock.Any(), gomock.Any()).Return([]core.Pod{{
 		Status: core.PodStatus{
 			Phase: core.PodPending,
 		},
-	}, nil).Times(2)
+	}}, nil).Times(2)
 	require.NoError(t, gateway.Validate(context.Background()))
 	require.Equal(t, GatewayConditionReasonNotReconciled, gateway.status.Scheduled.Condition(0).Reason)
 
 	// Pod is marked as unschedulable
-	client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(&core.Pod{
-		Status: core.PodStatus{
-			Phase: core.PodPending,
-			Conditions: []core.PodCondition{{
-				Type:   core.PodScheduled,
-				Status: core.ConditionFalse,
-				Reason: "Unschedulable",
-			}},
-		},
-	}, nil).Times(2)
+	client.EXPECT().PodsWithLabels(gomock.Any(), gomock.Any()).Return([]core.Pod{
+		{
+			Status: core.PodStatus{
+				Phase: core.PodPending,
+				Conditions: []core.PodCondition{{
+					Type:   core.PodScheduled,
+					Status: core.ConditionFalse,
+					Reason: "Unschedulable",
+				}},
+			},
+		}}, nil).Times(2)
 	require.NoError(t, gateway.Validate(context.Background()))
 	assert.Equal(t, GatewayConditionReasonNoResources, gateway.status.Scheduled.Condition(0).Reason)
 
 	// Pod has running status and is marked ready
-	client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(&core.Pod{
+	client.EXPECT().PodsWithLabels(gomock.Any(), gomock.Any()).Return([]core.Pod{{
 		Status: core.PodStatus{
 			Phase: core.PodRunning,
 			Conditions: []core.PodCondition{{
@@ -316,25 +317,25 @@ func TestGatewayValidate_Pods(t *testing.T) {
 				Status: core.ConditionTrue,
 			}},
 		},
-	}, nil).Times(2)
+	}}, nil).Times(2)
 	require.NoError(t, gateway.Validate(context.Background()))
 	assert.True(t, gateway.podReady)
 
 	// Pod has succeeded status
-	client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(&core.Pod{
+	client.EXPECT().PodsWithLabels(gomock.Any(), gomock.Any()).Return([]core.Pod{{
 		Status: core.PodStatus{
 			Phase: core.PodSucceeded,
 		},
-	}, nil).Times(2)
+	}}, nil).Times(2)
 	require.NoError(t, gateway.Validate(context.Background()))
 	assert.Equal(t, GatewayConditionReasonPodFailed, gateway.status.Scheduled.Condition(0).Reason)
 
 	// Pod has failed status
-	client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(&core.Pod{
+	client.EXPECT().PodsWithLabels(gomock.Any(), gomock.Any()).Return([]core.Pod{{
 		Status: core.PodStatus{
 			Phase: core.PodFailed,
 		},
-	}, nil).Times(2)
+	}}, nil).Times(2)
 	require.NoError(t, gateway.Validate(context.Background()))
 	assert.Equal(t, GatewayConditionReasonPodFailed, gateway.status.Scheduled.Condition(0).Reason)
 }

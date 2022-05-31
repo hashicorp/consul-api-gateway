@@ -424,19 +424,19 @@ func (mr *MockClientMockRecorder) IsManagedRoute(ctx, namespace, parents interfa
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsManagedRoute", reflect.TypeOf((*MockClient)(nil).IsManagedRoute), ctx, namespace, parents)
 }
 
-// PodWithLabels mocks base method.
-func (m *MockClient) PodWithLabels(ctx context.Context, labels map[string]string) (*v10.Pod, error) {
+// PodsWithLabels mocks base method.
+func (m *MockClient) PodsWithLabels(ctx context.Context, labels map[string]string) ([]v10.Pod, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "PodWithLabels", ctx, labels)
-	ret0, _ := ret[0].(*v10.Pod)
+	ret := m.ctrl.Call(m, "PodsWithLabels", ctx, labels)
+	ret0, _ := ret[0].([]v10.Pod)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// PodWithLabels indicates an expected call of PodWithLabels.
-func (mr *MockClientMockRecorder) PodWithLabels(ctx, labels interface{}) *gomock.Call {
+// PodsWithLabels indicates an expected call of PodsWithLabels.
+func (mr *MockClientMockRecorder) PodsWithLabels(ctx, labels interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PodWithLabels", reflect.TypeOf((*MockClient)(nil).PodWithLabels), ctx, labels)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PodsWithLabels", reflect.TypeOf((*MockClient)(nil).PodsWithLabels), ctx, labels)
 }
 
 // RemoveFinalizer mocks base method.

@@ -151,7 +151,7 @@ func (g *K8sGateway) validateListenerConflicts() {
 func (g *K8sGateway) validateGatewayIP(ctx context.Context) error {
 	service := g.serviceBuilder.Build()
 	if service == nil {
-		return g.assignGatewayIPFromPod(ctx)
+		return g.assignGatewayIPFromPods(ctx)
 	}
 
 	switch service.Spec.Type {
@@ -221,22 +221,26 @@ func (g *K8sGateway) assignGatewayIPFromService(ctx context.Context, service *co
 	return nil
 }
 
-// assignGatewayIPFromPod retrieves the internal IP for the Pod and assigns
+// assignGatewayIPFromPods retrieves the internal IP for the Pods and assigns
 // it to the Gateway.
-func (g *K8sGateway) assignGatewayIPFromPod(ctx context.Context) error {
-	pod, err := g.client.PodWithLabels(ctx, utils.LabelsForGateway(g.gateway))
+func (g *K8sGateway) assignGatewayIPFromPods(ctx context.Context) error {
+	pods, err := g.client.PodsWithLabels(ctx, utils.LabelsForGateway(g.gateway))
 	if err != nil {
 		return err
 	}
 
-	if pod == nil {
-		g.status.Scheduled.NotReconciled = errors.New("pod not found")
+	if len(pods) == 0 {
+		g.status.Scheduled.NotReconciled = errors.New("pods not found")
 		return nil
 	}
 
-	if pod.Status.PodIP != "" {
-		g.serviceReady = true
-		g.addresses = append(g.addresses, pod.Status.PodIP)
+	for _, pod := range pods {
+		if pod.Status.PodIP != "" {
+			g.serviceReady = true
+			if !ipInList(g.addresses, pod.Status.PodIP) {
+				g.addresses = append(g.addresses, pod.Status.PodIP)
+			}
+		}
 	}
 
 	return nil
@@ -248,31 +252,47 @@ func (g *K8sGateway) assignGatewayIPFromPod(ctx context.Context) error {
 // work by the practitioner such as port-forwarding or opening firewall rules to make
 // it externally accessible.
 func (g *K8sGateway) assignGatewayIPFromPodHost(ctx context.Context) error {
-	pod, err := g.client.PodWithLabels(ctx, utils.LabelsForGateway(g.gateway))
+	pods, err := g.client.PodsWithLabels(ctx, utils.LabelsForGateway(g.gateway))
 	if err != nil {
 		return err
 	}
 
-	if pod == nil {
-		g.status.Scheduled.NotReconciled = errors.New("pod not found")
+	if len(pods) == 0 {
+		g.status.Scheduled.NotReconciled = errors.New("pods not found")
 		return nil
 	}
 
-	if pod.Status.HostIP != "" {
-		g.serviceReady = true
-		g.addresses = append(g.addresses, pod.Status.HostIP)
+	for _, pod := range pods {
+		if pod.Status.HostIP != "" {
+			g.serviceReady = true
+
+			if !ipInList(g.addresses, pod.Status.HostIP) {
+				g.addresses = append(g.addresses, pod.Status.HostIP)
+			}
+		}
 	}
 
 	return nil
 }
 
+func ipInList(addresses []string, ip string) bool {
+	for _, a := range addresses {
+		if a == ip {
+			return true
+		}
+	}
+	return false
+}
+
 func (g *K8sGateway) validatePods(ctx context.Context) error {
-	pod, err := g.client.PodWithLabels(ctx, utils.LabelsForGateway(g.gateway))
+	pods, err := g.client.PodsWithLabels(ctx, utils.LabelsForGateway(g.gateway))
 	if err != nil {
 		return err
 	}
 
-	g.validatePodConditions(pod)
+	for _, pod := range pods {
+		g.validatePodConditions(&pod)
+	}
 
 	return nil
 }

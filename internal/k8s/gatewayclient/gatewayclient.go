@@ -58,7 +58,7 @@ type Client interface {
 
 	// general utilities
 
-	PodWithLabels(ctx context.Context, labels map[string]string) (*core.Pod, error)
+	PodsWithLabels(ctx context.Context, labels map[string]string) ([]core.Pod, error)
 
 	// status updates
 
@@ -153,26 +153,22 @@ func (g *gatewayClient) GatewayClassInUse(ctx context.Context, gc *gateway.Gatew
 	return false, nil
 }
 
-func (g *gatewayClient) PodWithLabels(ctx context.Context, labels map[string]string) (*core.Pod, error) {
+func (g *gatewayClient) PodsWithLabels(ctx context.Context, labels map[string]string) ([]core.Pod, error) {
 	list := &core.PodList{}
 	if err := g.List(ctx, list, client.MatchingLabels(labels)); err != nil {
 		return nil, NewK8sError(err)
 	}
 
-	// if we only have a single item, return it
-	if len(list.Items) == 1 {
-		return &list.Items[0], nil
-	}
+	items := []core.Pod{}
 
-	// we could potentially have two pods based off of one in the process of deletion
-	// return the first with a zero deletion timestamp
+	// return all pods that don't have a deletion timestamp
 	for _, pod := range list.Items {
 		if pod.DeletionTimestamp.IsZero() {
-			return &pod, nil
+			items = append(items, pod)
 		}
 	}
 
-	return nil, nil
+	return items, nil
 }
 
 func (g *gatewayClient) DeploymentForGateway(ctx context.Context, gw *gateway.Gateway) (*apps.Deployment, error) {
