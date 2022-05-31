@@ -360,17 +360,17 @@ func TestGatewayClassInUse(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, used)
 }
-func TestPodWithLabelsNoItems(t *testing.T) {
+func TestPodsWithLabelsNoItems(t *testing.T) {
 	gatewayclient := NewTestClient(nil)
 
-	pod, err := gatewayclient.PodWithLabels(context.Background(), map[string]string{
+	pods, err := gatewayclient.PodsWithLabels(context.Background(), map[string]string{
 		"label": "test",
 	})
 	require.NoError(t, err)
-	require.Nil(t, pod)
+	require.Equal(t, 0, len(pods))
 }
 
-func TestPodWithLabelsOneItem(t *testing.T) {
+func TestPodsWithLabelsOneItem(t *testing.T) {
 	labels := map[string]string{
 		"label": "test",
 	}
@@ -382,12 +382,12 @@ func TestPodWithLabelsOneItem(t *testing.T) {
 		}},
 	})
 
-	pod, err := gatewayclient.PodWithLabels(context.Background(), labels)
+	pod, err := gatewayclient.PodsWithLabels(context.Background(), labels)
 	require.NoError(t, err)
 	require.NotNil(t, pod)
 }
 
-func TestPodWithLabelsMultipleItems(t *testing.T) {
+func TestPodsWithLabelsMultipleItems(t *testing.T) {
 	labels := map[string]string{
 		"label": "test",
 	}
@@ -412,7 +412,8 @@ func TestPodWithLabelsMultipleItems(t *testing.T) {
 		}},
 	})
 
-	pod, err := gatewayclient.PodWithLabels(context.Background(), labels)
+	pods, err := gatewayclient.PodsWithLabels(context.Background(), labels)
 	require.NoError(t, err)
-	require.NotNil(t, pod)
+	require.NotNil(t, pods)
+	require.Equal(t, 2, len(pods))
 }

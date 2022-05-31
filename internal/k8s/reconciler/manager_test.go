@@ -87,10 +87,10 @@ func TestUpsertGateway(t *testing.T) {
 	require.NotEmpty(t, inner.Annotations[annotationConfig])
 
 	// validation
-	client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(nil, expected)
+	client.EXPECT().PodsWithLabels(gomock.Any(), gomock.Any()).Return(nil, expected)
 	require.Equal(t, expected, manager.UpsertGateway(context.Background(), inner))
 
-	client.EXPECT().PodWithLabels(gomock.Any(), gomock.Any()).Return(nil, nil).Times(2)
+	client.EXPECT().PodsWithLabels(gomock.Any(), gomock.Any()).Return(nil, nil).Times(2)
 	store.EXPECT().UpsertGateway(gomock.Any(), gomock.Any())
 	require.NoError(t, manager.UpsertGateway(context.Background(), inner))
 }

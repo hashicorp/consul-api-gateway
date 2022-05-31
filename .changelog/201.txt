@@ -1,0 +1,3 @@
+```release-note:note
+Gateway IP address assignment logic updated to include the case when multiple different pod IPs exist
+```
