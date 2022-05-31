@@ -1349,12 +1349,18 @@ func TestRouteParentRefChange(t *testing.T) {
 			)
 			require.Eventually(t, gatewayStatusCheck(ctx, resources, secondGatewayName, namespace, conditionReady), 30*time.Second, checkInterval, "no gateway found in the allotted time")
 
-			// Update httpRoute from remote, then switch ParentRef
+			// Update httpRoute from remote, then add second gateway ParentRef
 			require.NoError(t, resources.Get(ctx, httpRouteName, namespace, httpRoute))
-			httpRoute.Spec.CommonRouteSpec.ParentRefs = []gateway.ParentRef{{
-				Name:      gateway.ObjectName(secondGatewayName),
-				Namespace: &gwNamespace,
-			}}
+			httpRoute.Spec.CommonRouteSpec.ParentRefs = []gateway.ParentRef{
+				{
+					Name:      gateway.ObjectName(firstGatewayName),
+					Namespace: &gwNamespace,
+				},
+				{
+					Name:      gateway.ObjectName(secondGatewayName),
+					Namespace: &gwNamespace,
+				},
+			}
 			require.NoError(t, resources.Update(ctx, httpRoute))
 
 			// Check that route binds to second gateway listener successfully
@@ -1374,8 +1380,20 @@ func TestRouteParentRefChange(t *testing.T) {
 				listenerAttachedRoutes(1),
 			), checkTimeout, checkInterval, "listeners not ready in the allotted time")
 
+			// Check that HTTPRoute is still routing traffic from first gateway
+			checkRoute(t, firstGatewayCheckPort, "/", serviceOne.Name, nil, "service one not routable from first gateway in allotted time")
+
 			// Check that HTTPRoute is successfully resolved and routing traffic
-			checkRoute(t, secondGatewayCheckPort, "/", serviceOne.Name, nil, "service one not routable in allotted time")
+			// from second gateway
+			checkRoute(t, secondGatewayCheckPort, "/", serviceOne.Name, nil, "service one not routable from second gateway in allotted time")
+
+			// Update httpRoute from remote, then remove first gateway ParentRef
+			require.NoError(t, resources.Get(ctx, httpRouteName, namespace, httpRoute))
+			httpRoute.Spec.CommonRouteSpec.ParentRefs = []gateway.ParentRef{{
+				Name:      gateway.ObjectName(secondGatewayName),
+				Namespace: &gwNamespace,
+			}}
+			require.NoError(t, resources.Update(ctx, httpRoute))
 
 			// Check that route unbinds from first gateway listener successfully
 			require.Eventually(t, func() bool {
