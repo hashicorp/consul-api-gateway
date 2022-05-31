@@ -469,19 +469,11 @@ func TCPReferencePolicyPort(ctx context.Context) int {
 }
 
 func ParentRefChangeFirstGatewayPort(ctx context.Context) int {
-	consulEnvironment := ctx.Value(consulTestContextKey)
-	if consulEnvironment == nil {
-		panic("must run this with an integration test that has called CreateTestConsul")
-	}
-	return consulEnvironment.(*consulTestEnvironment).parentRefChangeFirstGatewayPort
+	return mustGetTestEnvironment(ctx).parentRefChangeFirstGatewayPort
 }
 
 func ParentRefChangeSecondGatewayPort(ctx context.Context) int {
-	consulEnvironment := ctx.Value(consulTestContextKey)
-	if consulEnvironment == nil {
-		panic("must run this with an integration test that has called CreateTestConsul")
-	}
-	return consulEnvironment.(*consulTestEnvironment).parentRefChangeSecondGatewayPort
+	return mustGetTestEnvironment(ctx).parentRefChangeSecondGatewayPort
 }
 
 func ConsulHTTPPort(ctx context.Context) int {
