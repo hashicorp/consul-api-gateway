@@ -113,7 +113,7 @@ func (r *HTTPRouteReconciler) getReferencePolicyObjectsFrom(refPolicy *gateway.R
 	matches := []gateway.HTTPRoute{}
 
 	for _, from := range refPolicy.Spec.From {
-		// TODO: search by from.Group and from.Kind instead of assuming HTTPRoute
+		// TODO: search by from.Group and from.Kind instead of assuming this ReferencePolicy references a HTTPRoute
 		routes, err := r.Client.GetHTTPRoutesInNamespace(r.Context, string(from.Namespace))
 		if err != nil {
 			r.Log.Error("error fetching routes", err)

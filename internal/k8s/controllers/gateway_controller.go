@@ -102,12 +102,12 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 func podToGatewayRequest(object client.Object) []reconcile.Request {
-	gateway, managed := utils.IsManagedGateway(object.GetLabels())
+	gw, managed := utils.IsManagedGateway(object.GetLabels())
 
 	if managed {
 		return []reconcile.Request{
 			{NamespacedName: types.NamespacedName{
-				Name:      gateway,
+				Name:      gw,
 				Namespace: object.GetNamespace(),
 			}},
 		}
@@ -119,7 +119,8 @@ func (r *GatewayReconciler) referencePolicyToGatewayRequests(object client.Objec
 	refPolicy := object.(*gateway.ReferencePolicy)
 
 	gateways := r.getGatewaysAffectedByReferencePolicy(refPolicy)
-	requests := []reconcile.Request{}
+
+	requests := make([]reconcile.Request, 0, len(gateways))
 
 	for _, gw := range gateways {
 		requests = append(requests, reconcile.Request{
@@ -133,11 +134,14 @@ func (r *GatewayReconciler) referencePolicyToGatewayRequests(object client.Objec
 	return requests
 }
 
+// getGatewaysAffectedByReferencePolicy retrieves all Gateways potentially impacted by the ReferencePolicy
+// modification. Currently, this is unfiltered and so returns all Gateways in the namespace referenced by
+// the ReferencePolicy.
 func (r *GatewayReconciler) getGatewaysAffectedByReferencePolicy(refPolicy *gateway.ReferencePolicy) []gateway.Gateway {
 	var matches []gateway.Gateway
 
 	for _, from := range refPolicy.Spec.From {
-		// TODO
+		// TODO: search by from.Group and from.Kind instead of assuming this ReferencePolicy references a Gateway
 		gateways, err := r.Client.GetGatewaysInNamespace(r.Context, string(from.Namespace))
 		if err != nil {
 			r.Log.Error("error fetching gateways", err)
