@@ -18,6 +18,7 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/store"
 	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 	"github.com/hashicorp/go-hclog"
+	"golang.org/x/exp/slices"
 )
 
 type K8sGateway struct {
@@ -237,7 +238,7 @@ func (g *K8sGateway) assignGatewayIPFromPods(ctx context.Context) error {
 	for _, pod := range pods {
 		if pod.Status.PodIP != "" {
 			g.serviceReady = true
-			if !ipInList(g.addresses, pod.Status.PodIP) {
+			if !slices.Contains(g.addresses, pod.Status.PodIP) {
 				g.addresses = append(g.addresses, pod.Status.PodIP)
 			}
 		}
@@ -266,22 +267,13 @@ func (g *K8sGateway) assignGatewayIPFromPodHost(ctx context.Context) error {
 		if pod.Status.HostIP != "" {
 			g.serviceReady = true
 
-			if !ipInList(g.addresses, pod.Status.HostIP) {
+			if !slices.Contains(g.addresses, pod.Status.HostIP) {
 				g.addresses = append(g.addresses, pod.Status.HostIP)
 			}
 		}
 	}
 
 	return nil
-}
-
-func ipInList(addresses []string, ip string) bool {
-	for _, a := range addresses {
-		if a == ip {
-			return true
-		}
-	}
-	return false
 }
 
 func (g *K8sGateway) validatePods(ctx context.Context) error {
