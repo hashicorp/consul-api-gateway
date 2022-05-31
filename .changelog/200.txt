@@ -1,3 +1,3 @@
 ```release-note:bug
-Clean up stale routes from gateway listeners which no longer reference the gateway.
+Clean up stale routes from gateway listeners when route no longer references the gateway.
 ```
