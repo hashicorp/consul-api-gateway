@@ -46,6 +46,12 @@ nodes:
   - containerPort: {{ .TCPReferencePolicyPort }}
     hostPort: {{ .TCPReferencePolicyPort }}
     protocol: TCP
+  - containerPort: {{ .ParentRefChangeFirstGatewayPort }}
+    hostPort: {{ .ParentRefChangeFirstGatewayPort }}
+    protocol: TCP
+  - containerPort: {{ .ParentRefChangeSecondGatewayPort }}
+    hostPort: {{ .ParentRefChangeSecondGatewayPort }}
+    protocol: TCP
   - containerPort: {{ .GRPCPort }}
     hostPort: {{ .GRPCPort }}
     protocol: TCP
@@ -72,35 +78,39 @@ func init() {
 
 // based off github.com/kubernetes-sigs/e2e-framework/support/kind
 type kindCluster struct {
-	name                     string
-	e                        *gexe.Echo
-	kubecfgFile              string
-	config                   string
-	httpsPort                int
-	httpsFlattenedPort       int
-	httpsReferencePolicyPort int
-	tcpReferencePolicyPort   int
-	grpcPort                 int
-	extraHTTPPort            int
-	extraTCPPort             int
-	extraTCPTLSPort          int
-	extraTCPTLSPortTwo       int
+	name                             string
+	e                                *gexe.Echo
+	kubecfgFile                      string
+	config                           string
+	httpsPort                        int
+	httpsFlattenedPort               int
+	httpsReferencePolicyPort         int
+	tcpReferencePolicyPort           int
+	parentRefChangeFirstGatewayPort  int
+	parentRefChangeSecondGatewayPort int
+	grpcPort                         int
+	extraHTTPPort                    int
+	extraTCPPort                     int
+	extraTCPTLSPort                  int
+	extraTCPTLSPortTwo               int
 }
 
 func newKindCluster(name string) *kindCluster {
-	ports := freeport.MustTake(9)
+	ports := freeport.MustTake(11)
 	return &kindCluster{
-		name:                     name,
-		e:                        gexe.New(),
-		httpsPort:                ports[0],
-		httpsFlattenedPort:       ports[1],
-		httpsReferencePolicyPort: ports[2],
-		tcpReferencePolicyPort:   ports[3],
-		grpcPort:                 ports[4],
-		extraHTTPPort:            ports[5],
-		extraTCPPort:             ports[6],
-		extraTCPTLSPort:          ports[7],
-		extraTCPTLSPortTwo:       ports[8],
+		name:                             name,
+		e:                                gexe.New(),
+		httpsPort:                        ports[0],
+		httpsFlattenedPort:               ports[1],
+		httpsReferencePolicyPort:         ports[2],
+		tcpReferencePolicyPort:           ports[3],
+		parentRefChangeFirstGatewayPort:  ports[4],
+		parentRefChangeSecondGatewayPort: ports[5],
+		grpcPort:                         ports[6],
+		extraHTTPPort:                    ports[7],
+		extraTCPPort:                     ports[8],
+		extraTCPTLSPort:                  ports[9],
+		extraTCPTLSPortTwo:               ports[10],
 	}
 }
 
@@ -109,25 +119,29 @@ func (k *kindCluster) Create() (string, error) {
 
 	var kindConfig bytes.Buffer
 	err := kindTemplate.Execute(&kindConfig, &struct {
-		HTTPSPort                int
-		HTTPSFlattenedPort       int
-		HTTPSReferencePolicyPort int
-		TCPReferencePolicyPort   int
-		GRPCPort                 int
-		ExtraTCPPort             int
-		ExtraTCPTLSPort          int
-		ExtraTCPTLSPortTwo       int
-		ExtraHTTPPort            int
+		HTTPSPort                        int
+		HTTPSFlattenedPort               int
+		HTTPSReferencePolicyPort         int
+		TCPReferencePolicyPort           int
+		ParentRefChangeFirstGatewayPort  int
+		ParentRefChangeSecondGatewayPort int
+		GRPCPort                         int
+		ExtraTCPPort                     int
+		ExtraTCPTLSPort                  int
+		ExtraTCPTLSPortTwo               int
+		ExtraHTTPPort                    int
 	}{
-		HTTPSPort:                k.httpsPort,
-		HTTPSFlattenedPort:       k.httpsFlattenedPort,
-		HTTPSReferencePolicyPort: k.httpsReferencePolicyPort,
-		TCPReferencePolicyPort:   k.tcpReferencePolicyPort,
-		GRPCPort:                 k.grpcPort,
-		ExtraTCPPort:             k.extraTCPPort,
-		ExtraTCPTLSPort:          k.extraTCPTLSPort,
-		ExtraTCPTLSPortTwo:       k.extraTCPTLSPortTwo,
-		ExtraHTTPPort:            k.extraHTTPPort,
+		HTTPSPort:                        k.httpsPort,
+		HTTPSFlattenedPort:               k.httpsFlattenedPort,
+		HTTPSReferencePolicyPort:         k.httpsReferencePolicyPort,
+		TCPReferencePolicyPort:           k.tcpReferencePolicyPort,
+		ParentRefChangeFirstGatewayPort:  k.parentRefChangeFirstGatewayPort,
+		ParentRefChangeSecondGatewayPort: k.parentRefChangeSecondGatewayPort,
+		GRPCPort:                         k.grpcPort,
+		ExtraTCPPort:                     k.extraTCPPort,
+		ExtraTCPTLSPort:                  k.extraTCPTLSPort,
+		ExtraTCPTLSPortTwo:               k.extraTCPTLSPortTwo,
+		ExtraHTTPPort:                    k.extraHTTPPort,
 	})
 	if err != nil {
 		return "", err

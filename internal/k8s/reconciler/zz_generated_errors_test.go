@@ -15,6 +15,8 @@ func TestCertificateResolutionErrorType(t *testing.T) {
 
 	require.Equal(t, expected, NewCertificateResolutionErrorNotFound(expected).Error())
 	require.Equal(t, CertificateResolutionErrorTypeNotFound, NewCertificateResolutionErrorNotFound(expected).Kind())
+	require.Equal(t, expected, NewCertificateResolutionErrorNotPermitted(expected).Error())
+	require.Equal(t, CertificateResolutionErrorTypeNotPermitted, NewCertificateResolutionErrorNotPermitted(expected).Kind())
 	require.Equal(t, expected, NewCertificateResolutionErrorUnsupported(expected).Error())
 	require.Equal(t, CertificateResolutionErrorTypeUnsupported, NewCertificateResolutionErrorUnsupported(expected).Kind())
 }

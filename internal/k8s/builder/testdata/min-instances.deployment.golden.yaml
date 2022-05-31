@@ -1,0 +1,96 @@
+metadata:
+  creationTimestamp: null
+  labels:
+    api-gateway.consul.hashicorp.com/created: "-62135596800"
+    api-gateway.consul.hashicorp.com/managed: "true"
+    api-gateway.consul.hashicorp.com/name: test-multiple-instances
+    api-gateway.consul.hashicorp.com/namespace: ""
+  name: test-multiple-instances
+spec:
+  replicas: 5
+  selector:
+    matchLabels:
+      api-gateway.consul.hashicorp.com/created: "-62135596800"
+      api-gateway.consul.hashicorp.com/managed: "true"
+      api-gateway.consul.hashicorp.com/name: test-multiple-instances
+      api-gateway.consul.hashicorp.com/namespace: ""
+  strategy: {}
+  template:
+    metadata:
+      annotations:
+        consul.hashicorp.com/connect-inject: "false"
+      creationTimestamp: null
+      labels:
+        api-gateway.consul.hashicorp.com/created: "-62135596800"
+        api-gateway.consul.hashicorp.com/managed: "true"
+        api-gateway.consul.hashicorp.com/name: test-multiple-instances
+        api-gateway.consul.hashicorp.com/namespace: ""
+    spec:
+      containers:
+      - command:
+        - /bin/sh
+        - -ec
+        - |2-
+
+
+          exec /bootstrap/consul-api-gateway exec -log-json \
+            -log-level info \
+            -gateway-host "$(IP)" \
+            -gateway-name test-multiple-instances \
+            -gateway-namespace test \
+            -consul-http-address $(HOST_IP) \
+            -consul-http-port 8500 \
+            -consul-xds-port  8502 \
+            -envoy-bootstrap-path /bootstrap/envoy.json \
+            -envoy-sds-address consul-api-gateway-controller.default.svc.cluster.local \
+            -envoy-sds-port 9090
+        env:
+        - name: IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: HOST_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP
+        image: envoyproxy/envoy:v1.20-latest
+        name: consul-api-gateway
+        ports:
+        - containerPort: 20000
+          name: ready
+          protocol: TCP
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+        - containerPort: 8443
+          name: https
+          protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 20000
+        resources: {}
+        volumeMounts:
+        - mountPath: /bootstrap
+          name: bootstrap
+        - mountPath: /certs
+          name: certs
+      initContainers:
+      - command:
+        - cp
+        - /bin/consul-api-gateway
+        - /bootstrap/consul-api-gateway
+        image: hashicorp/consul-api-gateway:0.2.1
+        name: consul-api-gateway-init
+        resources: {}
+        volumeMounts:
+        - mountPath: /bootstrap
+          name: bootstrap
+        - mountPath: /certs
+          name: certs
+      volumes:
+      - emptyDir: {}
+        name: bootstrap
+      - emptyDir: {}
+        name: certs
+status: {}

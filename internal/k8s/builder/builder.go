@@ -43,7 +43,7 @@ type Builder interface {
 
 type DeploymentBuilder interface {
 	Builder
-	Build() *v1.Deployment
+	Build(*int32) *v1.Deployment
 }
 
 type ServiceBuilder interface {
