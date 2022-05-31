@@ -1266,54 +1266,9 @@ func TestRouteParentRefChange(t *testing.T) {
 
 			namespace := e2e.Namespace(ctx)
 			gwNamespace := gateway.Namespace(namespace)
-			configName := envconf.RandomName("gcc", 16)
-			className := envconf.RandomName("gc", 16)
 			resources := cfg.Client().Resources(namespace)
 
-			gcc := &apigwv1alpha1.GatewayClassConfig{
-				ObjectMeta: meta.ObjectMeta{
-					Name: configName,
-				},
-				Spec: apigwv1alpha1.GatewayClassConfigSpec{
-					ImageSpec: apigwv1alpha1.ImageSpec{
-						ConsulAPIGateway: e2e.DockerImage(ctx),
-					},
-					ServiceType:  serviceType(core.ServiceTypeNodePort),
-					UseHostPorts: true,
-					LogLevel:     "trace",
-					ConsulSpec: apigwv1alpha1.ConsulSpec{
-						Address: hostRoute,
-						Scheme:  "https",
-						PortSpec: apigwv1alpha1.PortSpec{
-							GRPC: e2e.ConsulGRPCPort(ctx),
-							HTTP: e2e.ConsulHTTPPort(ctx),
-						},
-						AuthSpec: apigwv1alpha1.AuthSpec{
-							Method:  "consul-api-gateway",
-							Account: "consul-api-gateway",
-						},
-					},
-				},
-			}
-			err = resources.Create(ctx, gcc)
-			require.NoError(t, err)
-
-			gc := &gateway.GatewayClass{
-				ObjectMeta: meta.ObjectMeta{
-					Name: className,
-				},
-				Spec: gateway.GatewayClassSpec{
-					ControllerName: k8s.ControllerName,
-					ParametersRef: &gateway.ParametersReference{
-						Group: apigwv1alpha1.Group,
-						Kind:  apigwv1alpha1.GatewayClassConfigKind,
-						Name:  configName,
-					},
-				},
-			}
-			err = resources.Create(ctx, gc)
-			require.NoError(t, err)
-
+			_, gc := createGatewayClass(ctx, t, resources)
 			require.Eventually(t, gatewayClassStatusCheck(ctx, resources, gc.Name, namespace, conditionAccepted), 30*time.Second, checkInterval, "gatewayclass not accepted in the allotted time")
 
 			// Create a Gateway and wait for it to be ready
@@ -1322,7 +1277,7 @@ func TestRouteParentRefChange(t *testing.T) {
 			firstGateway := createGateway(
 				ctx,
 				t,
-				cfg,
+				resources,
 				firstGatewayName,
 				gc,
 				[]gateway.Listener{createHTTPSListener(ctx, t, gateway.PortNumber(firstGatewayCheckPort))},
@@ -1387,7 +1342,7 @@ func TestRouteParentRefChange(t *testing.T) {
 			secondGateway := createGateway(
 				ctx,
 				t,
-				cfg,
+				resources,
 				secondGatewayName,
 				gc,
 				[]gateway.Listener{createHTTPSListener(ctx, t, gateway.PortNumber(secondGatewayCheckPort))},
