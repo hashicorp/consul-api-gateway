@@ -76,6 +76,10 @@ func (g *gatewayState) TryBind(ctx context.Context, route store.Route) {
 				tracker.OnBound(g.Gateway)
 			}
 		}
+	} else {
+		// Clean up route from gateway listeners if ParentRef no longer
+		// references gateway
+		g.Remove(route.ID())
 	}
 }
 
