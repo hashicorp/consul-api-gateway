@@ -476,13 +476,22 @@ func TestHTTPRouteFlattening(t *testing.T) {
 			err = resources.Create(ctx, route)
 			require.NoError(t, err)
 
-			checkRoute(t, checkPort, "/v2/test", serviceTwo.Name, map[string]string{
+			checkRoute(t, checkPort, "/v2/test", httpResponse{
+				StatusCode: http.StatusOK,
+				Body:       serviceTwo.Name,
+			}, map[string]string{
 				"Host": "test.foo",
 			}, "service two not routable in allotted time")
-			checkRoute(t, checkPort, "/", serviceOne.Name, map[string]string{
+			checkRoute(t, checkPort, "/", httpResponse{
+				StatusCode: http.StatusOK,
+				Body:       serviceOne.Name,
+			}, map[string]string{
 				"Host": "test.foo",
 			}, "service one not routable in allotted time")
-			checkRoute(t, checkPort, "/", serviceTwo.Name, map[string]string{
+			checkRoute(t, checkPort, "/", httpResponse{
+				StatusCode: http.StatusOK,
+				Body:       serviceTwo.Name,
+			}, map[string]string{
 				"Host": "test.foo",
 				"x-v2": "v2",
 			}, "service two with headers is not routable in allotted time")
@@ -658,20 +667,41 @@ func TestHTTPMeshService(t *testing.T) {
 			require.NoError(t, err)
 
 			checkPort := e2e.HTTPPort(ctx)
-			checkRoute(t, checkPort, "/v1", serviceOne.Name, nil, "service one not routable in allotted time")
-			checkRoute(t, checkPort, "/v2", serviceTwo.Name, nil, "service two not routable in allotted time")
-			checkRoute(t, checkPort, "/v3", serviceThree.Name, map[string]string{
+			checkRoute(t, checkPort, "/v1", httpResponse{
+				StatusCode: http.StatusOK,
+				Body:       serviceOne.Name,
+			}, nil, "service one not routable in allotted time")
+			checkRoute(t, checkPort, "/v2", httpResponse{
+				StatusCode: http.StatusOK,
+				Body:       serviceTwo.Name,
+			}, nil, "service two not routable in allotted time")
+			checkRoute(t, checkPort, "/v3", httpResponse{
+				StatusCode: http.StatusOK,
+				Body:       serviceThree.Name,
+			}, map[string]string{
 				"x-v3": "v3",
 				"Host": "test.host",
 			}, "service three not routable in allotted time")
-			checkRoute(t, checkPort, "/v3", serviceFour.Name, nil, "service four not routable in allotted time")
-			checkRoute(t, checkPort, "/v3", serviceFive.Name, nil, "service five not routable in allotted time")
+			checkRoute(t, checkPort, "/v3", httpResponse{
+				StatusCode: http.StatusOK,
+				Body:       serviceFour.Name,
+			}, nil, "service four not routable in allotted time")
+			checkRoute(t, checkPort, "/v3", httpResponse{
+				StatusCode: http.StatusOK,
+				Body:       serviceFive.Name,
+			}, nil, "service five not routable in allotted time")
 
 			err = resources.Delete(ctx, routeOne)
 			require.NoError(t, err)
 
-			checkRoute(t, checkPort, "/v1", serviceFour.Name, nil, "after route deletion service four not routable in allotted time")
-			checkRoute(t, checkPort, "/v1", serviceFive.Name, nil, "after route deletion service five not routable in allotted time")
+			checkRoute(t, checkPort, "/v1", httpResponse{
+				StatusCode: http.StatusOK,
+				Body:       serviceFour.Name,
+			}, nil, "after route deletion service four not routable in allotted time")
+			checkRoute(t, checkPort, "/v1", httpResponse{
+				StatusCode: http.StatusOK,
+				Body:       serviceFive.Name,
+			}, nil, "after route deletion service five not routable in allotted time")
 
 			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionInSync), checkTimeout, checkInterval, "gateway not synced in the allotted time")
 
@@ -1154,7 +1184,10 @@ func TestReferencePolicyLifecycle(t *testing.T) {
 			), checkTimeout, checkInterval, "HTTPRoute status not set in allotted time")
 
 			// Check that HTTPRoute is successfully resolved and routing traffic
-			checkRoute(t, httpCheckPort, "/", serviceOne.Name, map[string]string{
+			checkRoute(t, httpCheckPort, "/", httpResponse{
+				StatusCode: http.StatusOK,
+				Body:       serviceOne.Name,
+			}, map[string]string{
 				"Host": "test.foo",
 			}, "service one not routable in allotted time")
 
@@ -1334,7 +1367,10 @@ func TestRouteParentRefChange(t *testing.T) {
 			), checkTimeout, checkInterval, "listeners not ready in the allotted time")
 
 			// Check that HTTPRoute is successfully resolved and routing traffic
-			checkRoute(t, firstGatewayCheckPort, "/", serviceOne.Name, nil, "service one not routable in allotted time")
+			checkRoute(t, firstGatewayCheckPort, "/", httpResponse{
+				StatusCode: http.StatusOK,
+				Body:       serviceOne.Name,
+			}, nil, "service one not routable in allotted time")
 
 			// Create a second Gateway and wait for it to be ready
 			secondGatewayName := envconf.RandomName("gw", 16)
@@ -1381,11 +1417,18 @@ func TestRouteParentRefChange(t *testing.T) {
 			), checkTimeout, checkInterval, "listeners not ready in the allotted time")
 
 			// Check that HTTPRoute is still routing traffic from first gateway
-			checkRoute(t, firstGatewayCheckPort, "/", serviceOne.Name, nil, "service one not routable from first gateway in allotted time")
+			checkRoute(t, firstGatewayCheckPort, "/", httpResponse{
+				StatusCode: http.StatusOK,
+				Body:       serviceOne.Name,
+			}, nil, "service one not routable from first gateway in allotted time")
 
-			// Check that HTTPRoute is successfully resolved and routing traffic
-			// from second gateway
-			checkRoute(t, secondGatewayCheckPort, "/", serviceOne.Name, nil, "service one not routable from second gateway in allotted time")
+			// TODO: Routing from multiple gateways is not yet supported.
+			// When implemented, this check should be updated to wait for
+			// http.StatusOK and serviceOne.Name as the body content prefix.
+			checkRoute(t, secondGatewayCheckPort, "/", httpResponse{
+				StatusCode: http.StatusServiceUnavailable,
+				Body:       "no healthy upstream",
+			}, nil, "service one not returning expected error from second gateway in allotted time")
 
 			// Update httpRoute from remote, then remove first gateway ParentRef
 			require.NoError(t, resources.Get(ctx, httpRouteName, namespace, httpRoute))
@@ -1755,7 +1798,12 @@ func checkGatewayConfigAnnotation(ctx context.Context, t *testing.T, resources *
 	assert.Equal(t, string(expectedCfg), actualCfg)
 }
 
-func checkRoute(t *testing.T, port int, path, expected string, headers map[string]string, message string) {
+type httpResponse struct {
+	StatusCode int
+	Body       string
+}
+
+func checkRoute(t *testing.T, port int, path string, expected httpResponse, headers map[string]string, message string) {
 	t.Helper()
 
 	require.Eventually(t, func() bool {
@@ -1789,12 +1837,12 @@ func checkRoute(t *testing.T, port int, path, expected string, headers map[strin
 		}
 		t.Log(string(data))
 
-		t.Log("status code", resp.StatusCode)
-		if resp.StatusCode != http.StatusOK {
+		if resp.StatusCode != expected.StatusCode {
+			t.Log("status code", resp.StatusCode)
 			return false
 		}
 
-		return strings.HasPrefix(string(data), expected)
+		return strings.HasPrefix(string(data), expected.Body)
 	}, checkTimeout, checkInterval, message)
 }
 
