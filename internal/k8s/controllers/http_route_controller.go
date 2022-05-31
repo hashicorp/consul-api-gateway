@@ -11,9 +11,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 	gateway "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
+	"github.com/hashicorp/go-hclog"
+
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler"
-	"github.com/hashicorp/go-hclog"
 )
 
 // HTTPRouteReconciler reconciles a HTTPRoute object
@@ -97,6 +98,7 @@ func (r *HTTPRouteReconciler) referencePolicyToRouteRequests(object client.Objec
 func (r *HTTPRouteReconciler) getRoutesAffectedByReferencePolicy(refPolicy *gateway.ReferencePolicy) []gateway.HTTPRoute {
 	matches := []gateway.HTTPRoute{}
 
+	// TODO Why doesn't this function just return the value here?
 	routes := r.getReferencePolicyObjectsFrom(refPolicy)
 
 	// TODO: match only routes with BackendRefs selectable by a

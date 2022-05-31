@@ -27,6 +27,7 @@ import (
 
 // GatewayReconciler reconciles a Gateway object
 type GatewayReconciler struct {
+	Context        context.Context
 	Client         gatewayclient.Client
 	Log            hclog.Logger
 	ControllerName string
@@ -93,6 +94,10 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			handler.EnqueueRequestsFromMapFunc(podToGatewayRequest),
 			builder.WithPredicates(predicate),
 		).
+		Watches(
+			&source.Kind{Type: &gateway.ReferencePolicy{}},
+			handler.EnqueueRequestsFromMapFunc(r.referencePolicyToGatewayRequests),
+		).
 		Complete(gatewayclient.NewRequeueingMiddleware(r.Log, r))
 }
 
@@ -108,4 +113,39 @@ func podToGatewayRequest(object client.Object) []reconcile.Request {
 		}
 	}
 	return nil
+}
+
+func (r *GatewayReconciler) referencePolicyToGatewayRequests(object client.Object) []reconcile.Request {
+	refPolicy := object.(*gateway.ReferencePolicy)
+
+	gateways := r.getGatewaysAffectedByReferencePolicy(refPolicy)
+	requests := []reconcile.Request{}
+
+	for _, gw := range gateways {
+		requests = append(requests, reconcile.Request{
+			NamespacedName: types.NamespacedName{
+				Name:      gw.Name,
+				Namespace: gw.Namespace,
+			},
+		})
+	}
+
+	return requests
+}
+
+func (r *GatewayReconciler) getGatewaysAffectedByReferencePolicy(refPolicy *gateway.ReferencePolicy) []gateway.Gateway {
+	var matches []gateway.Gateway
+
+	for _, from := range refPolicy.Spec.From {
+		// TODO
+		gateways, err := r.Client.GetGatewaysInNamespace(r.Context, string(from.Namespace))
+		if err != nil {
+			r.Log.Error("error fetching gateways", err)
+			return matches
+		}
+
+		matches = append(matches, gateways...)
+	}
+
+	return matches
 }
