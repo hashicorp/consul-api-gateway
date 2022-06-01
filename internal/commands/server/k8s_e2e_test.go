@@ -28,11 +28,12 @@ import (
 	"sigs.k8s.io/e2e-framework/pkg/features"
 	gateway "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
+	"github.com/hashicorp/consul/api"
+	appsv1 "k8s.io/api/apps/v1"
+
 	"github.com/hashicorp/consul-api-gateway/internal/k8s"
 	"github.com/hashicorp/consul-api-gateway/internal/testing/e2e"
 	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
-	"github.com/hashicorp/consul/api"
-	appsv1 "k8s.io/api/apps/v1"
 )
 
 var (
@@ -83,7 +84,7 @@ func TestGatewayWithClassConfigChange(t *testing.T) {
 
 			// Create a Gateway and wait for it to be ready
 			firstGatewayName := envconf.RandomName("gw", 16)
-			firstGateway := createGateway(ctx, t, resources, firstGatewayName, gc, []gateway.Listener{httpsListener})
+			firstGateway := createGateway(ctx, t, resources, firstGatewayName, namespace, gc, []gateway.Listener{httpsListener})
 			require.Eventually(t, gatewayStatusCheck(ctx, resources, firstGatewayName, namespace, conditionReady), checkTimeout, checkInterval, "no gateway found in the allotted time")
 			checkGatewayConfigAnnotation(ctx, t, resources, firstGatewayName, namespace, firstConfig)
 
@@ -97,7 +98,7 @@ func TestGatewayWithClassConfigChange(t *testing.T) {
 
 			// Create a second Gateway and wait for it to be ready
 			secondGatewayName := envconf.RandomName("gw", 16)
-			secondGateway := createGateway(ctx, t, resources, secondGatewayName, gc, []gateway.Listener{httpsListener})
+			secondGateway := createGateway(ctx, t, resources, secondGatewayName, namespace, gc, []gateway.Listener{httpsListener})
 			require.Eventually(t, gatewayStatusCheck(ctx, resources, secondGatewayName, namespace, conditionReady), checkTimeout, checkInterval, "no gateway found in the allotted time")
 
 			// Verify that 1st Gateway retains initial GatewayClassConfig and 2nd Gateway retains updated GatewayClassConfig
@@ -130,7 +131,7 @@ func TestGatewayWithReplicas(t *testing.T) {
 
 			// Create a Gateway and wait for it to be ready
 			gatewayName := envconf.RandomName("gw", 16)
-			gw := createGateway(ctx, t, resources, gatewayName, gc, []gateway.Listener{createHTTPSListener(ctx, t, 443)})
+			gw := createGateway(ctx, t, resources, gatewayName, namespace, gc, []gateway.Listener{createHTTPSListener(ctx, t, 443)})
 			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionReady), checkTimeout, checkInterval, "no gateway found in the allotted time")
 			checkGatewayConfigAnnotation(ctx, t, resources, gatewayName, namespace, gcc)
 
@@ -166,7 +167,7 @@ func TestGatewayWithReplicasCanScale(t *testing.T) {
 
 			// Create a Gateway and wait for it to be ready
 			gatewayName := envconf.RandomName("gw", 16)
-			gateway := createGateway(ctx, t, resources, gatewayName, gc, []gateway.Listener{createHTTPSListener(ctx, t, 443)})
+			gateway := createGateway(ctx, t, resources, gatewayName, namespace, gc, []gateway.Listener{createHTTPSListener(ctx, t, 443)})
 			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionReady), checkTimeout, checkInterval, "no gateway found in the allotted time")
 			checkGatewayConfigAnnotation(ctx, t, resources, gatewayName, namespace, gcc)
 
@@ -201,8 +202,8 @@ func TestGatewayWithReplicasRespectMinMax(t *testing.T) {
 			var initialReplicas int32 = 3
 			var minReplicas int32 = 2
 			var maxReplicas int32 = 8
-			var exceedsMin int32 = minReplicas - 1
-			var exceedsMax int32 = maxReplicas + 1
+			var exceedsMin = minReplicas - 1
+			var exceedsMax = maxReplicas + 1
 			useHostPorts := false
 
 			// Create a GatewayClassConfig
@@ -220,7 +221,7 @@ func TestGatewayWithReplicasRespectMinMax(t *testing.T) {
 
 			// Create a Gateway and wait for it to be ready
 			gatewayName := envconf.RandomName("gw", 16)
-			gateway := createGateway(ctx, t, resources, gatewayName, gatewayClass, []gateway.Listener{httpsListener})
+			gateway := createGateway(ctx, t, resources, gatewayName, namespace, gatewayClass, []gateway.Listener{httpsListener})
 
 			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionReady), checkTimeout, checkInterval, "no gateway found in the allotted time")
 
@@ -271,7 +272,7 @@ func TestGatewayBasic(t *testing.T) {
 			require.Eventually(t, gatewayClassStatusCheck(ctx, resources, gc.Name, namespace, conditionAccepted), checkTimeout, checkInterval, "gatewayclass not accepted in the allotted time")
 
 			httpsListener := createHTTPSListener(ctx, t, 443)
-			gw := createGateway(ctx, t, resources, gatewayName, gc, []gateway.Listener{httpsListener})
+			gw := createGateway(ctx, t, resources, gatewayName, namespace, gc, []gateway.Listener{httpsListener})
 
 			require.Eventually(t, func() bool {
 				err := resources.Get(ctx, gatewayName, namespace, &apps.Deployment{})
@@ -334,7 +335,7 @@ func TestServiceListeners(t *testing.T) {
 			require.Eventually(t, gatewayClassStatusCheck(ctx, resources, gc.Name, namespace, conditionAccepted), checkTimeout, checkInterval, "gatewayclass not accepted in the allotted time")
 
 			httpsListener := createHTTPSListener(ctx, t, 443)
-			gw := createGateway(ctx, t, resources, gatewayName, gc, []gateway.Listener{httpsListener})
+			gw := createGateway(ctx, t, resources, gatewayName, namespace, gc, []gateway.Listener{httpsListener})
 
 			require.Eventually(t, func() bool {
 				service := &core.Service{}
@@ -397,7 +398,7 @@ func TestHTTPRouteFlattening(t *testing.T) {
 
 			checkPort := e2e.HTTPFlattenedPort(ctx)
 			httpsListener := createHTTPSListener(ctx, t, gateway.PortNumber(checkPort))
-			gw := createGateway(ctx, t, resources, gatewayName, gc, []gateway.Listener{httpsListener})
+			gw := createGateway(ctx, t, resources, gatewayName, namespace, gc, []gateway.Listener{httpsListener})
 			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionReady), checkTimeout, checkInterval, "no gateway found in the allotted time")
 
 			port := gateway.PortNumber(serviceOne.Spec.Ports[0].Port)
@@ -523,7 +524,7 @@ func TestHTTPMeshService(t *testing.T) {
 			require.Eventually(t, gatewayClassStatusCheck(ctx, resources, gc.Name, namespace, conditionAccepted), checkTimeout, checkInterval, "gatewayclass not accepted in the allotted time")
 
 			httpsListener := createHTTPSListener(ctx, t, gateway.PortNumber(e2e.HTTPPort(ctx)))
-			gw := createGateway(ctx, t, resources, gatewayName, gc, []gateway.Listener{httpsListener})
+			gw := createGateway(ctx, t, resources, gatewayName, namespace, gc, []gateway.Listener{httpsListener})
 			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionReady), checkTimeout, checkInterval, "no gateway found in the allotted time")
 
 			// route 1
@@ -980,7 +981,7 @@ func TestReferencePolicyLifecycle(t *testing.T) {
 			fromSelector := gateway.NamespacesFromSelector
 
 			gwNamespace := gateway.Namespace(namespace)
-			gw := createGateway(ctx, t, resources, gatewayName, gc, []gateway.Listener{
+			gw := createGateway(ctx, t, resources, gatewayName, namespace, gc, []gateway.Listener{
 				{
 					Name:     "https",
 					Port:     gateway.PortNumber(httpCheckPort),
@@ -1253,6 +1254,110 @@ func TestReferencePolicyLifecycle(t *testing.T) {
 			require.NoError(t, err)
 
 			return ctx
+		}).
+		Assess("gateway controller watches reference policy changes", func(ctx context.Context, t *testing.T, cfg *envconf.Config) context.Context {
+			namespace := e2e.Namespace(ctx)
+			gatewayName := envconf.RandomName("gw", 16)
+			gatewayNamespace := envconf.RandomName("ns", 16)
+			certName := "consul-server-cert"
+			certNamespace := gateway.Namespace(namespace)
+			gatewayRefPolicyName := envconf.RandomName("refpolicy", 16)
+
+			resources := cfg.Client().Resources(namespace)
+
+			_, gc := createGatewayClass(ctx, t, resources)
+			require.Eventually(t, gatewayClassStatusCheck(ctx, resources, gc.Name, namespace, conditionAccepted), checkTimeout, checkInterval, "gatewayclass not accepted in the allotted time")
+
+			// Allow routes to bind from a different namespace for testing
+			// cross-namespace ReferencePolicy enforcement
+			fromSelector := gateway.NamespacesFromAll
+
+			// Create a different namespace for the Gateway
+			require.NoError(t, resources.Create(ctx, &core.Namespace{
+				ObjectMeta: meta.ObjectMeta{
+					Name: gatewayNamespace,
+				},
+			}))
+
+			gw := createGateway(ctx, t, resources, gatewayName, gatewayNamespace, gc, []gateway.Listener{
+				{
+					Name:     "https",
+					Port:     gateway.PortNumber(e2e.HTTPReferencePolicyPort(ctx)),
+					Protocol: gateway.HTTPSProtocolType,
+					TLS: &gateway.GatewayTLSConfig{
+						CertificateRefs: []*gateway.SecretObjectReference{{
+							Name:      gateway.ObjectName(certName),
+							Namespace: &certNamespace,
+						}},
+					},
+					AllowedRoutes: &gateway.AllowedRoutes{
+						Namespaces: &gateway.RouteNamespaces{
+							From: &fromSelector,
+						},
+					},
+				},
+			})
+
+			// Expect that Gateway has expected error condition
+			// due to missing ReferencePolicy for CertificateRef in other namespace
+			gatewayConditionCheck := createConditionsCheck([]meta.Condition{{Type: "Ready", Status: "False", Reason: "ListenersNotValid"}})
+			gatewayCheck := gatewayStatusCheck(ctx, resources, gatewayName, gatewayNamespace, gatewayConditionCheck)
+			require.Eventually(t, gatewayCheck, checkTimeout, checkInterval, "Gateway status not set in allotted time")
+
+			// Expect that Gateway listener has expected error condition
+			// due to missing ReferencePolicy for CertificateRef in other namespace
+			listenerConditionCheck := createListenerStatusConditionsCheck([]meta.Condition{{Type: "ResolvedRefs", Status: "False", Reason: "InvalidCertificateRef"}})
+			listenerCheck := listenerStatusCheck(ctx, resources, gatewayName, gatewayNamespace, listenerConditionCheck)
+			require.Eventually(t, listenerCheck, checkTimeout, checkInterval, "Gateway listener status not set in allotted time")
+
+			// Create ReferencePolicy allowing Gateway CertificateRef
+			certReferencePolicy := &gateway.ReferencePolicy{
+				ObjectMeta: meta.ObjectMeta{
+					Name:      gatewayRefPolicyName,
+					Namespace: string(certNamespace),
+				},
+				Spec: gateway.ReferencePolicySpec{
+					From: []gateway.ReferencePolicyFrom{{
+						Group:     "gateway.networking.k8s.io",
+						Kind:      "Gateway",
+						Namespace: gateway.Namespace(gatewayNamespace),
+					}},
+					To: []gateway.ReferencePolicyTo{{
+						Group: "",
+						Kind:  "Secret",
+						Name:  nil,
+					}},
+				},
+			}
+			require.NoError(t, resources.Create(ctx, certReferencePolicy))
+
+			// Expect that Gateway has expected success condition
+			// TODO Newly created ReferencePolicy doesn't trigger reconcile of broken Gateway
+			gatewayConditionCheck = createConditionsCheck([]meta.Condition{{Type: "Ready", Status: "True", Reason: "Ready"}})
+			gatewayCheck = gatewayStatusCheck(ctx, resources, gatewayName, gatewayNamespace, gatewayConditionCheck)
+			require.Eventually(t, gatewayCheck, checkTimeout, checkInterval, "Gateway status not set in allotted time")
+
+			// Expect that Gateway listener has expected success condition
+			listenerConditionCheck = createListenerStatusConditionsCheck([]meta.Condition{{Type: "ResolvedRefs", Status: "True", Reason: "ResolvedRefs"}})
+			listenerCheck = listenerStatusCheck(ctx, resources, gatewayName, gatewayNamespace, listenerConditionCheck)
+			require.Eventually(t, listenerCheck, checkTimeout, checkInterval, "Gateway listener status not set in allotted time")
+
+			// Delete Gateway ReferencePolicy
+			require.NoError(t, resources.Delete(ctx, certReferencePolicy))
+
+			// Check for error status conditions again
+			gatewayConditionCheck = createConditionsCheck([]meta.Condition{{Type: "Ready", Status: "False", Reason: "ListenersNotValid"}})
+			gatewayCheck = gatewayStatusCheck(ctx, resources, gatewayName, gatewayNamespace, gatewayConditionCheck)
+			require.Eventually(t, gatewayCheck, checkTimeout, checkInterval, "Gateway status not set in allotted time")
+
+			listenerConditionCheck = createListenerStatusConditionsCheck([]meta.Condition{{Type: "ResolvedRefs", Status: "False", Reason: "InvalidCertificateRef"}})
+			listenerCheck = listenerStatusCheck(ctx, resources, gatewayName, gatewayNamespace, listenerConditionCheck)
+			require.Eventually(t, listenerCheck, checkTimeout, checkInterval, "Gateway listener status not set in allotted time")
+
+			// Clean up
+			require.NoError(t, resources.Delete(ctx, gw))
+
+			return ctx
 		})
 
 	testenv.Test(t, feature.Feature())
@@ -1279,6 +1384,7 @@ func TestRouteParentRefChange(t *testing.T) {
 				t,
 				resources,
 				firstGatewayName,
+				namespace,
 				gc,
 				[]gateway.Listener{createHTTPSListener(ctx, t, gateway.PortNumber(firstGatewayCheckPort))},
 			)
@@ -1344,6 +1450,7 @@ func TestRouteParentRefChange(t *testing.T) {
 				t,
 				resources,
 				secondGatewayName,
+				namespace,
 				gc,
 				[]gateway.Listener{createHTTPSListener(ctx, t, gateway.PortNumber(secondGatewayCheckPort))},
 			)
@@ -1565,15 +1672,13 @@ func createHTTPSListener(ctx context.Context, t *testing.T, port gateway.PortNum
 	}
 }
 
-func createGateway(ctx context.Context, t *testing.T, resources *resources.Resources, gatewayName string, gc *gateway.GatewayClass, listeners []gateway.Listener) *gateway.Gateway {
+func createGateway(ctx context.Context, t *testing.T, resources *resources.Resources, gatewayName, gatewayNamespace string, gc *gateway.GatewayClass, listeners []gateway.Listener) *gateway.Gateway {
 	t.Helper()
-
-	namespace := e2e.Namespace(ctx)
 
 	gw := &gateway.Gateway{
 		ObjectMeta: meta.ObjectMeta{
 			Name:      gatewayName,
-			Namespace: namespace,
+			Namespace: gatewayNamespace,
 		},
 		Spec: gateway.GatewaySpec{
 			GatewayClassName: gateway.ObjectName(gc.Name),
