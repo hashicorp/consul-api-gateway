@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"golang.org/x/sync/errgroup"
+	api "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/client-go/kubernetes/scheme"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/e2e-framework/pkg/env"
 	"sigs.k8s.io/e2e-framework/pkg/envconf"
@@ -159,7 +159,7 @@ func DestroyTestGatewayServer(ctx context.Context, cfg *envconf.Config) (context
 func InstallConsulAPIGatewayCRDs(ctx context.Context, cfg *envconf.Config) (context.Context, error) {
 	directory := path.Join("..", "..", "..", "config", "crd", "bases")
 	entries, err := os.ReadDir(directory)
-	crds := []client.Object{}
+	crds := []*api.CustomResourceDefinition{}
 	if err != nil {
 		return nil, err
 	}

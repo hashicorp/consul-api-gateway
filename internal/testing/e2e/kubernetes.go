@@ -17,7 +17,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/e2e-framework/klient"
 	"sigs.k8s.io/e2e-framework/pkg/env"
@@ -226,9 +225,9 @@ func serviceClusterRoleAuthBinding(namespace, accountName string) *rbac.ClusterR
 	}
 }
 
-func readCRDs(data []byte) ([]client.Object, error) {
+func readCRDs(data []byte) ([]*api.CustomResourceDefinition, error) {
 	decoder := yaml.NewYAMLOrJSONDecoder(bytes.NewReader(data), len(data))
-	crds := []client.Object{}
+	crds := []*api.CustomResourceDefinition{}
 	for {
 		crd := &api.CustomResourceDefinition{}
 		err := decoder.Decode(crd)
