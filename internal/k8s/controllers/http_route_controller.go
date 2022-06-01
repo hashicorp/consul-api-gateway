@@ -95,22 +95,11 @@ func (r *HTTPRouteReconciler) referencePolicyToRouteRequests(object client.Objec
 	return requests
 }
 
+// getRoutesAffectedByReferencePolicy retrieves all HTTPRoutes potentially impacted
+// by the ReferencePolicy being modified. Currently, this is unfiltered and so returns
+// all HTTPRoutes in the namespace referenced by the ReferencePolicy.
 func (r *HTTPRouteReconciler) getRoutesAffectedByReferencePolicy(refPolicy *gateway.ReferencePolicy) []gateway.HTTPRoute {
-	matches := []gateway.HTTPRoute{}
-
-	// TODO Why doesn't this function just return the value here?
-	routes := r.getReferencePolicyObjectsFrom(refPolicy)
-
-	// TODO: match only routes with BackendRefs selectable by a
-	// ReferencePolicyTo instead of appending all routes. This seems expensive,
-	// so not sure if it would actually improve performance or not.
-	matches = append(matches, routes...)
-
-	return matches
-}
-
-func (r *HTTPRouteReconciler) getReferencePolicyObjectsFrom(refPolicy *gateway.ReferencePolicy) []gateway.HTTPRoute {
-	matches := []gateway.HTTPRoute{}
+	var matches []gateway.HTTPRoute
 
 	for _, from := range refPolicy.Spec.From {
 		// TODO: search by from.Group and from.Kind instead of assuming this ReferencePolicy references a HTTPRoute
