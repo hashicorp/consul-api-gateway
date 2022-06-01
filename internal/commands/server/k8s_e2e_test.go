@@ -1430,7 +1430,7 @@ func TestRouteParentRefChange(t *testing.T) {
 				},
 				Spec: gateway.HTTPRouteSpec{
 					CommonRouteSpec: gateway.CommonRouteSpec{
-						ParentRefs: []gateway.ParentRef{{
+						ParentRefs: []gateway.ParentReference{{
 							Name: gateway.ObjectName(firstGatewayName),
 						}},
 					},
@@ -1491,7 +1491,7 @@ func TestRouteParentRefChange(t *testing.T) {
 
 			// Update httpRoute from remote, then add second gateway ParentRef
 			require.NoError(t, resources.Get(ctx, httpRouteName, namespace, httpRoute))
-			httpRoute.Spec.CommonRouteSpec.ParentRefs = []gateway.ParentRef{
+			httpRoute.Spec.CommonRouteSpec.ParentRefs = []gateway.ParentReference{
 				{
 					Name:      gateway.ObjectName(firstGatewayName),
 					Namespace: &gwNamespace,
