@@ -35,11 +35,18 @@ jobs:
       # Clone repos side-by-side:
       # GITHUB_WORKSPACE/
       #     consul-api-gateway/
+      #     consul-k8s/
       #     gateway-api/
       - name: Checkout consul-api-gateway
         uses: actions/checkout@v2
         with:
           path: "consul-api-gateway"
+
+      - name: Clone consul-k8s
+        uses: actions/checkout@v2
+        with:
+          repository: "hashicorp/consul-k8s"
+          path: "consul-k8s"
 
       - name: Clone gateway-api
         uses: actions/checkout@v2
@@ -88,8 +95,7 @@ jobs:
       - name: Install Consul
         working-directory: "consul-api-gateway/internal/testing/conformance"
         run: |
-          helm repo add hashicorp https://helm.releases.hashicorp.com
-          helm install --values ./consul-config.yaml consul hashicorp/consul --create-namespace --namespace=consul --version="0.43.0"
+          helm install --values ./consul-config.yaml consul $GITHUB_WORKSPACE/consul-k8s/charts/consul --create-namespace --namespace=consul
           kubectl wait --for=condition=Ready --timeout=60s --namespace=consul pods --all
 
       - name: Patch testing resources
