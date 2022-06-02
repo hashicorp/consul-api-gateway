@@ -412,7 +412,6 @@ func (g *K8sGateway) Status() gw.GatewayStatus {
 	if listenersInvalid {
 		g.status.Ready.ListenersNotValid = errors.New("gateway listeners not valid")
 	} else if !g.podReady || !g.serviceReady || !listenersReady {
-		g.logger.Warn("gateway listeners not ready", "podReady", g.podReady, "serviceReady", g.serviceReady, "listenersReady", listenersReady)
 		g.status.Ready.ListenersNotReady = errors.New("gateway listeners not ready")
 	} else if len(g.gateway.Spec.Addresses) != 0 {
 		g.status.Ready.AddressNotAssigned = errors.New("gateway does not support requesting addresses")
