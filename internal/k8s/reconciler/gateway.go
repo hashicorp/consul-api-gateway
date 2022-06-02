@@ -11,14 +11,15 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
+	"github.com/hashicorp/go-hclog"
+	"golang.org/x/exp/slices"
+
 	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/builder"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	"github.com/hashicorp/consul-api-gateway/internal/store"
 	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
-	"github.com/hashicorp/go-hclog"
-	"golang.org/x/exp/slices"
 )
 
 type K8sGateway struct {
@@ -411,6 +412,7 @@ func (g *K8sGateway) Status() gw.GatewayStatus {
 	if listenersInvalid {
 		g.status.Ready.ListenersNotValid = errors.New("gateway listeners not valid")
 	} else if !g.podReady || !g.serviceReady || !listenersReady {
+		g.logger.Warn("gateway listeners not ready", "podReady", g.podReady, "serviceReady", g.serviceReady, "listenersReady", listenersReady)
 		g.status.Ready.ListenersNotReady = errors.New("gateway listeners not ready")
 	} else if len(g.gateway.Spec.Addresses) != 0 {
 		g.status.Ready.AddressNotAssigned = errors.New("gateway does not support requesting addresses")

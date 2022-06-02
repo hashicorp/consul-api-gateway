@@ -1255,13 +1255,22 @@ func TestReferencePolicyLifecycle(t *testing.T) {
 		}).
 		Assess("gateway controller watches reference policy changes", func(ctx context.Context, t *testing.T, cfg *envconf.Config) context.Context {
 			namespace := e2e.Namespace(ctx)
+			gatewayNamespace := namespace
 			gatewayName := envconf.RandomName("gw", 16)
-			gatewayNamespace := envconf.RandomName("ns", 16)
+			certNamespace := envconf.RandomName("ns", 16)
 			certName := "consul-server-cert"
-			certNamespace := gateway.Namespace(namespace)
 			gatewayRefPolicyName := envconf.RandomName("refpolicy", 16)
 
 			resources := cfg.Client().Resources(namespace)
+
+			// Make a copy of the certificate Secret in a different namespace for the Gateway to reference.
+			// This is easier than creating the Gateway in a different namespace due to pre-installed ServiceAccount dependency.
+			certCopy := &core.Secret{}
+			require.NoError(t, resources.Get(ctx, certName, namespace, certCopy))
+			certCopy.SetNamespace(certNamespace)
+			certCopy.SetResourceVersion("")
+			require.NoError(t, resources.Create(ctx, &core.Namespace{ObjectMeta: meta.ObjectMeta{Name: certNamespace}}))
+			require.NoError(t, resources.Create(ctx, certCopy))
 
 			_, gc := createGatewayClass(ctx, t, resources)
 			require.Eventually(t, gatewayClassStatusCheck(ctx, resources, gc.Name, namespace, conditionAccepted), checkTimeout, checkInterval, "gatewayclass not accepted in the allotted time")
@@ -1270,13 +1279,7 @@ func TestReferencePolicyLifecycle(t *testing.T) {
 			// cross-namespace ReferencePolicy enforcement
 			fromSelector := gateway.NamespacesFromAll
 
-			// Create a different namespace for the Gateway
-			require.NoError(t, resources.Create(ctx, &core.Namespace{
-				ObjectMeta: meta.ObjectMeta{
-					Name: gatewayNamespace,
-				},
-			}))
-
+			certNamespaceTyped := gateway.Namespace(certNamespace)
 			gw := createGateway(ctx, t, resources, gatewayName, gatewayNamespace, gc, []gateway.Listener{
 				{
 					Name:     "https",
@@ -1285,7 +1288,7 @@ func TestReferencePolicyLifecycle(t *testing.T) {
 					TLS: &gateway.GatewayTLSConfig{
 						CertificateRefs: []*gateway.SecretObjectReference{{
 							Name:      gateway.ObjectName(certName),
-							Namespace: &certNamespace,
+							Namespace: &certNamespaceTyped,
 						}},
 					},
 					AllowedRoutes: &gateway.AllowedRoutes{
@@ -1330,9 +1333,7 @@ func TestReferencePolicyLifecycle(t *testing.T) {
 			require.NoError(t, resources.Create(ctx, certReferencePolicy))
 
 			// Expect that Gateway has expected success condition
-			// TODO Newly created ReferencePolicy doesn't trigger reconcile of broken Gateway
-			gatewayConditionCheck = createConditionsCheck([]meta.Condition{{Type: "Ready", Status: "True", Reason: "Ready"}})
-			gatewayCheck = gatewayStatusCheck(ctx, resources, gatewayName, gatewayNamespace, gatewayConditionCheck)
+			gatewayCheck = gatewayStatusCheck(ctx, resources, gatewayName, gatewayNamespace, conditionReady)
 			require.Eventually(t, gatewayCheck, checkTimeout, checkInterval, "Gateway status not set in allotted time")
 
 			// Expect that Gateway listener has expected success condition
