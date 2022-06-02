@@ -3,7 +3,7 @@ schema = "1"
 project "consul-api-gateway" {
   team = "consul-api-gateway"
   slack {
-    notification_channel = "C01RWVBQ6GJ"
+    notification_channel = "C03BY5JVCKS"
   }
   github {
     organization = "hashicorp"
