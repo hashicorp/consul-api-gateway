@@ -98,13 +98,6 @@ jobs:
           helm install --values ./consul-config.yaml consul $GITHUB_WORKSPACE/consul-k8s/charts/consul --create-namespace --namespace=consul
           kubectl wait --for=condition=Ready --timeout=60s --namespace=consul pods --all
 
-      - name: Patch testing resources
-        working-directory: "consul-api-gateway/internal/testing/conformance"
-        run: |
-          cp kustomization.yaml proxydefaults.yaml $GITHUB_WORKSPACE/gateway-api/conformance/
-          cd $GITHUB_WORKSPACE/gateway-api/conformance/
-          kubectl kustomize ./ --output ./base/manifests.yaml
-
       - name: Run tests
         working-directory: "consul-api-gateway/internal/testing/conformance"
         run: go test -v -timeout 10m ./

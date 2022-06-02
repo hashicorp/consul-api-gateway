@@ -1,8 +1,11 @@
 package conformance_test
 
 import (
+	"context"
+	"os/exec"
 	"testing"
 
+	apps "k8s.io/api/apps/v1"
 	"k8s.io/utils/strings/slices"
 	"sigs.k8s.io/gateway-api/apis/v1alpha2"
 	"sigs.k8s.io/gateway-api/conformance/tests"
@@ -47,6 +50,31 @@ func TestConformance(t *testing.T) {
 		SupportedFeatures:    []suite.SupportedFeature{},
 	})
 	cSuite.Setup(t)
+
+	// Update conformance test infra resources as needed
+	deployments := &apps.DeploymentList{}
+	if err := c.List(context.Background(), deployments); err != nil {
+		t.Fatalf("Error fetching deployments: %v", err)
+	}
+	for _, d := range deployments.Items {
+		// Add connect-inject annotation to each Deployment. This is required due to
+		// containerPort not being defined on Deployments upstream. Though containerPort
+		// is optional, Consul relies on it as a default value in the absence of a
+		// connect-service-port annotation.
+		d.Annotations["consul.hashicorp.com/connect-service-port"] = "3000"
+
+		// We don't have enough resources in the GitHub-hosted Actions runner to support 2 replicas
+		var numReplicas int32 = 1
+		d.Spec.Replicas = &numReplicas
+
+		if err := c.Update(context.Background(), &d); err != nil {
+			t.Fatalf("Error updating deployment: %v", err)
+		}
+	}
+
+	if err = exec.Command("kubectl", "apply", "-f", "proxydefaults.yaml").Run(); err != nil {
+		t.Fatalf("Error creating ProxyDefaults: %v", err)
+	}
 
 	var testsToRun []suite.ConformanceTest
 	for _, conformanceTest := range tests.ConformanceTests {
