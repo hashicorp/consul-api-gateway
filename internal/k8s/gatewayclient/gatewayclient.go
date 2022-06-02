@@ -30,6 +30,7 @@ type Client interface {
 	GetGatewayClassConfig(ctx context.Context, key types.NamespacedName) (*apigwv1alpha1.GatewayClassConfig, error)
 	GetGatewayClass(ctx context.Context, key types.NamespacedName) (*gateway.GatewayClass, error)
 	GetGateway(ctx context.Context, key types.NamespacedName) (*gateway.Gateway, error)
+	GetGatewaysInNamespace(ctx context.Context, ns string) ([]gateway.Gateway, error)
 	GetSecret(ctx context.Context, key types.NamespacedName) (*core.Secret, error)
 	GetService(ctx context.Context, key types.NamespacedName) (*core.Service, error)
 	GetHTTPRoute(ctx context.Context, key types.NamespacedName) (*gateway.HTTPRoute, error)
@@ -214,6 +215,14 @@ func (g *gatewayClient) GetGateway(ctx context.Context, key types.NamespacedName
 		return nil, NewK8sError(err)
 	}
 	return gw, nil
+}
+
+func (g *gatewayClient) GetGatewaysInNamespace(ctx context.Context, ns string) ([]gateway.Gateway, error) {
+	gwList := &gateway.GatewayList{}
+	if err := g.Client.List(ctx, gwList, client.InNamespace(ns)); err != nil {
+		return []gateway.Gateway{}, NewK8sError(err)
+	}
+	return gwList.Items, nil
 }
 
 func (g *gatewayClient) GetService(ctx context.Context, key types.NamespacedName) (*core.Service, error) {

@@ -179,6 +179,7 @@ func (k *Kubernetes) Start(ctx context.Context) error {
 	}
 
 	err = (&controllers.GatewayReconciler{
+		Context:        ctx,
 		Client:         gwClient,
 		Log:            k.logger.Named("Gateway"),
 		Manager:        reconcileManager,

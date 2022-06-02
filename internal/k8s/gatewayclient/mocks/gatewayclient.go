@@ -259,6 +259,21 @@ func (mr *MockClientMockRecorder) GetGatewayClassConfig(ctx, key interface{}) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetGatewayClassConfig", reflect.TypeOf((*MockClient)(nil).GetGatewayClassConfig), ctx, key)
 }
 
+// GetGatewaysInNamespace mocks base method.
+func (m *MockClient) GetGatewaysInNamespace(ctx context.Context, ns string) ([]v1alpha2.Gateway, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetGatewaysInNamespace", ctx, ns)
+	ret0, _ := ret[0].([]v1alpha2.Gateway)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetGatewaysInNamespace indicates an expected call of GetGatewaysInNamespace.
+func (mr *MockClientMockRecorder) GetGatewaysInNamespace(ctx, ns interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetGatewaysInNamespace", reflect.TypeOf((*MockClient)(nil).GetGatewaysInNamespace), ctx, ns)
+}
+
 // GetHTTPRoute mocks base method.
 func (m *MockClient) GetHTTPRoute(ctx context.Context, key types.NamespacedName) (*v1alpha2.HTTPRoute, error) {
 	m.ctrl.T.Helper()

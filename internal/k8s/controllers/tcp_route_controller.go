@@ -11,9 +11,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 	gateway "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
+	"github.com/hashicorp/go-hclog"
+
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler"
-	"github.com/hashicorp/go-hclog"
 )
 
 // TCPRouteReconciler reconciles a TCPRoute object
@@ -94,24 +95,14 @@ func (r *TCPRouteReconciler) referencePolicyToRouteRequests(object client.Object
 	return requests
 }
 
+// getRoutesAffectedByReferencePolicy retrieves all TCPRoutes potentially impacted
+// by the ReferencePolicy being modified. Currently, this is unfiltered and so returns
+// all TCPRoutes in the namespace referenced by the ReferencePolicy.
 func (r *TCPRouteReconciler) getRoutesAffectedByReferencePolicy(refPolicy *gateway.ReferencePolicy) []gateway.TCPRoute {
-	matches := []gateway.TCPRoute{}
-
-	routes := r.getReferencePolicyObjectsFrom(refPolicy)
-
-	// TODO: match only routes with BackendRefs selectable by a
-	// ReferencePolicyTo instead of appending all routes. This seems expensive,
-	// so not sure if it would actually improve performance or not.
-	matches = append(matches, routes...)
-
-	return matches
-}
-
-func (r *TCPRouteReconciler) getReferencePolicyObjectsFrom(refPolicy *gateway.ReferencePolicy) []gateway.TCPRoute {
-	matches := []gateway.TCPRoute{}
+	var matches []gateway.TCPRoute
 
 	for _, from := range refPolicy.Spec.From {
-		// TODO: search by from.Group and from.Kind instead of assuming TCPRoute
+		// TODO: search by from.Group and from.Kind instead of assuming this ReferencePolicy references a TCPRoute
 		routes, err := r.Client.GetTCPRoutesInNamespace(r.Context, string(from.Namespace))
 		if err != nil {
 			r.Log.Error("error fetching routes", err)

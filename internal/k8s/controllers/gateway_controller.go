@@ -27,6 +27,7 @@ import (
 
 // GatewayReconciler reconciles a Gateway object
 type GatewayReconciler struct {
+	Context        context.Context
 	Client         gatewayclient.Client
 	Log            hclog.Logger
 	ControllerName string
@@ -93,19 +94,62 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			handler.EnqueueRequestsFromMapFunc(podToGatewayRequest),
 			builder.WithPredicates(predicate),
 		).
+		Watches(
+			&source.Kind{Type: &gateway.ReferencePolicy{}},
+			handler.EnqueueRequestsFromMapFunc(r.referencePolicyToGatewayRequests),
+		).
 		Complete(gatewayclient.NewRequeueingMiddleware(r.Log, r))
 }
 
 func podToGatewayRequest(object client.Object) []reconcile.Request {
-	gateway, managed := utils.IsManagedGateway(object.GetLabels())
+	gw, managed := utils.IsManagedGateway(object.GetLabels())
 
 	if managed {
 		return []reconcile.Request{
 			{NamespacedName: types.NamespacedName{
-				Name:      gateway,
+				Name:      gw,
 				Namespace: object.GetNamespace(),
 			}},
 		}
 	}
 	return nil
+}
+
+func (r *GatewayReconciler) referencePolicyToGatewayRequests(object client.Object) []reconcile.Request {
+	refPolicy := object.(*gateway.ReferencePolicy)
+
+	gateways := r.getGatewaysAffectedByReferencePolicy(refPolicy)
+
+	requests := make([]reconcile.Request, 0, len(gateways))
+
+	for _, gw := range gateways {
+		requests = append(requests, reconcile.Request{
+			NamespacedName: types.NamespacedName{
+				Name:      gw.Name,
+				Namespace: gw.Namespace,
+			},
+		})
+	}
+
+	return requests
+}
+
+// getGatewaysAffectedByReferencePolicy retrieves all Gateways potentially impacted by the ReferencePolicy
+// modification. Currently, this is unfiltered and so returns all Gateways in the namespace referenced by
+// the ReferencePolicy.
+func (r *GatewayReconciler) getGatewaysAffectedByReferencePolicy(refPolicy *gateway.ReferencePolicy) []gateway.Gateway {
+	var matches []gateway.Gateway
+
+	for _, from := range refPolicy.Spec.From {
+		// TODO: search by from.Group and from.Kind instead of assuming this ReferencePolicy references a Gateway
+		gateways, err := r.Client.GetGatewaysInNamespace(r.Context, string(from.Namespace))
+		if err != nil {
+			r.Log.Error("error fetching gateways", err)
+			return matches
+		}
+
+		matches = append(matches, gateways...)
+	}
+
+	return matches
 }
