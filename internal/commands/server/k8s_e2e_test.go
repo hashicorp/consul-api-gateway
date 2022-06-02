@@ -224,8 +224,6 @@ func TestGatewayWithReplicasRespectMinMax(t *testing.T) {
 			gateway := createGateway(ctx, t, resources, gatewayName, namespace, gatewayClass, []gateway.Listener{httpsListener})
 
 			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionReady), checkTimeout, checkInterval, "no gateway found in the allotted time")
-
-			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionReady), 30*time.Second, checkInterval, "no gateway found in the allotted time")
 			checkGatewayConfigAnnotation(ctx, t, resources, gatewayName, namespace, gatewayClassConfig)
 
 			// Fetch the deployment created by the gateway and check the number of replicas
