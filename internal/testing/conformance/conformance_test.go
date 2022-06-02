@@ -8,11 +8,9 @@ import (
 	apps "k8s.io/api/apps/v1"
 	"k8s.io/utils/strings/slices"
 	"sigs.k8s.io/gateway-api/apis/v1alpha2"
-	"sigs.k8s.io/gateway-api/conformance"
 	"sigs.k8s.io/gateway-api/conformance/tests"
 	"sigs.k8s.io/gateway-api/conformance/utils/flags"
 	"sigs.k8s.io/gateway-api/conformance/utils/suite"
-	"sigs.k8s.io/kustomize/api/krusty"
 
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -49,26 +47,39 @@ func TestConformance(t *testing.T) {
 
 	t.Logf("Running conformance tests with %s GatewayClass", *flags.GatewayClassName)
 
-	// Patch base manifests as needed
-	// Blocked on https://github.com/kubernetes-sigs/kustomize/issues/4515
-	k := krusty.MakeKustomizer(
-		krusty.MakeDefaultOptions(),
-	)
-	_, err = k.Run(conformance.Manifests, "kustomization.yaml")
-	if err != nil {
-		t.Fatalf("Error kustomizing base manifests: %v", err)
-	}
-	// TODO: write to YAML tmpfile, pass path as BaseManifests config
-
 	cSuite := suite.New(suite.Options{
 		Client:               c,
 		GatewayClassName:     gatewayClassName,
 		Debug:                debug,
 		CleanupBaseResources: cleanupBaseResources,
-		BaseManifests:        "output path from kustomize",
 		SupportedFeatures:    []suite.SupportedFeature{},
 	})
 	cSuite.Setup(t)
+
+	// Update conformance test infra resources as needed
+	deployments := &apps.DeploymentList{}
+	if err := c.List(context.Background(), deployments); err != nil {
+		t.Fatalf("Error fetching deployments: %v", err)
+	}
+	for _, d := range deployments.Items {
+		// Add connect-inject annotation to each Deployment. This is required due to
+		// containerPort not being defined on Deployments upstream. Though containerPort
+		// is optional, Consul relies on it as a default value in the absence of a
+		// connect-service-port annotation.
+		d.Annotations["consul.hashicorp.com/connect-service-port"] = "3000"
+
+		// We don't have enough resources in the GitHub-hosted Actions runner to support 2 replicas
+		var numReplicas int32 = 1
+		d.Spec.Replicas = &numReplicas
+
+		if err := c.Update(context.Background(), &d); err != nil {
+			t.Fatalf("Error updating deployment: %v", err)
+		}
+	}
+
+	if err = exec.Command("kubectl", "apply", "-f", "proxydefaults.yaml").Run(); err != nil {
+		t.Fatalf("Error creating ProxyDefaults: %v", err)
+	}
 
 	var testsToRun []suite.ConformanceTest
 	for _, conformanceTest := range tests.ConformanceTests {
