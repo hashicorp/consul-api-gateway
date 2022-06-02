@@ -1275,8 +1275,6 @@ func TestReferencePolicyLifecycle(t *testing.T) {
 			_, gc := createGatewayClass(ctx, t, resources)
 			require.Eventually(t, gatewayClassStatusCheck(ctx, resources, gc.Name, namespace, conditionAccepted), checkTimeout, checkInterval, "gatewayclass not accepted in the allotted time")
 
-			// Allow routes to bind from a different namespace for testing
-			// cross-namespace ReferencePolicy enforcement
 			fromSelector := gateway.NamespacesFromAll
 
 			certNamespaceTyped := gateway.Namespace(certNamespace)
