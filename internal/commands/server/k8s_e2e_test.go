@@ -1277,6 +1277,7 @@ func TestReferencePolicyLifecycle(t *testing.T) {
 
 			fromSelector := gateway.NamespacesFromAll
 
+			// Create a Gateway with a listener that has a CertificateRef to a different namespace
 			certNamespaceTyped := gateway.Namespace(certNamespace)
 			gw := createGateway(ctx, t, resources, gatewayName, gatewayNamespace, gc, []gateway.Listener{
 				{
