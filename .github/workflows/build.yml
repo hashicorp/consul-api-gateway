@@ -109,8 +109,10 @@ jobs:
       - name: Remove + from version
         run: |
           echo "version=$(echo $version | sed 's/+ent//g')" >> $GITHUB_ENV
-      - name: Docker Build
+
+      - name: Docker Build (Release Branch)
         uses: hashicorp/actions-docker-build@v1
+        if: startsWith(github.ref, 'refs/heads/release/')
         with:
           version: ${{env.version}}
           target: default
@@ -118,5 +120,17 @@ jobs:
           tags: |
             docker.io/hashicorp/${{env.repo}}:${{env.version}}
           dev_tags: |
-            docker.io/hashicorppreview/${{env.repo}}:${{env.version}}-dev
-            docker.io/hashicorppreview/${{env.repo}}:${{env.version}}-dev-${{github.sha}}
+            docker.io/hashicorppreview/${{env.repo}}:${{env.version}}
+
+      - name: Docker Build (Main Branch)
+        uses: hashicorp/actions-docker-build@v1
+        if: github.ref == 'refs/heads/main'
+        with:
+          version: ${{env.version}}
+          target: default
+          arch: ${{matrix.arch}}
+          tags: |
+            docker.io/hashicorp/${{env.repo}}:${{env.version}}
+          dev_tags: |
+            docker.io/hashicorppreview/${{env.repo}}:main
+            docker.io/hashicorppreview/${{env.repo}}:${{github.sha}}
