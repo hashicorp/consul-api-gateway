@@ -129,8 +129,9 @@ jobs:
           version: ${{env.version}}
           target: default
           arch: ${{matrix.arch}}
+          # We don't expect this specific build from main to be promoted, but we must declare tags
           tags: |
-            docker.io/hashicorp/${{env.repo}}:${{env.version}}
+            docker.io/hashicorp/${{env.repo}}:${{github.sha}}
           dev_tags: |
             docker.io/hashicorppreview/${{env.repo}}:main
             docker.io/hashicorppreview/${{env.repo}}:${{github.sha}}
