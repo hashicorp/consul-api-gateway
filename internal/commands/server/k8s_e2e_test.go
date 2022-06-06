@@ -113,7 +113,6 @@ func TestGatewayWithClassConfigChange(t *testing.T) {
 }
 
 func TestGatewayWithReplicas(t *testing.T) {
-	t.Parallel()
 	feature := features.New("gateway class config configure instances").
 		Assess("gateway is created with appropriate number of replicas set", func(ctx context.Context, t *testing.T, cfg *envconf.Config) context.Context {
 			namespace := e2e.Namespace(ctx)
@@ -149,7 +148,6 @@ func TestGatewayWithReplicas(t *testing.T) {
 }
 
 func TestGatewayWithReplicasCanScale(t *testing.T) {
-	t.Parallel()
 	feature := features.New("gateway class config doesn't override manual scaling").
 		Assess("gateway deployment doesn't get overriden with kubectl scale operation", func(ctx context.Context, t *testing.T, cfg *envconf.Config) context.Context {
 			namespace := e2e.Namespace(ctx)
@@ -192,12 +190,77 @@ func TestGatewayWithReplicasCanScale(t *testing.T) {
 	testenv.Test(t, feature.Feature())
 }
 
+func TestGatewayWithReplicasRespectMinMax(t *testing.T) {
+	t.Parallel()
+	feature := features.New("gateway class config min max fields are respected").
+		Assess("gateway deployment min maxes appropriately", func(ctx context.Context, t *testing.T, cfg *envconf.Config) context.Context {
+			namespace := e2e.Namespace(ctx)
+			resources := cfg.Client().Resources(namespace)
+
+			var initialReplicas int32 = 3
+			var minReplicas int32 = 2
+			var maxReplicas int32 = 8
+			var exceedsMin int32 = minReplicas - 1
+			var exceedsMax int32 = maxReplicas + 1
+			useHostPorts := false
+
+			// Create a GatewayClassConfig
+			gatewayClassConfig, gatewayClass := createGatewayClassWithParams(ctx, t, resources, GatewayClassConfigParams{
+				UseHostPorts:     &useHostPorts,
+				DefaultInstances: &initialReplicas,
+				MaxInstances:     &maxReplicas,
+				MinInstances:     &minReplicas,
+			})
+
+			require.Eventually(t, gatewayClassStatusCheck(ctx, resources, gatewayClass.Name, namespace, conditionAccepted), 30*time.Second, checkInterval, "gatewayclass not accepted in the allotted time")
+
+			// Create an HTTPS Gateway Listener to pass when creating gateways
+			httpsListener := createHTTPSListener(ctx, t, 443)
+
+			// Create a Gateway and wait for it to be ready
+			gatewayName := envconf.RandomName("gw", 16)
+			gateway := createGateway(ctx, t, resources, gatewayName, gatewayClass, []gateway.Listener{httpsListener})
+
+			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionReady), checkTimeout, checkInterval, "no gateway found in the allotted time")
+
+			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionReady), 30*time.Second, checkInterval, "no gateway found in the allotted time")
+			checkGatewayConfigAnnotation(ctx, t, resources, gatewayName, namespace, gatewayClassConfig)
+
+			// Fetch the deployment created by the gateway and check the number of replicas
+			deployment := &appsv1.Deployment{}
+			require.NoError(t, resources.Get(ctx, gatewayName, namespace, deployment))
+			assert.Equal(t, initialReplicas, *deployment.Spec.Replicas)
+
+			// Scale the deployment up
+			deployment.Spec.Replicas = &exceedsMax
+			assert.NoError(t, resources.Update(ctx, deployment))
+
+			// Double check that replicas was set appropriately
+			assert.NoError(t, resources.Get(ctx, gatewayName, namespace, deployment))
+			assert.Eventually(t, deploymentReplicasSetAsExpected(ctx, resources, gatewayName, namespace, maxReplicas), 30*time.Second, checkInterval, "replicas not scaled down to max in the alloted time")
+
+			// Scale the deployment down
+			assert.NoError(t, resources.Get(ctx, gatewayName, namespace, deployment))
+			deployment.Spec.Replicas = &exceedsMin
+			assert.NoError(t, resources.Update(ctx, deployment))
+
+			// Double check that replicas was set appropriately
+			assert.NoError(t, resources.Get(ctx, gatewayName, namespace, deployment))
+			assert.Eventually(t, deploymentReplicasSetAsExpected(ctx, resources, gatewayName, namespace, minReplicas), 30*time.Second, checkInterval, "replicas not scaled up to min in the alloted time")
+
+			assert.NoError(t, resources.Delete(ctx, gateway))
+
+			return ctx
+		})
+
+	testenv.Test(t, feature.Feature())
+}
+
 func TestGatewayBasic(t *testing.T) {
 	feature := features.New("gateway admission").
 		Assess("basic admission and status updates", func(ctx context.Context, t *testing.T, cfg *envconf.Config) context.Context {
 			namespace := e2e.Namespace(ctx)
 			resources := cfg.Client().Resources(namespace)
-
 			gatewayName := envconf.RandomName("gw", 16)
 
 			useHostPorts := false
@@ -1166,6 +1229,21 @@ func gatewayStatusCheck(ctx context.Context, resources *resources.Resources, gat
 	}
 }
 
+func deploymentReplicasSetAsExpected(ctx context.Context, resources *resources.Resources, gatewayName, namespace string, expectedReplicas int32) func() bool {
+	return func() bool {
+		deployment := &appsv1.Deployment{}
+		if err := resources.Get(ctx, gatewayName, namespace, deployment); err != nil {
+			return false
+		}
+
+		if deployment.Spec.Replicas == nil {
+			return false
+		}
+
+		return *deployment.Spec.Replicas == expectedReplicas
+	}
+}
+
 func gatewayClassStatusCheck(ctx context.Context, resources *resources.Resources, gatewayClassName, namespace string, checkFn func([]meta.Condition) bool) func() bool {
 	return func() bool {
 		updated := &gateway.GatewayClass{}
@@ -1308,6 +1386,8 @@ func createGateway(ctx context.Context, t *testing.T, resources *resources.Resou
 type GatewayClassConfigParams struct {
 	UseHostPorts     *bool
 	DefaultInstances *int32
+	MinInstances     *int32
+	MaxInstances     *int32
 }
 
 func createGatewayClass(ctx context.Context, t *testing.T, resources *resources.Resources) (*apigwv1alpha1.GatewayClassConfig, *gateway.GatewayClass) {
@@ -1349,6 +1429,8 @@ func createGatewayClassWithParams(ctx context.Context, t *testing.T, resources *
 			LogLevel:     "trace",
 			DeploymentSpec: apigwv1alpha1.DeploymentSpec{
 				DefaultInstances: &defaultInstances,
+				MaxInstances:     params.MaxInstances,
+				MinInstances:     params.MinInstances,
 			},
 			ConsulSpec: apigwv1alpha1.ConsulSpec{
 				Address: hostRoute,

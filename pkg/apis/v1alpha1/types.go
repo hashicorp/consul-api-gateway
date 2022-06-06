@@ -63,6 +63,16 @@ type DeploymentSpec struct {
 	// +kubebuilder:validation:Minimum=1
 	// Number of gateway instances that should be deployed by default
 	DefaultInstances *int32 `json:"defaultInstances,omitempty"`
+	// +kubebuilder:default:=8
+	// +kubebuilder:validation:Maximum=8
+	// +kubebuilder:validation:Minimum=1
+	// Max allowed number of gateway instances
+	MaxInstances *int32 `json:"maxInstances,omitempty"`
+	// +kubebuilder:default:=1
+	// +kubebuilder:validation:Maximum=8
+	// +kubebuilder:validation:Minimum=1
+	// Minimum allowed number of gateway instances
+	MinInstances *int32 `json:"minInstances,omitempty"`
 }
 
 type ConsulSpec struct {
@@ -208,12 +218,7 @@ func compareServices(a, b *corev1.Service) bool {
 func MergeDeployment(a, b *appsv1.Deployment, currentReplicas *int32) *appsv1.Deployment {
 	if !compareDeployments(a, b) {
 		b.Spec.Template = a.Spec.Template
-
-		// Don't override if replicas have already been set on deployment
-		// TODO this logic will likely need to be updated as part of CAPIGW-137
-		if currentReplicas == nil {
-			b.Spec.Replicas = a.Spec.Replicas
-		}
+		b.Spec.Replicas = a.Spec.Replicas
 	}
 
 	return b

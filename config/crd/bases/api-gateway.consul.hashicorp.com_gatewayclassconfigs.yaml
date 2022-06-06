@@ -102,6 +102,20 @@ spec:
                     maximum: 8
                     minimum: 1
                     type: integer
+                  maxInstances:
+                    default: 8
+                    description: Max allowed number of gateway instances
+                    format: int32
+                    maximum: 8
+                    minimum: 1
+                    type: integer
+                  minInstances:
+                    default: 1
+                    description: Minimum allowed number of gateway instances
+                    format: int32
+                    maximum: 8
+                    minimum: 1
+                    type: integer
                 type: object
               image:
                 description: Configuration information about the images to use

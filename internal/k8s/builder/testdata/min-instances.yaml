@@ -1,0 +1,43 @@
+apiVersion: api-gateway.consul.hashicorp.com/v1alpha1
+kind: GatewayClassConfig
+metadata:
+  name: test-gateway-class-config
+spec:
+  image:
+    consulAPIGateway: hashicorp/consul-api-gateway:0.2.1
+  serviceType: "ClusterIP"
+  deployment:
+    defaultInstances: 1
+    minInstances: 5
+    maxInstances: 8
+---
+apiVersion: gateway.networking.k8s.io/v1alpha2
+kind: GatewayClass
+metadata:
+  name: test-gateway-class
+spec:
+  controller: "hashicorp.com/consul-api-gateway-gateway-controller"
+  parametersRef:
+    group: api-gateway.consul.hashicorp.com
+    kind: GatewayClassConfig
+    name: test-gateway-class-config
+---
+apiVersion: gateway.networking.k8s.io/v1alpha2
+kind: Gateway
+metadata:
+  name: test-min-instances
+spec:
+  gatewayClassName: test-gateway-class
+  listeners:
+  - protocol: HTTP
+    port: 8080
+    name: http
+    allowedRoutes:
+      namespaces:
+        from: Same
+  - protocol: HTTPS
+    port: 8443
+    name: https
+    allowedRoutes:
+      namespaces:
+        from: Same

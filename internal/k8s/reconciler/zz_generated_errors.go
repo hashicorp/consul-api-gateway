@@ -6,6 +6,7 @@ type CertificateResolutionErrorType int
 
 const (
 	CertificateResolutionErrorTypeNotFound CertificateResolutionErrorType = iota
+	CertificateResolutionErrorTypeNotPermitted
 	CertificateResolutionErrorTypeUnsupported
 )
 
@@ -16,6 +17,9 @@ type CertificateResolutionError struct {
 
 func NewCertificateResolutionErrorNotFound(inner string) CertificateResolutionError {
 	return CertificateResolutionError{inner, CertificateResolutionErrorTypeNotFound}
+}
+func NewCertificateResolutionErrorNotPermitted(inner string) CertificateResolutionError {
+	return CertificateResolutionError{inner, CertificateResolutionErrorTypeNotPermitted}
 }
 func NewCertificateResolutionErrorUnsupported(inner string) CertificateResolutionError {
 	return CertificateResolutionError{inner, CertificateResolutionErrorTypeUnsupported}
