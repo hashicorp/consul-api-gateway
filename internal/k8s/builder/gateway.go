@@ -190,7 +190,24 @@ func (b *GatewayDeploymentBuilder) podSpec() corev1.PodSpec {
 		defaultServiceAccount = b.gateway.Name
 	}
 
+	labels := utils.LabelsForGateway(b.gateway)
+
 	return corev1.PodSpec{
+		Affinity: &corev1.Affinity{
+			PodAntiAffinity: &corev1.PodAntiAffinity{
+				PreferredDuringSchedulingIgnoredDuringExecution: []corev1.WeightedPodAffinityTerm{
+					{
+						Weight: 1,
+						PodAffinityTerm: corev1.PodAffinityTerm{
+							LabelSelector: &metav1.LabelSelector{
+								MatchLabels: labels,
+							},
+							TopologyKey: k8sHostnameTopologyKey,
+						},
+					},
+				},
+			},
+		},
 		NodeSelector:       b.gwConfig.Spec.NodeSelector,
 		ServiceAccountName: orDefault(b.gwConfig.Spec.ConsulSpec.AuthSpec.Account, defaultServiceAccount),
 		// the init container copies the binary into the

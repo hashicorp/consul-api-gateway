@@ -3,16 +3,16 @@ metadata:
   labels:
     api-gateway.consul.hashicorp.com/created: "-62135596800"
     api-gateway.consul.hashicorp.com/managed: "true"
-    api-gateway.consul.hashicorp.com/name: test-multiple-instances
+    api-gateway.consul.hashicorp.com/name: test-max-instances
     api-gateway.consul.hashicorp.com/namespace: ""
-  name: test-multiple-instances
+  name: test-max-instances
 spec:
   replicas: 5
   selector:
     matchLabels:
       api-gateway.consul.hashicorp.com/created: "-62135596800"
       api-gateway.consul.hashicorp.com/managed: "true"
-      api-gateway.consul.hashicorp.com/name: test-multiple-instances
+      api-gateway.consul.hashicorp.com/name: test-max-instances
       api-gateway.consul.hashicorp.com/namespace: ""
   strategy: {}
   template:
@@ -23,9 +23,21 @@ spec:
       labels:
         api-gateway.consul.hashicorp.com/created: "-62135596800"
         api-gateway.consul.hashicorp.com/managed: "true"
-        api-gateway.consul.hashicorp.com/name: test-multiple-instances
+        api-gateway.consul.hashicorp.com/name: test-max-instances
         api-gateway.consul.hashicorp.com/namespace: ""
     spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  api-gateway.consul.hashicorp.com/created: "-62135596800"
+                  api-gateway.consul.hashicorp.com/managed: "true"
+                  api-gateway.consul.hashicorp.com/name: test-max-instances
+                  api-gateway.consul.hashicorp.com/namespace: ""
+              topologyKey: kubernetes.io/hostname
+            weight: 1
       containers:
       - command:
         - /bin/sh
@@ -36,7 +48,7 @@ spec:
           exec /bootstrap/consul-api-gateway exec -log-json \
             -log-level info \
             -gateway-host "$(IP)" \
-            -gateway-name test-multiple-instances \
+            -gateway-name test-max-instances \
             -gateway-namespace test \
             -consul-http-address $(HOST_IP) \
             -consul-http-port 8500 \

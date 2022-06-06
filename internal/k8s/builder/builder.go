@@ -35,6 +35,8 @@ const (
 
 	consulCALocalPath = "/consul/tls"
 	consulCALocalFile = consulCALocalPath + "/ca.pem"
+
+	k8sHostnameTopologyKey = "kubernetes.io/hostname"
 )
 
 type Builder interface {

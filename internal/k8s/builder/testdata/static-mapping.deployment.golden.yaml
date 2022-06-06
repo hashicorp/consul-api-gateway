@@ -26,6 +26,18 @@ spec:
         api-gateway.consul.hashicorp.com/name: test-static-mapping
         api-gateway.consul.hashicorp.com/namespace: ""
     spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  api-gateway.consul.hashicorp.com/created: "-62135596800"
+                  api-gateway.consul.hashicorp.com/managed: "true"
+                  api-gateway.consul.hashicorp.com/name: test-static-mapping
+                  api-gateway.consul.hashicorp.com/namespace: ""
+              topologyKey: kubernetes.io/hostname
+            weight: 1
       containers:
       - command:
         - /bin/sh

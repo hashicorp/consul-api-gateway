@@ -3,9 +3,9 @@ metadata:
   labels:
     api-gateway.consul.hashicorp.com/created: "-62135596800"
     api-gateway.consul.hashicorp.com/managed: "true"
-    api-gateway.consul.hashicorp.com/name: test-multiple-instances
+    api-gateway.consul.hashicorp.com/name: test-min-instances
     api-gateway.consul.hashicorp.com/namespace: ""
-  name: test-multiple-instances
+  name: test-min-instances
 spec:
   ports:
   - name: http
@@ -19,7 +19,7 @@ spec:
   selector:
     api-gateway.consul.hashicorp.com/created: "-62135596800"
     api-gateway.consul.hashicorp.com/managed: "true"
-    api-gateway.consul.hashicorp.com/name: test-multiple-instances
+    api-gateway.consul.hashicorp.com/name: test-min-instances
     api-gateway.consul.hashicorp.com/namespace: ""
   type: ClusterIP
 status:
