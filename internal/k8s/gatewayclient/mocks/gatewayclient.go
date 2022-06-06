@@ -259,6 +259,21 @@ func (mr *MockClientMockRecorder) GetGatewayClassConfig(ctx, key interface{}) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetGatewayClassConfig", reflect.TypeOf((*MockClient)(nil).GetGatewayClassConfig), ctx, key)
 }
 
+// GetGatewaysInNamespace mocks base method.
+func (m *MockClient) GetGatewaysInNamespace(ctx context.Context, ns string) ([]v1alpha2.Gateway, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetGatewaysInNamespace", ctx, ns)
+	ret0, _ := ret[0].([]v1alpha2.Gateway)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetGatewaysInNamespace indicates an expected call of GetGatewaysInNamespace.
+func (mr *MockClientMockRecorder) GetGatewaysInNamespace(ctx, ns interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetGatewaysInNamespace", reflect.TypeOf((*MockClient)(nil).GetGatewaysInNamespace), ctx, ns)
+}
+
 // GetHTTPRoute mocks base method.
 func (m *MockClient) GetHTTPRoute(ctx context.Context, key types.NamespacedName) (*v1alpha2.HTTPRoute, error) {
 	m.ctrl.T.Helper()
@@ -424,19 +439,19 @@ func (mr *MockClientMockRecorder) IsManagedRoute(ctx, namespace, parents interfa
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsManagedRoute", reflect.TypeOf((*MockClient)(nil).IsManagedRoute), ctx, namespace, parents)
 }
 
-// PodWithLabels mocks base method.
-func (m *MockClient) PodWithLabels(ctx context.Context, labels map[string]string) (*v10.Pod, error) {
+// PodsWithLabels mocks base method.
+func (m *MockClient) PodsWithLabels(ctx context.Context, labels map[string]string) ([]v10.Pod, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "PodWithLabels", ctx, labels)
-	ret0, _ := ret[0].(*v10.Pod)
+	ret := m.ctrl.Call(m, "PodsWithLabels", ctx, labels)
+	ret0, _ := ret[0].([]v10.Pod)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// PodWithLabels indicates an expected call of PodWithLabels.
-func (mr *MockClientMockRecorder) PodWithLabels(ctx, labels interface{}) *gomock.Call {
+// PodsWithLabels indicates an expected call of PodsWithLabels.
+func (mr *MockClientMockRecorder) PodsWithLabels(ctx, labels interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PodWithLabels", reflect.TypeOf((*MockClient)(nil).PodWithLabels), ctx, labels)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PodsWithLabels", reflect.TypeOf((*MockClient)(nil).PodsWithLabels), ctx, labels)
 }
 
 // RemoveFinalizer mocks base method.

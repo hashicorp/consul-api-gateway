@@ -60,6 +60,7 @@ func (g *gatewayState) TryBind(ctx context.Context, route store.Route) {
 			if err != nil {
 				// consider each route distinct for the purposes of binding
 				g.logger.Debug("error binding route to gateway", "error", err, "route", route.ID())
+				l.RemoveRoute(route.ID())
 				bindError = multierror.Append(bindError, err)
 			}
 			if canBind {
@@ -75,6 +76,10 @@ func (g *gatewayState) TryBind(ctx context.Context, route store.Route) {
 				tracker.OnBound(g.Gateway)
 			}
 		}
+	} else {
+		// Clean up route from gateway listeners if ParentRef no longer
+		// references gateway
+		g.Remove(route.ID())
 	}
 }
 
