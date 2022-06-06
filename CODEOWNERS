@@ -1,4 +1,5 @@
-# release configuration
+@hashicorp/consul-api-gateway
 
+# release configuration
 /.release/                              @hashicorp/release-engineering 
 /.github/workflows/build.yml            @hashicorp/release-engineering 
