@@ -908,7 +908,7 @@ func TestTCPMeshService(t *testing.T) {
 							Port:     gateway.PortNumber(listenerOnePort),
 							Protocol: gateway.TCPProtocolType,
 							TLS: &gateway.GatewayTLSConfig{
-								CertificateRefs: []*gateway.SecretObjectReference{{
+								CertificateRefs: []gateway.SecretObjectReference{{
 									Name:      "consul-server-cert",
 									Namespace: &gatewayNamespace,
 								}},
@@ -919,7 +919,7 @@ func TestTCPMeshService(t *testing.T) {
 							Port:     gateway.PortNumber(listenerTwoPort),
 							Protocol: gateway.TCPProtocolType,
 							TLS: &gateway.GatewayTLSConfig{
-								CertificateRefs: []*gateway.SecretObjectReference{{
+								CertificateRefs: []gateway.SecretObjectReference{{
 									Name:      "consul-server-cert",
 									Namespace: &gatewayNamespace,
 								}},
@@ -1014,7 +1014,7 @@ func TestReferencePolicyLifecycle(t *testing.T) {
 					Port:     gateway.PortNumber(httpCheckPort),
 					Protocol: gateway.HTTPSProtocolType,
 					TLS: &gateway.GatewayTLSConfig{
-						CertificateRefs: []*gateway.SecretObjectReference{{
+						CertificateRefs: []gateway.SecretObjectReference{{
 							Name:      "consul-server-cert",
 							Namespace: &gwNamespace,
 						}},
@@ -1317,7 +1317,7 @@ func TestReferencePolicyLifecycle(t *testing.T) {
 					Port:     gateway.PortNumber(e2e.HTTPReferencePolicyPort(ctx)),
 					Protocol: gateway.HTTPSProtocolType,
 					TLS: &gateway.GatewayTLSConfig{
-						CertificateRefs: []*gateway.SecretObjectReference{{
+						CertificateRefs: []gateway.SecretObjectReference{{
 							Name:      gateway.ObjectName(certName),
 							Namespace: &certNamespaceTyped,
 						}},
@@ -1737,7 +1737,7 @@ func createHTTPSListener(ctx context.Context, t *testing.T, port gateway.PortNum
 		Port:     port,
 		Protocol: gateway.HTTPSProtocolType,
 		TLS: &gateway.GatewayTLSConfig{
-			CertificateRefs: []*gateway.SecretObjectReference{{
+			CertificateRefs: []gateway.SecretObjectReference{{
 				Name:      "consul-server-cert",
 				Namespace: &gatewayNamespace,
 			}},
