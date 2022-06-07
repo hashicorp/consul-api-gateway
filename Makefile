@@ -50,6 +50,10 @@ endif
 test:
 	go test ./...
 
+generate-golden-files:
+	GENERATE=true go test ./internal/envoy
+	GENERATE=true go test ./internal/k8s/builder
+
 .PHONY: changelog
 changelog:
 ifeq (, $(shell which changelog-build))
