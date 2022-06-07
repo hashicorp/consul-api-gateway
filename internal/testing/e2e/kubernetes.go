@@ -225,9 +225,9 @@ func serviceClusterRoleAuthBinding(namespace, accountName string) *rbac.ClusterR
 	}
 }
 
-func readCRDs(data []byte) ([]api.CustomResourceDefinition, error) {
+func readCRDs(data []byte) ([]*api.CustomResourceDefinition, error) {
 	decoder := yaml.NewYAMLOrJSONDecoder(bytes.NewReader(data), len(data))
-	crds := []api.CustomResourceDefinition{}
+	crds := []*api.CustomResourceDefinition{}
 	for {
 		crd := &api.CustomResourceDefinition{}
 		err := decoder.Decode(crd)
@@ -238,7 +238,7 @@ func readCRDs(data []byte) ([]api.CustomResourceDefinition, error) {
 			return nil, err
 		}
 		if crd.Name != "" {
-			crds = append(crds, *crd)
+			crds = append(crds, crd)
 		}
 	}
 	return crds, nil
