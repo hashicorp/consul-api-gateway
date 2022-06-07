@@ -140,4 +140,4 @@ require (
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
 
-replace sigs.k8s.io/gateway-api => github.com/hashicorp/gateway-api v0.4.1-0.20220607155808-ed71fe2150d6
+replace sigs.k8s.io/gateway-api => github.com/hashicorp/gateway-api v0.4.1-0.20220607183334-dcc99f46d5b5
