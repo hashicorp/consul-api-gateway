@@ -95,7 +95,7 @@ spec:
         - cp
         - /bin/consul-api-gateway
         - /bootstrap/consul-api-gateway
-        image: hashicorp/consul-api-gateway:0.2.1
+        image: hashicorp/consul-api-gateway:0.3.0
         name: consul-api-gateway-init
         resources: {}
         volumeMounts:
