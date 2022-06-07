@@ -95,13 +95,19 @@ func TestConformance(t *testing.T) {
 	k := krusty.MakeKustomizer(
 		krusty.MakeDefaultOptions(),
 	)
-	_, err = k.Run(fs, tmpdir)
+	resmap, err := k.Run(fs, tmpdir)
 	if err != nil {
 		t.Fatalf("Error kustomizing base manifests: %v", err)
 	}
 
-	if ok := fs.Exists(manifestsPath); !ok {
-		t.Fatal("Base manifests not found in tmpdir")
+	b, err = resmap.AsYaml()
+	if err != nil {
+		t.Fatalf("Error converting kustomized resources to YAML: %v", err)
+	}
+
+	// Write kustomized resources back to disk
+	if err := fs.WriteFile(filepath.Join(tmpdir, "kustomized.yaml"), b); err != nil {
+		t.Fatalf("Error writing kustomized YAML to tmpdir: %v", err)
 	}
 
 	cSuite := suite.New(suite.Options{
@@ -109,7 +115,7 @@ func TestConformance(t *testing.T) {
 		GatewayClassName:     gatewayClassName,
 		Debug:                debug,
 		CleanupBaseResources: cleanupBaseResources,
-		BaseManifests:        "local://" + manifestsPath,
+		BaseManifests:        "local://" + filepath.Join(tmpdir, "kustomized.yaml"),
 		SupportedFeatures:    []suite.SupportedFeature{},
 	})
 	cSuite.Setup(t)
