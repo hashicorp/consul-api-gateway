@@ -1,16 +1,18 @@
 package conformance_test
 
 import (
-	"context"
-	"os/exec"
+	"os"
+	"path/filepath"
 	"testing"
 
-	apps "k8s.io/api/apps/v1"
 	"k8s.io/utils/strings/slices"
 	"sigs.k8s.io/gateway-api/apis/v1alpha2"
+	"sigs.k8s.io/gateway-api/conformance"
 	"sigs.k8s.io/gateway-api/conformance/tests"
 	"sigs.k8s.io/gateway-api/conformance/utils/flags"
 	"sigs.k8s.io/gateway-api/conformance/utils/suite"
+	"sigs.k8s.io/kustomize/api/krusty"
+	"sigs.k8s.io/kustomize/kyaml/filesys"
 
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -47,39 +49,70 @@ func TestConformance(t *testing.T) {
 
 	t.Logf("Running conformance tests with %s GatewayClass", *flags.GatewayClassName)
 
+	// Read embedded base manifests
+	b, err := conformance.Manifests.ReadFile("base/manifests.yaml")
+	if err != nil {
+		t.Fatalf("Error reading embedded base manifests: %v", err)
+	}
+
+	// Write embedded base manifests to kyaml filesystem
+	fs := filesys.MakeFsOnDisk()
+	// tmpdir := t.TempDir()
+	tmpdir, err := os.MkdirTemp(os.TempDir(), "")
+	if err != nil {
+		t.Fatalf("Error creating tmpdir: %v", err)
+	}
+	defer os.RemoveAll(tmpdir)
+
+	basedir := filepath.Join(tmpdir, "base")
+	if err := fs.Mkdir(basedir); err != nil {
+		t.Fatalf("Error creating base directory: %v", err)
+	}
+	manifestsPath := filepath.Join(basedir, "manifests.yaml")
+	if err := fs.WriteFile(manifestsPath, b); err != nil {
+		t.Fatalf("Error writing base manifests file in base directory: %v", err)
+	}
+
+	// Copy kustomization to kyaml filesystem
+	b, err = os.ReadFile("kustomization.yaml")
+	if err != nil {
+		t.Fatalf("Error reading kustomization: %v", err)
+	}
+	if err := fs.WriteFile(filepath.Join(tmpdir, "kustomization.yaml"), b); err != nil {
+		t.Fatalf("Error writing kustomization in tmpdir: %v", err)
+	}
+
+	// Copy proxydefaults to kyaml filesystem
+	b, err = os.ReadFile("proxydefaults.yaml")
+	if err != nil {
+		t.Fatalf("Error reading proxydefaults: %v", err)
+	}
+	if err := fs.WriteFile(filepath.Join(tmpdir, "proxydefaults.yaml"), b); err != nil {
+		t.Fatalf("Error writing kustomization in tmpdir: %v", err)
+	}
+
+	// Patch base manifests as needed
+	k := krusty.MakeKustomizer(
+		krusty.MakeDefaultOptions(),
+	)
+	_, err = k.Run(fs, tmpdir)
+	if err != nil {
+		t.Fatalf("Error kustomizing base manifests: %v", err)
+	}
+
+	if ok := fs.Exists(manifestsPath); !ok {
+		t.Fatal("Base manifests not found in tmpdir")
+	}
+
 	cSuite := suite.New(suite.Options{
 		Client:               c,
 		GatewayClassName:     gatewayClassName,
 		Debug:                debug,
 		CleanupBaseResources: cleanupBaseResources,
+		BaseManifests:        manifestsPath,
 		SupportedFeatures:    []suite.SupportedFeature{},
 	})
 	cSuite.Setup(t)
-
-	// Update conformance test infra resources as needed
-	deployments := &apps.DeploymentList{}
-	if err := c.List(context.Background(), deployments); err != nil {
-		t.Fatalf("Error fetching deployments: %v", err)
-	}
-	for _, d := range deployments.Items {
-		// Add connect-inject annotation to each Deployment. This is required due to
-		// containerPort not being defined on Deployments upstream. Though containerPort
-		// is optional, Consul relies on it as a default value in the absence of a
-		// connect-service-port annotation.
-		d.Annotations["consul.hashicorp.com/connect-service-port"] = "3000"
-
-		// We don't have enough resources in the GitHub-hosted Actions runner to support 2 replicas
-		var numReplicas int32 = 1
-		d.Spec.Replicas = &numReplicas
-
-		if err := c.Update(context.Background(), &d); err != nil {
-			t.Fatalf("Error updating deployment: %v", err)
-		}
-	}
-
-	if err = exec.Command("kubectl", "apply", "-f", "proxydefaults.yaml").Run(); err != nil {
-		t.Fatalf("Error creating ProxyDefaults: %v", err)
-	}
 
 	var testsToRun []suite.ConformanceTest
 	for _, conformanceTest := range tests.ConformanceTests {
