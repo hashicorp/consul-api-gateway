@@ -120,7 +120,7 @@ func (l *K8sListener) validateTLS(ctx context.Context) error {
 	}
 
 	// we only support a single certificate for now
-	ref := *l.listener.TLS.CertificateRefs[0]
+	ref := l.listener.TLS.CertificateRefs[0]
 
 	// require ReferencePolicy for cross-namespace certificateRef
 	allowed, err := gatewayAllowedForSecretRef(ctx, l.gateway, ref, l.client)
