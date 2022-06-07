@@ -415,7 +415,7 @@ func TestGatewayAllowedForSecretRef(t *testing.T) {
 				Spec: gw.GatewaySpec{
 					Listeners: []gw.Listener{{
 						TLS: &gw.GatewayTLSConfig{
-							CertificateRefs: []*gw.SecretObjectReference{{
+							CertificateRefs: []gw.SecretObjectReference{{
 								Group: &group,
 								Name:  gw.ObjectName(tc.toName),
 							}},

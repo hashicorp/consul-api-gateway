@@ -37,7 +37,7 @@ func TestGatewayValidate(t *testing.T) {
 				Hostname: &hostname,
 				Protocol: gw.HTTPSProtocolType,
 				TLS: &gw.GatewayTLSConfig{
-					CertificateRefs: []*gw.SecretObjectReference{{}},
+					CertificateRefs: []gw.SecretObjectReference{{}},
 				},
 			}},
 		},
@@ -82,7 +82,7 @@ func TestGatewayValidateGatewayIP(t *testing.T) {
 				Hostname: &hostname,
 				Protocol: gw.HTTPSProtocolType,
 				TLS: &gw.GatewayTLSConfig{
-					CertificateRefs: []*gw.SecretObjectReference{{}},
+					CertificateRefs: []gw.SecretObjectReference{{}},
 				},
 			}},
 		},

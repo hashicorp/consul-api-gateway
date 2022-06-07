@@ -126,7 +126,7 @@ func TestListenerValidate(t *testing.T) {
 		listener := NewK8sListener(&gw.Gateway{}, gw.Listener{
 			Protocol: gw.HTTPSProtocolType,
 			TLS: &gw.GatewayTLSConfig{
-				CertificateRefs: []*gw.SecretObjectReference{{
+				CertificateRefs: []gw.SecretObjectReference{{
 					Name: "secret",
 				}},
 			},
@@ -142,7 +142,7 @@ func TestListenerValidate(t *testing.T) {
 		listener := NewK8sListener(&gw.Gateway{}, gw.Listener{
 			Protocol: gw.HTTPSProtocolType,
 			TLS: &gw.GatewayTLSConfig{
-				CertificateRefs: []*gw.SecretObjectReference{{
+				CertificateRefs: []gw.SecretObjectReference{{
 					Name: "secret",
 				}},
 			},
@@ -161,7 +161,7 @@ func TestListenerValidate(t *testing.T) {
 		listener := NewK8sListener(&gw.Gateway{}, gw.Listener{
 			Protocol: gw.HTTPSProtocolType,
 			TLS: &gw.GatewayTLSConfig{
-				CertificateRefs: []*gw.SecretObjectReference{{
+				CertificateRefs: []gw.SecretObjectReference{{
 					Namespace: &otherNamespace,
 					Name:      "secret",
 				}},
@@ -186,7 +186,7 @@ func TestListenerValidate(t *testing.T) {
 			gw.Listener{
 				Protocol: gw.HTTPSProtocolType,
 				TLS: &gw.GatewayTLSConfig{
-					CertificateRefs: []*gw.SecretObjectReference{{
+					CertificateRefs: []gw.SecretObjectReference{{
 						Namespace: &secretNamespace,
 						Name:      "secret",
 					}},
@@ -222,7 +222,7 @@ func TestListenerValidate(t *testing.T) {
 		listener := NewK8sListener(&gw.Gateway{}, gw.Listener{
 			Protocol: gw.HTTPSProtocolType,
 			TLS: &gw.GatewayTLSConfig{
-				CertificateRefs: []*gw.SecretObjectReference{{
+				CertificateRefs: []gw.SecretObjectReference{{
 					Name: "secret",
 				}},
 			},
@@ -246,7 +246,7 @@ func TestListenerValidate(t *testing.T) {
 		listener := NewK8sListener(&gw.Gateway{}, gw.Listener{
 			Protocol: gw.HTTPSProtocolType,
 			TLS: &gw.GatewayTLSConfig{
-				CertificateRefs: []*gw.SecretObjectReference{{
+				CertificateRefs: []gw.SecretObjectReference{{
 					Group: &group,
 					Kind:  &kind,
 					Name:  "secret",
@@ -265,7 +265,7 @@ func TestListenerValidate(t *testing.T) {
 		listener := NewK8sListener(&gw.Gateway{}, gw.Listener{
 			Protocol: gw.HTTPSProtocolType,
 			TLS: &gw.GatewayTLSConfig{
-				CertificateRefs: []*gw.SecretObjectReference{{
+				CertificateRefs: []gw.SecretObjectReference{{
 					Name: "secret",
 				}},
 				Options: map[gw.AnnotationKey]gw.AnnotationValue{
@@ -291,7 +291,7 @@ func TestListenerValidate(t *testing.T) {
 		listener := NewK8sListener(&gw.Gateway{}, gw.Listener{
 			Protocol: gw.HTTPSProtocolType,
 			TLS: &gw.GatewayTLSConfig{
-				CertificateRefs: []*gw.SecretObjectReference{{
+				CertificateRefs: []gw.SecretObjectReference{{
 					Name: "secret",
 				}},
 				Options: map[gw.AnnotationKey]gw.AnnotationValue{
@@ -317,7 +317,7 @@ func TestListenerValidate(t *testing.T) {
 		listener := NewK8sListener(&gw.Gateway{}, gw.Listener{
 			Protocol: gw.HTTPSProtocolType,
 			TLS: &gw.GatewayTLSConfig{
-				CertificateRefs: []*gw.SecretObjectReference{{
+				CertificateRefs: []gw.SecretObjectReference{{
 					Name: "secret",
 				}},
 				Options: map[gw.AnnotationKey]gw.AnnotationValue{
@@ -343,7 +343,7 @@ func TestListenerValidate(t *testing.T) {
 		listener := NewK8sListener(&gw.Gateway{}, gw.Listener{
 			Protocol: gw.HTTPSProtocolType,
 			TLS: &gw.GatewayTLSConfig{
-				CertificateRefs: []*gw.SecretObjectReference{{
+				CertificateRefs: []gw.SecretObjectReference{{
 					Name: "secret",
 				}},
 				Options: map[gw.AnnotationKey]gw.AnnotationValue{
@@ -370,7 +370,7 @@ func TestListenerValidate(t *testing.T) {
 		listener := NewK8sListener(&gw.Gateway{}, gw.Listener{
 			Protocol: gw.HTTPSProtocolType,
 			TLS: &gw.GatewayTLSConfig{
-				CertificateRefs: []*gw.SecretObjectReference{{
+				CertificateRefs: []gw.SecretObjectReference{{
 					Name: "secret",
 				}},
 				Options: map[gw.AnnotationKey]gw.AnnotationValue{
