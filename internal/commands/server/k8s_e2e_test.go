@@ -1536,7 +1536,7 @@ func TestRouteParentRefChange(t *testing.T) {
 
 			// Update httpRoute from remote, then remove first gateway ParentRef
 			require.NoError(t, resources.Get(ctx, httpRouteName, namespace, httpRoute))
-			httpRoute.Spec.CommonRouteSpec.ParentRefs = []gateway.ParentRef{{
+			httpRoute.Spec.CommonRouteSpec.ParentRefs = []gateway.ParentReference{{
 				Name:      gateway.ObjectName(secondGatewayName),
 				Namespace: &gwNamespace,
 			}}
