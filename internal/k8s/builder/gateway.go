@@ -247,7 +247,7 @@ func (b *GatewayDeploymentBuilder) podSpec() corev1.PodSpec {
 			},
 			Command: b.execCommand(),
 			ReadinessProbe: &corev1.Probe{
-				Handler: corev1.Handler{
+				ProbeHandler: corev1.ProbeHandler{
 					HTTPGet: &corev1.HTTPGetAction{
 						Path: "/ready",
 						Port: intstr.FromInt(20000),
