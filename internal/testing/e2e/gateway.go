@@ -159,7 +159,7 @@ func DestroyTestGatewayServer(ctx context.Context, cfg *envconf.Config) (context
 func InstallConsulAPIGatewayCRDs(ctx context.Context, cfg *envconf.Config) (context.Context, error) {
 	directory := path.Join("..", "..", "..", "config", "crd", "bases")
 	entries, err := os.ReadDir(directory)
-	crds := []api.CustomResourceDefinition{}
+	crds := []*api.CustomResourceDefinition{}
 	if err != nil {
 		return nil, err
 	}
