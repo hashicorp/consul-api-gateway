@@ -109,7 +109,7 @@ func TestConformance(t *testing.T) {
 		GatewayClassName:     gatewayClassName,
 		Debug:                debug,
 		CleanupBaseResources: cleanupBaseResources,
-		BaseManifests:        manifestsPath,
+		BaseManifests:        "local://" + manifestsPath,
 		SupportedFeatures:    []suite.SupportedFeature{},
 	})
 	cSuite.Setup(t)
