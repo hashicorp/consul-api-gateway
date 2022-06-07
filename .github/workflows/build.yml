@@ -110,9 +110,8 @@ jobs:
         run: |
           echo "version=$(echo $version | sed 's/+ent//g')" >> $GITHUB_ENV
 
-      - name: Docker Build (Release Branch)
+      - name: Docker Build
         uses: hashicorp/actions-docker-build@v1
-        if: startsWith(github.ref, 'refs/heads/release/')
         with:
           version: ${{env.version}}
           target: default
@@ -120,18 +119,5 @@ jobs:
           tags: |
             docker.io/hashicorp/${{env.repo}}:${{env.version}}
           dev_tags: |
-            docker.io/hashicorppreview/${{env.repo}}:${{env.version}}
-
-      - name: Docker Build (Main Branch)
-        uses: hashicorp/actions-docker-build@v1
-        if: github.ref == 'refs/heads/main'
-        with:
-          version: ${{env.version}}
-          target: default
-          arch: ${{matrix.arch}}
-          # We don't expect this specific build from main to be promoted, but we must declare tags
-          tags: |
-            docker.io/hashicorp/${{env.repo}}:${{github.sha}}
-          dev_tags: |
-            docker.io/hashicorppreview/${{env.repo}}:main
-            docker.io/hashicorppreview/${{env.repo}}:${{github.sha}}
+            docker.io/hashicorppreview/${{env.repo}}:${{env.version}}-dev
+            docker.io/hashicorppreview/${{env.repo}}:${{env.version}}-${{github.sha}}-dev
