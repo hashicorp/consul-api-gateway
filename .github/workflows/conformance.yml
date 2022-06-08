@@ -36,7 +36,6 @@ jobs:
       # GITHUB_WORKSPACE/
       #     consul-api-gateway/
       #     consul-k8s/
-      #     gateway-api/
       - name: Checkout consul-api-gateway
         uses: actions/checkout@v2
         with:
@@ -47,13 +46,6 @@ jobs:
         with:
           repository: "hashicorp/consul-k8s"
           path: "consul-k8s"
-
-      - name: Clone gateway-api
-        uses: actions/checkout@v2
-        with:
-          repository: "hashicorp/gateway-api"
-          ref: "60s-time-to-consistency"
-          path: "gateway-api"
 
       - name: Setup Goenv
         uses: ./consul-api-gateway/.github/actions/goenv
