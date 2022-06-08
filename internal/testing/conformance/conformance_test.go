@@ -1,7 +1,6 @@
-package conformance_test
+package conformance
 
 import (
-	"path/filepath"
 	"testing"
 
 	"k8s.io/utils/strings/slices"
@@ -10,8 +9,6 @@ import (
 	"sigs.k8s.io/gateway-api/conformance/tests"
 	"sigs.k8s.io/gateway-api/conformance/utils/flags"
 	"sigs.k8s.io/gateway-api/conformance/utils/suite"
-	"sigs.k8s.io/kustomize/api/krusty"
-	"sigs.k8s.io/kustomize/kyaml/filesys"
 
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -57,54 +54,10 @@ func TestConformance(t *testing.T) {
 		t.Fatalf("Error reading embedded base manifests: %v", err)
 	}
 
-	// Write embedded base manifests to kyaml filesystem
-	fs := filesys.MakeFsOnDisk()
-	tmpdir := t.TempDir()
-
-	basedir := filepath.Join(tmpdir, "base")
-	if err := fs.Mkdir(basedir); err != nil {
-		t.Fatalf("Error creating base directory: %v", err)
-	}
-	manifestsPath := filepath.Join(basedir, "manifests.yaml")
-	if err := fs.WriteFile(manifestsPath, b); err != nil {
-		t.Fatalf("Error writing base manifests file in base directory: %v", err)
-	}
-
-	// Copy kustomization to kyaml filesystem
-	b, err = fs.ReadFile("kustomization.yaml")
-	if err != nil {
-		t.Fatalf("Error reading kustomization: %v", err)
-	}
-	if err := fs.WriteFile(filepath.Join(tmpdir, "kustomization.yaml"), b); err != nil {
-		t.Fatalf("Error writing kustomization in tmpdir: %v", err)
-	}
-
-	// Copy proxydefaults to kyaml filesystem
-	b, err = fs.ReadFile("proxydefaults.yaml")
-	if err != nil {
-		t.Fatalf("Error reading proxydefaults: %v", err)
-	}
-	if err := fs.WriteFile(filepath.Join(tmpdir, "proxydefaults.yaml"), b); err != nil {
-		t.Fatalf("Error writing kustomization in tmpdir: %v", err)
-	}
-
-	// Patch base manifests as needed
-	k := krusty.MakeKustomizer(
-		krusty.MakeDefaultOptions(),
-	)
-	resmap, err := k.Run(fs, tmpdir)
+	// Kustomzie base manifests as needed
+	kustomizedBaseManifests, err := kustomizeBaseManifests(t, b)
 	if err != nil {
 		t.Fatalf("Error kustomizing base manifests: %v", err)
-	}
-
-	b, err = resmap.AsYaml()
-	if err != nil {
-		t.Fatalf("Error converting kustomized resources to YAML: %v", err)
-	}
-
-	// Write kustomized resources back to disk
-	if err := fs.WriteFile(filepath.Join(tmpdir, "kustomized.yaml"), b); err != nil {
-		t.Fatalf("Error writing kustomized YAML to tmpdir: %v", err)
 	}
 
 	cSuite := suite.New(suite.Options{
@@ -112,7 +65,7 @@ func TestConformance(t *testing.T) {
 		GatewayClassName:     gatewayClassName,
 		Debug:                debug,
 		CleanupBaseResources: cleanupBaseResources,
-		BaseManifests:        "local://" + filepath.Join(tmpdir, "kustomized.yaml"),
+		BaseManifests:        kustomizedBaseManifests,
 		SupportedFeatures:    []suite.SupportedFeature{},
 	})
 	cSuite.Setup(t)
