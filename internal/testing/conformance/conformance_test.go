@@ -1,7 +1,6 @@
 package conformance_test
 
 import (
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -60,12 +59,7 @@ func TestConformance(t *testing.T) {
 
 	// Write embedded base manifests to kyaml filesystem
 	fs := filesys.MakeFsOnDisk()
-	// tmpdir := t.TempDir()
-	tmpdir, err := os.MkdirTemp(os.TempDir(), "")
-	if err != nil {
-		t.Fatalf("Error creating tmpdir: %v", err)
-	}
-	defer os.RemoveAll(tmpdir)
+	tmpdir := t.TempDir()
 
 	basedir := filepath.Join(tmpdir, "base")
 	if err := fs.Mkdir(basedir); err != nil {
@@ -77,7 +71,7 @@ func TestConformance(t *testing.T) {
 	}
 
 	// Copy kustomization to kyaml filesystem
-	b, err = os.ReadFile("kustomization.yaml")
+	b, err = fs.ReadFile("kustomization.yaml")
 	if err != nil {
 		t.Fatalf("Error reading kustomization: %v", err)
 	}
@@ -86,7 +80,7 @@ func TestConformance(t *testing.T) {
 	}
 
 	// Copy proxydefaults to kyaml filesystem
-	b, err = os.ReadFile("proxydefaults.yaml")
+	b, err = fs.ReadFile("proxydefaults.yaml")
 	if err != nil {
 		t.Fatalf("Error reading proxydefaults: %v", err)
 	}
