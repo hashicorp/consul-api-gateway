@@ -50,12 +50,6 @@ jobs:
       with:
         go-version: ${{ env.GO_VERSION }}
 
-    - name: Install Consul
-      uses: nickethier/action-setup-hashicorp-tool@main #TODO: update action when migrated to hc org
-      with:
-        product: consul
-        version: ${{ matrix.consul-version }}
-
     - name: Clean Generate
       run: |
         echo "Checking that code generation is up-to-date"
