@@ -50,6 +50,16 @@ jobs:
       with:
         go-version: ${{ env.GO_VERSION }}
 
+    - name: Install Consul
+      shell: bash
+      run: |
+        CONSUL_VERSION="${{ matrix.consul-version }}"
+        FILENAME="consul_${CONSUL_VERSION}_linux_amd64.zip"
+        curl -sSLO "https://releases.hashicorp.com/consul/${CONSUL_VERSION}/${FILENAME}" && \
+          unzip "${FILENAME}" -d /usr/local/bin && \
+          rm "${FILENAME}"
+        consul version
+
     - name: Clean Generate
       run: |
         echo "Checking that code generation is up-to-date"
