@@ -36,13 +36,6 @@ jobs:
           echo "$VERSION" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
 
-      - name: Update version.go
-        uses: jacobtomlinson/gha-find-replace@v2
-        with:
-          include: 'internal/version/version.go'
-          find: 'Version = "[0-9\.]+"'
-          replace: 'Version = "${{ env.NEW_API_GATEWAY_VERSION }}"'
-
       - name: Update deployment.yaml
         uses: 'jacobtomlinson/gha-find-replace@v2'
         with:
