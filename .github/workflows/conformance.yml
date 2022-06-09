@@ -52,7 +52,7 @@ jobs:
         uses: actions/checkout@v2
         with:
           repository: "hashicorp/gateway-api"
-          ref: "60s-time-to-consistency"
+          ref: "conformance/v0.5.0-skipped-tests"
           path: "gateway-api"
 
       - name: Setup Goenv
