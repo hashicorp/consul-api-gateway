@@ -156,7 +156,7 @@ func TestListenerValidate(t *testing.T) {
 		require.Equal(t, ListenerConditionReasonInvalidCertificateRef, condition.Reason)
 	})
 
-	t.Run("Invalid cross-namespace secret ref with no ReferencePolicy", func(t *testing.T) {
+	t.Run("Invalid cross-namespace secret ref with no ReferenceGrant", func(t *testing.T) {
 		otherNamespace := gw.Namespace("other-namespace")
 		listener := NewK8sListener(&gw.Gateway{}, gw.Listener{
 			Protocol: gw.HTTPSProtocolType,
@@ -170,13 +170,13 @@ func TestListenerValidate(t *testing.T) {
 			Logger: hclog.NewNullLogger(),
 			Client: client,
 		})
-		client.EXPECT().GetReferencePoliciesInNamespace(gomock.Any(), string(otherNamespace)).Return([]gw.ReferencePolicy{}, nil)
+		client.EXPECT().GetReferenceGrantsInNamespace(gomock.Any(), string(otherNamespace)).Return([]gw.ReferenceGrant{}, nil)
 		require.NoError(t, listener.Validate(context.Background()))
 		condition := listener.status.ResolvedRefs.Condition(0)
 		assert.Equal(t, ListenerConditionReasonInvalidCertificateRef, condition.Reason)
 	})
 
-	t.Run("Valid cross-namespace secret ref with ReferencePolicy", func(t *testing.T) {
+	t.Run("Valid cross-namespace secret ref with ReferenceGrant", func(t *testing.T) {
 		gatewayNamespace := gw.Namespace("gateway-namespace")
 		secretNamespace := gw.Namespace("secret-namespace")
 		listener := NewK8sListener(
@@ -195,15 +195,15 @@ func TestListenerValidate(t *testing.T) {
 				Logger: hclog.NewNullLogger(),
 				Client: client,
 			})
-		client.EXPECT().GetReferencePoliciesInNamespace(gomock.Any(), string(secretNamespace)).
-			Return([]gw.ReferencePolicy{{
-				Spec: gw.ReferencePolicySpec{
-					From: []gw.ReferencePolicyFrom{{
+		client.EXPECT().GetReferenceGrantsInNamespace(gomock.Any(), string(secretNamespace)).
+			Return([]gw.ReferenceGrant{{
+				Spec: gw.ReferenceGrantSpec{
+					From: []gw.ReferenceGrantFrom{{
 						Group:     "gateway.networking.k8s.io",
 						Kind:      "Gateway",
 						Namespace: gatewayNamespace,
 					}},
-					To: []gw.ReferencePolicyTo{{
+					To: []gw.ReferenceGrantTo{{
 						Kind: "Secret",
 					}},
 				},
@@ -218,7 +218,7 @@ func TestListenerValidate(t *testing.T) {
 		assert.Equal(t, meta.ConditionTrue, condition.Status)
 	})
 
-	t.Run("Valid same-namespace secret ref without ReferencePolicy", func(t *testing.T) {
+	t.Run("Valid same-namespace secret ref without ReferenceGrant", func(t *testing.T) {
 		listener := NewK8sListener(&gw.Gateway{}, gw.Listener{
 			Protocol: gw.HTTPSProtocolType,
 			TLS: &gw.GatewayTLSConfig{

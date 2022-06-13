@@ -122,15 +122,15 @@ func (l *K8sListener) validateTLS(ctx context.Context) error {
 	// we only support a single certificate for now
 	ref := l.listener.TLS.CertificateRefs[0]
 
-	// require ReferencePolicy for cross-namespace certificateRef
+	// require ReferenceGrant for cross-namespace certificateRef
 	allowed, err := gatewayAllowedForSecretRef(ctx, l.gateway, ref, l.client)
 	if err != nil {
 		return err
 	} else if !allowed {
 		nsName := getNamespacedName(ref.Name, ref.Namespace, l.gateway.Namespace)
-		l.logger.Warn("Cross-namespace listener certificate not allowed without matching ReferencePolicy", "refName", nsName.Name, "refNamespace", nsName.Namespace)
+		l.logger.Warn("Cross-namespace listener certificate not allowed without matching ReferenceGrant", "refName", nsName.Name, "refNamespace", nsName.Namespace)
 		l.status.ResolvedRefs.InvalidCertificateRef = NewCertificateResolutionErrorNotPermitted(
-			fmt.Sprintf("Cross-namespace listener certificate not allowed without matching ReferencePolicy for Secret %q", nsName))
+			fmt.Sprintf("Cross-namespace listener certificate not allowed without matching ReferenceGrant for Secret %q", nsName))
 		return nil
 	}
 

@@ -61,26 +61,39 @@ func (r *TCPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&gateway.TCPRoute{}).
 		Watches(
-			&source.Kind{Type: &gateway.ReferencePolicy{}},
-			handler.EnqueueRequestsFromMapFunc(r.referencePolicyToRouteRequests),
+			&source.Kind{Type: &gateway.ReferenceGrant{}},
+			handler.EnqueueRequestsFromMapFunc(r.referenceGrantToRouteRequests),
 		).
+		// Watches(
+		// 	&source.Kind{Type: &gateway.ReferencePolicy{}},
+		// 	handler.EnqueueRequestsFromMapFunc(r.referencePolicyToRouteRequests),
+		// ).
 		Complete(gatewayclient.NewRequeueingMiddleware(r.Log, r))
 }
+
+func (r *TCPRouteReconciler) referenceGrantToRouteRequests(object client.Object) []reconcile.Request {
+	return r.getRouteRequestsFromReferenceGrant(object.(*gateway.ReferenceGrant))
+}
+
+// TODO: this can't be enabled until the ReferencePolicy object is restored
+// func (r *TCPRouteReconciler) referencePolicyToRouteRequests(object client.Object) []reconcile.Request {
+// 	refPolicy := object.(*gateway.ReferencePolicy)
+//  // TODO: Convert to ReferenceGrant
+// 	return r.getRouteRequestsFromReferenceGrant(refGrant)
+// }
 
 // For UpdateEvents which contain both a new and old object, this transformation
 // function is run on both objects and both sets of Requests are enqueued.
 //
 // This is needed to reconcile any objects matched by both current and prior
-// state in case a ReferencePolicy has been modified to revoke permission from a
+// state in case a ReferenceGrant has been modified to revoke permission from a
 // namespace or to a service
 //
 // It may be possible to improve performance here by filtering Routes by
 // BackendRefs selectable by the To fields, but currently we just revalidate
 // all Routes allowed in the From Namespaces
-func (r *TCPRouteReconciler) referencePolicyToRouteRequests(object client.Object) []reconcile.Request {
-	refPolicy := object.(*gateway.ReferencePolicy)
-
-	routes := r.getRoutesAffectedByReferencePolicy(refPolicy)
+func (r *TCPRouteReconciler) getRouteRequestsFromReferenceGrant(refGrant *gateway.ReferenceGrant) []reconcile.Request {
+	routes := r.getRoutesAffectedByReferenceGrant(refGrant)
 	requests := []reconcile.Request{}
 
 	for _, route := range routes {
@@ -98,11 +111,11 @@ func (r *TCPRouteReconciler) referencePolicyToRouteRequests(object client.Object
 // getRoutesAffectedByReferencePolicy retrieves all TCPRoutes potentially impacted
 // by the ReferencePolicy being modified. Currently, this is unfiltered and so returns
 // all TCPRoutes in the namespace referenced by the ReferencePolicy.
-func (r *TCPRouteReconciler) getRoutesAffectedByReferencePolicy(refPolicy *gateway.ReferencePolicy) []gateway.TCPRoute {
+func (r *TCPRouteReconciler) getRoutesAffectedByReferenceGrant(refGrant *gateway.ReferenceGrant) []gateway.TCPRoute {
 	var matches []gateway.TCPRoute
 
-	for _, from := range refPolicy.Spec.From {
-		// TODO: search by from.Group and from.Kind instead of assuming this ReferencePolicy references a TCPRoute
+	for _, from := range refGrant.Spec.From {
+		// TODO: search by from.Group and from.Kind instead of assuming this ReferenceGrant references a TCPRoute
 		routes, err := r.Client.GetTCPRoutesInNamespace(r.Context, string(from.Namespace))
 		if err != nil {
 			r.Log.Error("error fetching routes", err)

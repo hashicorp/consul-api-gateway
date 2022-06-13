@@ -535,23 +535,23 @@ func TestRouteValidateDontAllowCrossNamespace(t *testing.T) {
 	})
 
 	client.EXPECT().
-		GetReferencePoliciesInNamespace(gomock.Any(), gomock.Any()).
-		Return([]gw.ReferencePolicy{
+		GetReferenceGrantsInNamespace(gomock.Any(), gomock.Any()).
+		Return([]gw.ReferenceGrant{
 			{
-				Spec: gw.ReferencePolicySpec{
-					From: []gw.ReferencePolicyFrom{},
-					To:   []gw.ReferencePolicyTo{},
+				Spec: gw.ReferenceGrantSpec{
+					From: []gw.ReferenceGrantFrom{},
+					To:   []gw.ReferenceGrantTo{},
 				},
 			},
 		}, nil)
 
-	// FUTURE Assert appropriate status set on route and !route.IsValid() once ReferencePolicy requirement is enforced
+	// FUTURE Assert appropriate status set on route and !route.IsValid() once ReferenceGrant requirement is enforced
 	_ = route.Validate(context.Background())
 }
 
-// TestRouteValidateAllowCrossNamespaceWithReferencePolicy verifies that a cross-namespace
-// route + backend combination is allowed if an applicable ReferencePolicy is found.
-func TestRouteValidateAllowCrossNamespaceWithReferencePolicy(t *testing.T) {
+// TestRouteValidateAllowCrossNamespaceWithReferenceGrant verifies that a cross-namespace
+// route + backend combination is allowed if an applicable ReferenceGrant is found.
+func TestRouteValidateAllowCrossNamespaceWithReferenceGrant(t *testing.T) {
 	t.Parallel()
 
 	ctrl := gomock.NewController(t)
@@ -587,16 +587,16 @@ func TestRouteValidateAllowCrossNamespaceWithReferencePolicy(t *testing.T) {
 		Resolver: resolver,
 	})
 
-	referencePolicy := gw.ReferencePolicy{
+	refGrant := gw.ReferenceGrant{
 		TypeMeta:   meta.TypeMeta{},
 		ObjectMeta: meta.ObjectMeta{Namespace: "namespace2"},
-		Spec: gw.ReferencePolicySpec{
-			From: []gw.ReferencePolicyFrom{{
+		Spec: gw.ReferenceGrantSpec{
+			From: []gw.ReferenceGrantFrom{{
 				Group:     "gateway.networking.k8s.io",
 				Kind:      "HTTPRoute",
 				Namespace: "namespace1",
 			}},
-			To: []gw.ReferencePolicyTo{{
+			To: []gw.ReferenceGrantTo{{
 				Group: "",
 				Kind:  "Service",
 				Name:  &backendName,
@@ -605,8 +605,8 @@ func TestRouteValidateAllowCrossNamespaceWithReferencePolicy(t *testing.T) {
 	}
 
 	client.EXPECT().
-		GetReferencePoliciesInNamespace(gomock.Any(), gomock.Any()).
-		Return([]gw.ReferencePolicy{referencePolicy}, nil)
+		GetReferenceGrantsInNamespace(gomock.Any(), gomock.Any()).
+		Return([]gw.ReferenceGrant{refGrant}, nil)
 
 	resolver.EXPECT().
 		Resolve(gomock.Any(), gomock.Any()).

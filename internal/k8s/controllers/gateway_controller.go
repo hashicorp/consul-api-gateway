@@ -35,6 +35,7 @@ type GatewayReconciler struct {
 }
 
 //+kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=referencegrants,verbs=get;list;watch
 //+kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=referencepolicies,verbs=get;list;watch
 
 //+kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways/status,verbs=get;update;patch
@@ -95,9 +96,14 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			builder.WithPredicates(predicate),
 		).
 		Watches(
-			&source.Kind{Type: &gateway.ReferencePolicy{}},
-			handler.EnqueueRequestsFromMapFunc(r.referencePolicyToGatewayRequests),
+			&source.Kind{Type: &gateway.ReferenceGrant{}},
+			handler.EnqueueRequestsFromMapFunc(r.referenceGrantToGatewayRequests),
 		).
+		// TODO: this can't be enabled until the ReferencePolicy object is restored
+		// Watches(
+		// 	&source.Kind{Type: &gateway.ReferencePolicy{}},
+		// 	handler.EnqueueRequestsFromMapFunc(r.referencePolicyToGatewayRequests),
+		// ).
 		Complete(gatewayclient.NewRequeueingMiddleware(r.Log, r))
 }
 
@@ -115,10 +121,19 @@ func podToGatewayRequest(object client.Object) []reconcile.Request {
 	return nil
 }
 
-func (r *GatewayReconciler) referencePolicyToGatewayRequests(object client.Object) []reconcile.Request {
-	refPolicy := object.(*gateway.ReferencePolicy)
+func (r *GatewayReconciler) referenceGrantToGatewayRequests(object client.Object) []reconcile.Request {
+	return r.getRequestsFromReferenceGrant(object.(*gateway.ReferenceGrant))
+}
 
-	gateways := r.getGatewaysAffectedByReferencePolicy(refPolicy)
+// TODO: this can't be enabled until the ReferencePolicy object is restored
+// func (r *GatewayReconciler) referencePolicyToGatewayRequests(object client.Object) []reconcile.Request {
+// 	refPolicy := object.(*gateway.ReferencePolicy)
+//  // TODO: Convert to ReferenceGrant
+// 	return r.getRequestsFromReferenceGrant(refGrant)
+// }
+
+func (r *GatewayReconciler) getRequestsFromReferenceGrant(refGrant *gateway.ReferenceGrant) []reconcile.Request {
+	gateways := r.getGatewaysAffectedByReferenceGrant(refGrant)
 
 	requests := make([]reconcile.Request, 0, len(gateways))
 
@@ -134,14 +149,14 @@ func (r *GatewayReconciler) referencePolicyToGatewayRequests(object client.Objec
 	return requests
 }
 
-// getGatewaysAffectedByReferencePolicy retrieves all Gateways potentially impacted by the ReferencePolicy
+// getGatewaysAffectedByReferenceGrant retrieves all Gateways potentially impacted by the ReferenceGrant
 // modification. Currently, this is unfiltered and so returns all Gateways in the namespace referenced by
-// the ReferencePolicy.
-func (r *GatewayReconciler) getGatewaysAffectedByReferencePolicy(refPolicy *gateway.ReferencePolicy) []gateway.Gateway {
+// the ReferenceGrant.
+func (r *GatewayReconciler) getGatewaysAffectedByReferenceGrant(refGrant *gateway.ReferenceGrant) []gateway.Gateway {
 	var matches []gateway.Gateway
 
-	for _, from := range refPolicy.Spec.From {
-		// TODO: search by from.Group and from.Kind instead of assuming this ReferencePolicy references a Gateway
+	for _, from := range refGrant.Spec.From {
+		// TODO: search by from.Group and from.Kind instead of assuming this ReferenceGrant references a Gateway
 		gateways, err := r.Client.GetGatewaysInNamespace(r.Context, string(from.Namespace))
 		if err != nil {
 			r.Log.Error("error fetching gateways", err)

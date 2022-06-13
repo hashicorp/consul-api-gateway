@@ -334,19 +334,19 @@ func (mr *MockClientMockRecorder) GetNamespace(ctx, key interface{}) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNamespace", reflect.TypeOf((*MockClient)(nil).GetNamespace), ctx, key)
 }
 
-// GetReferencePoliciesInNamespace mocks base method.
-func (m *MockClient) GetReferencePoliciesInNamespace(ctx context.Context, namespace string) ([]v1alpha2.ReferencePolicy, error) {
+// GetReferenceGrantsInNamespace mocks base method.
+func (m *MockClient) GetReferenceGrantsInNamespace(ctx context.Context, namespace string) ([]v1alpha2.ReferenceGrant, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetReferencePoliciesInNamespace", ctx, namespace)
-	ret0, _ := ret[0].([]v1alpha2.ReferencePolicy)
+	ret := m.ctrl.Call(m, "GetReferenceGrantsInNamespace", ctx, namespace)
+	ret0, _ := ret[0].([]v1alpha2.ReferenceGrant)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetReferencePoliciesInNamespace indicates an expected call of GetReferencePoliciesInNamespace.
-func (mr *MockClientMockRecorder) GetReferencePoliciesInNamespace(ctx, namespace interface{}) *gomock.Call {
+// GetReferenceGrantsInNamespace indicates an expected call of GetReferenceGrantsInNamespace.
+func (mr *MockClientMockRecorder) GetReferenceGrantsInNamespace(ctx, namespace interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetReferencePoliciesInNamespace", reflect.TypeOf((*MockClient)(nil).GetReferencePoliciesInNamespace), ctx, namespace)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetReferenceGrantsInNamespace", reflect.TypeOf((*MockClient)(nil).GetReferenceGrantsInNamespace), ctx, namespace)
 }
 
 // GetSecret mocks base method.

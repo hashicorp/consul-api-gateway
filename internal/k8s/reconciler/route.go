@@ -374,8 +374,8 @@ func (r *K8sRoute) Validate(ctx context.Context) error {
 					return err
 				} else if !allowed {
 					nsName := getNamespacedName(ref.Name, ref.Namespace, route.Namespace)
-					msg := fmt.Sprintf("Cross-namespace routing not allowed without matching ReferencePolicy for Service %q", nsName)
-					r.logger.Warn("Cross-namespace routing not allowed without matching ReferencePolicy", "refName", nsName.Name, "refNamespace", nsName.Namespace)
+					msg := fmt.Sprintf("Cross-namespace routing not allowed without matching ReferenceGrant for Service %q", nsName)
+					r.logger.Warn("Cross-namespace routing not allowed without matching ReferenceGrant", "refName", nsName.Name, "refNamespace", nsName.Namespace)
 					r.resolutionErrors.Add(service.NewRefNotPermittedError(msg))
 					continue
 				}
@@ -417,8 +417,8 @@ func (r *K8sRoute) Validate(ctx context.Context) error {
 			return err
 		} else if !allowed {
 			nsName := getNamespacedName(ref.Name, ref.Namespace, route.Namespace)
-			msg := fmt.Sprintf("Cross-namespace routing not allowed without matching ReferencePolicy for Service %q", nsName)
-			r.logger.Warn("Cross-namespace routing not allowed without matching ReferencePolicy", "refName", nsName.Name, "refNamespace", nsName.Namespace)
+			msg := fmt.Sprintf("Cross-namespace routing not allowed without matching ReferenceGrant for Service %q", nsName)
+			r.logger.Warn("Cross-namespace routing not allowed without matching ReferenceGrant", "refName", nsName.Name, "refNamespace", nsName.Namespace)
 			r.resolutionErrors.Add(service.NewRefNotPermittedError(msg))
 			return nil
 		}

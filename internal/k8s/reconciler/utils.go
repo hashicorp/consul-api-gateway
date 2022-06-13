@@ -122,7 +122,7 @@ func routeAllowedForListenerNamespaces(ctx context.Context, gatewayNS string, al
 
 // gatewayAllowedForSecretRef determines whether the gateway is allowed
 // for the secret either by being in the same namespace or by having
-// an applicable ReferencePolicy in the same namespace as the secret.
+// an applicable ReferenceGrant in the same namespace as the secret.
 func gatewayAllowedForSecretRef(ctx context.Context, gateway *gw.Gateway, secretRef gw.SecretObjectReference, c gatewayclient.Client) (bool, error) {
 	fromNS := gateway.GetNamespace()
 	fromGK := metav1.GroupKind{
@@ -151,10 +151,10 @@ func gatewayAllowedForSecretRef(ctx context.Context, gateway *gw.Gateway, secret
 
 // routeAllowedForBackendRef determines whether the route is allowed
 // for the backend either by being in the same namespace or by having
-// an applicable ReferencePolicy in the same namespace as the backend.
+// an applicable ReferenceGrant in the same namespace as the backend.
 //
 // TODO This func is currently called once for each backendRef on a route and results
-//   in fetching ReferencePolicies more than we technically have to in some cases
+//   in fetching ReferenceGrants more than we technically have to in some cases
 func routeAllowedForBackendRef(ctx context.Context, route Route, backendRef gw.BackendRef, c gatewayclient.Client) (bool, error) {
 	fromNS := route.GetNamespace()
 	fromGK := metav1.GroupKind{
@@ -183,27 +183,27 @@ func routeAllowedForBackendRef(ctx context.Context, route Route, backendRef gw.B
 
 // referenceAllowed checks to see if a reference between resources is allowed.
 // In particular, references from one namespace to a resource in a different namespace
-// require an applicable ReferencePolicy be found in the namespace containing the resource
+// require an applicable ReferenceGrant be found in the namespace containing the resource
 // being referred to.
 //
 // For example, a Gateway in namespace "foo" may only reference a Secret in namespace "bar"
-// if a ReferencePolicy in namespace "bar" allows references from namespace "foo".
+// if a ReferenceGrant in namespace "bar" allows references from namespace "foo".
 func referenceAllowed(ctx context.Context, fromGK metav1.GroupKind, fromNamespace string, toGK metav1.GroupKind, toNamespace, toName string, c gatewayclient.Client) (bool, error) {
 	// Reference does not cross namespaces
 	if toNamespace == "" || toNamespace == fromNamespace {
 		return true, nil
 	}
 
-	// Fetch all ReferencePolicies in the referenced namespace
-	refPolicies, err := c.GetReferencePoliciesInNamespace(ctx, toNamespace)
-	if err != nil || len(refPolicies) == 0 {
+	// Fetch all ReferenceGrants in the referenced namespace
+	refGrants, err := c.GetReferenceGrantsInNamespace(ctx, toNamespace)
+	if err != nil || len(refGrants) == 0 {
 		return false, err
 	}
 
-	for _, refPolicy := range refPolicies {
+	for _, refGrant := range refGrants {
 		// Check for a From that applies
 		fromMatch := false
-		for _, from := range refPolicy.Spec.From {
+		for _, from := range refGrant.Spec.From {
 			if fromGK.Group == string(from.Group) && fromGK.Kind == string(from.Kind) && fromNamespace == string(from.Namespace) {
 				fromMatch = true
 				break
@@ -215,7 +215,7 @@ func referenceAllowed(ctx context.Context, fromGK metav1.GroupKind, fromNamespac
 		}
 
 		// Check for a To that applies
-		for _, to := range refPolicy.Spec.To {
+		for _, to := range refGrant.Spec.To {
 			if toGK.Group == string(to.Group) && toGK.Kind == string(to.Kind) {
 				if to.Name == nil || *to.Name == "" {
 					// No name specified is treated as a wildcard within the namespace
@@ -223,14 +223,14 @@ func referenceAllowed(ctx context.Context, fromGK metav1.GroupKind, fromNamespac
 				}
 
 				if gw.ObjectName(toName) == *to.Name {
-					// The ReferencePolicy specifically targets this object
+					// The ReferenceGrant specifically targets this object
 					return true, nil
 				}
 			}
 		}
 	}
 
-	// No ReferencePolicy was found which allows this cross-namespace reference
+	// No ReferenceGrant was found which allows this cross-namespace reference
 	return false, nil
 }
 

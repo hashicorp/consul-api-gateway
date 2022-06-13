@@ -77,7 +77,7 @@ type Client interface {
 	EnsureServiceAccount(ctx context.Context, owner *gateway.Gateway, serviceAccount *core.ServiceAccount) error
 
 	//referencepolicy
-	GetReferencePoliciesInNamespace(ctx context.Context, namespace string) ([]gateway.ReferencePolicy, error)
+	GetReferenceGrantsInNamespace(ctx context.Context, namespace string) ([]gateway.ReferenceGrant, error)
 }
 
 type gatewayClient struct {
@@ -511,10 +511,38 @@ func (g *gatewayClient) HasManagedDeployment(ctx context.Context, gw *gateway.Ga
 	return len(list.Items) > 0, nil
 }
 
-func (g *gatewayClient) GetReferencePoliciesInNamespace(ctx context.Context, namespace string) ([]gateway.ReferencePolicy, error) {
-	list := &gateway.ReferencePolicyList{}
-	if err := g.Client.List(ctx, list, client.InNamespace(namespace)); err != nil {
+func (g *gatewayClient) GetReferenceGrantsInNamespace(ctx context.Context, namespace string) ([]gateway.ReferenceGrant, error) {
+	refGrantList := &gateway.ReferenceGrantList{}
+	if err := g.Client.List(ctx, refGrantList, client.InNamespace(namespace)); err != nil {
 		return nil, NewK8sError(err)
 	}
-	return list.Items, nil
+	refGrants := refGrantList.Items
+
+	// TODO: this can't be enabled until the ReferencePolicy object is restored
+	// lookup ReferencePolicies here too for backwards compatibility, create
+	// ReferenceGrants from them and add to list
+	// refPolicyList := &gateway.ReferencePolicyList{}
+	// if err := g.Client.List(ctx, refPolicyList, client.InNamespace(namespace)); err != nil {
+	// 	return nil, NewK8sError(err)
+	// }
+	// for _, refPolicy := range refPolicyList {
+	// 	refGrant := gateway.ReferenceGrant{}
+	// 	for _, refPolicyFrom := range refPolicy.Spec.From {
+	// 		refGrant.Spec.From = append(refGrant.Spec.From, gateway.ReferenceGrantFrom{
+	// 			Group:     refPolicyFrom.Group,
+	// 			Kind:      refPolicyFrom.Kind,
+	// 			Namespace: refPolicyFrom.Namespace,
+	// 		})
+	// 	}
+	// 	for _, refPolicyTo := range refPolicy.Spec.To {
+	// 		refGrant.Spec.To = append(refGrant.Spec.To, gateway.ReferenceGrantTo{
+	// 			Group: refPolicyTo.Group,
+	// 			Kind:  refPolicyTo.Kind,
+	// 			Name:  refPolicyTo.Name,
+	// 		})
+	// 	}
+	// 	refGrants = append(refGrants, refGrant)
+	// }
+
+	return refGrants, nil
 }

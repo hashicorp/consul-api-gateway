@@ -978,9 +978,9 @@ func TestTCPMeshService(t *testing.T) {
 	testenv.Test(t, feature.Feature())
 }
 
-func TestReferencePolicyLifecycle(t *testing.T) {
-	feature := features.New("reference policy").
-		Assess("route controllers watch reference policy changes", func(ctx context.Context, t *testing.T, cfg *envconf.Config) context.Context {
+func TestReferenceGrantLifecycle(t *testing.T) {
+	feature := features.New("reference grant").
+		Assess("route controllers watch reference grant changes", func(ctx context.Context, t *testing.T, cfg *envconf.Config) context.Context {
 			serviceOne, err := e2e.DeployHTTPMeshService(ctx, cfg)
 			require.NoError(t, err)
 			serviceTwo, err := e2e.DeployTCPMeshService(ctx, cfg)
@@ -990,21 +990,21 @@ func TestReferencePolicyLifecycle(t *testing.T) {
 			gatewayName := envconf.RandomName("gw", 16)
 			httpRouteName := envconf.RandomName("httproute", 16)
 			httpRouteNamespace := envconf.RandomName("ns", 16)
-			httpRouteRefPolicyName := envconf.RandomName("refpolicy", 16)
+			httpRouteRefGrantName := envconf.RandomName("refgrant", 16)
 			tcpRouteName := envconf.RandomName("tcproute", 16)
 			tcpRouteNamespace := envconf.RandomName("ns", 16)
-			tcpRouteRefPolicyName := envconf.RandomName("refpolicy", 16)
+			tcpRouteRefGrantName := envconf.RandomName("refgrant", 16)
 
 			resources := cfg.Client().Resources(namespace)
 
 			_, gc := createGatewayClass(ctx, t, resources)
 			require.Eventually(t, gatewayClassStatusCheck(ctx, resources, gc.Name, namespace, conditionAccepted), checkTimeout, checkInterval, "gatewayclass not accepted in the allotted time")
 
-			httpCheckPort := e2e.HTTPReferencePolicyPort(ctx)
-			tcpCheckPort := e2e.TCPReferencePolicyPort(ctx)
+			httpCheckPort := e2e.HTTPReferenceGrantPort(ctx)
+			tcpCheckPort := e2e.TCPReferenceGrantPort(ctx)
 
 			// Allow routes to bind from a different namespace for testing
-			// cross-namespace ReferencePolicy enforcement
+			// cross-namespace ReferenceGrant enforcement
 			fromSelector := gateway.NamespacesFromSelector
 
 			gwNamespace := gateway.Namespace(namespace)
@@ -1102,7 +1102,7 @@ func TestReferencePolicyLifecycle(t *testing.T) {
 
 			// Expect that HTTPRoute sets
 			// ResolvedRefs{ status: False, reason: RefNotPermitted }
-			// due to missing ReferencePolicy for BackendRef in other namespace
+			// due to missing ReferenceGrant for BackendRef in other namespace
 			httpRouteStatusCheckRefNotPermitted := httpRouteStatusCheck(
 				ctx,
 				resources,
@@ -1143,32 +1143,32 @@ func TestReferencePolicyLifecycle(t *testing.T) {
 			err = resources.Create(ctx, tcpRoute)
 			require.NoError(t, err)
 
-			// create ReferencePolicy allowing HTTPRoute BackendRef
+			// create ReferenceGrant allowing HTTPRoute BackendRef
 			serviceOneObjectName := gateway.ObjectName(serviceOne.Name)
-			httpRouteReferencePolicy := &gateway.ReferencePolicy{
+			httpRouteReferenceGrant := &gateway.ReferenceGrant{
 				ObjectMeta: meta.ObjectMeta{
-					Name:      httpRouteRefPolicyName,
+					Name:      httpRouteRefGrantName,
 					Namespace: namespace,
 				},
-				Spec: gateway.ReferencePolicySpec{
-					From: []gateway.ReferencePolicyFrom{{
+				Spec: gateway.ReferenceGrantSpec{
+					From: []gateway.ReferenceGrantFrom{{
 						Group:     "gateway.networking.k8s.io",
 						Kind:      "HTTPRoute",
 						Namespace: gateway.Namespace(httpRouteNamespace),
 					}},
-					To: []gateway.ReferencePolicyTo{{
+					To: []gateway.ReferenceGrantTo{{
 						Group: "",
 						Kind:  "Service",
 						Name:  &serviceOneObjectName,
 					}},
 				},
 			}
-			err = resources.Create(ctx, httpRouteReferencePolicy)
+			err = resources.Create(ctx, httpRouteReferenceGrant)
 			require.NoError(t, err)
 
 			// Expect that HTTPRoute sets
 			// ResolvedRefs{ status: True, reason: ResolvedRefs }
-			// now that ReferencePolicy allows BackendRef in other namespace
+			// now that ReferenceGrant allows BackendRef in other namespace
 			require.Eventually(t, httpRouteStatusCheck(
 				ctx,
 				resources,
@@ -1191,7 +1191,7 @@ func TestReferencePolicyLifecycle(t *testing.T) {
 
 			// Expect that TCPRoute still sets
 			// ResolvedRefs{ status: False, reason: RefNotPermitted }
-			// due to missing ReferencePolicy for BackendRef in other namespace
+			// due to missing ReferenceGrant for BackendRef in other namespace
 			tcpRouteStatusCheckRefNotPermitted := tcpRouteStatusCheck(
 				ctx,
 				resources,
@@ -1205,32 +1205,32 @@ func TestReferencePolicyLifecycle(t *testing.T) {
 			)
 			require.Eventually(t, tcpRouteStatusCheckRefNotPermitted, checkTimeout, checkInterval, "TCPRoute status not set in allotted time")
 
-			// create ReferencePolicy allowing TCPRoute BackendRef
+			// create ReferenceGrant allowing TCPRoute BackendRef
 			serviceTwoObjectName := gateway.ObjectName(serviceTwo.Name)
-			tcpRouteReferencePolicy := &gateway.ReferencePolicy{
+			tcpRouteReferenceGrant := &gateway.ReferenceGrant{
 				ObjectMeta: meta.ObjectMeta{
-					Name:      tcpRouteRefPolicyName,
+					Name:      tcpRouteRefGrantName,
 					Namespace: namespace,
 				},
-				Spec: gateway.ReferencePolicySpec{
-					From: []gateway.ReferencePolicyFrom{{
+				Spec: gateway.ReferenceGrantSpec{
+					From: []gateway.ReferenceGrantFrom{{
 						Group:     "gateway.networking.k8s.io",
 						Kind:      "TCPRoute",
 						Namespace: gateway.Namespace(tcpRouteNamespace),
 					}},
-					To: []gateway.ReferencePolicyTo{{
+					To: []gateway.ReferenceGrantTo{{
 						Group: "",
 						Kind:  "Service",
 						Name:  &serviceTwoObjectName,
 					}},
 				},
 			}
-			err = resources.Create(ctx, tcpRouteReferencePolicy)
+			err = resources.Create(ctx, tcpRouteReferenceGrant)
 			require.NoError(t, err)
 
 			// Expect that TCPRoute sets
 			// ResolvedRefs{ status: True, reason: ResolvedRefs }
-			// now that ReferencePolicy allows BackendRef in other namespace
+			// now that ReferenceGrant allows BackendRef in other namespace
 			require.Eventually(t, tcpRouteStatusCheck(
 				ctx,
 				resources,
@@ -1246,9 +1246,9 @@ func TestReferencePolicyLifecycle(t *testing.T) {
 			// Check that TCPRoute is successfully resolved and routing traffic
 			checkTCPRoute(t, tcpCheckPort, serviceTwo.Name, false, "service two not routable in allotted time")
 
-			// Delete TCPRoute ReferencePolicy, check for RefNotPermitted again
+			// Delete TCPRoute ReferenceGrant, check for RefNotPermitted again
 			// Check that Gateway has cleaned up stale route and is no longer routing traffic
-			err = resources.Delete(ctx, tcpRouteReferencePolicy)
+			err = resources.Delete(ctx, tcpRouteReferenceGrant)
 			require.NoError(t, err)
 			require.Eventually(t, tcpRouteStatusCheckRefNotPermitted, checkTimeout, checkInterval, "TCPRoute status not set in allotted time")
 			require.Eventually(t, listenerStatusCheck(
@@ -1262,9 +1262,9 @@ func TestReferencePolicyLifecycle(t *testing.T) {
 			// [WARN]  [core]grpc: Server.Serve failed to complete security handshake: remote error: tls: unknown certificate authority
 			checkTCPRoute(t, tcpCheckPort, "", true, "service two still routable in allotted time")
 
-			// Delete HTTPRoute ReferencePolicy, check for RefNotPermitted again
+			// Delete HTTPRoute ReferenceGrant, check for RefNotPermitted again
 			// Check that Gateway has cleaned up stale route and is no longer routing traffic
-			err = resources.Delete(ctx, httpRouteReferencePolicy)
+			err = resources.Delete(ctx, httpRouteReferenceGrant)
 			require.NoError(t, err)
 			require.Eventually(t, httpRouteStatusCheckRefNotPermitted, checkTimeout, checkInterval, "HTTPRoute status not set in allotted time")
 			require.Eventually(t, listenerStatusCheck(
@@ -1285,13 +1285,13 @@ func TestReferencePolicyLifecycle(t *testing.T) {
 
 			return ctx
 		}).
-		Assess("gateway controller watches reference policy changes", func(ctx context.Context, t *testing.T, cfg *envconf.Config) context.Context {
+		Assess("gateway controller watches reference grant changes", func(ctx context.Context, t *testing.T, cfg *envconf.Config) context.Context {
 			namespace := e2e.Namespace(ctx)
 			gatewayNamespace := namespace
 			gatewayName := envconf.RandomName("gw", 16)
 			certNamespace := envconf.RandomName("ns", 16)
 			certName := "consul-server-cert"
-			gatewayRefPolicyName := envconf.RandomName("refpolicy", 16)
+			gatewayRefGrantName := envconf.RandomName("refgrant", 16)
 
 			resources := cfg.Client().Resources(namespace)
 
@@ -1314,7 +1314,7 @@ func TestReferencePolicyLifecycle(t *testing.T) {
 			gw := createGateway(ctx, t, resources, gatewayName, gatewayNamespace, gc, []gateway.Listener{
 				{
 					Name:     "https",
-					Port:     gateway.PortNumber(e2e.HTTPReferencePolicyPort(ctx)),
+					Port:     gateway.PortNumber(e2e.HTTPReferenceGrantPort(ctx)),
 					Protocol: gateway.HTTPSProtocolType,
 					TLS: &gateway.GatewayTLSConfig{
 						CertificateRefs: []gateway.SecretObjectReference{{
@@ -1331,37 +1331,37 @@ func TestReferencePolicyLifecycle(t *testing.T) {
 			})
 
 			// Expect that Gateway has expected error condition
-			// due to missing ReferencePolicy for CertificateRef in other namespace
+			// due to missing ReferenceGrant for CertificateRef in other namespace
 			gatewayConditionCheck := createConditionsCheck([]meta.Condition{{Type: "Ready", Status: "False", Reason: "ListenersNotValid"}})
 			gatewayCheck := gatewayStatusCheck(ctx, resources, gatewayName, gatewayNamespace, gatewayConditionCheck)
 			require.Eventually(t, gatewayCheck, checkTimeout, checkInterval, "Gateway status not set in allotted time")
 
 			// Expect that Gateway listener has expected error condition
-			// due to missing ReferencePolicy for CertificateRef in other namespace
+			// due to missing ReferenceGrant for CertificateRef in other namespace
 			listenerConditionCheck := createListenerStatusConditionsCheck([]meta.Condition{{Type: "ResolvedRefs", Status: "False", Reason: "InvalidCertificateRef"}})
 			listenerCheck := listenerStatusCheck(ctx, resources, gatewayName, gatewayNamespace, listenerConditionCheck)
 			require.Eventually(t, listenerCheck, checkTimeout, checkInterval, "Gateway listener status not set in allotted time")
 
-			// Create ReferencePolicy allowing Gateway CertificateRef
-			certReferencePolicy := &gateway.ReferencePolicy{
+			// Create ReferenceGrant allowing Gateway CertificateRef
+			certReferenceGrant := &gateway.ReferenceGrant{
 				ObjectMeta: meta.ObjectMeta{
-					Name:      gatewayRefPolicyName,
+					Name:      gatewayRefGrantName,
 					Namespace: string(certNamespace),
 				},
-				Spec: gateway.ReferencePolicySpec{
-					From: []gateway.ReferencePolicyFrom{{
+				Spec: gateway.ReferenceGrantSpec{
+					From: []gateway.ReferenceGrantFrom{{
 						Group:     "gateway.networking.k8s.io",
 						Kind:      "Gateway",
 						Namespace: gateway.Namespace(gatewayNamespace),
 					}},
-					To: []gateway.ReferencePolicyTo{{
+					To: []gateway.ReferenceGrantTo{{
 						Group: "",
 						Kind:  "Secret",
 						Name:  nil,
 					}},
 				},
 			}
-			require.NoError(t, resources.Create(ctx, certReferencePolicy))
+			require.NoError(t, resources.Create(ctx, certReferenceGrant))
 
 			// Expect that Gateway has expected success condition
 			gatewayCheck = gatewayStatusCheck(ctx, resources, gatewayName, gatewayNamespace, conditionReady)
@@ -1372,8 +1372,8 @@ func TestReferencePolicyLifecycle(t *testing.T) {
 			listenerCheck = listenerStatusCheck(ctx, resources, gatewayName, gatewayNamespace, listenerConditionCheck)
 			require.Eventually(t, listenerCheck, checkTimeout, checkInterval, "Gateway listener status not set in allotted time")
 
-			// Delete Gateway ReferencePolicy
-			require.NoError(t, resources.Delete(ctx, certReferencePolicy))
+			// Delete Gateway ReferenceGrant
+			require.NoError(t, resources.Delete(ctx, certReferenceGrant))
 
 			// Check for error status conditions again
 			gatewayConditionCheck = createConditionsCheck([]meta.Condition{{Type: "Ready", Status: "False", Reason: "ListenersNotValid"}})

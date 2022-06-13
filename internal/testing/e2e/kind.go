@@ -41,11 +41,11 @@ nodes:
   - containerPort: {{ .HTTPSFlattenedPort }}
     hostPort: {{ .HTTPSFlattenedPort }}
     protocol: TCP
-  - containerPort: {{ .HTTPSReferencePolicyPort }}
-    hostPort: {{ .HTTPSReferencePolicyPort }}
+  - containerPort: {{ .HTTPSReferenceGrantPort }}
+    hostPort: {{ .HTTPSReferenceGrantPort }}
     protocol: TCP
-  - containerPort: {{ .TCPReferencePolicyPort }}
-    hostPort: {{ .TCPReferencePolicyPort }}
+  - containerPort: {{ .TCPReferenceGrantPort }}
+    hostPort: {{ .TCPReferenceGrantPort }}
     protocol: TCP
   - containerPort: {{ .ParentRefChangeFirstGatewayPort }}
     hostPort: {{ .ParentRefChangeFirstGatewayPort }}
@@ -85,8 +85,8 @@ type kindCluster struct {
 	config                           string
 	httpsPort                        int
 	httpsFlattenedPort               int
-	httpsReferencePolicyPort         int
-	tcpReferencePolicyPort           int
+	httpsReferenceGrantPort          int
+	tcpReferenceGrantPort            int
 	parentRefChangeFirstGatewayPort  int
 	parentRefChangeSecondGatewayPort int
 	grpcPort                         int
@@ -103,8 +103,8 @@ func newKindCluster(name string) *kindCluster {
 		e:                                gexe.New(),
 		httpsPort:                        ports[0],
 		httpsFlattenedPort:               ports[1],
-		httpsReferencePolicyPort:         ports[2],
-		tcpReferencePolicyPort:           ports[3],
+		httpsReferenceGrantPort:          ports[2],
+		tcpReferenceGrantPort:            ports[3],
 		parentRefChangeFirstGatewayPort:  ports[4],
 		parentRefChangeSecondGatewayPort: ports[5],
 		grpcPort:                         ports[6],
@@ -122,8 +122,8 @@ func (k *kindCluster) Create() (string, error) {
 	err := kindTemplate.Execute(&kindConfig, &struct {
 		HTTPSPort                        int
 		HTTPSFlattenedPort               int
-		HTTPSReferencePolicyPort         int
-		TCPReferencePolicyPort           int
+		HTTPSReferenceGrantPort          int
+		TCPReferenceGrantPort            int
 		ParentRefChangeFirstGatewayPort  int
 		ParentRefChangeSecondGatewayPort int
 		GRPCPort                         int
@@ -134,8 +134,8 @@ func (k *kindCluster) Create() (string, error) {
 	}{
 		HTTPSPort:                        k.httpsPort,
 		HTTPSFlattenedPort:               k.httpsFlattenedPort,
-		HTTPSReferencePolicyPort:         k.httpsReferencePolicyPort,
-		TCPReferencePolicyPort:           k.tcpReferencePolicyPort,
+		HTTPSReferenceGrantPort:          k.httpsReferenceGrantPort,
+		TCPReferenceGrantPort:            k.tcpReferenceGrantPort,
 		ParentRefChangeFirstGatewayPort:  k.parentRefChangeFirstGatewayPort,
 		ParentRefChangeSecondGatewayPort: k.parentRefChangeSecondGatewayPort,
 		GRPCPort:                         k.grpcPort,
