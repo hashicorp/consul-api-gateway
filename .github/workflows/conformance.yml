@@ -39,6 +39,12 @@ jobs:
     name: "consul-k8s ${{ matrix.consul-k8s-ref }} + ${{ matrix.consul-image }}"
 
     steps:
+      - name: Print inputs
+        run: |
+          echo "event: ${{ github.event_name }}"
+          echo "debug_enabled: ${{ github.event.inputs.debug_enabled }}"
+          echo "debug_timeout_minutes: ${{ github.event.inputs.debug_timeout_minutes }}" 
+
       # Clone repos side-by-side:
       # GITHUB_WORKSPACE/
       #     consul-api-gateway/
@@ -115,7 +121,7 @@ jobs:
 
       - name: Run tests
         working-directory: "gateway-api/conformance"
-        run: go test -v -timeout 3m ./ --gateway-class consul-api-gateway
+        run: go test -v -timeout 3m ./ --gateway-class=consul-api-gateway --cleanup-base-resources=false
 
       - name: Setup tmate session
         uses: mxschmitt/action-tmate@v3
