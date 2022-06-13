@@ -115,7 +115,7 @@ jobs:
 
       - name: Run tests
         working-directory: "gateway-api/conformance"
-        run: go test -v -timeout 10m ./ --gateway-class consul-api-gateway
+        run: go test -v -timeout 3m ./ --gateway-class consul-api-gateway
 
       - name: Setup tmate session
         uses: mxschmitt/action-tmate@v3
