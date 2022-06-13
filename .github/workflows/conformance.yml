@@ -36,7 +36,7 @@ jobs:
         consul-image: ["hashicorp/consul:1.11.5", "hashicorp/consul:1.12.2"]
         consul-k8s-ref: ["refs/tags/v0.44.0"]
       fail-fast: true
-    name: "Conformance w/ consul-k8s ${{ matrix.consul-k8s-ref }} + consul ${{ matrix.consul-image }}"
+    name: "consul-k8s ${{ matrix.consul-k8s-ref }} + ${{ matrix.consul-image }}"
 
     steps:
       # Clone repos side-by-side:
