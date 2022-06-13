@@ -1,9 +1,6 @@
 name: prepare_release
 
 on:
-  push:
-    branches: ['prepare-release-workflow']
-
   workflow_dispatch:
     inputs:
       new-min-consul-version:
@@ -19,8 +16,8 @@ jobs:
   update-versions:
     runs-on: ubuntu-latest
     env:
-      NEW_CONSUL_REQ: ${{ github.event.inputs.new-min-consul-version || '1.13.0' }}
-      NEW_CONSUL_K8S_REQ: ${{ github.event.inputs.new-min-consul-k8s-version || '0.44.0' }}
+      NEW_CONSUL_REQ: ${{ github.event.inputs.new-min-consul-version }}
+      NEW_CONSUL_K8S_REQ: ${{ github.event.inputs.new-min-consul-k8s-version }}
 
     steps:
 
