@@ -31,6 +31,13 @@ jobs:
     # Run on PR only if there is a `pr/run-conformance` label
     if: "github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'pr/run-conformance')"
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        consul-image: ["hashicorp/consul:1.11.5", "hashicorp/consul:1.12.2"]
+        consul-k8s-ref: ["refs/tags/v0.44.0"]
+      fail-fast: true
+    name: "Conformance w/ consul-k8s ${{ matrix.consul-k8s-ref }} + consul ${{ matrix.consul-image }}"
+
     steps:
       # Clone repos side-by-side:
       # GITHUB_WORKSPACE/
@@ -47,6 +54,7 @@ jobs:
         with:
           repository: "hashicorp/consul-k8s"
           path: "consul-k8s"
+          ref: ${{ matrix.consul-k8s-ref }}
 
       - name: Clone gateway-api
         uses: actions/checkout@v2
@@ -95,7 +103,7 @@ jobs:
       - name: Install Consul
         working-directory: "consul-api-gateway/internal/testing/conformance"
         run: |
-          helm install --values ./consul-config.yaml consul $GITHUB_WORKSPACE/consul-k8s/charts/consul --create-namespace --namespace=consul
+          helm install --values ./consul-config.yaml consul $GITHUB_WORKSPACE/consul-k8s/charts/consul --set global.image=${{ matrix.consul-image }} --create-namespace --namespace=consul
           kubectl wait --for=condition=Ready --timeout=60s --namespace=consul pods --all
 
       - name: Patch testing resources
