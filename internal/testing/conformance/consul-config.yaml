@@ -1,5 +1,4 @@
 global:
-  imageEnvoy: "envoyproxy/envoy:v1.20.2"
   imageK8S: "docker.mirror.hashicorp.services/hashicorpdev/consul-k8s-control-plane:latest"
   tls:
     enabled: true
