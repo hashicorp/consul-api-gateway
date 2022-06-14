@@ -31,22 +31,29 @@ jobs:
     # Run on PR only if there is a `pr/run-conformance` label
     if: "github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'pr/run-conformance')"
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        config:
+          - name: "consul@v1.11.5 + consul-k8s@v0.44.0"
+            consul-image: "hashicorp/consul:1.11"
+            envoy-image: "envoyproxy/envoy:v1.20.2"
+            consul-k8s-version: "0.44.0"
+          - name: "consul@v1.12.2 + consul-k8s@v0.44.0"
+            consul-image: "hashicorp/consul:1.12"
+            envoy-image: "envoyproxy/envoy:v1.22.0"
+            consul-k8s-version: "0.44.0"
+      fail-fast: true
+    name: "${{ matrix.config.name }}"
+
     steps:
       # Clone repos side-by-side:
       # GITHUB_WORKSPACE/
       #     consul-api-gateway/
-      #     consul-k8s/
       #     gateway-api/
       - name: Checkout consul-api-gateway
         uses: actions/checkout@v2
         with:
           path: "consul-api-gateway"
-
-      - name: Clone consul-k8s
-        uses: actions/checkout@v2
-        with:
-          repository: "hashicorp/consul-k8s"
-          path: "consul-k8s"
 
       - name: Clone gateway-api
         uses: actions/checkout@v2
@@ -95,7 +102,8 @@ jobs:
       - name: Install Consul
         working-directory: "consul-api-gateway/internal/testing/conformance"
         run: |
-          helm install --values ./consul-config.yaml consul $GITHUB_WORKSPACE/consul-k8s/charts/consul --create-namespace --namespace=consul
+          helm repo add hashicorp https://helm.releases.hashicorp.com
+          helm install --values ./consul-config.yaml consul hashicorp/consul --version "${{ matrix.config.consul-k8s-version }}" --set global.image=${{ matrix.config.consul-image }} --set global.imageEnvoy=${{ matrix.config.envoy-image }} --create-namespace --namespace=consul
           kubectl wait --for=condition=Ready --timeout=60s --namespace=consul pods --all
 
       - name: Patch testing resources
@@ -107,7 +115,7 @@ jobs:
 
       - name: Run tests
         working-directory: "gateway-api/conformance"
-        run: go test -v -timeout 10m ./ --gateway-class consul-api-gateway
+        run: go test -v -timeout 10m ./ --gateway-class=consul-api-gateway
 
       - name: Setup tmate session
         uses: mxschmitt/action-tmate@v3
