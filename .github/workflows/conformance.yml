@@ -33,10 +33,17 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        consul-image: ["hashicorp/consul:1.11.5", "hashicorp/consul:1.12.2"]
-        consul-k8s-ref: ["refs/tags/v0.44.0"]
+        config:
+          - name: "consul@v1.11.5 + consul-k8s@v0.44.0"
+            consul-image: "hashicorp/consul:1.11.5"
+            consul-k8s-ref: "refs/tags/v0.44.0"
+            envoy-image: "envoyproxy/envoy:v1.20.2"
+          - name: "consul@v1.12.2 + consul-k8s@v0.44.0"
+            consul-image: "hashicorp/consul:1.12.2"
+            consul-k8s-ref: "refs/tags/v0.44.0"
+            envoy-image: "envoyproxy/envoy:v1.22.0"
       fail-fast: true
-    name: "consul-k8s ${{ matrix.consul-k8s-ref }} + ${{ matrix.consul-image }}"
+    name: "${{ matrix.config.name }}"
 
     steps:
       - name: Print inputs
@@ -60,7 +67,7 @@ jobs:
         with:
           repository: "hashicorp/consul-k8s"
           path: "consul-k8s"
-          ref: ${{ matrix.consul-k8s-ref }}
+          ref: ${{ matrix.config.consul-k8s-ref }}
 
       - name: Clone gateway-api
         uses: actions/checkout@v2
@@ -109,7 +116,7 @@ jobs:
       - name: Install Consul
         working-directory: "consul-api-gateway/internal/testing/conformance"
         run: |
-          helm install --values ./consul-config.yaml consul $GITHUB_WORKSPACE/consul-k8s/charts/consul --set global.image=${{ matrix.consul-image }} --create-namespace --namespace=consul
+          helm install --values ./consul-config.yaml consul $GITHUB_WORKSPACE/consul-k8s/charts/consul --set global.image=${{ matrix.config.consul-image }} --set global.imageEnvoy=${{ matrix.config.envoy-image }} --create-namespace --namespace=consul
           kubectl wait --for=condition=Ready --timeout=60s --namespace=consul pods --all
 
       - name: Patch testing resources
