@@ -249,9 +249,7 @@ func runTestServer(t *testing.T, ca []byte, registryFn func(*gomock.Controller) 
 	require.NoError(t, err)
 	certPool := x509.NewCertPool()
 	certPool.AddCert(caCert)
-	spiffe := caCert.URIs[0]
 
-	fetcher.EXPECT().SPIFFE().AnyTimes().Return(spiffe)
 	fetcher.EXPECT().RootPool().AnyTimes().Return(certPool)
 	secretClient.EXPECT().FetchSecret(gomock.Any(), "test").AnyTimes().Return(&envoyTLS.Secret{
 		Name: "test",
