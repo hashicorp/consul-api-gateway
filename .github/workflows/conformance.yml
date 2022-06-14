@@ -102,7 +102,8 @@ jobs:
       - name: Install Consul
         working-directory: "consul-api-gateway/internal/testing/conformance"
         run: |
-          helm install --values ./consul-config.yaml consul hashicorp/consul --version ${{ matrix.config.consul-k8s-version }} --set global.image=${{ matrix.config.consul-image }} --set global.imageEnvoy=${{ matrix.config.envoy-image }} --create-namespace --namespace=consul
+          helm repo add hashicorp https://helm.releases.hashicorp.com
+          helm install --values ./consul-config.yaml consul hashicorp/consul --version "${{ matrix.config.consul-k8s-version }}" --set global.image=${{ matrix.config.consul-image }} --set global.imageEnvoy=${{ matrix.config.envoy-image }} --create-namespace --namespace=consul
           kubectl wait --for=condition=Ready --timeout=60s --namespace=consul pods --all
 
       - name: Patch testing resources
