@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"net/url"
 	"sync"
 	"time"
 
@@ -40,7 +39,6 @@ var logOnce sync.Once
 // CertificateFetcher is used to fetch the CA and server certificate
 // that the server should use for TLS
 type CertificateFetcher interface {
-	SPIFFE() *url.URL
 	RootPool() *x509.CertPool
 	TLSCertificate() *tls.Certificate
 }
