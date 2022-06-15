@@ -127,6 +127,7 @@ jobs:
         uses: ravsamhq/notify-slack-action@v1
         with:
           status: ${{ job.status }}
+          message_format: '{emoji} *{workflow}/{job}* {status_message} in <{repo_url}|{repo}@{branch}> on <{commit_url}|{commit_sha}>'
           mention_groups: '!here'
           mention_groups_when: 'failure,warnings'
 
