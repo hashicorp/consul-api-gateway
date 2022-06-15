@@ -3,7 +3,6 @@ package envoy
 import (
 	"context"
 	"errors"
-	"net/url"
 	"strings"
 
 	"google.golang.org/grpc"
@@ -65,26 +64,23 @@ type GatewaySecretRegistry interface {
 // the request is rejected.
 func SPIFFEStreamMiddleware(logger hclog.Logger, fetcher CertificateFetcher, registry GatewaySecretRegistry) grpc.StreamServerInterceptor {
 	return func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
-		if info, ok := verifySPIFFE(ss.Context(), logger, fetcher.SPIFFE(), registry); ok {
+		if info, ok := verifySPIFFE(ss.Context(), logger, registry); ok {
 			return handler(srv, wrapStream(ss, info))
 		}
 		return status.Errorf(codes.Unauthenticated, "unable to authenticate request")
 	}
 }
 
-func verifySPIFFE(ctx context.Context, logger hclog.Logger, spiffeCA *url.URL, registry GatewaySecretRegistry) (core.GatewayID, bool) {
+func verifySPIFFE(ctx context.Context, logger hclog.Logger, registry GatewaySecretRegistry) (core.GatewayID, bool) {
 	if p, ok := peer.FromContext(ctx); ok {
 		if mtls, ok := p.AuthInfo.(credentials.TLSInfo); ok {
 			// grab the peer certificate info
 			for _, item := range mtls.State.PeerCertificates {
 				// check each untyped SAN for spiffee information
 				for _, uri := range item.URIs {
+					// we skip validating the host value since not all of our potential roots (i.e. via Vault)
+					// have spiffe urls
 					if uri.Scheme == "spiffe" {
-						// we've found a spiffee SAN, check that it aligns with the CA info
-						if uri.Host != spiffeCA.Host {
-							logger.Warn("found mismatching spiffe hosts, skipping", "caHost", spiffeCA.Host, "clientHost", uri.Host)
-							continue
-						}
 						// make sure we have a leaf certificate that has been issued by consul
 						// with namespace, datacenter, and service information -- the namespace
 						// and service are used to inform us what gateway is trying to connect

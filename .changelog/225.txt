@@ -1,0 +1,3 @@
+```release-note:bug
+Fix SPIFFE validation for connect certificates that have no URL (e.g., Vault connect certificates)
+```
