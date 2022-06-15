@@ -26,7 +26,8 @@ import (
 	"sigs.k8s.io/e2e-framework/pkg/env"
 	"sigs.k8s.io/e2e-framework/pkg/envconf"
 	"sigs.k8s.io/e2e-framework/pkg/features"
-	gateway "sigs.k8s.io/gateway-api/apis/v1alpha2"
+	gwv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
+	gwv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/hashicorp/consul/api"
 
@@ -83,7 +84,7 @@ func TestGatewayWithClassConfigChange(t *testing.T) {
 
 			// Create a Gateway and wait for it to be ready
 			firstGatewayName := envconf.RandomName("gw", 16)
-			firstGateway := createGateway(ctx, t, resources, firstGatewayName, namespace, gc, []gateway.Listener{httpsListener})
+			firstGateway := createGateway(ctx, t, resources, firstGatewayName, namespace, gc, []gwv1beta1.Listener{httpsListener})
 			require.Eventually(t, gatewayStatusCheck(ctx, resources, firstGatewayName, namespace, conditionReady), checkTimeout, checkInterval, "no gateway found in the allotted time")
 			checkGatewayConfigAnnotation(ctx, t, resources, firstGatewayName, namespace, firstConfig)
 
@@ -97,7 +98,7 @@ func TestGatewayWithClassConfigChange(t *testing.T) {
 
 			// Create a second Gateway and wait for it to be ready
 			secondGatewayName := envconf.RandomName("gw", 16)
-			secondGateway := createGateway(ctx, t, resources, secondGatewayName, namespace, gc, []gateway.Listener{httpsListener})
+			secondGateway := createGateway(ctx, t, resources, secondGatewayName, namespace, gc, []gwv1beta1.Listener{httpsListener})
 			require.Eventually(t, gatewayStatusCheck(ctx, resources, secondGatewayName, namespace, conditionReady), checkTimeout, checkInterval, "no gateway found in the allotted time")
 
 			// Verify that 1st Gateway retains initial GatewayClassConfig and 2nd Gateway retains updated GatewayClassConfig
@@ -130,7 +131,7 @@ func TestGatewayWithReplicas(t *testing.T) {
 
 			// Create a Gateway and wait for it to be ready
 			gatewayName := envconf.RandomName("gw", 16)
-			gw := createGateway(ctx, t, resources, gatewayName, namespace, gc, []gateway.Listener{createHTTPSListener(ctx, t, 443)})
+			gw := createGateway(ctx, t, resources, gatewayName, namespace, gc, []gwv1beta1.Listener{createHTTPSListener(ctx, t, 443)})
 			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionReady), checkTimeout, checkInterval, "no gateway found in the allotted time")
 			checkGatewayConfigAnnotation(ctx, t, resources, gatewayName, namespace, gcc)
 
@@ -166,7 +167,7 @@ func TestGatewayWithReplicasCanScale(t *testing.T) {
 
 			// Create a Gateway and wait for it to be ready
 			gatewayName := envconf.RandomName("gw", 16)
-			gateway := createGateway(ctx, t, resources, gatewayName, namespace, gc, []gateway.Listener{createHTTPSListener(ctx, t, 443)})
+			gateway := createGateway(ctx, t, resources, gatewayName, namespace, gc, []gwv1beta1.Listener{createHTTPSListener(ctx, t, 443)})
 			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionReady), checkTimeout, checkInterval, "no gateway found in the allotted time")
 			checkGatewayConfigAnnotation(ctx, t, resources, gatewayName, namespace, gcc)
 
@@ -220,7 +221,7 @@ func TestGatewayWithReplicasRespectMinMax(t *testing.T) {
 
 			// Create a Gateway and wait for it to be ready
 			gatewayName := envconf.RandomName("gw", 16)
-			gateway := createGateway(ctx, t, resources, gatewayName, namespace, gatewayClass, []gateway.Listener{httpsListener})
+			gateway := createGateway(ctx, t, resources, gatewayName, namespace, gatewayClass, []gwv1beta1.Listener{httpsListener})
 
 			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionReady), checkTimeout, checkInterval, "no gateway found in the allotted time")
 			checkGatewayConfigAnnotation(ctx, t, resources, gatewayName, namespace, gatewayClassConfig)
@@ -269,7 +270,7 @@ func TestGatewayBasic(t *testing.T) {
 			require.Eventually(t, gatewayClassStatusCheck(ctx, resources, gc.Name, namespace, conditionAccepted), checkTimeout, checkInterval, "gatewayclass not accepted in the allotted time")
 
 			httpsListener := createHTTPSListener(ctx, t, 443)
-			gw := createGateway(ctx, t, resources, gatewayName, namespace, gc, []gateway.Listener{httpsListener})
+			gw := createGateway(ctx, t, resources, gatewayName, namespace, gc, []gwv1beta1.Listener{httpsListener})
 
 			require.Eventually(t, func() bool {
 				err := resources.Get(ctx, gatewayName, namespace, &apps.Deployment{})
@@ -332,7 +333,7 @@ func TestServiceListeners(t *testing.T) {
 			require.Eventually(t, gatewayClassStatusCheck(ctx, resources, gc.Name, namespace, conditionAccepted), checkTimeout, checkInterval, "gatewayclass not accepted in the allotted time")
 
 			httpsListener := createHTTPSListener(ctx, t, 443)
-			gw := createGateway(ctx, t, resources, gatewayName, namespace, gc, []gateway.Listener{httpsListener})
+			gw := createGateway(ctx, t, resources, gatewayName, namespace, gc, []gwv1beta1.Listener{httpsListener})
 
 			require.Eventually(t, func() bool {
 				service := &core.Service{}
@@ -385,8 +386,8 @@ func TestHTTPRouteFlattening(t *testing.T) {
 			routeOneName := envconf.RandomName("route", 16)
 			routeTwoName := envconf.RandomName("route", 16)
 
-			prefixMatch := gateway.PathMatchPathPrefix
-			headerMatch := gateway.HeaderMatchExact
+			prefixMatch := gwv1alpha2.PathMatchPathPrefix
+			headerMatch := gwv1alpha2.HeaderMatchExact
 
 			resources := cfg.Client().Resources(namespace)
 
@@ -394,35 +395,35 @@ func TestHTTPRouteFlattening(t *testing.T) {
 			require.Eventually(t, gatewayClassStatusCheck(ctx, resources, gc.Name, namespace, conditionAccepted), checkTimeout, checkInterval, "gatewayclass not accepted in the allotted time")
 
 			checkPort := e2e.HTTPFlattenedPort(ctx)
-			httpsListener := createHTTPSListener(ctx, t, gateway.PortNumber(checkPort))
-			gw := createGateway(ctx, t, resources, gatewayName, namespace, gc, []gateway.Listener{httpsListener})
+			httpsListener := createHTTPSListener(ctx, t, gwv1beta1.PortNumber(checkPort))
+			gw := createGateway(ctx, t, resources, gatewayName, namespace, gc, []gwv1beta1.Listener{httpsListener})
 			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionReady), checkTimeout, checkInterval, "no gateway found in the allotted time")
 
-			port := gateway.PortNumber(serviceOne.Spec.Ports[0].Port)
+			port := gwv1alpha2.PortNumber(serviceOne.Spec.Ports[0].Port)
 			path := "/"
-			route := &gateway.HTTPRoute{
+			route := &gwv1alpha2.HTTPRoute{
 				ObjectMeta: meta.ObjectMeta{
 					Name:      routeOneName,
 					Namespace: namespace,
 				},
-				Spec: gateway.HTTPRouteSpec{
-					CommonRouteSpec: gateway.CommonRouteSpec{
-						ParentRefs: []gateway.ParentReference{{
-							Name: gateway.ObjectName(gatewayName),
+				Spec: gwv1alpha2.HTTPRouteSpec{
+					CommonRouteSpec: gwv1alpha2.CommonRouteSpec{
+						ParentRefs: []gwv1alpha2.ParentReference{{
+							Name: gwv1alpha2.ObjectName(gatewayName),
 						}},
 					},
-					Hostnames: []gateway.Hostname{"test.foo", "test.example"},
-					Rules: []gateway.HTTPRouteRule{{
-						Matches: []gateway.HTTPRouteMatch{{
-							Path: &gateway.HTTPPathMatch{
+					Hostnames: []gwv1alpha2.Hostname{"test.foo", "test.example"},
+					Rules: []gwv1alpha2.HTTPRouteRule{{
+						Matches: []gwv1alpha2.HTTPRouteMatch{{
+							Path: &gwv1alpha2.HTTPPathMatch{
 								Type:  &prefixMatch,
 								Value: &path,
 							},
 						}},
-						BackendRefs: []gateway.HTTPBackendRef{{
-							BackendRef: gateway.BackendRef{
-								BackendObjectReference: gateway.BackendObjectReference{
-									Name: gateway.ObjectName(serviceOne.Name),
+						BackendRefs: []gwv1alpha2.HTTPBackendRef{{
+							BackendRef: gwv1alpha2.BackendRef{
+								BackendObjectReference: gwv1alpha2.BackendObjectReference{
+									Name: gwv1alpha2.ObjectName(serviceOne.Name),
 									Port: &port,
 								},
 							},
@@ -433,37 +434,37 @@ func TestHTTPRouteFlattening(t *testing.T) {
 			err = resources.Create(ctx, route)
 			require.NoError(t, err)
 
-			port = gateway.PortNumber(serviceTwo.Spec.Ports[0].Port)
+			port = gwv1alpha2.PortNumber(serviceTwo.Spec.Ports[0].Port)
 			path = "/v2"
-			route = &gateway.HTTPRoute{
+			route = &gwv1alpha2.HTTPRoute{
 				ObjectMeta: meta.ObjectMeta{
 					Name:      routeTwoName,
 					Namespace: namespace,
 				},
-				Spec: gateway.HTTPRouteSpec{
-					CommonRouteSpec: gateway.CommonRouteSpec{
-						ParentRefs: []gateway.ParentReference{{
-							Name: gateway.ObjectName(gatewayName),
+				Spec: gwv1alpha2.HTTPRouteSpec{
+					CommonRouteSpec: gwv1alpha2.CommonRouteSpec{
+						ParentRefs: []gwv1alpha2.ParentReference{{
+							Name: gwv1alpha2.ObjectName(gatewayName),
 						}},
 					},
-					Hostnames: []gateway.Hostname{"test.foo"},
-					Rules: []gateway.HTTPRouteRule{{
-						Matches: []gateway.HTTPRouteMatch{{
-							Path: &gateway.HTTPPathMatch{
+					Hostnames: []gwv1alpha2.Hostname{"test.foo"},
+					Rules: []gwv1alpha2.HTTPRouteRule{{
+						Matches: []gwv1alpha2.HTTPRouteMatch{{
+							Path: &gwv1alpha2.HTTPPathMatch{
 								Type:  &prefixMatch,
 								Value: &path,
 							},
 						}, {
-							Headers: []gateway.HTTPHeaderMatch{{
+							Headers: []gwv1alpha2.HTTPHeaderMatch{{
 								Type:  &headerMatch,
-								Name:  gateway.HTTPHeaderName("x-v2"),
+								Name:  gwv1alpha2.HTTPHeaderName("x-v2"),
 								Value: "v2",
 							}},
 						}},
-						BackendRefs: []gateway.HTTPBackendRef{{
-							BackendRef: gateway.BackendRef{
-								BackendObjectReference: gateway.BackendObjectReference{
-									Name: gateway.ObjectName(serviceTwo.Name),
+						BackendRefs: []gwv1alpha2.HTTPBackendRef{{
+							BackendRef: gwv1alpha2.BackendRef{
+								BackendObjectReference: gwv1alpha2.BackendObjectReference{
+									Name: gwv1alpha2.ObjectName(serviceTwo.Name),
 									Port: &port,
 								},
 							},
@@ -529,36 +530,36 @@ func TestHTTPMeshService(t *testing.T) {
 			_, gc := createGatewayClass(ctx, t, resources)
 			require.Eventually(t, gatewayClassStatusCheck(ctx, resources, gc.Name, namespace, conditionAccepted), checkTimeout, checkInterval, "gatewayclass not accepted in the allotted time")
 
-			httpsListener := createHTTPSListener(ctx, t, gateway.PortNumber(e2e.HTTPPort(ctx)))
-			gw := createGateway(ctx, t, resources, gatewayName, namespace, gc, []gateway.Listener{httpsListener})
+			httpsListener := createHTTPSListener(ctx, t, gwv1beta1.PortNumber(e2e.HTTPPort(ctx)))
+			gw := createGateway(ctx, t, resources, gatewayName, namespace, gc, []gwv1beta1.Listener{httpsListener})
 			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionReady), checkTimeout, checkInterval, "no gateway found in the allotted time")
 
 			// route 1
-			port := gateway.PortNumber(serviceOne.Spec.Ports[0].Port)
+			port := gwv1alpha2.PortNumber(serviceOne.Spec.Ports[0].Port)
 			path := "/v1"
-			pathMatch := gateway.PathMatchExact
-			routeOne := &gateway.HTTPRoute{
+			pathMatch := gwv1alpha2.PathMatchExact
+			routeOne := &gwv1alpha2.HTTPRoute{
 				ObjectMeta: meta.ObjectMeta{
 					Name:      routeOneName,
 					Namespace: namespace,
 				},
-				Spec: gateway.HTTPRouteSpec{
-					CommonRouteSpec: gateway.CommonRouteSpec{
-						ParentRefs: []gateway.ParentReference{{
-							Name: gateway.ObjectName(gatewayName),
+				Spec: gwv1alpha2.HTTPRouteSpec{
+					CommonRouteSpec: gwv1alpha2.CommonRouteSpec{
+						ParentRefs: []gwv1alpha2.ParentReference{{
+							Name: gwv1alpha2.ObjectName(gatewayName),
 						}},
 					},
-					Rules: []gateway.HTTPRouteRule{{
-						Matches: []gateway.HTTPRouteMatch{{
-							Path: &gateway.HTTPPathMatch{
+					Rules: []gwv1alpha2.HTTPRouteRule{{
+						Matches: []gwv1alpha2.HTTPRouteMatch{{
+							Path: &gwv1alpha2.HTTPPathMatch{
 								Type:  &pathMatch,
 								Value: &path,
 							},
 						}},
-						BackendRefs: []gateway.HTTPBackendRef{{
-							BackendRef: gateway.BackendRef{
-								BackendObjectReference: gateway.BackendObjectReference{
-									Name: gateway.ObjectName(serviceOne.Name),
+						BackendRefs: []gwv1alpha2.HTTPBackendRef{{
+							BackendRef: gwv1alpha2.BackendRef{
+								BackendObjectReference: gwv1alpha2.BackendObjectReference{
+									Name: gwv1alpha2.ObjectName(serviceOne.Name),
 									Port: &port,
 								},
 							},
@@ -570,48 +571,48 @@ func TestHTTPMeshService(t *testing.T) {
 			require.NoError(t, err)
 
 			// route 2
-			port = gateway.PortNumber(serviceTwo.Spec.Ports[0].Port)
-			portFour := gateway.PortNumber(serviceFour.Spec.Ports[0].Port)
-			portFive := gateway.PortNumber(serviceFive.Spec.Ports[0].Port)
+			port = gwv1alpha2.PortNumber(serviceTwo.Spec.Ports[0].Port)
+			portFour := gwv1alpha2.PortNumber(serviceFour.Spec.Ports[0].Port)
+			portFive := gwv1alpha2.PortNumber(serviceFive.Spec.Ports[0].Port)
 			path = "/v2"
-			route := &gateway.HTTPRoute{
+			route := &gwv1alpha2.HTTPRoute{
 				ObjectMeta: meta.ObjectMeta{
 					Name:      routeTwoName,
 					Namespace: namespace,
 				},
-				Spec: gateway.HTTPRouteSpec{
-					CommonRouteSpec: gateway.CommonRouteSpec{
-						ParentRefs: []gateway.ParentReference{{
-							Name: gateway.ObjectName(gatewayName),
+				Spec: gwv1alpha2.HTTPRouteSpec{
+					CommonRouteSpec: gwv1alpha2.CommonRouteSpec{
+						ParentRefs: []gwv1alpha2.ParentReference{{
+							Name: gwv1alpha2.ObjectName(gatewayName),
 						}},
 					},
-					Rules: []gateway.HTTPRouteRule{{
-						Matches: []gateway.HTTPRouteMatch{{
-							Path: &gateway.HTTPPathMatch{
+					Rules: []gwv1alpha2.HTTPRouteRule{{
+						Matches: []gwv1alpha2.HTTPRouteMatch{{
+							Path: &gwv1alpha2.HTTPPathMatch{
 								Type:  &pathMatch,
 								Value: &path,
 							},
 						}},
-						BackendRefs: []gateway.HTTPBackendRef{{
-							BackendRef: gateway.BackendRef{
-								BackendObjectReference: gateway.BackendObjectReference{
-									Name: gateway.ObjectName(serviceTwo.Name),
+						BackendRefs: []gwv1alpha2.HTTPBackendRef{{
+							BackendRef: gwv1alpha2.BackendRef{
+								BackendObjectReference: gwv1alpha2.BackendObjectReference{
+									Name: gwv1alpha2.ObjectName(serviceTwo.Name),
 									Port: &port,
 								},
 							},
 						}},
 					}, {
-						BackendRefs: []gateway.HTTPBackendRef{{
-							BackendRef: gateway.BackendRef{
-								BackendObjectReference: gateway.BackendObjectReference{
-									Name: gateway.ObjectName(serviceFour.Name),
+						BackendRefs: []gwv1alpha2.HTTPBackendRef{{
+							BackendRef: gwv1alpha2.BackendRef{
+								BackendObjectReference: gwv1alpha2.BackendObjectReference{
+									Name: gwv1alpha2.ObjectName(serviceFour.Name),
 									Port: &portFour,
 								},
 							},
 						}, {
-							BackendRef: gateway.BackendRef{
-								BackendObjectReference: gateway.BackendObjectReference{
-									Name: gateway.ObjectName(serviceFive.Name),
+							BackendRef: gwv1alpha2.BackendRef{
+								BackendObjectReference: gwv1alpha2.BackendObjectReference{
+									Name: gwv1alpha2.ObjectName(serviceFive.Name),
 									Port: &portFive,
 								},
 							},
@@ -623,37 +624,37 @@ func TestHTTPMeshService(t *testing.T) {
 			require.NoError(t, err)
 
 			// route 3
-			port = gateway.PortNumber(serviceThree.Spec.Ports[0].Port)
+			port = gwv1alpha2.PortNumber(serviceThree.Spec.Ports[0].Port)
 			path = "/v3"
-			headerMatch := gateway.HeaderMatchExact
-			route = &gateway.HTTPRoute{
+			headerMatch := gwv1alpha2.HeaderMatchExact
+			route = &gwv1alpha2.HTTPRoute{
 				ObjectMeta: meta.ObjectMeta{
 					Name:      routeThreeName,
 					Namespace: namespace,
 				},
-				Spec: gateway.HTTPRouteSpec{
-					CommonRouteSpec: gateway.CommonRouteSpec{
-						ParentRefs: []gateway.ParentReference{{
-							Name: gateway.ObjectName(gatewayName),
+				Spec: gwv1alpha2.HTTPRouteSpec{
+					CommonRouteSpec: gwv1alpha2.CommonRouteSpec{
+						ParentRefs: []gwv1alpha2.ParentReference{{
+							Name: gwv1alpha2.ObjectName(gatewayName),
 						}},
 					},
-					Hostnames: []gateway.Hostname{"test.host"},
-					Rules: []gateway.HTTPRouteRule{{
-						Matches: []gateway.HTTPRouteMatch{{
-							Path: &gateway.HTTPPathMatch{
+					Hostnames: []gwv1alpha2.Hostname{"test.host"},
+					Rules: []gwv1alpha2.HTTPRouteRule{{
+						Matches: []gwv1alpha2.HTTPRouteMatch{{
+							Path: &gwv1alpha2.HTTPPathMatch{
 								Type:  &pathMatch,
 								Value: &path,
 							},
-							Headers: []gateway.HTTPHeaderMatch{{
+							Headers: []gwv1alpha2.HTTPHeaderMatch{{
 								Type:  &headerMatch,
-								Name:  gateway.HTTPHeaderName("x-v3"),
+								Name:  gwv1alpha2.HTTPHeaderName("x-v3"),
 								Value: "v3",
 							}},
 						}},
-						BackendRefs: []gateway.HTTPBackendRef{{
-							BackendRef: gateway.BackendRef{
-								BackendObjectReference: gateway.BackendObjectReference{
-									Name: gateway.ObjectName(serviceThree.Name),
+						BackendRefs: []gwv1alpha2.HTTPBackendRef{{
+							BackendRef: gwv1alpha2.BackendRef{
+								BackendObjectReference: gwv1alpha2.BackendObjectReference{
+									Name: gwv1alpha2.ObjectName(serviceThree.Name),
 									Port: &port,
 								},
 							},
@@ -768,17 +769,17 @@ func TestTCPMeshService(t *testing.T) {
 			_, gc := createGatewayClass(ctx, t, resources)
 			require.Eventually(t, gatewayClassStatusCheck(ctx, resources, gc.Name, namespace, conditionAccepted), checkTimeout, checkInterval, "gatewayclass not accepted in the allotted time")
 
-			gw := &gateway.Gateway{
+			gw := &gwv1beta1.Gateway{
 				ObjectMeta: meta.ObjectMeta{
 					Name:      gatewayName,
 					Namespace: namespace,
 				},
-				Spec: gateway.GatewaySpec{
-					GatewayClassName: gateway.ObjectName(gc.Name),
-					Listeners: []gateway.Listener{{
+				Spec: gwv1beta1.GatewaySpec{
+					GatewayClassName: gwv1beta1.ObjectName(gc.Name),
+					Listeners: []gwv1beta1.Listener{{
 						Name:     "tcp",
-						Port:     gateway.PortNumber(e2e.TCPPort(ctx)),
-						Protocol: gateway.TCPProtocolType,
+						Port:     gwv1beta1.PortNumber(e2e.TCPPort(ctx)),
+						Protocol: gwv1beta1.TCPProtocolType,
 					}},
 				},
 			}
@@ -787,36 +788,36 @@ func TestTCPMeshService(t *testing.T) {
 			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionReady), checkTimeout, checkInterval, "no gateway found in the allotted time")
 
 			// route 1
-			portOne := gateway.PortNumber(serviceOne.Spec.Ports[0].Port)
-			portTwo := gateway.PortNumber(serviceTwo.Spec.Ports[0].Port)
-			portThree := gateway.PortNumber(serviceThree.Spec.Ports[0].Port)
-			routeOne := &gateway.TCPRoute{
+			portOne := gwv1alpha2.PortNumber(serviceOne.Spec.Ports[0].Port)
+			portTwo := gwv1alpha2.PortNumber(serviceTwo.Spec.Ports[0].Port)
+			portThree := gwv1alpha2.PortNumber(serviceThree.Spec.Ports[0].Port)
+			routeOne := &gwv1alpha2.TCPRoute{
 				ObjectMeta: meta.ObjectMeta{
 					Name:      routeOneName,
 					Namespace: namespace,
 				},
-				Spec: gateway.TCPRouteSpec{
-					CommonRouteSpec: gateway.CommonRouteSpec{
-						ParentRefs: []gateway.ParentReference{{
-							Name: gateway.ObjectName(gatewayName),
+				Spec: gwv1alpha2.TCPRouteSpec{
+					CommonRouteSpec: gwv1alpha2.CommonRouteSpec{
+						ParentRefs: []gwv1alpha2.ParentReference{{
+							Name: gwv1alpha2.ObjectName(gatewayName),
 						}},
 					},
-					Rules: []gateway.TCPRouteRule{{
-						BackendRefs: []gateway.BackendRef{{
-							BackendObjectReference: gateway.BackendObjectReference{
-								Name: gateway.ObjectName(serviceOne.Name),
+					Rules: []gwv1alpha2.TCPRouteRule{{
+						BackendRefs: []gwv1alpha2.BackendRef{{
+							BackendObjectReference: gwv1alpha2.BackendObjectReference{
+								Name: gwv1alpha2.ObjectName(serviceOne.Name),
 								Port: &portOne,
 							},
 						}, {
-							BackendObjectReference: gateway.BackendObjectReference{
-								Name: gateway.ObjectName(serviceTwo.Name),
+							BackendObjectReference: gwv1alpha2.BackendObjectReference{
+								Name: gwv1alpha2.ObjectName(serviceTwo.Name),
 								Port: &portTwo,
 							},
 						}},
 					}, {
-						BackendRefs: []gateway.BackendRef{{
-							BackendObjectReference: gateway.BackendObjectReference{
-								Name: gateway.ObjectName(serviceThree.Name),
+						BackendRefs: []gwv1alpha2.BackendRef{{
+							BackendObjectReference: gwv1alpha2.BackendObjectReference{
+								Name: gwv1alpha2.ObjectName(serviceThree.Name),
 								Port: &portThree,
 							},
 						}},
@@ -838,26 +839,26 @@ func TestTCPMeshService(t *testing.T) {
 			), checkTimeout, checkInterval, "route status not set in allotted time")
 
 			// route 2
-			meshServiceGroup := gateway.Group(apigwv1alpha1.Group)
-			meshServiceKind := gateway.Kind(apigwv1alpha1.MeshServiceKind)
+			meshServiceGroup := gwv1alpha2.Group(apigwv1alpha1.Group)
+			meshServiceKind := gwv1alpha2.Kind(apigwv1alpha1.MeshServiceKind)
 			// this routes to service four
-			route := &gateway.TCPRoute{
+			route := &gwv1alpha2.TCPRoute{
 				ObjectMeta: meta.ObjectMeta{
 					Name:      routeTwoName,
 					Namespace: namespace,
 				},
-				Spec: gateway.TCPRouteSpec{
-					CommonRouteSpec: gateway.CommonRouteSpec{
-						ParentRefs: []gateway.ParentReference{{
-							Name: gateway.ObjectName(gatewayName),
+				Spec: gwv1alpha2.TCPRouteSpec{
+					CommonRouteSpec: gwv1alpha2.CommonRouteSpec{
+						ParentRefs: []gwv1alpha2.ParentReference{{
+							Name: gwv1alpha2.ObjectName(gatewayName),
 						}},
 					},
-					Rules: []gateway.TCPRouteRule{{
-						BackendRefs: []gateway.BackendRef{{
-							BackendObjectReference: gateway.BackendObjectReference{
+					Rules: []gwv1alpha2.TCPRouteRule{{
+						BackendRefs: []gwv1alpha2.BackendRef{{
+							BackendObjectReference: gwv1alpha2.BackendObjectReference{
 								Group: &meshServiceGroup,
 								Kind:  &meshServiceKind,
-								Name:  gateway.ObjectName(meshServiceName),
+								Name:  gwv1alpha2.ObjectName(meshServiceName),
 							},
 						}},
 					}},
@@ -889,41 +890,41 @@ func TestTCPMeshService(t *testing.T) {
 			listenerOnePort := e2e.TCPTLSPort(ctx)
 			listenerTwoPort := e2e.ExtraTCPTLSPort(ctx)
 
-			gatewayNamespace := gateway.Namespace(namespace)
+			gatewayNamespace := gwv1beta1.Namespace(namespace)
 			resources := cfg.Client().Resources(namespace)
 
 			_, gc := createGatewayClass(ctx, t, resources)
 			require.Eventually(t, gatewayClassStatusCheck(ctx, resources, gc.Name, namespace, conditionAccepted), checkTimeout, checkInterval, "gatewayclass not accepted in the allotted time")
 
-			gw := &gateway.Gateway{
+			gw := &gwv1beta1.Gateway{
 				ObjectMeta: meta.ObjectMeta{
 					Name:      gatewayName,
 					Namespace: namespace,
 				},
-				Spec: gateway.GatewaySpec{
-					GatewayClassName: gateway.ObjectName(gc.Name),
-					Listeners: []gateway.Listener{
+				Spec: gwv1beta1.GatewaySpec{
+					GatewayClassName: gwv1beta1.ObjectName(gc.Name),
+					Listeners: []gwv1beta1.Listener{
 						{
-							Name:     gateway.SectionName(listenerOneName),
-							Port:     gateway.PortNumber(listenerOnePort),
-							Protocol: gateway.TCPProtocolType,
-							TLS: &gateway.GatewayTLSConfig{
-								CertificateRefs: []gateway.SecretObjectReference{{
+							Name:     gwv1beta1.SectionName(listenerOneName),
+							Port:     gwv1beta1.PortNumber(listenerOnePort),
+							Protocol: gwv1beta1.TCPProtocolType,
+							TLS: &gwv1beta1.GatewayTLSConfig{
+								CertificateRefs: []gwv1beta1.SecretObjectReference{{
 									Name:      "consul-server-cert",
 									Namespace: &gatewayNamespace,
 								}},
 							},
 						},
 						{
-							Name:     gateway.SectionName(listenerTwoName),
-							Port:     gateway.PortNumber(listenerTwoPort),
-							Protocol: gateway.TCPProtocolType,
-							TLS: &gateway.GatewayTLSConfig{
-								CertificateRefs: []gateway.SecretObjectReference{{
+							Name:     gwv1beta1.SectionName(listenerTwoName),
+							Port:     gwv1beta1.PortNumber(listenerTwoPort),
+							Protocol: gwv1beta1.TCPProtocolType,
+							TLS: &gwv1beta1.GatewayTLSConfig{
+								CertificateRefs: []gwv1beta1.SecretObjectReference{{
 									Name:      "consul-server-cert",
 									Namespace: &gatewayNamespace,
 								}},
-								Options: map[gateway.AnnotationKey]gateway.AnnotationValue{
+								Options: map[gwv1beta1.AnnotationKey]gwv1beta1.AnnotationValue{
 									"api-gateway.consul.hashicorp.com/tls_min_version":   "TLSv1_1",
 									"api-gateway.consul.hashicorp.com/tls_cipher_suites": "TLS_RSA_WITH_AES_128_CBC_SHA",
 								},
@@ -936,8 +937,8 @@ func TestTCPMeshService(t *testing.T) {
 			require.NoError(t, err)
 			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionReady), checkTimeout, checkInterval, "no gateway found in the allotted time")
 
-			createTCPRoute(ctx, t, resources, namespace, gatewayName, gateway.SectionName(listenerOneName), routeOneName, serviceOne.Name, gateway.PortNumber(serviceOne.Spec.Ports[0].Port))
-			createTCPRoute(ctx, t, resources, namespace, gatewayName, gateway.SectionName(listenerTwoName), routeTwoName, serviceTwo.Name, gateway.PortNumber(serviceTwo.Spec.Ports[0].Port))
+			createTCPRoute(ctx, t, resources, namespace, gatewayName, gwv1alpha2.SectionName(listenerOneName), routeOneName, serviceOne.Name, gwv1alpha2.PortNumber(serviceOne.Spec.Ports[0].Port))
+			createTCPRoute(ctx, t, resources, namespace, gatewayName, gwv1alpha2.SectionName(listenerTwoName), routeTwoName, serviceTwo.Name, gwv1alpha2.PortNumber(serviceTwo.Spec.Ports[0].Port))
 
 			checkTCPTLSRoute(t, listenerOnePort, &tls.Config{
 				InsecureSkipVerify: true,
@@ -1005,22 +1006,23 @@ func TestReferenceGrantLifecycle(t *testing.T) {
 
 			// Allow routes to bind from a different namespace for testing
 			// cross-namespace ReferenceGrant enforcement
-			fromSelector := gateway.NamespacesFromSelector
+			fromSelector := gwv1beta1.NamespacesFromSelector
 
-			gwNamespace := gateway.Namespace(namespace)
-			gw := createGateway(ctx, t, resources, gatewayName, namespace, gc, []gateway.Listener{
+			gwNamespace := gwv1beta1.Namespace(namespace)
+			routeGatewayNamespace := gwv1alpha2.Namespace(namespace)
+			gw := createGateway(ctx, t, resources, gatewayName, namespace, gc, []gwv1beta1.Listener{
 				{
 					Name:     "https",
-					Port:     gateway.PortNumber(httpCheckPort),
-					Protocol: gateway.HTTPSProtocolType,
-					TLS: &gateway.GatewayTLSConfig{
-						CertificateRefs: []gateway.SecretObjectReference{{
+					Port:     gwv1beta1.PortNumber(httpCheckPort),
+					Protocol: gwv1beta1.HTTPSProtocolType,
+					TLS: &gwv1beta1.GatewayTLSConfig{
+						CertificateRefs: []gwv1beta1.SecretObjectReference{{
 							Name:      "consul-server-cert",
 							Namespace: &gwNamespace,
 						}},
 					},
-					AllowedRoutes: &gateway.AllowedRoutes{
-						Namespaces: &gateway.RouteNamespaces{
+					AllowedRoutes: &gwv1beta1.AllowedRoutes{
+						Namespaces: &gwv1beta1.RouteNamespaces{
 							From: &fromSelector,
 							Selector: &meta.LabelSelector{
 								MatchExpressions: []meta.LabelSelectorRequirement{{
@@ -1034,10 +1036,10 @@ func TestReferenceGrantLifecycle(t *testing.T) {
 				},
 				{
 					Name:     "tcp",
-					Port:     gateway.PortNumber(tcpCheckPort),
-					Protocol: gateway.TCPProtocolType,
-					AllowedRoutes: &gateway.AllowedRoutes{
-						Namespaces: &gateway.RouteNamespaces{
+					Port:     gwv1beta1.PortNumber(tcpCheckPort),
+					Protocol: gwv1beta1.TCPProtocolType,
+					AllowedRoutes: &gwv1beta1.AllowedRoutes{
+						Namespaces: &gwv1beta1.RouteNamespaces{
 							From: &fromSelector,
 							Selector: &meta.LabelSelector{
 								MatchExpressions: []meta.LabelSelectorRequirement{{
@@ -1070,26 +1072,26 @@ func TestReferenceGrantLifecycle(t *testing.T) {
 			err = resources.Create(ctx, tcpNs)
 			require.NoError(t, err)
 
-			httpPort := gateway.PortNumber(serviceOne.Spec.Ports[0].Port)
-			httpRoute := &gateway.HTTPRoute{
+			httpPort := gwv1alpha2.PortNumber(serviceOne.Spec.Ports[0].Port)
+			httpRoute := &gwv1alpha2.HTTPRoute{
 				ObjectMeta: meta.ObjectMeta{
 					Name:      httpRouteName,
 					Namespace: httpRouteNamespace,
 				},
-				Spec: gateway.HTTPRouteSpec{
-					CommonRouteSpec: gateway.CommonRouteSpec{
-						ParentRefs: []gateway.ParentReference{{
-							Name:      gateway.ObjectName(gatewayName),
-							Namespace: &gwNamespace,
+				Spec: gwv1alpha2.HTTPRouteSpec{
+					CommonRouteSpec: gwv1alpha2.CommonRouteSpec{
+						ParentRefs: []gwv1alpha2.ParentReference{{
+							Name:      gwv1alpha2.ObjectName(gatewayName),
+							Namespace: &routeGatewayNamespace,
 						}},
 					},
-					Hostnames: []gateway.Hostname{"test.foo"},
-					Rules: []gateway.HTTPRouteRule{{
-						BackendRefs: []gateway.HTTPBackendRef{{
-							BackendRef: gateway.BackendRef{
-								BackendObjectReference: gateway.BackendObjectReference{
-									Name:      gateway.ObjectName(serviceOne.Name),
-									Namespace: &gwNamespace,
+					Hostnames: []gwv1alpha2.Hostname{"test.foo"},
+					Rules: []gwv1alpha2.HTTPRouteRule{{
+						BackendRefs: []gwv1alpha2.HTTPBackendRef{{
+							BackendRef: gwv1alpha2.BackendRef{
+								BackendObjectReference: gwv1alpha2.BackendObjectReference{
+									Name:      gwv1alpha2.ObjectName(serviceOne.Name),
+									Namespace: &routeGatewayNamespace,
 									Port:      &httpPort,
 								},
 							},
@@ -1116,24 +1118,25 @@ func TestReferenceGrantLifecycle(t *testing.T) {
 			)
 			require.Eventually(t, httpRouteStatusCheckRefNotPermitted, checkTimeout, checkInterval, "HTTPRoute status not set in allotted time")
 
-			tcpPort := gateway.PortNumber(serviceTwo.Spec.Ports[0].Port)
-			tcpRoute := &gateway.TCPRoute{
+			tcpNamespace := gwv1alpha2.Namespace(namespace)
+			tcpPort := gwv1alpha2.PortNumber(serviceTwo.Spec.Ports[0].Port)
+			tcpRoute := &gwv1alpha2.TCPRoute{
 				ObjectMeta: meta.ObjectMeta{
 					Name:      tcpRouteName,
 					Namespace: tcpRouteNamespace,
 				},
-				Spec: gateway.TCPRouteSpec{
-					CommonRouteSpec: gateway.CommonRouteSpec{
-						ParentRefs: []gateway.ParentReference{{
-							Name:      gateway.ObjectName(gatewayName),
-							Namespace: &gwNamespace,
+				Spec: gwv1alpha2.TCPRouteSpec{
+					CommonRouteSpec: gwv1alpha2.CommonRouteSpec{
+						ParentRefs: []gwv1alpha2.ParentReference{{
+							Name:      gwv1alpha2.ObjectName(gatewayName),
+							Namespace: &tcpNamespace,
 						}},
 					},
-					Rules: []gateway.TCPRouteRule{{
-						BackendRefs: []gateway.BackendRef{{
-							BackendObjectReference: gateway.BackendObjectReference{
-								Name:      gateway.ObjectName(serviceTwo.Name),
-								Namespace: &gwNamespace,
+					Rules: []gwv1alpha2.TCPRouteRule{{
+						BackendRefs: []gwv1alpha2.BackendRef{{
+							BackendObjectReference: gwv1alpha2.BackendObjectReference{
+								Name:      gwv1alpha2.ObjectName(serviceTwo.Name),
+								Namespace: &tcpNamespace,
 								Port:      &tcpPort,
 							},
 						}},
@@ -1144,19 +1147,19 @@ func TestReferenceGrantLifecycle(t *testing.T) {
 			require.NoError(t, err)
 
 			// create ReferenceGrant allowing HTTPRoute BackendRef
-			serviceOneObjectName := gateway.ObjectName(serviceOne.Name)
-			httpRouteReferenceGrant := &gateway.ReferenceGrant{
+			serviceOneObjectName := gwv1alpha2.ObjectName(serviceOne.Name)
+			httpRouteReferenceGrant := &gwv1alpha2.ReferenceGrant{
 				ObjectMeta: meta.ObjectMeta{
 					Name:      httpRouteRefGrantName,
 					Namespace: namespace,
 				},
-				Spec: gateway.ReferenceGrantSpec{
-					From: []gateway.ReferenceGrantFrom{{
+				Spec: gwv1alpha2.ReferenceGrantSpec{
+					From: []gwv1alpha2.ReferenceGrantFrom{{
 						Group:     "gateway.networking.k8s.io",
 						Kind:      "HTTPRoute",
-						Namespace: gateway.Namespace(httpRouteNamespace),
+						Namespace: gwv1alpha2.Namespace(httpRouteNamespace),
 					}},
-					To: []gateway.ReferenceGrantTo{{
+					To: []gwv1alpha2.ReferenceGrantTo{{
 						Group: "",
 						Kind:  "Service",
 						Name:  &serviceOneObjectName,
@@ -1206,19 +1209,19 @@ func TestReferenceGrantLifecycle(t *testing.T) {
 			require.Eventually(t, tcpRouteStatusCheckRefNotPermitted, checkTimeout, checkInterval, "TCPRoute status not set in allotted time")
 
 			// create ReferenceGrant allowing TCPRoute BackendRef
-			serviceTwoObjectName := gateway.ObjectName(serviceTwo.Name)
-			tcpRouteReferenceGrant := &gateway.ReferenceGrant{
+			serviceTwoObjectName := gwv1alpha2.ObjectName(serviceTwo.Name)
+			tcpRouteReferenceGrant := &gwv1alpha2.ReferenceGrant{
 				ObjectMeta: meta.ObjectMeta{
 					Name:      tcpRouteRefGrantName,
 					Namespace: namespace,
 				},
-				Spec: gateway.ReferenceGrantSpec{
-					From: []gateway.ReferenceGrantFrom{{
+				Spec: gwv1alpha2.ReferenceGrantSpec{
+					From: []gwv1alpha2.ReferenceGrantFrom{{
 						Group:     "gateway.networking.k8s.io",
 						Kind:      "TCPRoute",
-						Namespace: gateway.Namespace(tcpRouteNamespace),
+						Namespace: gwv1alpha2.Namespace(tcpRouteNamespace),
 					}},
-					To: []gateway.ReferenceGrantTo{{
+					To: []gwv1alpha2.ReferenceGrantTo{{
 						Group: "",
 						Kind:  "Service",
 						Name:  &serviceTwoObjectName,
@@ -1307,23 +1310,23 @@ func TestReferenceGrantLifecycle(t *testing.T) {
 			_, gc := createGatewayClass(ctx, t, resources)
 			require.Eventually(t, gatewayClassStatusCheck(ctx, resources, gc.Name, namespace, conditionAccepted), checkTimeout, checkInterval, "gatewayclass not accepted in the allotted time")
 
-			fromSelector := gateway.NamespacesFromAll
+			fromSelector := gwv1beta1.NamespacesFromAll
 
 			// Create a Gateway with a listener that has a CertificateRef to a different namespace
-			certNamespaceTyped := gateway.Namespace(certNamespace)
-			gw := createGateway(ctx, t, resources, gatewayName, gatewayNamespace, gc, []gateway.Listener{
+			certNamespaceTyped := gwv1beta1.Namespace(certNamespace)
+			gw := createGateway(ctx, t, resources, gatewayName, gatewayNamespace, gc, []gwv1beta1.Listener{
 				{
 					Name:     "https",
-					Port:     gateway.PortNumber(e2e.HTTPReferenceGrantPort(ctx)),
-					Protocol: gateway.HTTPSProtocolType,
-					TLS: &gateway.GatewayTLSConfig{
-						CertificateRefs: []gateway.SecretObjectReference{{
-							Name:      gateway.ObjectName(certName),
+					Port:     gwv1beta1.PortNumber(e2e.HTTPReferenceGrantPort(ctx)),
+					Protocol: gwv1beta1.HTTPSProtocolType,
+					TLS: &gwv1beta1.GatewayTLSConfig{
+						CertificateRefs: []gwv1beta1.SecretObjectReference{{
+							Name:      gwv1beta1.ObjectName(certName),
 							Namespace: &certNamespaceTyped,
 						}},
 					},
-					AllowedRoutes: &gateway.AllowedRoutes{
-						Namespaces: &gateway.RouteNamespaces{
+					AllowedRoutes: &gwv1beta1.AllowedRoutes{
+						Namespaces: &gwv1beta1.RouteNamespaces{
 							From: &fromSelector,
 						},
 					},
@@ -1343,18 +1346,18 @@ func TestReferenceGrantLifecycle(t *testing.T) {
 			require.Eventually(t, listenerCheck, checkTimeout, checkInterval, "Gateway listener status not set in allotted time")
 
 			// Create ReferenceGrant allowing Gateway CertificateRef
-			certReferenceGrant := &gateway.ReferenceGrant{
+			certReferenceGrant := &gwv1alpha2.ReferenceGrant{
 				ObjectMeta: meta.ObjectMeta{
 					Name:      gatewayRefGrantName,
 					Namespace: string(certNamespace),
 				},
-				Spec: gateway.ReferenceGrantSpec{
-					From: []gateway.ReferenceGrantFrom{{
+				Spec: gwv1alpha2.ReferenceGrantSpec{
+					From: []gwv1alpha2.ReferenceGrantFrom{{
 						Group:     "gateway.networking.k8s.io",
 						Kind:      "Gateway",
-						Namespace: gateway.Namespace(gatewayNamespace),
+						Namespace: gwv1alpha2.Namespace(gatewayNamespace),
 					}},
-					To: []gateway.ReferenceGrantTo{{
+					To: []gwv1alpha2.ReferenceGrantTo{{
 						Group: "",
 						Kind:  "Secret",
 						Name:  nil,
@@ -1400,7 +1403,7 @@ func TestRouteParentRefChange(t *testing.T) {
 			require.NoError(t, err)
 
 			namespace := e2e.Namespace(ctx)
-			gwNamespace := gateway.Namespace(namespace)
+			routeGatewayNamespace := gwv1alpha2.Namespace(namespace)
 			resources := cfg.Client().Resources(namespace)
 
 			_, gc := createGatewayClass(ctx, t, resources)
@@ -1416,29 +1419,29 @@ func TestRouteParentRefChange(t *testing.T) {
 				firstGatewayName,
 				namespace,
 				gc,
-				[]gateway.Listener{createHTTPSListener(ctx, t, gateway.PortNumber(firstGatewayCheckPort))},
+				[]gwv1beta1.Listener{createHTTPSListener(ctx, t, gwv1beta1.PortNumber(firstGatewayCheckPort))},
 			)
 			require.Eventually(t, gatewayStatusCheck(ctx, resources, firstGatewayName, namespace, conditionReady), 30*time.Second, checkInterval, "no gateway found in the allotted time")
 
 			// Create route with ParentRef targeting first gateway
 			httpRouteName := envconf.RandomName("httproute", 16)
-			httpPort := gateway.PortNumber(serviceOne.Spec.Ports[0].Port)
-			httpRoute := &gateway.HTTPRoute{
+			httpPort := gwv1alpha2.PortNumber(serviceOne.Spec.Ports[0].Port)
+			httpRoute := &gwv1alpha2.HTTPRoute{
 				ObjectMeta: meta.ObjectMeta{
 					Name:      httpRouteName,
 					Namespace: namespace,
 				},
-				Spec: gateway.HTTPRouteSpec{
-					CommonRouteSpec: gateway.CommonRouteSpec{
-						ParentRefs: []gateway.ParentReference{{
-							Name: gateway.ObjectName(firstGatewayName),
+				Spec: gwv1alpha2.HTTPRouteSpec{
+					CommonRouteSpec: gwv1alpha2.CommonRouteSpec{
+						ParentRefs: []gwv1alpha2.ParentReference{{
+							Name: gwv1alpha2.ObjectName(firstGatewayName),
 						}},
 					},
-					Rules: []gateway.HTTPRouteRule{{
-						BackendRefs: []gateway.HTTPBackendRef{{
-							BackendRef: gateway.BackendRef{
-								BackendObjectReference: gateway.BackendObjectReference{
-									Name: gateway.ObjectName(serviceOne.Name),
+					Rules: []gwv1alpha2.HTTPRouteRule{{
+						BackendRefs: []gwv1alpha2.HTTPBackendRef{{
+							BackendRef: gwv1alpha2.BackendRef{
+								BackendObjectReference: gwv1alpha2.BackendObjectReference{
+									Name: gwv1alpha2.ObjectName(serviceOne.Name),
 									Port: &httpPort,
 								},
 							},
@@ -1485,20 +1488,20 @@ func TestRouteParentRefChange(t *testing.T) {
 				secondGatewayName,
 				namespace,
 				gc,
-				[]gateway.Listener{createHTTPSListener(ctx, t, gateway.PortNumber(secondGatewayCheckPort))},
+				[]gwv1beta1.Listener{createHTTPSListener(ctx, t, gwv1beta1.PortNumber(secondGatewayCheckPort))},
 			)
 			require.Eventually(t, gatewayStatusCheck(ctx, resources, secondGatewayName, namespace, conditionReady), 30*time.Second, checkInterval, "no gateway found in the allotted time")
 
 			// Update httpRoute from remote, then add second gateway ParentRef
 			require.NoError(t, resources.Get(ctx, httpRouteName, namespace, httpRoute))
-			httpRoute.Spec.CommonRouteSpec.ParentRefs = []gateway.ParentReference{
+			httpRoute.Spec.CommonRouteSpec.ParentRefs = []gwv1alpha2.ParentReference{
 				{
-					Name:      gateway.ObjectName(firstGatewayName),
-					Namespace: &gwNamespace,
+					Name:      gwv1alpha2.ObjectName(firstGatewayName),
+					Namespace: &routeGatewayNamespace,
 				},
 				{
-					Name:      gateway.ObjectName(secondGatewayName),
-					Namespace: &gwNamespace,
+					Name:      gwv1alpha2.ObjectName(secondGatewayName),
+					Namespace: &routeGatewayNamespace,
 				},
 			}
 			require.NoError(t, resources.Update(ctx, httpRoute))
@@ -1536,15 +1539,15 @@ func TestRouteParentRefChange(t *testing.T) {
 
 			// Update httpRoute from remote, then remove first gateway ParentRef
 			require.NoError(t, resources.Get(ctx, httpRouteName, namespace, httpRoute))
-			httpRoute.Spec.CommonRouteSpec.ParentRefs = []gateway.ParentReference{{
-				Name:      gateway.ObjectName(secondGatewayName),
-				Namespace: &gwNamespace,
+			httpRoute.Spec.CommonRouteSpec.ParentRefs = []gwv1alpha2.ParentReference{{
+				Name:      gwv1alpha2.ObjectName(secondGatewayName),
+				Namespace: &routeGatewayNamespace,
 			}}
 			require.NoError(t, resources.Update(ctx, httpRoute))
 
 			// Check that route unbinds from first gateway listener successfully
 			require.Eventually(t, func() bool {
-				updated := &gateway.HTTPRoute{}
+				updated := &gwv1alpha2.HTTPRoute{}
 				if err := resources.Get(ctx, httpRouteName, namespace, updated); err != nil {
 					return false
 				}
@@ -1579,7 +1582,7 @@ func TestRouteParentRefChange(t *testing.T) {
 
 func gatewayStatusCheck(ctx context.Context, resources *resources.Resources, gatewayName, namespace string, checkFn func([]meta.Condition) bool) func() bool {
 	return func() bool {
-		updated := &gateway.Gateway{}
+		updated := &gwv1beta1.Gateway{}
 		if err := resources.Get(ctx, gatewayName, namespace, updated); err != nil {
 			return false
 		}
@@ -1605,7 +1608,7 @@ func deploymentReplicasSetAsExpected(ctx context.Context, resources *resources.R
 
 func gatewayClassStatusCheck(ctx context.Context, resources *resources.Resources, gatewayClassName, namespace string, checkFn func([]meta.Condition) bool) func() bool {
 	return func() bool {
-		updated := &gateway.GatewayClass{}
+		updated := &gwv1beta1.GatewayClass{}
 		if err := resources.Get(ctx, gatewayClassName, namespace, updated); err != nil {
 			return false
 		}
@@ -1614,9 +1617,9 @@ func gatewayClassStatusCheck(ctx context.Context, resources *resources.Resources
 	}
 }
 
-func listenerStatusCheck(ctx context.Context, resources *resources.Resources, gatewayName, namespace string, checkFn func(gateway.ListenerStatus) bool) func() bool {
+func listenerStatusCheck(ctx context.Context, resources *resources.Resources, gatewayName, namespace string, checkFn func(gwv1beta1.ListenerStatus) bool) func() bool {
 	return func() bool {
-		updated := &gateway.Gateway{}
+		updated := &gwv1beta1.Gateway{}
 		if err := resources.Get(ctx, gatewayName, namespace, updated); err != nil {
 			return false
 		}
@@ -1633,7 +1636,7 @@ func listenerStatusCheck(ctx context.Context, resources *resources.Resources, ga
 
 func httpRouteStatusCheck(ctx context.Context, resources *resources.Resources, gatewayName, routeName, namespace string, checkFn func([]meta.Condition) bool) func() bool {
 	return func() bool {
-		updated := &gateway.HTTPRoute{}
+		updated := &gwv1alpha2.HTTPRoute{}
 		if err := resources.Get(ctx, routeName, namespace, updated); err != nil {
 			return false
 		}
@@ -1648,7 +1651,7 @@ func httpRouteStatusCheck(ctx context.Context, resources *resources.Resources, g
 
 func tcpRouteStatusCheck(ctx context.Context, resources *resources.Resources, gatewayName, routeName, namespace string, checkFn func([]meta.Condition) bool) func() bool {
 	return func() bool {
-		updated := &gateway.TCPRoute{}
+		updated := &gwv1alpha2.TCPRoute{}
 		if err := resources.Get(ctx, routeName, namespace, updated); err != nil {
 			return false
 		}
@@ -1661,18 +1664,18 @@ func tcpRouteStatusCheck(ctx context.Context, resources *resources.Resources, ga
 	}
 }
 
-func createListenerStatusConditionsCheck(expected []meta.Condition) func(gateway.ListenerStatus) bool {
+func createListenerStatusConditionsCheck(expected []meta.Condition) func(gwv1beta1.ListenerStatus) bool {
 	return createListenerStatusConditionsFnCheck(createConditionsCheck(expected))
 }
 
-func createListenerStatusConditionsFnCheck(checkFn func([]meta.Condition) bool) func(gateway.ListenerStatus) bool {
-	return func(actual gateway.ListenerStatus) bool {
+func createListenerStatusConditionsFnCheck(checkFn func([]meta.Condition) bool) func(gwv1beta1.ListenerStatus) bool {
+	return func(actual gwv1beta1.ListenerStatus) bool {
 		return checkFn(actual.Conditions)
 	}
 }
 
-func listenerAttachedRoutes(expectedRoutes int32, listenerNames ...string) func(gateway.ListenerStatus) bool {
-	return func(actual gateway.ListenerStatus) bool {
+func listenerAttachedRoutes(expectedRoutes int32, listenerNames ...string) func(gwv1beta1.ListenerStatus) bool {
+	return func(actual gwv1beta1.ListenerStatus) bool {
 		// Allow optionally specifying a specific listener name
 		if len(listenerNames) > 0 && !slices.Contains(listenerNames, string(actual.Name)) {
 			return false
@@ -1726,18 +1729,18 @@ func conditionInSync(conditions []meta.Condition) bool {
 	})(conditions)
 }
 
-func createHTTPSListener(ctx context.Context, t *testing.T, port gateway.PortNumber) gateway.Listener {
+func createHTTPSListener(ctx context.Context, t *testing.T, port gwv1beta1.PortNumber) gwv1beta1.Listener {
 	t.Helper()
 
 	namespace := e2e.Namespace(ctx)
-	gatewayNamespace := gateway.Namespace(namespace)
+	gatewayNamespace := gwv1beta1.Namespace(namespace)
 
-	return gateway.Listener{
+	return gwv1beta1.Listener{
 		Name:     "https",
 		Port:     port,
-		Protocol: gateway.HTTPSProtocolType,
-		TLS: &gateway.GatewayTLSConfig{
-			CertificateRefs: []gateway.SecretObjectReference{{
+		Protocol: gwv1beta1.HTTPSProtocolType,
+		TLS: &gwv1beta1.GatewayTLSConfig{
+			CertificateRefs: []gwv1beta1.SecretObjectReference{{
 				Name:      "consul-server-cert",
 				Namespace: &gatewayNamespace,
 			}},
@@ -1745,16 +1748,16 @@ func createHTTPSListener(ctx context.Context, t *testing.T, port gateway.PortNum
 	}
 }
 
-func createGateway(ctx context.Context, t *testing.T, resources *resources.Resources, gatewayName, gatewayNamespace string, gc *gateway.GatewayClass, listeners []gateway.Listener) *gateway.Gateway {
+func createGateway(ctx context.Context, t *testing.T, resources *resources.Resources, gatewayName, gatewayNamespace string, gc *gwv1beta1.GatewayClass, listeners []gwv1beta1.Listener) *gwv1beta1.Gateway {
 	t.Helper()
 
-	gw := &gateway.Gateway{
+	gw := &gwv1beta1.Gateway{
 		ObjectMeta: meta.ObjectMeta{
 			Name:      gatewayName,
 			Namespace: gatewayNamespace,
 		},
-		Spec: gateway.GatewaySpec{
-			GatewayClassName: gateway.ObjectName(gc.Name),
+		Spec: gwv1beta1.GatewaySpec{
+			GatewayClassName: gwv1beta1.ObjectName(gc.Name),
 			Listeners:        listeners,
 		},
 	}
@@ -1772,11 +1775,11 @@ type GatewayClassConfigParams struct {
 	MaxInstances     *int32
 }
 
-func createGatewayClass(ctx context.Context, t *testing.T, resources *resources.Resources) (*apigwv1alpha1.GatewayClassConfig, *gateway.GatewayClass) {
+func createGatewayClass(ctx context.Context, t *testing.T, resources *resources.Resources) (*apigwv1alpha1.GatewayClassConfig, *gwv1beta1.GatewayClass) {
 	return createGatewayClassWithParams(ctx, t, resources, GatewayClassConfigParams{})
 }
 
-func createGatewayClassWithParams(ctx context.Context, t *testing.T, resources *resources.Resources, params GatewayClassConfigParams) (*apigwv1alpha1.GatewayClassConfig, *gateway.GatewayClass) {
+func createGatewayClassWithParams(ctx context.Context, t *testing.T, resources *resources.Resources, params GatewayClassConfigParams) (*apigwv1alpha1.GatewayClassConfig, *gwv1beta1.GatewayClass) {
 	t.Helper()
 
 	// Expose ports on the Docker host
@@ -1832,13 +1835,13 @@ func createGatewayClassWithParams(ctx context.Context, t *testing.T, resources *
 	err := resources.Create(ctx, gcc)
 	require.NoError(t, err)
 
-	gc := &gateway.GatewayClass{
+	gc := &gwv1beta1.GatewayClass{
 		ObjectMeta: meta.ObjectMeta{
 			Name: className,
 		},
-		Spec: gateway.GatewayClassSpec{
+		Spec: gwv1beta1.GatewayClassSpec{
 			ControllerName: k8s.ControllerName,
-			ParametersRef: &gateway.ParametersReference{
+			ParametersRef: &gwv1beta1.ParametersReference{
 				Group: apigwv1alpha1.Group,
 				Kind:  apigwv1alpha1.GatewayClassConfigKind,
 				Name:  configName,
@@ -1851,25 +1854,25 @@ func createGatewayClassWithParams(ctx context.Context, t *testing.T, resources *
 	return gcc, gc
 }
 
-func createTCPRoute(ctx context.Context, t *testing.T, resources *resources.Resources, namespace string, gatewayName string, listenerName gateway.SectionName, routeName string, serviceName string, port gateway.PortNumber) {
+func createTCPRoute(ctx context.Context, t *testing.T, resources *resources.Resources, namespace string, gatewayName string, listenerName gwv1alpha2.SectionName, routeName string, serviceName string, port gwv1alpha2.PortNumber) {
 	t.Helper()
 
-	route := &gateway.TCPRoute{
+	route := &gwv1alpha2.TCPRoute{
 		ObjectMeta: meta.ObjectMeta{
 			Name:      routeName,
 			Namespace: namespace,
 		},
-		Spec: gateway.TCPRouteSpec{
-			CommonRouteSpec: gateway.CommonRouteSpec{
-				ParentRefs: []gateway.ParentReference{{
-					Name:        gateway.ObjectName(gatewayName),
+		Spec: gwv1alpha2.TCPRouteSpec{
+			CommonRouteSpec: gwv1alpha2.CommonRouteSpec{
+				ParentRefs: []gwv1alpha2.ParentReference{{
+					Name:        gwv1alpha2.ObjectName(gatewayName),
 					SectionName: &listenerName,
 				}},
 			},
-			Rules: []gateway.TCPRouteRule{{
-				BackendRefs: []gateway.BackendRef{{
-					BackendObjectReference: gateway.BackendObjectReference{
-						Name: gateway.ObjectName(serviceName),
+			Rules: []gwv1alpha2.TCPRouteRule{{
+				BackendRefs: []gwv1alpha2.BackendRef{{
+					BackendObjectReference: gwv1alpha2.BackendObjectReference{
+						Name: gwv1alpha2.ObjectName(serviceName),
 						Port: &port,
 					},
 				}},
@@ -1889,7 +1892,7 @@ func checkGatewayConfigAnnotation(ctx context.Context, t *testing.T, resources *
 	expectedCfg, err := json.Marshal(gcc.Spec)
 	require.NoError(t, err)
 
-	gw := &gateway.Gateway{}
+	gw := &gwv1beta1.Gateway{}
 	require.Eventually(t, func() bool {
 		err := resources.Get(ctx, gatewayName, namespace, gw)
 		return err == nil

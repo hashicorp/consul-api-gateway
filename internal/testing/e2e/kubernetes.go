@@ -23,7 +23,8 @@ import (
 	"sigs.k8s.io/e2e-framework/klient"
 	"sigs.k8s.io/e2e-framework/pkg/env"
 	"sigs.k8s.io/e2e-framework/pkg/envconf"
-	gateway "sigs.k8s.io/gateway-api/apis/v1alpha2"
+	gwv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
+	gwv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 )
 
 type k8sTokenContext struct{}
@@ -47,19 +48,24 @@ func InstallCRDs(ctx context.Context, cfg *envconf.Config) (context.Context, err
 
 	// Register Gateway API types
 	scheme.Scheme.AddKnownTypes(
-		gateway.SchemeGroupVersion,
-		&gateway.GatewayClass{},
-		&gateway.GatewayClassList{},
-		&gateway.Gateway{},
-		&gateway.GatewayList{},
-		&gateway.HTTPRoute{},
-		&gateway.HTTPRouteList{},
-		&gateway.TCPRoute{},
-		&gateway.TCPRouteList{},
-		&gateway.ReferenceGrant{},
-		&gateway.ReferencePolicy{},
+		gwv1beta1.SchemeGroupVersion,
+		&gwv1beta1.GatewayClass{},
+		&gwv1beta1.GatewayClassList{},
+		&gwv1beta1.Gateway{},
+		&gwv1beta1.GatewayList{},
 	)
-	meta.AddToGroupVersion(scheme.Scheme, gateway.SchemeGroupVersion)
+	meta.AddToGroupVersion(scheme.Scheme, gwv1beta1.SchemeGroupVersion)
+
+	scheme.Scheme.AddKnownTypes(
+		gwv1alpha2.SchemeGroupVersion,
+		&gwv1alpha2.HTTPRoute{},
+		&gwv1alpha2.HTTPRouteList{},
+		&gwv1alpha2.TCPRoute{},
+		&gwv1alpha2.TCPRouteList{},
+		&gwv1alpha2.ReferenceGrant{},
+		&gwv1alpha2.ReferencePolicy{},
+	)
+	meta.AddToGroupVersion(scheme.Scheme, gwv1alpha2.SchemeGroupVersion)
 
 	// Register Consul API Gateway types
 	consulapigw.RegisterTypes(scheme.Scheme)
