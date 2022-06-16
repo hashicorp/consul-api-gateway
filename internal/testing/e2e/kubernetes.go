@@ -8,8 +8,10 @@ import (
 	"io"
 	"log"
 	"os"
+	"path"
 
 	"github.com/cenkalti/backoff"
+	consulapigw "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 	core "k8s.io/api/core/v1"
 	rbac "k8s.io/api/rbac/v1"
 	api "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -28,12 +30,11 @@ type k8sTokenContext struct{}
 
 var k8sTokenContextKey = k8sTokenContext{}
 
-const gatewayCRDs = "github.com/kubernetes-sigs/gateway-api/config/crd?ref=v0.4.1"
+func InstallCRDs(ctx context.Context, cfg *envconf.Config) (context.Context, error) {
+	log.Print("Installing CRDs")
 
-func InstallGatewayCRDs(ctx context.Context, cfg *envconf.Config) (context.Context, error) {
-	log.Print("Installing Gateway CRDs")
-
-	crds, err := kubectlKustomizeCRDs(ctx, gatewayCRDs)
+	dir := path.Join("..", "..", "..", "config", "crd")
+	crds, err := kubectlKustomizeCRDs(ctx, dir)
 	if err != nil {
 		return nil, err
 	}
@@ -44,6 +45,7 @@ func InstallGatewayCRDs(ctx context.Context, cfg *envconf.Config) (context.Conte
 		return nil, err
 	}
 
+	// Register Gateway API types
 	scheme.Scheme.AddKnownTypes(
 		gateway.SchemeGroupVersion,
 		&gateway.GatewayClass{},
@@ -58,6 +60,9 @@ func InstallGatewayCRDs(ctx context.Context, cfg *envconf.Config) (context.Conte
 		&gateway.ReferencePolicy{},
 	)
 	meta.AddToGroupVersion(scheme.Scheme, gateway.SchemeGroupVersion)
+
+	// Register Consul API Gateway types
+	consulapigw.RegisterTypes(scheme.Scheme)
 
 	return ctx, nil
 }
