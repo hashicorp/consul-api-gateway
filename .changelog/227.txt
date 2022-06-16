@@ -1,0 +1,3 @@
+```release-note:bug
+Properly handle re-registration of deployed gateways when an agent no longer has the gateway in its catalog
+```
