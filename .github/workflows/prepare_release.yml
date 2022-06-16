@@ -34,28 +34,28 @@ jobs:
           echo "EOF" >> $GITHUB_ENV
 
       - name: Update deployment.yaml
-        uses: 'jacobtomlinson/gha-find-replace@v2'
+        uses: jacobtomlinson/gha-find-replace@f485fdc3f67a6d87ae6e3d11e41f648c26d7aee3
         with:
           include: config/deployment/deployment.yaml
           find: 'image: hashicorp/consul-api-gateway:[0-9\.]+'
           replace: 'image: hashicorp/consul-api-gateway:${{ env.NEW_API_GATEWAY_VERSION }}'
 
       - name: Update example-setup.md
-        uses: jacobtomlinson/gha-find-replace@v2
+        uses: jacobtomlinson/gha-find-replace@f485fdc3f67a6d87ae6e3d11e41f648c26d7aee3
         with:
           include: 'dev/docs/example-setup.md'
           find: 'ref=v[0-9\.]+'
           replace: 'ref=v${{ env.NEW_API_GATEWAY_VERSION }}'
 
       - name: Update README.md (Consul version)
-        uses: jacobtomlinson/gha-find-replace@v2
+        uses: jacobtomlinson/gha-find-replace@f485fdc3f67a6d87ae6e3d11e41f648c26d7aee3
         with:
           include: 'README.md'
           find: 'The installed version of Consul must be `v[0-9\.]+` or greater.'
           replace: 'The installed version of Consul must be `v${{ env.NEW_CONSUL_REQ }}` or greater.'
 
       - name: Update README.md (Consul K8s version)
-        uses: jacobtomlinson/gha-find-replace@v2
+        uses: jacobtomlinson/gha-find-replace@f485fdc3f67a6d87ae6e3d11e41f648c26d7aee3
         with:
           include: 'README.md'
           find: 'The Consul Helm chart must be version `[0-9\.]+` or greater.'
@@ -94,7 +94,7 @@ jobs:
           echo "EOF" >> $GITHUB_ENV
 
       - name: Update CHANGELOG.md
-        uses: jacobtomlinson/gha-find-replace@v2
+        uses: jacobtomlinson/gha-find-replace@f485fdc3f67a6d87ae6e3d11e41f648c26d7aee3
         with:
           include: 'CHANGELOG.md'
           find: |
@@ -108,7 +108,7 @@ jobs:
           regex: false
 
       - name: Create branch
-        uses: stefanzweifel/git-auto-commit-action@v4
+        uses: stefanzweifel/git-auto-commit-action@49620cd3ed21ee620a48530e81dba0d139c9cb80
         with:
           branch: 'v${{ env.NEW_API_GATEWAY_VERSION }}-release-prep'
           commit_message: |
