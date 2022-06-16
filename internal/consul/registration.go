@@ -100,6 +100,7 @@ func (s *ServiceRegistry) ensureRegistration(ctx context.Context) {
 				s.logger.Error("error registering service", "error", err)
 				return
 			}
+			s.logger.Info("successfully registered agent service")
 			// early return here because we had no error
 			// re-registering, so don't log
 			return
