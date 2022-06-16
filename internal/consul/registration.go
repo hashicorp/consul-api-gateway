@@ -93,13 +93,16 @@ func (s *ServiceRegistry) ensureRegistration(ctx context.Context) {
 		return
 	}
 
-	var statusError *api.StatusError
+	var statusError api.StatusError
 	if errors.As(err, &statusError) {
 		if statusError.Code == http.StatusNotFound {
 			if err := s.retryRegistration(ctx); err != nil {
 				s.logger.Error("error registering service", "error", err)
 				return
 			}
+			// early return here because we had no error
+			// re-registering, so don't log
+			return
 		}
 	}
 	s.logger.Error("error fetching service", "error", err)
