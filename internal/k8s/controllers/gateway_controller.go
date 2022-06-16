@@ -14,7 +14,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
-	gateway "sigs.k8s.io/gateway-api/apis/v1alpha2"
+	gwv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
+	gwv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/hashicorp/go-hclog"
 
@@ -86,7 +87,7 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	)
 
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&gateway.Gateway{}).
+		For(&gwv1beta1.Gateway{}).
 		Owns(&appsv1.Deployment{}).
 		Owns(&corev1.Service{}).
 		Owns(&corev1.ServiceAccount{}).
@@ -96,14 +97,13 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			builder.WithPredicates(predicate),
 		).
 		Watches(
-			&source.Kind{Type: &gateway.ReferenceGrant{}},
+			&source.Kind{Type: &gwv1alpha2.ReferenceGrant{}},
 			handler.EnqueueRequestsFromMapFunc(r.referenceGrantToGatewayRequests),
 		).
-		// TODO: this can't be enabled until the ReferencePolicy object is restored
-		// Watches(
-		// 	&source.Kind{Type: &gateway.ReferencePolicy{}},
-		// 	handler.EnqueueRequestsFromMapFunc(r.referencePolicyToGatewayRequests),
-		// ).
+		Watches(
+			&source.Kind{Type: &gwv1alpha2.ReferencePolicy{}},
+			handler.EnqueueRequestsFromMapFunc(r.referencePolicyToGatewayRequests),
+		).
 		Complete(gatewayclient.NewRequeueingMiddleware(r.Log, r))
 }
 
@@ -122,17 +122,16 @@ func podToGatewayRequest(object client.Object) []reconcile.Request {
 }
 
 func (r *GatewayReconciler) referenceGrantToGatewayRequests(object client.Object) []reconcile.Request {
-	return r.getRequestsFromReferenceGrant(object.(*gateway.ReferenceGrant))
+	return r.getRequestsFromReferenceGrant(object.(*gwv1alpha2.ReferenceGrant))
 }
 
-// TODO: this can't be enabled until the ReferencePolicy object is restored
-// func (r *GatewayReconciler) referencePolicyToGatewayRequests(object client.Object) []reconcile.Request {
-// 	refPolicy := object.(*gateway.ReferencePolicy)
-//  // TODO: Convert to ReferenceGrant
-// 	return r.getRequestsFromReferenceGrant(refGrant)
-// }
+func (r *GatewayReconciler) referencePolicyToGatewayRequests(object client.Object) []reconcile.Request {
+	refPolicy := object.(*gwv1alpha2.ReferencePolicy)
+	refGrant := gwv1alpha2.ReferenceGrant{Spec: refPolicy.Spec}
+	return r.getRequestsFromReferenceGrant(&refGrant)
+}
 
-func (r *GatewayReconciler) getRequestsFromReferenceGrant(refGrant *gateway.ReferenceGrant) []reconcile.Request {
+func (r *GatewayReconciler) getRequestsFromReferenceGrant(refGrant *gwv1alpha2.ReferenceGrant) []reconcile.Request {
 	gateways := r.getGatewaysAffectedByReferenceGrant(refGrant)
 
 	requests := make([]reconcile.Request, 0, len(gateways))
@@ -152,8 +151,8 @@ func (r *GatewayReconciler) getRequestsFromReferenceGrant(refGrant *gateway.Refe
 // getGatewaysAffectedByReferenceGrant retrieves all Gateways potentially impacted by the ReferenceGrant
 // modification. Currently, this is unfiltered and so returns all Gateways in the namespace referenced by
 // the ReferenceGrant.
-func (r *GatewayReconciler) getGatewaysAffectedByReferenceGrant(refGrant *gateway.ReferenceGrant) []gateway.Gateway {
-	var matches []gateway.Gateway
+func (r *GatewayReconciler) getGatewaysAffectedByReferenceGrant(refGrant *gwv1alpha2.ReferenceGrant) []gwv1beta1.Gateway {
+	var matches []gwv1beta1.Gateway
 
 	for _, from := range refGrant.Spec.From {
 		// TODO: search by from.Group and from.Kind instead of assuming this ReferenceGrant references a Gateway

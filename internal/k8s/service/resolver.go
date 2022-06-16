@@ -13,7 +13,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
+	gwv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	"github.com/hashicorp/consul-api-gateway/internal/common"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
@@ -135,15 +135,18 @@ type ConsulService struct {
 }
 
 type BackendReference struct {
-	HTTPRef    *gw.HTTPBackendRef
-	BackendRef *gw.BackendRef
+	HTTPRef    *gwv1alpha2.HTTPBackendRef
+	BackendRef *gwv1alpha2.BackendRef
 }
 
+// TODO: this will require a little extra work to return
+// gwv1alpha2.BackendObjectReference for TCPRoute BackendRef
+// and gwv1beta1.BackendObjectReference for HTTPRoute HTTPBackendRef
 func (b *BackendReference) Set(reference interface{}) {
 	switch ref := reference.(type) {
-	case *gw.HTTPBackendRef:
+	case *gwv1alpha2.HTTPBackendRef:
 		b.HTTPRef = ref
-	case *gw.BackendRef:
+	case *gwv1alpha2.BackendRef:
 		b.BackendRef = ref
 	}
 }
@@ -169,7 +172,7 @@ func (r *ResolvedReference) Item() client.Object {
 }
 
 type BackendResolver interface {
-	Resolve(ctx context.Context, ref gw.BackendObjectReference) (*ResolvedReference, error)
+	Resolve(ctx context.Context, ref gwv1alpha2.BackendObjectReference) (*ResolvedReference, error)
 }
 
 type backendResolver struct {
@@ -190,7 +193,7 @@ func NewBackendResolver(logger hclog.Logger, namespace string, mapper common.Con
 	}
 }
 
-func (r *backendResolver) Resolve(ctx context.Context, ref gw.BackendObjectReference) (*ResolvedReference, error) {
+func (r *backendResolver) Resolve(ctx context.Context, ref gwv1alpha2.BackendObjectReference) (*ResolvedReference, error) {
 	group := corev1.GroupName
 	kind := "Service"
 	namespace := r.namespace

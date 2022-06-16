@@ -10,18 +10,18 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
+	gwv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	"github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 )
 
 type GatewayServiceBuilder struct {
-	gateway  *gw.Gateway
+	gateway  *gwv1beta1.Gateway
 	gwConfig *v1alpha1.GatewayClassConfig
 }
 
-func NewGatewayService(gw *gw.Gateway) *GatewayServiceBuilder {
+func NewGatewayService(gw *gwv1beta1.Gateway) *GatewayServiceBuilder {
 	return &GatewayServiceBuilder{gateway: gw}
 }
 
@@ -80,7 +80,7 @@ func filterAnnotations(annotations map[string]string, allowed []string) map[stri
 }
 
 type GatewayDeploymentBuilder struct {
-	gateway                *gw.Gateway
+	gateway                *gwv1beta1.Gateway
 	gwConfig               *v1alpha1.GatewayClassConfig
 	sdsHost                string
 	sdsPort                int
@@ -88,7 +88,7 @@ type GatewayDeploymentBuilder struct {
 	consulGatewayNamespace string
 }
 
-func NewGatewayDeployment(gw *gw.Gateway) *GatewayDeploymentBuilder {
+func NewGatewayDeployment(gw *gwv1beta1.Gateway) *GatewayDeploymentBuilder {
 	return &GatewayDeploymentBuilder{gateway: gw}
 }
 

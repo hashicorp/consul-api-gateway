@@ -9,7 +9,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
-	gateway "sigs.k8s.io/gateway-api/apis/v1alpha2"
+	gwv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	"github.com/hashicorp/go-hclog"
 
@@ -59,28 +59,27 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 // SetupWithManager sets up the controller with the Manager.
 func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&gateway.HTTPRoute{}).
+		For(&gwv1alpha2.HTTPRoute{}).
 		Watches(
-			&source.Kind{Type: &gateway.ReferenceGrant{}},
+			&source.Kind{Type: &gwv1alpha2.ReferenceGrant{}},
 			handler.EnqueueRequestsFromMapFunc(r.referenceGrantToRouteRequests),
 		).
-		// Watches(
-		// 	&source.Kind{Type: &gateway.ReferencePolicy{}},
-		// 	handler.EnqueueRequestsFromMapFunc(r.referencePolicyToRouteRequests),
-		// ).
+		Watches(
+			&source.Kind{Type: &gwv1alpha2.ReferencePolicy{}},
+			handler.EnqueueRequestsFromMapFunc(r.referencePolicyToRouteRequests),
+		).
 		Complete(gatewayclient.NewRequeueingMiddleware(r.Log, r))
 }
 
 func (r *HTTPRouteReconciler) referenceGrantToRouteRequests(object client.Object) []reconcile.Request {
-	return r.getRouteRequestsFromReferenceGrant(object.(*gateway.ReferenceGrant))
+	return r.getRouteRequestsFromReferenceGrant(object.(*gwv1alpha2.ReferenceGrant))
 }
 
-// TODO: this can't be enabled until the ReferencePolicy object is restored
-// func (r *HTTPRouteReconciler) referencePolicyToRouteRequests(object client.Object) []reconcile.Request {
-// 	refPolicy := object.(*gateway.ReferencePolicy)
-//  // TODO: Convert to ReferenceGrant
-// 	return r.getRouteRequestsFromReferenceGrant(refGrant)
-// }
+func (r *HTTPRouteReconciler) referencePolicyToRouteRequests(object client.Object) []reconcile.Request {
+	refPolicy := object.(*gwv1alpha2.ReferencePolicy)
+	refGrant := gwv1alpha2.ReferenceGrant{Spec: refPolicy.Spec}
+	return r.getRouteRequestsFromReferenceGrant(&refGrant)
+}
 
 // For UpdateEvents which contain both a new and old object, this transformation
 // function is run on both objects and both sets of Requests are enqueued.
@@ -92,7 +91,7 @@ func (r *HTTPRouteReconciler) referenceGrantToRouteRequests(object client.Object
 // It may be possible to improve performance here by filtering Routes by
 // BackendRefs selectable by the To fields, but currently we just revalidate
 // all Routes allowed in the From Namespaces
-func (r *HTTPRouteReconciler) getRouteRequestsFromReferenceGrant(refGrant *gateway.ReferenceGrant) []reconcile.Request {
+func (r *HTTPRouteReconciler) getRouteRequestsFromReferenceGrant(refGrant *gwv1alpha2.ReferenceGrant) []reconcile.Request {
 	routes := r.getRoutesAffectedByReferenceGrant(refGrant)
 	requests := []reconcile.Request{}
 
@@ -111,8 +110,8 @@ func (r *HTTPRouteReconciler) getRouteRequestsFromReferenceGrant(refGrant *gatew
 // getRoutesAffectedByReferenceGrant retrieves all HTTPRoutes potentially impacted
 // by the ReferenceGrant being modified. Currently, this is unfiltered and so returns
 // all HTTPRoutes in the namespace referenced by the ReferenceGrant.
-func (r *HTTPRouteReconciler) getRoutesAffectedByReferenceGrant(refGrant *gateway.ReferenceGrant) []gateway.HTTPRoute {
-	var matches []gateway.HTTPRoute
+func (r *HTTPRouteReconciler) getRoutesAffectedByReferenceGrant(refGrant *gwv1alpha2.ReferenceGrant) []gwv1alpha2.HTTPRoute {
+	var matches []gwv1alpha2.HTTPRoute
 
 	for _, from := range refGrant.Spec.From {
 		// TODO: search by from.Group and from.Kind instead of assuming this ReferenceGrant references a HTTPRoute

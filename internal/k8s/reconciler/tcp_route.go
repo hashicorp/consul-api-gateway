@@ -4,14 +4,14 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/service"
 	"k8s.io/apimachinery/pkg/types"
-	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
+	gwv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 )
 
 func TCPRouteID(namespacedName types.NamespacedName) string {
 	return "tcp-" + namespacedName.String()
 }
 
-func convertTCPRoute(namespace, prefix string, meta map[string]string, route *gw.TCPRoute, k8sRoute *K8sRoute) *core.ResolvedRoute {
+func convertTCPRoute(namespace, prefix string, meta map[string]string, route *gwv1alpha2.TCPRoute, k8sRoute *K8sRoute) *core.ResolvedRoute {
 	name := prefix + route.Name
 
 	resolved := core.NewTCPRouteBuilder().

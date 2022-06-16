@@ -5,7 +5,7 @@ import (
 	"time"
 
 	ctrl "sigs.k8s.io/controller-runtime"
-	gateway "sigs.k8s.io/gateway-api/apis/v1alpha2"
+	gwv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler"
@@ -92,6 +92,6 @@ func (r *GatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request
 // SetupWithManager sets up the controller with the Manager.
 func (r *GatewayClassReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&gateway.GatewayClass{}).
+		For(&gwv1beta1.GatewayClass{}).
 		Complete(gatewayclient.NewRequeueingMiddleware(r.Log, r))
 }

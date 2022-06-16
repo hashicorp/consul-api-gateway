@@ -11,7 +11,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
+	gwv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
+	gwv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
@@ -74,84 +75,84 @@ func (r *K8sRoute) parentKeyForGateway(parent types.NamespacedName) (string, boo
 
 func (r *K8sRoute) ID() string {
 	switch r.Route.(type) {
-	case *gw.HTTPRoute:
+	case *gwv1alpha2.HTTPRoute:
 		return HTTPRouteID(utils.NamespacedName(r.Route))
-	case *gw.TCPRoute:
+	case *gwv1alpha2.TCPRoute:
 		return TCPRouteID(utils.NamespacedName(r.Route))
-	case *gw.UDPRoute:
+	case *gwv1alpha2.UDPRoute:
 		return UDPRouteID(utils.NamespacedName(r.Route))
-	case *gw.TLSRoute:
+	case *gwv1alpha2.TLSRoute:
 		return TLSRouteID(utils.NamespacedName(r.Route))
 	}
 	return ""
 }
 
-func (r *K8sRoute) MatchesHostname(hostname *gw.Hostname) bool {
+func (r *K8sRoute) MatchesHostname(hostname *gwv1beta1.Hostname) bool {
 	switch route := r.Route.(type) {
-	case *gw.HTTPRoute:
+	case *gwv1alpha2.HTTPRoute:
 		return routeMatchesListenerHostname(hostname, route.Spec.Hostnames)
 	default:
 		return true
 	}
 }
 
-func (r *K8sRoute) CommonRouteSpec() gw.CommonRouteSpec {
+func (r *K8sRoute) CommonRouteSpec() gwv1alpha2.CommonRouteSpec {
 	switch route := r.Route.(type) {
-	case *gw.HTTPRoute:
+	case *gwv1alpha2.HTTPRoute:
 		return route.Spec.CommonRouteSpec
-	case *gw.TCPRoute:
+	case *gwv1alpha2.TCPRoute:
 		return route.Spec.CommonRouteSpec
-	case *gw.UDPRoute:
+	case *gwv1alpha2.UDPRoute:
 		return route.Spec.CommonRouteSpec
-	case *gw.TLSRoute:
+	case *gwv1alpha2.TLSRoute:
 		return route.Spec.CommonRouteSpec
 	}
-	return gw.CommonRouteSpec{}
+	return gwv1alpha2.CommonRouteSpec{}
 }
 
-func (r *K8sRoute) routeStatus() gw.RouteStatus {
+func (r *K8sRoute) routeStatus() gwv1alpha2.RouteStatus {
 	switch route := r.Route.(type) {
-	case *gw.HTTPRoute:
+	case *gwv1alpha2.HTTPRoute:
 		return route.Status.RouteStatus
-	case *gw.TCPRoute:
+	case *gwv1alpha2.TCPRoute:
 		return route.Status.RouteStatus
-	case *gw.UDPRoute:
+	case *gwv1alpha2.UDPRoute:
 		return route.Status.RouteStatus
-	case *gw.TLSRoute:
+	case *gwv1alpha2.TLSRoute:
 		return route.Status.RouteStatus
 	}
-	return gw.RouteStatus{}
+	return gwv1alpha2.RouteStatus{}
 }
 
-func (r *K8sRoute) SetStatus(updated gw.RouteStatus) {
+func (r *K8sRoute) SetStatus(updated gwv1alpha2.RouteStatus) {
 	switch route := r.Route.(type) {
-	case *gw.HTTPRoute:
+	case *gwv1alpha2.HTTPRoute:
 		route.Status.RouteStatus = updated
-	case *gw.TCPRoute:
+	case *gwv1alpha2.TCPRoute:
 		route.Status.RouteStatus = updated
-	case *gw.UDPRoute:
+	case *gwv1alpha2.UDPRoute:
 		route.Status.RouteStatus = updated
-	case *gw.TLSRoute:
+	case *gwv1alpha2.TLSRoute:
 		route.Status.RouteStatus = updated
 	}
 }
 
-func (r *K8sRoute) ParentStatuses() []gw.RouteParentStatus {
-	statuses := []gw.RouteParentStatus{}
+func (r *K8sRoute) ParentStatuses() []gwv1alpha2.RouteParentStatus {
+	statuses := []gwv1alpha2.RouteParentStatus{}
 	for ref, status := range r.parentStatuses {
-		statuses = append(statuses, gw.RouteParentStatus{
+		statuses = append(statuses, gwv1alpha2.RouteParentStatus{
 			ParentRef:      parseParent(ref),
-			ControllerName: gw.GatewayController(r.controllerName),
+			ControllerName: gwv1alpha2.GatewayController(r.controllerName),
 			Conditions:     status.Conditions(r.GetGeneration()),
 		})
 	}
 	return statuses
 }
 
-func (r *K8sRoute) FilterParentStatuses() []gw.RouteParentStatus {
-	filtered := []gw.RouteParentStatus{}
+func (r *K8sRoute) FilterParentStatuses() []gwv1alpha2.RouteParentStatus {
+	filtered := []gwv1alpha2.RouteParentStatus{}
 	for _, status := range r.routeStatus().Parents {
-		if status.ControllerName != gw.GatewayController(r.controllerName) {
+		if status.ControllerName != gwv1alpha2.GatewayController(r.controllerName) {
 			filtered = append(filtered, status)
 			continue
 		}
@@ -159,14 +160,14 @@ func (r *K8sRoute) FilterParentStatuses() []gw.RouteParentStatus {
 	return filtered
 }
 
-func (r *K8sRoute) MergedStatus() gw.RouteStatus {
-	return gw.RouteStatus{
+func (r *K8sRoute) MergedStatus() gwv1alpha2.RouteStatus {
+	return gwv1alpha2.RouteStatus{
 		Parents: sortParents(append(r.FilterParentStatuses(), r.ParentStatuses()...)),
 	}
 }
 
 func (r *K8sRoute) NeedsStatusUpdate() bool {
-	currentStatus := gw.RouteStatus{Parents: sortParents(r.routeStatus().Parents)}
+	currentStatus := gwv1alpha2.RouteStatus{Parents: sortParents(r.routeStatus().Parents)}
 	updatedStatus := r.MergedStatus()
 	return !routeStatusEqual(currentStatus, updatedStatus)
 }
@@ -288,23 +289,23 @@ func (r *K8sRoute) isEqual(k8sRoute *K8sRoute) bool {
 	}
 
 	switch route := r.Route.(type) {
-	case *gw.HTTPRoute:
-		if otherRoute, ok := k8sRoute.Route.(*gw.HTTPRoute); ok {
+	case *gwv1alpha2.HTTPRoute:
+		if otherRoute, ok := k8sRoute.Route.(*gwv1alpha2.HTTPRoute); ok {
 			return reflect.DeepEqual(route.Spec, otherRoute.Spec)
 		}
 		return false
-	case *gw.TCPRoute:
-		if otherRoute, ok := k8sRoute.Route.(*gw.TCPRoute); ok {
+	case *gwv1alpha2.TCPRoute:
+		if otherRoute, ok := k8sRoute.Route.(*gwv1alpha2.TCPRoute); ok {
 			return reflect.DeepEqual(route.Spec, otherRoute.Spec)
 		}
 		return false
-	case *gw.UDPRoute:
-		if otherRoute, ok := k8sRoute.Route.(*gw.UDPRoute); ok {
+	case *gwv1alpha2.UDPRoute:
+		if otherRoute, ok := k8sRoute.Route.(*gwv1alpha2.UDPRoute); ok {
 			return reflect.DeepEqual(route.Spec, otherRoute.Spec)
 		}
 		return false
-	case *gw.TLSRoute:
-		if otherRoute, ok := k8sRoute.Route.(*gw.TLSRoute); ok {
+	case *gwv1alpha2.TLSRoute:
+		if otherRoute, ok := k8sRoute.Route.(*gwv1alpha2.TLSRoute); ok {
 			return reflect.DeepEqual(route.Spec, otherRoute.Spec)
 		}
 		return false
@@ -322,7 +323,7 @@ func (r *K8sRoute) Resolve(listener store.Listener) *core.ResolvedRoute {
 	namespace := k8sListener.consulNamespace
 	hostname := k8sListener.Config().Hostname
 	switch route := r.Route.(type) {
-	case *gw.HTTPRoute:
+	case *gwv1alpha2.HTTPRoute:
 		return convertHTTPRoute(namespace, hostname, prefix, map[string]string{
 			"external-source":                            "consul-api-gateway",
 			"consul-api-gateway/k8s/Gateway.Name":        k8sListener.gateway.Name,
@@ -330,7 +331,7 @@ func (r *K8sRoute) Resolve(listener store.Listener) *core.ResolvedRoute {
 			"consul-api-gateway/k8s/HTTPRoute.Name":      r.GetName(),
 			"consul-api-gateway/k8s/HTTPRoute.Namespace": r.GetNamespace(),
 		}, route, r)
-	case *gw.TCPRoute:
+	case *gwv1alpha2.TCPRoute:
 		return convertTCPRoute(namespace, prefix, map[string]string{
 			"external-source":                           "consul-api-gateway",
 			"consul-api-gateway/k8s/Gateway.Name":       k8sListener.gateway.Name,
@@ -344,16 +345,16 @@ func (r *K8sRoute) Resolve(listener store.Listener) *core.ResolvedRoute {
 	}
 }
 
-func (r *K8sRoute) Parents() []gw.ParentReference {
+func (r *K8sRoute) Parents() []gwv1alpha2.ParentReference {
 	// filter for this controller
 	switch route := r.Route.(type) {
-	case *gw.HTTPRoute:
+	case *gwv1alpha2.HTTPRoute:
 		return route.Spec.ParentRefs
-	case *gw.TCPRoute:
+	case *gwv1alpha2.TCPRoute:
 		return route.Spec.ParentRefs
-	case *gw.UDPRoute:
+	case *gwv1alpha2.UDPRoute:
 		return route.Spec.ParentRefs
-	case *gw.TLSRoute:
+	case *gwv1alpha2.TLSRoute:
 		return route.Spec.ParentRefs
 	}
 	return nil
@@ -361,7 +362,7 @@ func (r *K8sRoute) Parents() []gw.ParentReference {
 
 func (r *K8sRoute) Validate(ctx context.Context) error {
 	switch route := r.Route.(type) {
-	case *gw.HTTPRoute:
+	case *gwv1alpha2.HTTPRoute:
 		for _, httpRule := range route.Spec.Rules {
 			rule := httpRule
 			routeRule := service.NewRouteRule(&rule)
@@ -393,7 +394,7 @@ func (r *K8sRoute) Validate(ctx context.Context) error {
 				r.references.Add(routeRule, *reference)
 			}
 		}
-	case *gw.TCPRoute:
+	case *gwv1alpha2.TCPRoute:
 		if len(route.Spec.Rules) != 1 {
 			err := service.NewResolutionError("a single tcp rule is required")
 			r.resolutionErrors.Add(err)

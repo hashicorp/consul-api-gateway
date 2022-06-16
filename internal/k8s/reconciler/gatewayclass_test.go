@@ -11,7 +11,7 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/stretchr/testify/require"
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
-	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
+	gwv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 )
 
 func TestGatewayClassValidate(t *testing.T) {
@@ -21,7 +21,7 @@ func TestGatewayClassValidate(t *testing.T) {
 	defer ctrl.Finish()
 	client := mocks.NewMockClient(ctrl)
 
-	gatewayClass := NewK8sGatewayClass(&gw.GatewayClass{}, K8sGatewayClassConfig{
+	gatewayClass := NewK8sGatewayClass(&gwv1beta1.GatewayClass{}, K8sGatewayClassConfig{
 		Logger: hclog.NewNullLogger(),
 		Client: client,
 	})
@@ -29,9 +29,9 @@ func TestGatewayClassValidate(t *testing.T) {
 	require.Equal(t, GatewayClassConditionReasonAccepted, gatewayClass.status.Accepted.Condition(0).Reason)
 
 	require.NoError(t, gatewayClass.Validate(context.Background()))
-	gatewayClass = NewK8sGatewayClass(&gw.GatewayClass{
-		Spec: gw.GatewayClassSpec{
-			ParametersRef: &gw.ParametersReference{
+	gatewayClass = NewK8sGatewayClass(&gwv1beta1.GatewayClass{
+		Spec: gwv1beta1.GatewayClassSpec{
+			ParametersRef: &gwv1beta1.ParametersReference{
 				Group: "group",
 				Kind:  "kind",
 			},
@@ -44,9 +44,9 @@ func TestGatewayClassValidate(t *testing.T) {
 	require.Equal(t, GatewayClassConditionReasonInvalidParameters, gatewayClass.status.Accepted.Condition(0).Reason)
 
 	require.NoError(t, gatewayClass.Validate(context.Background()))
-	gatewayClass = NewK8sGatewayClass(&gw.GatewayClass{
-		Spec: gw.GatewayClassSpec{
-			ParametersRef: &gw.ParametersReference{
+	gatewayClass = NewK8sGatewayClass(&gwv1beta1.GatewayClass{
+		Spec: gwv1beta1.GatewayClassSpec{
+			ParametersRef: &gwv1beta1.ParametersReference{
 				Group: apigwv1alpha1.Group,
 				Kind:  apigwv1alpha1.GatewayClassConfigKind,
 				Name:  "config",
@@ -80,12 +80,12 @@ func TestGatewayClasses(t *testing.T) {
 	defer ctrl.Finish()
 	client := mocks.NewMockClient(ctrl)
 
-	gatewayClass := NewK8sGatewayClass(&gw.GatewayClass{
+	gatewayClass := NewK8sGatewayClass(&gwv1beta1.GatewayClass{
 		ObjectMeta: meta.ObjectMeta{
 			ResourceVersion: "1",
 		},
-		Spec: gw.GatewayClassSpec{
-			ParametersRef: &gw.ParametersReference{
+		Spec: gwv1beta1.GatewayClassSpec{
+			ParametersRef: &gwv1beta1.ParametersReference{
 				Group: apigwv1alpha1.Group,
 				Kind:  apigwv1alpha1.GatewayClassConfigKind,
 				Name:  "config",
@@ -115,12 +115,12 @@ func TestGatewayClasses(t *testing.T) {
 	_, found = classes.GetConfig("")
 	require.True(t, found)
 
-	gatewayClass = NewK8sGatewayClass(&gw.GatewayClass{
+	gatewayClass = NewK8sGatewayClass(&gwv1beta1.GatewayClass{
 		ObjectMeta: meta.ObjectMeta{
 			ResourceVersion: "0",
 		},
-		Spec: gw.GatewayClassSpec{
-			ParametersRef: &gw.ParametersReference{
+		Spec: gwv1beta1.GatewayClassSpec{
+			ParametersRef: &gwv1beta1.ParametersReference{
 				Group: apigwv1alpha1.Group,
 				Kind:  apigwv1alpha1.GatewayClassConfigKind,
 				Name:  "config",

@@ -4,14 +4,14 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/service"
 	"k8s.io/apimachinery/pkg/types"
-	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
+	gwv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 )
 
 func HTTPRouteID(namespacedName types.NamespacedName) string {
 	return "http-" + namespacedName.String()
 }
 
-func convertHTTPRoute(namespace, hostname, prefix string, meta map[string]string, route *gw.HTTPRoute, k8sRoute *K8sRoute) *core.ResolvedRoute {
+func convertHTTPRoute(namespace, hostname, prefix string, meta map[string]string, route *gwv1alpha2.HTTPRoute, k8sRoute *K8sRoute) *core.ResolvedRoute {
 	hostnames := []string{}
 	for _, hostname := range route.Spec.Hostnames {
 		hostnames = append(hostnames, string(hostname))
@@ -37,32 +37,32 @@ func convertHTTPRoute(namespace, hostname, prefix string, meta map[string]string
 	return &resolved
 }
 
-var methodMappings = map[gw.HTTPMethod]core.HTTPMethod{
-	gw.HTTPMethodConnect: core.HTTPMethodConnect,
-	gw.HTTPMethodDelete:  core.HTTPMethodDelete,
-	gw.HTTPMethodPost:    core.HTTPMethodPost,
-	gw.HTTPMethodPut:     core.HTTPMethodPut,
-	gw.HTTPMethodPatch:   core.HTTPMethodPatch,
-	gw.HTTPMethodGet:     core.HTTPMethodGet,
-	gw.HTTPMethodOptions: core.HTTPMethodOptions,
-	gw.HTTPMethodTrace:   core.HTTPMethodTrace,
-	gw.HTTPMethodHead:    core.HTTPMethodHead,
+var methodMappings = map[gwv1alpha2.HTTPMethod]core.HTTPMethod{
+	gwv1alpha2.HTTPMethodConnect: core.HTTPMethodConnect,
+	gwv1alpha2.HTTPMethodDelete:  core.HTTPMethodDelete,
+	gwv1alpha2.HTTPMethodPost:    core.HTTPMethodPost,
+	gwv1alpha2.HTTPMethodPut:     core.HTTPMethodPut,
+	gwv1alpha2.HTTPMethodPatch:   core.HTTPMethodPatch,
+	gwv1alpha2.HTTPMethodGet:     core.HTTPMethodGet,
+	gwv1alpha2.HTTPMethodOptions: core.HTTPMethodOptions,
+	gwv1alpha2.HTTPMethodTrace:   core.HTTPMethodTrace,
+	gwv1alpha2.HTTPMethodHead:    core.HTTPMethodHead,
 }
 
-var pathMappings = map[gw.PathMatchType]core.HTTPPathMatchType{
-	gw.PathMatchExact:             core.HTTPPathMatchExactType,
-	gw.PathMatchPathPrefix:        core.HTTPPathMatchPrefixType,
-	gw.PathMatchRegularExpression: core.HTTPPathMatchRegularExpressionType,
+var pathMappings = map[gwv1alpha2.PathMatchType]core.HTTPPathMatchType{
+	gwv1alpha2.PathMatchExact:             core.HTTPPathMatchExactType,
+	gwv1alpha2.PathMatchPathPrefix:        core.HTTPPathMatchPrefixType,
+	gwv1alpha2.PathMatchRegularExpression: core.HTTPPathMatchRegularExpressionType,
 }
 
-var queryMappings = map[gw.QueryParamMatchType]core.HTTPQueryMatchType{
-	gw.QueryParamMatchExact:             core.HTTPQueryMatchExactType,
-	gw.QueryParamMatchRegularExpression: core.HTTPQueryMatchRegularExpressionType,
+var queryMappings = map[gwv1alpha2.QueryParamMatchType]core.HTTPQueryMatchType{
+	gwv1alpha2.QueryParamMatchExact:             core.HTTPQueryMatchExactType,
+	gwv1alpha2.QueryParamMatchRegularExpression: core.HTTPQueryMatchRegularExpressionType,
 }
 
-var headerMappings = map[gw.HeaderMatchType]core.HTTPHeaderMatchType{
-	gw.HeaderMatchExact:             core.HTTPHeaderMatchExactType,
-	gw.HeaderMatchRegularExpression: core.HTTPHeaderMatchRegularExpressionType,
+var headerMappings = map[gwv1alpha2.HeaderMatchType]core.HTTPHeaderMatchType{
+	gwv1alpha2.HeaderMatchExact:             core.HTTPHeaderMatchExactType,
+	gwv1alpha2.HeaderMatchRegularExpression: core.HTTPHeaderMatchRegularExpressionType,
 }
 
 func httpReferencesToRules(referenceMap service.RouteRuleReferenceMap) []core.HTTPRouteRule {
@@ -79,7 +79,7 @@ func httpReferencesToRules(referenceMap service.RouteRuleReferenceMap) []core.HT
 				}
 			}
 			if match.Path != nil && match.Path.Value != nil {
-				matchType := gw.PathMatchExact
+				matchType := gwv1alpha2.PathMatchExact
 				if match.Path.Type != nil {
 					matchType = *match.Path.Type
 				}
@@ -91,7 +91,7 @@ func httpReferencesToRules(referenceMap service.RouteRuleReferenceMap) []core.HT
 				}
 			}
 			for _, param := range match.QueryParams {
-				matchType := gw.QueryParamMatchExact
+				matchType := gwv1alpha2.QueryParamMatchExact
 				if param.Type != nil {
 					matchType = *param.Type
 				}
@@ -104,7 +104,7 @@ func httpReferencesToRules(referenceMap service.RouteRuleReferenceMap) []core.HT
 				}
 			}
 			for _, header := range match.Headers {
-				matchType := gw.HeaderMatchExact
+				matchType := gwv1alpha2.HeaderMatchExact
 				if header.Type != nil {
 					matchType = *header.Type
 				}
@@ -150,11 +150,11 @@ func httpReferencesToRules(referenceMap service.RouteRuleReferenceMap) []core.HT
 	return resolved
 }
 
-func convertHTTPRouteFilters(routeFilters []gw.HTTPRouteFilter) []core.HTTPFilter {
+func convertHTTPRouteFilters(routeFilters []gwv1alpha2.HTTPRouteFilter) []core.HTTPFilter {
 	filters := []core.HTTPFilter{}
 	for _, filter := range routeFilters {
 		switch filter.Type {
-		case gw.HTTPRouteFilterRequestHeaderModifier:
+		case gwv1alpha2.HTTPRouteFilterRequestHeaderModifier:
 			filters = append(filters, core.HTTPFilter{
 				Type: core.HTTPHeaderFilterType,
 				Header: core.HTTPHeaderFilter{
@@ -163,7 +163,7 @@ func convertHTTPRouteFilters(routeFilters []gw.HTTPRouteFilter) []core.HTTPFilte
 					Remove: filter.RequestHeaderModifier.Remove,
 				},
 			})
-		case gw.HTTPRouteFilterRequestRedirect:
+		case gwv1alpha2.HTTPRouteFilterRequestRedirect:
 			scheme := ""
 			if filter.RequestRedirect.Scheme != nil {
 				scheme = *filter.RequestRedirect.Scheme
@@ -194,7 +194,7 @@ func convertHTTPRouteFilters(routeFilters []gw.HTTPRouteFilter) []core.HTTPFilte
 	return filters
 }
 
-func httpHeadersToMap(headers []gw.HTTPHeader) map[string]string {
+func httpHeadersToMap(headers []gwv1alpha2.HTTPHeader) map[string]string {
 	resolved := make(map[string]string)
 	for _, header := range headers {
 		resolved[string(header.Name)] = header.Value
