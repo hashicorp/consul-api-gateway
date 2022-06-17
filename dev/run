@@ -24,8 +24,8 @@ createCluster() {
 }
 
 installGatewayCRDs() {
-  echo "Installing Gateway CRDs"
-  kubectl apply -k "github.com/kubernetes-sigs/gateway-api/config/crd?ref=v0.4.1"  2>&1 > /dev/null
+  echo "Installing Gateway API and Consul API Gateway CRDs"
+  kubectl apply -k config/crd
 }
 
 createServiceAccountForRBAC() {
@@ -70,11 +70,6 @@ setupAuthMethod() {
   echo $CONSUL_HTTP_TOKEN > token
 }
 
-installAPIGatewayCRDs() {
-  kubectl apply -f config/crd/bases/api-gateway.consul.hashicorp.com_gatewayclassconfigs.yaml
-  kubectl apply -f config/crd/bases/api-gateway.consul.hashicorp.com_meshservices.yaml
-}
-
 buildAPIGateway() {
   echo "Cross-compiling consul-api-gateway for Linux"
   GOOS=linux go build 2>&1 > /dev/null
@@ -108,7 +103,6 @@ main() {
     setupAuthMethod
   fi
   if [[ "${load}" == "TRUE" ]]; then
-    installAPIGatewayCRDs
     buildAPIGateway
     buildDocker
     loadDockerImage
