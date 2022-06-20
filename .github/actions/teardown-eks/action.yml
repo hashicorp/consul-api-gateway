@@ -1,0 +1,26 @@
+name: "Tear down EKS"
+description: "Tear down an EKS cluster"
+inputs:
+  cluster_name:
+    description: "The name assigned to the EKS cluster"
+    required: false
+    default: "consul-api-gateway-test"
+  region:
+    description: "The AWS region that the cluster was created in"
+    required: false
+    default: us-west-2
+runs:
+  using: composite
+  steps:
+    - name: Delete EKS cluster
+      shell: bash
+      env:
+        AWS_EC2_METADATA_DISABLED: true
+      run: |
+
+        for each in $(kubectl get ns -o jsonpath="{.items[*].metadata.name}" | grep -v kube-system);
+        do
+          kubectl delete --all svc --namespace $each
+        done
+
+        eksctl delete cluster --name ${{ inputs.cluster_name }} --region ${{ inputs.region}} --parallel 3 --force
