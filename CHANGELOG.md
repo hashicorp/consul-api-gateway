@@ -1,5 +1,31 @@
 ## UNRELEASED
 
+## 0.3.0 (June 20, 2022)
+BREAKING CHANGES:
+
+* Gateway listener `certificateRefs` to secrets in a different namespace now require a [ReferencePolicy](https://gateway-api.sigs.k8s.io/v1alpha2/references/spec/#gateway.networking.k8s.io%2fv1alpha2.ReferencePolicy) [[GH-154](https://github.com/hashicorp/consul-api-gateway/issues/154)]
+
+FEATURES:
+
+* Added a new configuration option called deployment to GatewayClassConfig that allows the user to configure the number of instances that are deployed per gateway. [[GH-195](https://github.com/hashicorp/consul-api-gateway/issues/195)]
+* Define anti-affinity rules so that the scheduler will attempt to evenly spread gateway pods across all available nodes [[GH-202](https://github.com/hashicorp/consul-api-gateway/issues/202)]
+
+IMPROVEMENTS:
+
+* go: build with Go 1.18 [[GH-167](https://github.com/hashicorp/consul-api-gateway/issues/167)]
+* k8s/controllers: watch for ReferencePolicy changes to reconcile and revalidate affected Gateways [[GH-207](https://github.com/hashicorp/consul-api-gateway/issues/207)]
+
+BUG FIXES:
+
+* Clean up stale routes from gateway listeners when not able or allowed to bind, to prevent serving traffic for a detached route. [[GH-197](https://github.com/hashicorp/consul-api-gateway/issues/197)]
+* Clean up stale routes from gateway listeners when route no longer references the gateway. [[GH-200](https://github.com/hashicorp/consul-api-gateway/issues/200)]
+* Fix SPIFFE validation for connect certificates that have no URL (e.g., Vault connect certificates) [[GH-225](https://github.com/hashicorp/consul-api-gateway/issues/225)]
+* Properly handle re-registration of deployed gateways when an agent no longer has the gateway in its catalog [[GH-227](https://github.com/hashicorp/consul-api-gateway/issues/227)]
+
+NOTES:
+
+* Gateway IP address assignment logic updated to include the case when multiple different pod IPs exist [[GH-201](https://github.com/hashicorp/consul-api-gateway/issues/201)]
+
 ## 0.2.1 (April 29, 2022)
 
 BUG FIXES:
