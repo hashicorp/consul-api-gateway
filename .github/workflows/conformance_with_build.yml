@@ -1,0 +1,120 @@
+name: Conformance (Build)
+
+on:
+  pull_request:
+    types: ["opened", "reopened", "synchronize", "labeled"]
+
+  push:
+    branches: ["conformance/*"]
+
+  workflow_dispatch:
+    inputs:
+      debug_enabled:
+        description: 'Start tmate session if any step fails'
+        required: false
+        type: boolean
+        default: false  # GitHub parses this value to string, see https://github.com/actions/runner/issues/1483
+      debug_timeout_minutes:
+        description: 'How many minutes should the tmate session close itself after?'
+        required: false
+        type: string  # No support for numeric value
+        default: '10'
+
+env:
+  GO_VERSION: "1.18"
+
+jobs:
+  run-on-kind:
+    # Run on PR only if there is a `pr/run-conformance` label
+    if: "github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'pr/run-conformance')"
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        config:
+          - name: "consul@v1.11.5 + consul-k8s@v0.44.0"
+            consul-image: "hashicorp/consul:1.11"
+            envoy-image: "envoyproxy/envoy:v1.20-latest"
+            consul-k8s-version: "0.44.0"
+          - name: "consul@v1.12.2 + consul-k8s@v0.44.0"
+            consul-image: "hashicorp/consul:1.12"
+            envoy-image: "envoyproxy/envoy:v1.22-latest"
+            consul-k8s-version: "0.44.0"
+      fail-fast: true
+    name: "${{ matrix.config.name }}"
+
+    steps:
+      # Clone repos side-by-side:
+      # GITHUB_WORKSPACE/
+      #     consul-api-gateway/
+      #     gateway-api/
+      - name: Checkout consul-api-gateway
+        uses: actions/checkout@v2
+        with:
+          path: "consul-api-gateway"
+
+      - name: Clone gateway-api
+        uses: actions/checkout@v2
+        with:
+          repository: "hashicorp/gateway-api"
+          ref: "conformance/v0.5.0-skipped-tests"
+          path: "gateway-api"
+
+      - name: Setup Goenv
+        uses: ./consul-api-gateway/.github/actions/goenv
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Build binary
+        env:
+          CGO_ENABLED: "0"
+          GOARCH: "amd64"
+          GOOS: "linux"
+        working-directory: "consul-api-gateway"
+        run: go build -o ./consul-api-gateway
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+
+      # docker build -f Dockerfile.local -t consul-api-gateway:test --platform linux/amd64 .
+      - name: Build Docker image
+        uses: docker/build-push-action@v2
+        with:
+          context: "./consul-api-gateway"
+          platforms: "linux/amd64"
+          file: "./consul-api-gateway/Dockerfile.local"
+          load: true
+          push: false
+          tags: "consul-api-gateway:test"
+
+      - name: Setup Kind cluster
+        uses: ./consul-api-gateway/.github/actions/setup-kind
+        with:
+          load-docker-image: "consul-api-gateway:test"
+          metallb-config-path: "./consul-api-gateway/internal/testing/conformance/metallb-config.yaml"
+
+      - name: Install Consul API Gateway CRDs
+        working-directory: "consul-api-gateway"
+        run: kubectl apply --kustomize="./config/crd"
+
+      - name: Install Consul
+        working-directory: "consul-api-gateway/internal/testing/conformance"
+        run: |
+          helm repo add hashicorp https://helm.releases.hashicorp.com
+          helm install --values ./consul-config.yaml consul hashicorp/consul --version "${{ matrix.config.consul-k8s-version }}" --set global.image=${{ matrix.config.consul-image }} --set global.imageEnvoy=${{ matrix.config.envoy-image }} --create-namespace --namespace=consul
+          kubectl wait --for=condition=Ready --timeout=60s --namespace=consul pods --all
+
+      - name: Patch testing resources
+        working-directory: "consul-api-gateway/internal/testing/conformance"
+        run: |
+          cp kustomization.yaml proxydefaults.yaml $GITHUB_WORKSPACE/gateway-api/conformance/
+          cd $GITHUB_WORKSPACE/gateway-api/conformance/
+          kubectl kustomize ./ --output ./base/manifests.yaml
+
+      - name: Run tests
+        working-directory: "gateway-api/conformance"
+        run: go test -v -timeout 10m ./ --gateway-class=consul-api-gateway
+
+      - name: Setup tmate session
+        uses: mxschmitt/action-tmate@v3
+        if: failure() && github.event_name == 'workflow_dispatch' && github.event.inputs.debug_enabled == 'true'
+        timeout-minutes: ${{ fromJSON(github.event.inputs.debug_timeout_minutes) }}
