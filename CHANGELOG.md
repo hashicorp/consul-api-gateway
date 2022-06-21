@@ -1,6 +1,6 @@
 ## UNRELEASED
 
-## 0.3.0 (June 20, 2022)
+## 0.3.0 (June 21, 2022)
 BREAKING CHANGES:
 
 * Gateway listener `certificateRefs` to secrets in a different namespace now require a [ReferencePolicy](https://gateway-api.sigs.k8s.io/v1alpha2/references/spec/#gateway.networking.k8s.io%2fv1alpha2.ReferencePolicy) [[GH-154](https://github.com/hashicorp/consul-api-gateway/issues/154)]
