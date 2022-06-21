@@ -52,7 +52,7 @@ Supported features are marked with a grey checkbox
     - [x] ~~Addresses~~ *not supported*
   - [x] Deployment *based off of a snapshot of GatewayClass configuration at time of Gateway creation as per spec suggestions*
   - [ ] Status
-    - [ ] Addresses
+    - [x] Addresses
     - [x] Listeners
       - [x] Conflicted
         - [x] NoConflicts
@@ -73,7 +73,7 @@ Supported features are marked with a grey checkbox
         - [x] ResolvedRefs
         - [x] InvalidCertificateRef
         - [x] InvalidRouteKinds
-        - [ ] RefNotPermitted *this is unclear from the spec, talks about setting `RefNotPermitted` on the route in one place, and on the listener in another -- pretty sure it shouldn't be on the listener*
+        - [x] RefNotPermitted *this is unclear from the spec, talks about setting `RefNotPermitted` on the route in one place, and on the listener in another -- pretty sure it shouldn't be on the listener*
     - [x] Conditions
       - [x] Ready
         - [x] Ready
@@ -136,7 +136,7 @@ Supported features are marked with a grey checkbox
     - [x] TCPRoute
     - [ ] TLSRoute
     - [ ] UDPRoute
-    - [ ] Gateway
+    - [x] Gateway
   - [x] To
     - [x] Service
-    - [ ] Secret
+    - [x] Secret
