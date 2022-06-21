@@ -1,12 +1,6 @@
-name: conformance
+name: Conformance (Main)
 
 on:
-  pull_request:
-    types: ["opened", "reopened", "synchronize", "labeled"]
-
-  push:
-     branches: ["conformance/*"]
-
   schedule:
     - cron:  '0 0 * * *'
 
@@ -29,13 +23,9 @@ env:
 
 jobs:
   run-on-environment:
-    # Run on PR only if there is a `pr/run-conformance` label
-    if: "github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'pr/run-conformance')"
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        aws-region:
-          - us-west-2
         cluster-type:
           - kind
           - eks
