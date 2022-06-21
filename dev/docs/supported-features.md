@@ -73,7 +73,7 @@ Supported features are marked with a grey checkbox
         - [x] ResolvedRefs
         - [x] InvalidCertificateRef
         - [x] InvalidRouteKinds
-        - [x] RefNotPermitted *this is unclear from the spec, talks about setting `RefNotPermitted` on the route in one place, and on the listener in another -- pretty sure it shouldn't be on the listener*
+        - [ ] RefNotPermitted *this is unclear from the spec, talks about setting `RefNotPermitted` on the route in one place, and on the listener in another -- pretty sure it shouldn't be on the listener*
     - [x] Conditions
       - [x] Ready
         - [x] Ready
