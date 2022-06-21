@@ -1,0 +1,29 @@
+name: "Setup EKS"
+description: "Setup an EKS cluster"
+inputs:
+  cluster_name:
+    description: "The name to assign to the EKS cluster"
+    required: false
+    default: "consul-api-gateway-test"
+  region:
+    description: "The AWS region to create the cluster in"
+    required: false
+    default: us-west-2
+
+runs:
+  using: composite
+  steps:
+    - name: Install eksctl
+      shell: bash
+      run: |
+        curl --silent --location "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_$(uname -s)_amd64.tar.gz" | tar xz -C /tmp
+        sudo mv /tmp/eksctl /usr/local/bin
+        eksctl version
+
+    - name: Create EKS cluster
+      shell: bash
+      env:
+        AWS_EC2_METADATA_DISABLED: true
+      run: |
+
+        eksctl create cluster --name ${{ inputs.cluster_name }} --region ${{ inputs.region}} --managed --node-type t2.small --nodes 3
