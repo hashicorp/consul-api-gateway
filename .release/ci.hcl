@@ -2,13 +2,21 @@ schema = "1"
 
 project "consul-api-gateway" {
   team = "consul-api-gateway"
+
   slack {
     notification_channel = "C03BY5JVCKS"
   }
+
   github {
     organization = "hashicorp"
-    repository = "consul-api-gateway"
-    release_branches = ["main", "release/0.1.x", "release/0.2.x"]
+    repository   = "consul-api-gateway"
+
+    release_branches = [
+      "main",
+      "release/0.1.x",
+      "release/0.2.x",
+      "release/0.3.x",
+    ]
   }
 }
 
@@ -18,20 +26,22 @@ event "merge" {
 
 event "build" {
   depends = ["merge"]
+
   action "build" {
     organization = "hashicorp"
-    repository = "consul-api-gateway"
-    workflow = "build"
+    repository   = "consul-api-gateway"
+    workflow     = "build"
   }
 }
 
 event "upload-dev" {
   depends = ["build"]
+
   action "upload-dev" {
     organization = "hashicorp"
-    repository = "crt-workflows-common"
-    workflow = "upload-dev"
-    depends = ["build"]
+    repository   = "crt-workflows-common"
+    workflow     = "upload-dev"
+    depends      = ["build"]
   }
 
   notification {
@@ -41,11 +51,12 @@ event "upload-dev" {
 
 event "security-scan-binaries" {
   depends = ["upload-dev"]
+
   action "security-scan-binaries" {
     organization = "hashicorp"
-    repository = "crt-workflows-common"
-    workflow = "security-scan-binaries"
-    config = "security-scan.hcl"
+    repository   = "crt-workflows-common"
+    workflow     = "security-scan-binaries"
+    config       = "security-scan.hcl"
   }
 
   notification {
@@ -55,11 +66,12 @@ event "security-scan-binaries" {
 
 event "security-scan-containers" {
   depends = ["security-scan-binaries"]
+
   action "security-scan-containers" {
     organization = "hashicorp"
-    repository = "crt-workflows-common"
-    workflow = "security-scan-containers"
-    config = "security-scan.hcl"
+    repository   = "crt-workflows-common"
+    workflow     = "security-scan-containers"
+    config       = "security-scan.hcl"
   }
 
   notification {
@@ -69,10 +81,11 @@ event "security-scan-containers" {
 
 event "sign" {
   depends = ["security-scan-containers"]
+
   action "sign" {
     organization = "hashicorp"
-    repository = "crt-workflows-common"
-    workflow = "sign"
+    repository   = "crt-workflows-common"
+    workflow     = "sign"
   }
 
   notification {
@@ -82,10 +95,11 @@ event "sign" {
 
 event "verify" {
   depends = ["sign"]
+
   action "verify" {
     organization = "hashicorp"
-    repository = "crt-workflows-common"
-    workflow = "verify"
+    repository   = "crt-workflows-common"
+    workflow     = "verify"
   }
 
   notification {
@@ -95,11 +109,12 @@ event "verify" {
 
 event "promote-dev-docker" {
   depends = ["verify"]
+
   action "promote-dev-docker" {
     organization = "hashicorp"
-    repository = "crt-workflows-common"
-    workflow = "promote-dev-docker"
-    depends = ["verify"]
+    repository   = "crt-workflows-common"
+    workflow     = "promote-dev-docker"
+    depends      = ["verify"]
   }
 
   notification {
@@ -111,16 +126,17 @@ event "promote-dev-docker" {
 ## they should be added to the end of the file after the verify event stanza.
 
 event "trigger-staging" {
-// This event is dispatched by the bob trigger-promotion command and is required - do not delete.
+  // This event is dispatched by the bob trigger-promotion command and is required - do not delete.
 }
 
 event "promote-staging" {
   depends = ["trigger-staging"]
+
   action "promote-staging" {
     organization = "hashicorp"
-    repository = "crt-workflows-common"
-    workflow = "promote-staging"
-    config = "release-metadata.hcl"
+    repository   = "crt-workflows-common"
+    workflow     = "promote-staging"
+    config       = "release-metadata.hcl"
   }
 
   notification {
@@ -130,10 +146,11 @@ event "promote-staging" {
 
 event "promote-staging-docker" {
   depends = ["promote-staging"]
+
   action "promote-staging-docker" {
     organization = "hashicorp"
-    repository = "crt-workflows-common"
-    workflow = "promote-staging-docker"
+    repository   = "crt-workflows-common"
+    workflow     = "promote-staging-docker"
   }
 
   notification {
@@ -142,15 +159,16 @@ event "promote-staging-docker" {
 }
 
 event "trigger-production" {
-// This event is dispatched by the bob trigger-promotion command and is required - do not delete.
+  // This event is dispatched by the bob trigger-promotion command and is required - do not delete.
 }
 
 event "promote-production" {
   depends = ["trigger-production"]
+
   action "promote-production" {
     organization = "hashicorp"
-    repository = "crt-workflows-common"
-    workflow = "promote-production"
+    repository   = "crt-workflows-common"
+    workflow     = "promote-production"
   }
 
   notification {
@@ -160,10 +178,11 @@ event "promote-production" {
 
 event "promote-production-docker" {
   depends = ["promote-production"]
+
   action "promote-production-docker" {
     organization = "hashicorp"
-    repository = "crt-workflows-common"
-    workflow = "promote-production-docker"
+    repository   = "crt-workflows-common"
+    workflow     = "promote-production-docker"
   }
 
   notification {
