@@ -40,14 +40,14 @@ jobs:
           - kind
           - eks
         config:
-          - name: "consul@v1.11.5 + consul-k8s@v0.44.0"
+          - name: "consul@v1.11.5 + consul-k8s@v0.45.0"
             consul-image: "hashicorp/consul:1.11"
             envoy-image: "envoyproxy/envoy:v1.20-latest"
-            consul-k8s-version: "0.44.0"
-          - name: "consul@v1.12.2 + consul-k8s@v0.44.0"
+            consul-k8s-version: "0.45.0"
+          - name: "consul@v1.12.2 + consul-k8s@v0.45.0"
             consul-image: "hashicorp/consul:1.12"
             envoy-image: "envoyproxy/envoy:v1.22-latest"
-            consul-k8s-version: "0.44.0"
+            consul-k8s-version: "0.45.0"
       fail-fast: true
     name: "${{ matrix.cluster-type }} - ${{ matrix.config.name }}"
     concurrency:
