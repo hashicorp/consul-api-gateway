@@ -22,6 +22,7 @@ jobs:
         run: |
           make version
           echo "::set-output name=product-version::$(make version)"
+          echo "::set-output name=product-minor-version::${$(make version)%.*}"
   generate-metadata-file:
     needs: get-product-version
     runs-on: ubuntu-latest
@@ -101,6 +102,7 @@ jobs:
     env:
       repo: ${{github.event.repository.name}}
       version: ${{needs.get-product-version.outputs.product-version}}
+      minor-version: ${{needs.get-product-version.outputs.product-minor-version}}
 
     steps:
       - uses: actions/checkout@v2
@@ -119,5 +121,5 @@ jobs:
           tags: |
             docker.io/hashicorp/${{env.repo}}:${{env.version}}
           dev_tags: |
-            docker.io/hashicorppreview/${{env.repo}}:${{env.version}}-dev
-            docker.io/hashicorppreview/${{env.repo}}:${{env.version}}-${{github.sha}}-dev
+            docker.io/hashicorppreview/${{env.repo}}:${{env.minor-version}}-dev
+            docker.io/hashicorppreview/${{env.repo}}:${{env.minor-version}}-dev-${{github.sha}}
