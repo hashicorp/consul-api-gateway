@@ -3,8 +3,7 @@ description: "Tear down an EKS cluster"
 inputs:
   cluster_name:
     description: "The name assigned to the EKS cluster"
-    required: false
-    default: "consul-api-gateway-test"
+    required: true
   region:
     description: "The AWS region that the cluster was created in"
     required: false

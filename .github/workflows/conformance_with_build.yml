@@ -4,9 +4,6 @@ on:
   pull_request:
     types: ["opened", "reopened", "synchronize", "labeled"]
 
-  push:
-    branches: ["conformance/*"]
-
   workflow_dispatch:
     inputs:
       debug_enabled:

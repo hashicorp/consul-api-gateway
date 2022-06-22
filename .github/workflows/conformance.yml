@@ -4,6 +4,9 @@ on:
   schedule:
     - cron:  '0 0 * * *'
 
+  push:
+    branches: [ "conformance/*" ]
+
   workflow_dispatch:
     inputs:
       debug_enabled:
@@ -19,7 +22,6 @@ on:
 
 env:
   GO_VERSION: "1.18"
-  AWS_REGION: "us-west-2"
 
 jobs:
   run-on-environment:
@@ -30,11 +32,6 @@ jobs:
           - kind
           - eks
         config:
-          - name: "consul@v1.11 + consul-k8s@v0.45.0"
-            api-gateway-image: "hashicorppreview/consul-api-gateway:0.4-dev"
-            consul-image: "hashicorp/consul:1.11"
-            envoy-image: "envoyproxy/envoy:v1.20-latest"
-            consul-k8s-version: "0.45.0"
           - name: "consul@v1.12 + consul-k8s@v0.45.0"
             api-gateway-image: "hashicorppreview/consul-api-gateway:0.4-dev"
             consul-image: "hashicorp/consul:1.12"
@@ -61,34 +58,26 @@ jobs:
           ref: "conformance/v0.5.0-skipped-tests"
           path: "gateway-api"
 
+      - name: Generate Unique Cluster Name
+        id: unique
+        run:
+          echo "::set-output name=clustername::$( echo consul-api-gateway-test-${{ github.run_number }}-$RANDOM )"
+
       - name: Setup Kind cluster
         if: matrix.cluster-type == 'kind'
         uses: ./consul-api-gateway/.github/actions/setup-kind
         with:
+          cluster-name: ${{ steps.unique.outputs.clustername }}
           metallb-config-path: "./consul-api-gateway/internal/testing/conformance/metallb-config.yaml"
-
-      - name: Generate Unique Cluster Name
-        if: matrix.cluster-type == 'eks'
-        id: unique
-        run:
-            echo "::set-output name=clustername::$( echo consul-api-gateway-test-${{ github.run_number }}-$RANDOM )"
-
-      - name: Configure AWS credentials
-        if: matrix.cluster-type == 'eks'
-        uses: aws-actions/configure-aws-credentials@v1
-        with:
-          aws-region: ${{ env.AWS_REGION }}
-          role-to-assume: "arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/cicd-consul-apigateway-acceptance-tests"
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          role-duration-seconds: 7200
 
       - name: Setup EKS cluster
         if: matrix.cluster-type == 'eks'
         uses: ./consul-api-gateway/.github/actions/setup-eks
         with:
+          account_id: ${{ secrets.AWS_ACCOUNT_ID }}
+          access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           cluster_name: ${{ steps.unique.outputs.clustername }}
-          region: ${{ matrix.aws-region }}
+          secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
       - name: Install Consul API Gateway CRDs
         working-directory: "consul-api-gateway"
