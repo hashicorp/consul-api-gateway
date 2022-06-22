@@ -1,5 +1,5 @@
 name: "Setup EKS"
-description: "Setup an EKS cluster"
+description: "Installs eksctl, configures AWS credentials in the workflow's environment and sets up an EKS cluster."
 inputs:
   access_key_id:
     description: "The AWS access key ID to use for creating the EKS cluster"

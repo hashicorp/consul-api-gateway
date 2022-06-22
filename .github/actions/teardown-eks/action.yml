@@ -1,5 +1,5 @@
 name: "Tear down EKS"
-description: "Tear down an EKS cluster"
+description: "Tears down an EKS cluster. Requires eksctl and credentials in the workflow's environment from the setup-eks action."
 inputs:
   cluster_name:
     description: "The name assigned to the EKS cluster"
