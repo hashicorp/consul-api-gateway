@@ -32,10 +32,12 @@ jobs:
       matrix:
         config:
           - name: "consul@v1.11 + consul-k8s@v0.45.0"
+            api-gateway-image: "consul-api-gateway:local-build"
             consul-image: "hashicorp/consul:1.11"
             envoy-image: "envoyproxy/envoy:v1.20-latest"
             consul-k8s-version: "0.45.0"
           - name: "consul@v1.12 + consul-k8s@v0.45.0"
+            api-gateway-image: "consul-api-gateway:local-build"
             consul-image: "hashicorp/consul:1.12"
             envoy-image: "envoyproxy/envoy:v1.22-latest"
             consul-k8s-version: "0.45.0"
@@ -75,7 +77,7 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v1
 
-      # docker build -f Dockerfile.local -t consul-api-gateway:test --platform linux/amd64 .
+      # docker build -f Dockerfile.local -t consul-api-gateway:local-build --platform linux/amd64 .
       - name: Build Docker image
         uses: docker/build-push-action@v2
         with:
@@ -84,12 +86,12 @@ jobs:
           file: "./consul-api-gateway/Dockerfile.local"
           load: true
           push: false
-          tags: "consul-api-gateway:test"
+          tags: ${{ matrix.config.api-gateway-image }}
 
       - name: Setup Kind cluster
         uses: ./consul-api-gateway/.github/actions/setup-kind
         with:
-          load-docker-image: "consul-api-gateway:test"
+          load-docker-image: ${{ matrix.config.api-gateway-image }}
           metallb-config-path: "./consul-api-gateway/internal/testing/conformance/metallb-config.yaml"
 
       - name: Install Consul API Gateway CRDs
@@ -100,7 +102,7 @@ jobs:
         working-directory: "consul-api-gateway/internal/testing/conformance"
         run: |
           helm repo add hashicorp https://helm.releases.hashicorp.com
-          helm install --values ./consul-config.yaml consul hashicorp/consul --version "${{ matrix.config.consul-k8s-version }}" --set global.image=${{ matrix.config.consul-image }} --set global.imageEnvoy=${{ matrix.config.envoy-image }} --set apiGateway.image=consul-api-gateway:test --create-namespace --namespace=consul
+          helm install --values ./consul-config.yaml consul hashicorp/consul --version "${{ matrix.config.consul-k8s-version }}" --set global.image=${{ matrix.config.consul-image }} --set global.imageEnvoy=${{ matrix.config.envoy-image }} --set apiGateway.image=${{ matrix.config.api-gateway-image }} --create-namespace --namespace=consul
           kubectl wait --for=condition=Ready --timeout=60s --namespace=consul pods --all
 
       - name: Patch testing resources
