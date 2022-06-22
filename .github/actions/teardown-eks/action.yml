@@ -24,3 +24,8 @@ runs:
         done
 
         eksctl delete cluster --name ${{ inputs.cluster_name }} --region ${{ inputs.region}} --parallel 3 --force
+
+        #if unsuccesful, run delete again to account for race condition
+        if [[$? -eq 1]]; then
+          eksctl delete cluster --name ${{ inputs.cluster_name }} --region ${{ inputs.region}} --parallel 3 --force --wait
+        fi
