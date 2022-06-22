@@ -16,6 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       product-version: ${{ steps.get-product-version.outputs.product-version }}
+      product-minor-version: ${{ steps.get-product-version.outputs.product-minor-version }}
     steps:
       - uses: actions/checkout@v2
       - name: get product version
