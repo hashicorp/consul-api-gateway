@@ -33,7 +33,7 @@ jobs:
           - eks
         config:
           - name: "consul@v1.12 + consul-k8s@v0.45.0"
-            api-gateway-image: "hashicorppreview/consul-api-gateway:0.4-dev"
+            api-gateway-image: "hashicorppreview/consul-api-gateway:0.4.0-dev"
             consul-image: "hashicorp/consul:1.12"
             envoy-image: "envoyproxy/envoy:v1.22-latest"
             consul-k8s-version: "0.45.0"
