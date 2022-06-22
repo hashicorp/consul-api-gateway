@@ -21,8 +21,10 @@ jobs:
         id: get-product-version
         run: |
           make version
-          echo "::set-output name=product-version::$(make version)"
-          echo "::set-output name=product-minor-version::${$(make version)%.*}"
+          VERSION=$(make version)
+          MINOR_VERSION=${VERSION%.*}
+          echo "::set-output name=product-version::$VERSION"
+          echo "::set-output name=product-minor-version::$MINOR_VERSION"
   generate-metadata-file:
     needs: get-product-version
     runs-on: ubuntu-latest
