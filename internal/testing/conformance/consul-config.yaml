@@ -12,4 +12,4 @@ controller:
 apiGateway:
   enabled: true
   logLevel: info
-  image: "hashicorppreview/consul-api-gateway:0.3.0-dev"
+  image: "hashicorppreview/consul-api-gateway:0.4.0-dev"
