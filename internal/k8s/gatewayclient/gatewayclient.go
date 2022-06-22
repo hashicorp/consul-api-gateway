@@ -34,6 +34,7 @@ type Client interface {
 	GetSecret(ctx context.Context, key types.NamespacedName) (*core.Secret, error)
 	GetService(ctx context.Context, key types.NamespacedName) (*core.Service, error)
 	GetHTTPRoute(ctx context.Context, key types.NamespacedName) (*gateway.HTTPRoute, error)
+	GetHTTPRoutes(ctx context.Context) ([]gateway.HTTPRoute, error)
 	GetHTTPRoutesInNamespace(ctx context.Context, ns string) ([]gateway.HTTPRoute, error)
 	GetTCPRoute(ctx context.Context, key types.NamespacedName) (*gateway.TCPRoute, error)
 	GetTCPRoutesInNamespace(ctx context.Context, ns string) ([]gateway.TCPRoute, error)
@@ -267,6 +268,14 @@ func (g *gatewayClient) GetHTTPRoute(ctx context.Context, key types.NamespacedNa
 		return nil, NewK8sError(err)
 	}
 	return route, nil
+}
+
+func (g *gatewayClient) GetHTTPRoutes(ctx context.Context) ([]gateway.HTTPRoute, error) {
+	routeList := &gateway.HTTPRouteList{}
+	if err := g.Client.List(ctx, routeList); err != nil {
+		return []gateway.HTTPRoute{}, NewK8sError(err)
+	}
+	return routeList.Items, nil
 }
 
 // TODO: Make this generic over Group and Kind, returning []client.Object
