@@ -16,6 +16,7 @@ project "consul-api-gateway" {
       "release/0.1.x",
       "release/0.2.x",
       "release/0.3.x",
+      "substitution-error",
     ]
   }
 }
