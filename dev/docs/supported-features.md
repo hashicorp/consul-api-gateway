@@ -52,7 +52,7 @@ Supported features are marked with a grey checkbox
     - [x] ~~Addresses~~ *not supported*
   - [x] Deployment *based off of a snapshot of GatewayClass configuration at time of Gateway creation as per spec suggestions*
   - [ ] Status
-    - [ ] Addresses
+    - [x] Addresses
     - [x] Listeners
       - [x] Conflicted
         - [x] NoConflicts
@@ -136,7 +136,7 @@ Supported features are marked with a grey checkbox
     - [x] TCPRoute
     - [ ] TLSRoute
     - [ ] UDPRoute
-    - [ ] Gateway
+    - [x] Gateway
   - [x] To
     - [x] Service
-    - [ ] Secret
+    - [x] Secret
