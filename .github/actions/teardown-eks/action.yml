@@ -22,7 +22,7 @@ runs:
           kubectl delete --all svc --namespace $each
         done
 
-        eksctl delete cluster --name ${{ inputs.cluster_name }} --region ${{ inputs.region}} --parallel 3 --force
+        eksctl delete cluster --name ${{ inputs.cluster_name }} --region ${{ inputs.region}} --parallel 3 --force --wait
 
         #if unsuccesful, run delete again to account for race condition
         if [[$? -eq 1]]; then
