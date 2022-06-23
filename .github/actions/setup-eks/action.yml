@@ -1,6 +1,12 @@
 name: "Setup EKS"
-description: "Setup an EKS cluster"
+description: "Installs eksctl, configures AWS credentials in the workflow's environment and sets up an EKS cluster."
 inputs:
+  access_key_id:
+    description: "The AWS access key ID to use for creating the EKS cluster"
+    required: true
+  account_id:
+    description: "The ID of the account to create the EKS cluster in"
+    required: true
   cluster_name:
     description: "The name to assign to the EKS cluster"
     required: false
@@ -9,6 +15,9 @@ inputs:
     description: "The AWS region to create the cluster in"
     required: false
     default: us-west-2
+  secret_access_key:
+    description: "The AWS secret access key to use for creating the EKS cluster"
+    required: true
 
 runs:
   using: composite
@@ -20,10 +29,18 @@ runs:
         sudo mv /tmp/eksctl /usr/local/bin
         eksctl version
 
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@05b148adc31e091bafbaf404f745055d4d3bc9d2
+      with:
+        aws-region: ${{ inputs.region }}
+        role-to-assume: "arn:aws:iam::${{ inputs.account_id }}:role/cicd-consul-apigateway-acceptance-tests"
+        aws-access-key-id: ${{ inputs.access_key_id }}
+        aws-secret-access-key: ${{ inputs.secret_access_key }}
+        role-duration-seconds: 7200
+
     - name: Create EKS cluster
       shell: bash
       env:
         AWS_EC2_METADATA_DISABLED: true
       run: |
-
         eksctl create cluster --name ${{ inputs.cluster_name }} --region ${{ inputs.region}} --managed --node-type t2.small --nodes 3
