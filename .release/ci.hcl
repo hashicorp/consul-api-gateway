@@ -3,18 +3,17 @@ schema = "1"
 project "consul-api-gateway" {
   team = "consul-api-gateway"
   slack {
-    notification_channel = "C01RWVBQ6GJ"
+    notification_channel = "C03BY5JVCKS"
   }
   github {
     organization = "hashicorp"
     repository = "consul-api-gateway"
-    release_branches = ["release/0.1.x"]
+    release_branches = ["main", "release/0.1.x", "release/0.2.x"]
   }
 }
 
 event "merge" {
-  // "entrypoint" to use if build is not run automatically
-  // i.e. send "merge" complete signal to orchestrator to trigger build
+  // "entrypoint" to use if build is not run automatically i.e. send "merge" complete signal to orchestrator to trigger build
 }
 
 event "build" {
@@ -94,12 +93,25 @@ event "verify" {
   }
 }
 
+event "promote-dev-docker" {
+  depends = ["verify"]
+  action "promote-dev-docker" {
+    organization = "hashicorp"
+    repository = "crt-workflows-common"
+    workflow = "promote-dev-docker"
+    depends = ["verify"]
+  }
+
+  notification {
+    on = "fail"
+  }
+}
+
 ## These are promotion and post-publish events
 ## they should be added to the end of the file after the verify event stanza.
 
 event "trigger-staging" {
-// This event is dispatched by the bob trigger-promotion command
-// and is required - do not delete.
+// This event is dispatched by the bob trigger-promotion command and is required - do not delete.
 }
 
 event "promote-staging" {
@@ -108,6 +120,7 @@ event "promote-staging" {
     organization = "hashicorp"
     repository = "crt-workflows-common"
     workflow = "promote-staging"
+    config = "release-metadata.hcl"
   }
 
   notification {
@@ -129,8 +142,7 @@ event "promote-staging-docker" {
 }
 
 event "trigger-production" {
-// This event is dispatched by the bob trigger-promotion command
-// and is required - do not delete.
+// This event is dispatched by the bob trigger-promotion command and is required - do not delete.
 }
 
 event "promote-production" {

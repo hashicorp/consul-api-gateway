@@ -199,6 +199,21 @@ func (mr *MockClientMockRecorder) GetConfigForGatewayClassName(ctx, name interfa
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetConfigForGatewayClassName", reflect.TypeOf((*MockClient)(nil).GetConfigForGatewayClassName), ctx, name)
 }
 
+// GetDeployment mocks base method.
+func (m *MockClient) GetDeployment(ctx context.Context, key types.NamespacedName) (*v1.Deployment, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetDeployment", ctx, key)
+	ret0, _ := ret[0].(*v1.Deployment)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetDeployment indicates an expected call of GetDeployment.
+func (mr *MockClientMockRecorder) GetDeployment(ctx, key interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDeployment", reflect.TypeOf((*MockClient)(nil).GetDeployment), ctx, key)
+}
+
 // GetGateway mocks base method.
 func (m *MockClient) GetGateway(ctx context.Context, key types.NamespacedName) (*v1alpha2.Gateway, error) {
 	m.ctrl.T.Helper()
@@ -244,6 +259,21 @@ func (mr *MockClientMockRecorder) GetGatewayClassConfig(ctx, key interface{}) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetGatewayClassConfig", reflect.TypeOf((*MockClient)(nil).GetGatewayClassConfig), ctx, key)
 }
 
+// GetGatewaysInNamespace mocks base method.
+func (m *MockClient) GetGatewaysInNamespace(ctx context.Context, ns string) ([]v1alpha2.Gateway, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetGatewaysInNamespace", ctx, ns)
+	ret0, _ := ret[0].([]v1alpha2.Gateway)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetGatewaysInNamespace indicates an expected call of GetGatewaysInNamespace.
+func (mr *MockClientMockRecorder) GetGatewaysInNamespace(ctx, ns interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetGatewaysInNamespace", reflect.TypeOf((*MockClient)(nil).GetGatewaysInNamespace), ctx, ns)
+}
+
 // GetHTTPRoute mocks base method.
 func (m *MockClient) GetHTTPRoute(ctx context.Context, key types.NamespacedName) (*v1alpha2.HTTPRoute, error) {
 	m.ctrl.T.Helper()
@@ -257,6 +287,21 @@ func (m *MockClient) GetHTTPRoute(ctx context.Context, key types.NamespacedName)
 func (mr *MockClientMockRecorder) GetHTTPRoute(ctx, key interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHTTPRoute", reflect.TypeOf((*MockClient)(nil).GetHTTPRoute), ctx, key)
+}
+
+// GetHTTPRoutesInNamespace mocks base method.
+func (m *MockClient) GetHTTPRoutesInNamespace(ctx context.Context, ns string) ([]v1alpha2.HTTPRoute, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetHTTPRoutesInNamespace", ctx, ns)
+	ret0, _ := ret[0].([]v1alpha2.HTTPRoute)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetHTTPRoutesInNamespace indicates an expected call of GetHTTPRoutesInNamespace.
+func (mr *MockClientMockRecorder) GetHTTPRoutesInNamespace(ctx, ns interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHTTPRoutesInNamespace", reflect.TypeOf((*MockClient)(nil).GetHTTPRoutesInNamespace), ctx, ns)
 }
 
 // GetMeshService mocks base method.
@@ -349,6 +394,21 @@ func (mr *MockClientMockRecorder) GetTCPRoute(ctx, key interface{}) *gomock.Call
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTCPRoute", reflect.TypeOf((*MockClient)(nil).GetTCPRoute), ctx, key)
 }
 
+// GetTCPRoutesInNamespace mocks base method.
+func (m *MockClient) GetTCPRoutesInNamespace(ctx context.Context, ns string) ([]v1alpha2.TCPRoute, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTCPRoutesInNamespace", ctx, ns)
+	ret0, _ := ret[0].([]v1alpha2.TCPRoute)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetTCPRoutesInNamespace indicates an expected call of GetTCPRoutesInNamespace.
+func (mr *MockClientMockRecorder) GetTCPRoutesInNamespace(ctx, ns interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTCPRoutesInNamespace", reflect.TypeOf((*MockClient)(nil).GetTCPRoutesInNamespace), ctx, ns)
+}
+
 // HasManagedDeployment mocks base method.
 func (m *MockClient) HasManagedDeployment(ctx context.Context, gw *v1alpha2.Gateway) (bool, error) {
 	m.ctrl.T.Helper()
@@ -379,19 +439,19 @@ func (mr *MockClientMockRecorder) IsManagedRoute(ctx, namespace, parents interfa
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsManagedRoute", reflect.TypeOf((*MockClient)(nil).IsManagedRoute), ctx, namespace, parents)
 }
 
-// PodWithLabels mocks base method.
-func (m *MockClient) PodWithLabels(ctx context.Context, labels map[string]string) (*v10.Pod, error) {
+// PodsWithLabels mocks base method.
+func (m *MockClient) PodsWithLabels(ctx context.Context, labels map[string]string) ([]v10.Pod, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "PodWithLabels", ctx, labels)
-	ret0, _ := ret[0].(*v10.Pod)
+	ret := m.ctrl.Call(m, "PodsWithLabels", ctx, labels)
+	ret0, _ := ret[0].([]v10.Pod)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// PodWithLabels indicates an expected call of PodWithLabels.
-func (mr *MockClientMockRecorder) PodWithLabels(ctx, labels interface{}) *gomock.Call {
+// PodsWithLabels indicates an expected call of PodsWithLabels.
+func (mr *MockClientMockRecorder) PodsWithLabels(ctx, labels interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PodWithLabels", reflect.TypeOf((*MockClient)(nil).PodWithLabels), ctx, labels)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PodsWithLabels", reflect.TypeOf((*MockClient)(nil).PodsWithLabels), ctx, labels)
 }
 
 // RemoveFinalizer mocks base method.

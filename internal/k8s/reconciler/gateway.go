@@ -11,13 +11,15 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
+	"github.com/hashicorp/go-hclog"
+	"golang.org/x/exp/slices"
+
 	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/builder"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	"github.com/hashicorp/consul-api-gateway/internal/store"
 	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
-	"github.com/hashicorp/go-hclog"
 )
 
 type K8sGateway struct {
@@ -151,7 +153,7 @@ func (g *K8sGateway) validateListenerConflicts() {
 func (g *K8sGateway) validateGatewayIP(ctx context.Context) error {
 	service := g.serviceBuilder.Build()
 	if service == nil {
-		return g.assignGatewayIPFromPod(ctx)
+		return g.assignGatewayIPFromPods(ctx)
 	}
 
 	switch service.Spec.Type {
@@ -187,8 +189,14 @@ func (g *K8sGateway) assignGatewayIPFromServiceIngress(ctx context.Context, serv
 	}
 
 	for _, ingress := range updated.Status.LoadBalancer.Ingress {
-		g.serviceReady = true
-		g.addresses = append(g.addresses, ingress.IP)
+		if ingress.IP != "" {
+			g.serviceReady = true
+			g.addresses = append(g.addresses, ingress.IP)
+		}
+		if ingress.Hostname != "" {
+			g.serviceReady = true
+			g.addresses = append(g.addresses, ingress.Hostname)
+		}
 	}
 
 	return nil
@@ -215,22 +223,26 @@ func (g *K8sGateway) assignGatewayIPFromService(ctx context.Context, service *co
 	return nil
 }
 
-// assignGatewayIPFromPod retrieves the internal IP for the Pod and assigns
+// assignGatewayIPFromPods retrieves the internal IP for the Pods and assigns
 // it to the Gateway.
-func (g *K8sGateway) assignGatewayIPFromPod(ctx context.Context) error {
-	pod, err := g.client.PodWithLabels(ctx, utils.LabelsForGateway(g.gateway))
+func (g *K8sGateway) assignGatewayIPFromPods(ctx context.Context) error {
+	pods, err := g.client.PodsWithLabels(ctx, utils.LabelsForGateway(g.gateway))
 	if err != nil {
 		return err
 	}
 
-	if pod == nil {
-		g.status.Scheduled.NotReconciled = errors.New("pod not found")
+	if len(pods) == 0 {
+		g.status.Scheduled.NotReconciled = errors.New("pods not found")
 		return nil
 	}
 
-	if pod.Status.PodIP != "" {
-		g.serviceReady = true
-		g.addresses = append(g.addresses, pod.Status.PodIP)
+	for _, pod := range pods {
+		if pod.Status.PodIP != "" {
+			g.serviceReady = true
+			if !slices.Contains(g.addresses, pod.Status.PodIP) {
+				g.addresses = append(g.addresses, pod.Status.PodIP)
+			}
+		}
 	}
 
 	return nil
@@ -242,31 +254,38 @@ func (g *K8sGateway) assignGatewayIPFromPod(ctx context.Context) error {
 // work by the practitioner such as port-forwarding or opening firewall rules to make
 // it externally accessible.
 func (g *K8sGateway) assignGatewayIPFromPodHost(ctx context.Context) error {
-	pod, err := g.client.PodWithLabels(ctx, utils.LabelsForGateway(g.gateway))
+	pods, err := g.client.PodsWithLabels(ctx, utils.LabelsForGateway(g.gateway))
 	if err != nil {
 		return err
 	}
 
-	if pod == nil {
-		g.status.Scheduled.NotReconciled = errors.New("pod not found")
+	if len(pods) == 0 {
+		g.status.Scheduled.NotReconciled = errors.New("pods not found")
 		return nil
 	}
 
-	if pod.Status.HostIP != "" {
-		g.serviceReady = true
-		g.addresses = append(g.addresses, pod.Status.HostIP)
+	for _, pod := range pods {
+		if pod.Status.HostIP != "" {
+			g.serviceReady = true
+
+			if !slices.Contains(g.addresses, pod.Status.HostIP) {
+				g.addresses = append(g.addresses, pod.Status.HostIP)
+			}
+		}
 	}
 
 	return nil
 }
 
 func (g *K8sGateway) validatePods(ctx context.Context) error {
-	pod, err := g.client.PodWithLabels(ctx, utils.LabelsForGateway(g.gateway))
+	pods, err := g.client.PodsWithLabels(ctx, utils.LabelsForGateway(g.gateway))
 	if err != nil {
 		return err
 	}
 
-	g.validatePodConditions(pod)
+	for _, pod := range pods {
+		g.validatePodConditions(&pod)
+	}
 
 	return nil
 }
@@ -462,10 +481,21 @@ func (g *K8sGateway) ensureDeploymentExists(ctx context.Context) error {
 		}
 	}
 
-	deployment := g.deploymentBuilder.Build()
+	// get current deployment so user set replica count isn't overridden by default values
+	currentDeployment, err := g.client.GetDeployment(ctx, types.NamespacedName{Namespace: g.gateway.Namespace, Name: g.gateway.Name})
+	if err != nil {
+		return err
+	}
+	var currentReplicas *int32
+	if currentDeployment != nil {
+		currentReplicas = currentDeployment.Spec.Replicas
+	}
+
+	deployment := g.deploymentBuilder.Build(currentReplicas)
 	mutated := deployment.DeepCopy()
+
 	if updated, err := g.client.CreateOrUpdateDeployment(ctx, mutated, func() error {
-		mutated = apigwv1alpha1.MergeDeployment(deployment, mutated)
+		mutated = apigwv1alpha1.MergeDeployment(deployment, mutated, currentReplicas)
 		return g.client.SetControllerOwnership(g.gateway, mutated)
 	}); err != nil {
 		return fmt.Errorf("failed to create or update gateway deployment: %w", err)

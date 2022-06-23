@@ -71,7 +71,7 @@ func (p *gatewayTestEnvironment) run(ctx context.Context, namespace string, cfg 
 	}
 
 	store := memory.NewStore(memory.StoreConfig{
-		Adapter: consulAdapters.NewConsulSyncAdapter(nullLogger, consulClient),
+		Adapter: consulAdapters.NewSyncAdapter(nullLogger, consulClient),
 		Logger:  nullLogger,
 	})
 

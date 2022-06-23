@@ -120,6 +120,35 @@ func routeAllowedForListenerNamespaces(ctx context.Context, gatewayNS string, al
 	return false, nil
 }
 
+// gatewayAllowedForSecretRef determines whether the gateway is allowed
+// for the secret either by being in the same namespace or by having
+// an applicable ReferencePolicy in the same namespace as the secret.
+func gatewayAllowedForSecretRef(ctx context.Context, gateway *gw.Gateway, secretRef gw.SecretObjectReference, c gatewayclient.Client) (bool, error) {
+	fromNS := gateway.GetNamespace()
+	fromGK := metav1.GroupKind{
+		Group: gateway.GroupVersionKind().Group,
+		Kind:  gateway.GroupVersionKind().Kind,
+	}
+
+	toName := string(secretRef.Name)
+	toNS := ""
+	if secretRef.Namespace != nil {
+		toNS = string(*secretRef.Namespace)
+	}
+
+	// Kind should default to Secret if not set
+	// https://github.com/kubernetes-sigs/gateway-api/blob/ef773194892636ea8ecbb2b294daf771d4dd5009/apis/v1alpha2/object_reference_types.go#L59
+	toGK := metav1.GroupKind{Kind: "Secret"}
+	if secretRef.Group != nil {
+		toGK.Group = string(*secretRef.Group)
+	}
+	if secretRef.Kind != nil {
+		toGK.Kind = string(*secretRef.Kind)
+	}
+
+	return referenceAllowed(ctx, fromGK, fromNS, toGK, toNS, toName, c)
+}
+
 // routeAllowedForBackendRef determines whether the route is allowed
 // for the backend either by being in the same namespace or by having
 // an applicable ReferencePolicy in the same namespace as the backend.
@@ -127,66 +156,82 @@ func routeAllowedForListenerNamespaces(ctx context.Context, gatewayNS string, al
 // TODO This func is currently called once for each backendRef on a route and results
 //   in fetching ReferencePolicies more than we technically have to in some cases
 func routeAllowedForBackendRef(ctx context.Context, route Route, backendRef gw.BackendRef, c gatewayclient.Client) (bool, error) {
-	backendNamespace := ""
-	if backendRef.Namespace != nil {
-		backendNamespace = string(*backendRef.Namespace)
+	fromNS := route.GetNamespace()
+	fromGK := metav1.GroupKind{
+		Group: route.GroupVersionKind().Group,
+		Kind:  route.GroupVersionKind().Kind,
 	}
 
-	// Allow if route and backend are in the same namespace
-	if backendNamespace == "" || route.GetNamespace() == backendNamespace {
+	toName := string(backendRef.Name)
+	toNS := ""
+	if backendRef.Namespace != nil {
+		toNS = string(*backendRef.Namespace)
+	}
+
+	// Kind should default to Service if not set
+	// https://github.com/kubernetes-sigs/gateway-api/blob/ef773194892636ea8ecbb2b294daf771d4dd5009/apis/v1alpha2/object_reference_types.go#L105
+	toGK := metav1.GroupKind{Kind: "Service"}
+	if backendRef.Group != nil {
+		toGK.Group = string(*backendRef.Group)
+	}
+	if backendRef.Kind != nil {
+		toGK.Kind = string(*backendRef.Kind)
+	}
+
+	return referenceAllowed(ctx, fromGK, fromNS, toGK, toNS, toName, c)
+}
+
+// referenceAllowed checks to see if a reference between resources is allowed.
+// In particular, references from one namespace to a resource in a different namespace
+// require an applicable ReferencePolicy be found in the namespace containing the resource
+// being referred to.
+//
+// For example, a Gateway in namespace "foo" may only reference a Secret in namespace "bar"
+// if a ReferencePolicy in namespace "bar" allows references from namespace "foo".
+func referenceAllowed(ctx context.Context, fromGK metav1.GroupKind, fromNamespace string, toGK metav1.GroupKind, toNamespace, toName string, c gatewayclient.Client) (bool, error) {
+	// Reference does not cross namespaces
+	if toNamespace == "" || toNamespace == fromNamespace {
 		return true, nil
 	}
 
-	// Allow if ReferencePolicy present for route + backend combination
-	refPolicies, err := c.GetReferencePoliciesInNamespace(ctx, backendNamespace)
+	// Fetch all ReferencePolicies in the referenced namespace
+	refPolicies, err := c.GetReferencePoliciesInNamespace(ctx, toNamespace)
 	if err != nil || len(refPolicies) == 0 {
 		return false, err
 	}
 
 	for _, refPolicy := range refPolicies {
-		// Check for a From that applies to the route
-		validFrom := false
+		// Check for a From that applies
+		fromMatch := false
 		for _, from := range refPolicy.Spec.From {
-			// If this policy allows the group, kind and namespace for this route
-			if route.GroupVersionKind().Group == string(from.Group) &&
-				route.GroupVersionKind().Kind == string(from.Kind) &&
-				route.GetNamespace() == string(from.Namespace) {
-				validFrom = true
+			if fromGK.Group == string(from.Group) && fromGK.Kind == string(from.Kind) && fromNamespace == string(from.Namespace) {
+				fromMatch = true
 				break
 			}
 		}
 
-		// If this ReferencePolicy has no applicable From, no need to check for a To
-		if !validFrom {
+		if !fromMatch {
 			continue
 		}
 
-		// Backend group should default to empty string if not set
-		backendRefGroup := gw.Group("")
-		if backendRef.Group != nil {
-			backendRefGroup = *backendRef.Group
-		}
-
-		// Backend kind should default to Service if not set
-		// TODO Should we default to Service here or go look up the kind from K8s API
-		//   See https://github.com/kubernetes-sigs/gateway-api/issues/1092
-		backendRefKind := gw.Kind("Service")
-		if backendRef.Kind != nil {
-			backendRefKind = *backendRef.Kind
-		}
-
-		// Check for a To that applies to the backendRef
+		// Check for a To that applies
 		for _, to := range refPolicy.Spec.To {
-			// If this policy allows the group, kind, and name for this backend
-			if to.Group == backendRefGroup &&
-				to.Kind == backendRefKind &&
-				(to.Name == nil || *to.Name == backendRef.Name) {
-				return true, nil
+			if toGK.Group == string(to.Group) && toGK.Kind == string(to.Kind) {
+				if to.Name == nil || *to.Name == "" {
+					// No name specified is treated as a wildcard within the namespace
+					return true, nil
+				}
+
+				if gw.ObjectName(toName) == *to.Name {
+					// The ReferencePolicy specifically targets this object
+					return true, nil
+				}
 			}
 		}
 	}
 
-	return false, err
+	// No ReferencePolicy was found which allows this cross-namespace reference
+	return false, nil
 }
 
 func toNamespaceSet(name string, labels map[string]string) klabels.Labels {
@@ -327,10 +372,11 @@ func gatewayStatusEqual(a, b gw.GatewayStatus) bool {
 	return true
 }
 
-func getServiceID(name gw.ObjectName, namespace *gw.Namespace, parentNamespace string) string {
-	serviceID := fmt.Sprintf("%s/%s", name, parentNamespace)
+// getNamespacedName returns types.NamespacedName defaulted to a parent
+// namespace in the case where the provided namespace is nil.
+func getNamespacedName(name gw.ObjectName, namespace *gw.Namespace, parentNamespace string) types.NamespacedName {
 	if namespace != nil {
-		serviceID = fmt.Sprintf("%s/%s", name, *namespace)
+		return types.NamespacedName{Namespace: string(*namespace), Name: string(name)}
 	}
-	return serviceID
+	return types.NamespacedName{Namespace: parentNamespace, Name: string(name)}
 }

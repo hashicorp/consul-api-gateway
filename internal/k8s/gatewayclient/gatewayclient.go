@@ -30,12 +30,16 @@ type Client interface {
 	GetGatewayClassConfig(ctx context.Context, key types.NamespacedName) (*apigwv1alpha1.GatewayClassConfig, error)
 	GetGatewayClass(ctx context.Context, key types.NamespacedName) (*gateway.GatewayClass, error)
 	GetGateway(ctx context.Context, key types.NamespacedName) (*gateway.Gateway, error)
+	GetGatewaysInNamespace(ctx context.Context, ns string) ([]gateway.Gateway, error)
 	GetSecret(ctx context.Context, key types.NamespacedName) (*core.Secret, error)
 	GetService(ctx context.Context, key types.NamespacedName) (*core.Service, error)
 	GetHTTPRoute(ctx context.Context, key types.NamespacedName) (*gateway.HTTPRoute, error)
+	GetHTTPRoutesInNamespace(ctx context.Context, ns string) ([]gateway.HTTPRoute, error)
 	GetTCPRoute(ctx context.Context, key types.NamespacedName) (*gateway.TCPRoute, error)
+	GetTCPRoutesInNamespace(ctx context.Context, ns string) ([]gateway.TCPRoute, error)
 	GetMeshService(ctx context.Context, key types.NamespacedName) (*apigwv1alpha1.MeshService, error)
 	GetNamespace(ctx context.Context, key types.NamespacedName) (*core.Namespace, error)
+	GetDeployment(ctx context.Context, key types.NamespacedName) (*apps.Deployment, error)
 
 	// finalizer helpers
 
@@ -55,7 +59,7 @@ type Client interface {
 
 	// general utilities
 
-	PodWithLabels(ctx context.Context, labels map[string]string) (*core.Pod, error)
+	PodsWithLabels(ctx context.Context, labels map[string]string) ([]core.Pod, error)
 
 	// status updates
 
@@ -150,26 +154,22 @@ func (g *gatewayClient) GatewayClassInUse(ctx context.Context, gc *gateway.Gatew
 	return false, nil
 }
 
-func (g *gatewayClient) PodWithLabels(ctx context.Context, labels map[string]string) (*core.Pod, error) {
+func (g *gatewayClient) PodsWithLabels(ctx context.Context, labels map[string]string) ([]core.Pod, error) {
 	list := &core.PodList{}
 	if err := g.List(ctx, list, client.MatchingLabels(labels)); err != nil {
 		return nil, NewK8sError(err)
 	}
 
-	// if we only have a single item, return it
-	if len(list.Items) == 1 {
-		return &list.Items[0], nil
-	}
+	items := []core.Pod{}
 
-	// we could potentially have two pods based off of one in the process of deletion
-	// return the first with a zero deletion timestamp
+	// return all pods that don't have a deletion timestamp
 	for _, pod := range list.Items {
 		if pod.DeletionTimestamp.IsZero() {
-			return &pod, nil
+			items = append(items, pod)
 		}
 	}
 
-	return nil, nil
+	return items, nil
 }
 
 func (g *gatewayClient) DeploymentForGateway(ctx context.Context, gw *gateway.Gateway) (*apps.Deployment, error) {
@@ -217,6 +217,14 @@ func (g *gatewayClient) GetGateway(ctx context.Context, key types.NamespacedName
 	return gw, nil
 }
 
+func (g *gatewayClient) GetGatewaysInNamespace(ctx context.Context, ns string) ([]gateway.Gateway, error) {
+	gwList := &gateway.GatewayList{}
+	if err := g.Client.List(ctx, gwList, client.InNamespace(ns)); err != nil {
+		return []gateway.Gateway{}, NewK8sError(err)
+	}
+	return gwList.Items, nil
+}
+
 func (g *gatewayClient) GetService(ctx context.Context, key types.NamespacedName) (*core.Service, error) {
 	svc := &core.Service{}
 	if err := g.Client.Get(ctx, key, svc); err != nil {
@@ -226,6 +234,17 @@ func (g *gatewayClient) GetService(ctx context.Context, key types.NamespacedName
 		return nil, NewK8sError(err)
 	}
 	return svc, nil
+}
+
+func (g *gatewayClient) GetDeployment(ctx context.Context, key types.NamespacedName) (*apps.Deployment, error) {
+	depl := &apps.Deployment{}
+	if err := g.Client.Get(ctx, key, depl); err != nil {
+		if k8serrors.IsNotFound(err) {
+			return nil, nil
+		}
+		return nil, NewK8sError(err)
+	}
+	return depl, nil
 }
 
 func (g *gatewayClient) GetSecret(ctx context.Context, key types.NamespacedName) (*core.Secret, error) {
@@ -250,6 +269,15 @@ func (g *gatewayClient) GetHTTPRoute(ctx context.Context, key types.NamespacedNa
 	return route, nil
 }
 
+// TODO: Make this generic over Group and Kind, returning []client.Object
+func (g *gatewayClient) GetHTTPRoutesInNamespace(ctx context.Context, ns string) ([]gateway.HTTPRoute, error) {
+	routeList := &gateway.HTTPRouteList{}
+	if err := g.Client.List(ctx, routeList, client.InNamespace(ns)); err != nil {
+		return []gateway.HTTPRoute{}, NewK8sError(err)
+	}
+	return routeList.Items, nil
+}
+
 func (g *gatewayClient) GetTCPRoute(ctx context.Context, key types.NamespacedName) (*gateway.TCPRoute, error) {
 	route := &gateway.TCPRoute{}
 	if err := g.Client.Get(ctx, key, route); err != nil {
@@ -259,6 +287,14 @@ func (g *gatewayClient) GetTCPRoute(ctx context.Context, key types.NamespacedNam
 		return nil, NewK8sError(err)
 	}
 	return route, nil
+}
+
+func (g *gatewayClient) GetTCPRoutesInNamespace(ctx context.Context, ns string) ([]gateway.TCPRoute, error) {
+	routeList := &gateway.TCPRouteList{}
+	if err := g.Client.List(ctx, routeList, client.InNamespace(ns)); err != nil {
+		return []gateway.TCPRoute{}, NewK8sError(err)
+	}
+	return routeList.Items, nil
 }
 
 func (g *gatewayClient) GetMeshService(ctx context.Context, key types.NamespacedName) (*apigwv1alpha1.MeshService, error) {

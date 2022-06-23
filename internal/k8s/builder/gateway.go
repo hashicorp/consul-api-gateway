@@ -124,8 +124,9 @@ func (b *GatewayDeploymentBuilder) Validate() error {
 	return nil
 }
 
-func (b *GatewayDeploymentBuilder) Build() *v1.Deployment {
+func (b *GatewayDeploymentBuilder) Build(currentReplicas *int32) *v1.Deployment {
 	labels := utils.LabelsForGateway(b.gateway)
+
 	return &v1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      b.gateway.Name,
@@ -133,6 +134,7 @@ func (b *GatewayDeploymentBuilder) Build() *v1.Deployment {
 			Labels:    labels,
 		},
 		Spec: v1.DeploymentSpec{
+			Replicas: b.instances(currentReplicas),
 			Selector: &metav1.LabelSelector{
 				MatchLabels: labels,
 			},
@@ -149,18 +151,69 @@ func (b *GatewayDeploymentBuilder) Build() *v1.Deployment {
 	}
 }
 
+func (b *GatewayDeploymentBuilder) instances(currentReplicas *int32) *int32 {
+
+	instanceValue := defaultInstances
+
+	//if currentReplicas is not nil use current value when building deployment
+	if currentReplicas != nil {
+		instanceValue = *currentReplicas
+	} else if b.gwConfig.Spec.DeploymentSpec.DefaultInstances != nil {
+		// otherwise use the default value on the GatewayClassConfig if set
+		instanceValue = *b.gwConfig.Spec.DeploymentSpec.DefaultInstances
+	}
+
+	if b.gwConfig.Spec.DeploymentSpec.MaxInstances != nil {
+
+		//check if over maximum and lower to maximum
+		maxValue := *b.gwConfig.Spec.DeploymentSpec.MaxInstances
+		if instanceValue > maxValue {
+			instanceValue = maxValue
+		}
+	}
+
+	if b.gwConfig.Spec.DeploymentSpec.MinInstances != nil {
+		//check if less than minimum and raise to minimum
+		minValue := *b.gwConfig.Spec.DeploymentSpec.MinInstances
+		if instanceValue < minValue {
+			instanceValue = minValue
+		}
+
+	}
+	return &instanceValue
+}
+
 func (b *GatewayDeploymentBuilder) podSpec() corev1.PodSpec {
 	volumes, mounts := b.volumes()
 	defaultServiceAccount := ""
 	if b.gwConfig.Spec.ConsulSpec.AuthSpec.Managed {
 		defaultServiceAccount = b.gateway.Name
 	}
+
+	labels := utils.LabelsForGateway(b.gateway)
+
 	return corev1.PodSpec{
+		Affinity: &corev1.Affinity{
+			PodAntiAffinity: &corev1.PodAntiAffinity{
+				PreferredDuringSchedulingIgnoredDuringExecution: []corev1.WeightedPodAffinityTerm{
+					{
+						Weight: 1,
+						PodAffinityTerm: corev1.PodAffinityTerm{
+							LabelSelector: &metav1.LabelSelector{
+								MatchLabels: labels,
+							},
+							TopologyKey: k8sHostnameTopologyKey,
+						},
+					},
+				},
+			},
+		},
 		NodeSelector:       b.gwConfig.Spec.NodeSelector,
 		ServiceAccountName: orDefault(b.gwConfig.Spec.ConsulSpec.AuthSpec.Account, defaultServiceAccount),
 		// the init container copies the binary into the
 		// next envoy container so we can decouple the envoy
 		// versions from our version of consul-api-gateway.
+
 		InitContainers: []corev1.Container{{
 			Image:        orDefault(b.gwConfig.Spec.ImageSpec.ConsulAPIGateway, defaultImage),
 			Name:         "consul-api-gateway-init",

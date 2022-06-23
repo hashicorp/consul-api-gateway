@@ -179,6 +179,7 @@ func (k *Kubernetes) Start(ctx context.Context) error {
 	}
 
 	err = (&controllers.GatewayReconciler{
+		Context:        ctx,
 		Client:         gwClient,
 		Log:            k.logger.Named("Gateway"),
 		Manager:        reconcileManager,
@@ -189,6 +190,7 @@ func (k *Kubernetes) Start(ctx context.Context) error {
 	}
 
 	err = (&controllers.HTTPRouteReconciler{
+		Context:        ctx,
 		Client:         gwClient,
 		Log:            k.logger.Named("HTTPRoute"),
 		Manager:        reconcileManager,
@@ -199,6 +201,7 @@ func (k *Kubernetes) Start(ctx context.Context) error {
 	}
 
 	err = (&controllers.TCPRouteReconciler{
+		Context:        ctx,
 		Client:         gwClient,
 		Log:            k.logger.Named("TCPRoute"),
 		Manager:        reconcileManager,

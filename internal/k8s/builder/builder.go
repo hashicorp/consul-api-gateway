@@ -26,14 +26,17 @@ func init() {
 }
 
 const (
-	defaultEnvoyImage     = "envoyproxy/envoy:v1.20-latest"
-	defaultLogLevel       = "info"
-	defaultConsulAddress  = "$(HOST_IP)"
-	defaultConsulHTTPPort = "8500"
-	defaultConsulXDSPort  = "8502"
+	defaultEnvoyImage           = "envoyproxy/envoy:v1.20-latest"
+	defaultLogLevel             = "info"
+	defaultConsulAddress        = "$(HOST_IP)"
+	defaultConsulHTTPPort       = "8500"
+	defaultConsulXDSPort        = "8502"
+	defaultInstances      int32 = 1
 
 	consulCALocalPath = "/consul/tls"
 	consulCALocalFile = consulCALocalPath + "/ca.pem"
+
+	k8sHostnameTopologyKey = "kubernetes.io/hostname"
 )
 
 type Builder interface {
@@ -42,7 +45,7 @@ type Builder interface {
 
 type DeploymentBuilder interface {
 	Builder
-	Build() *v1.Deployment
+	Build(*int32) *v1.Deployment
 }
 
 type ServiceBuilder interface {

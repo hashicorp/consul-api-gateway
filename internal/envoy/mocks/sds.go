@@ -7,7 +7,6 @@ package mocks
 import (
 	tls "crypto/tls"
 	x509 "crypto/x509"
-	url "net/url"
 	reflect "reflect"
 
 	gomock "github.com/golang/mock/gomock"
@@ -48,20 +47,6 @@ func (m *MockCertificateFetcher) RootPool() *x509.CertPool {
 func (mr *MockCertificateFetcherMockRecorder) RootPool() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RootPool", reflect.TypeOf((*MockCertificateFetcher)(nil).RootPool))
-}
-
-// SPIFFE mocks base method.
-func (m *MockCertificateFetcher) SPIFFE() *url.URL {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SPIFFE")
-	ret0, _ := ret[0].(*url.URL)
-	return ret0
-}
-
-// SPIFFE indicates an expected call of SPIFFE.
-func (mr *MockCertificateFetcherMockRecorder) SPIFFE() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SPIFFE", reflect.TypeOf((*MockCertificateFetcher)(nil).SPIFFE))
 }
 
 // TLSCertificate mocks base method.

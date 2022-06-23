@@ -1,0 +1,3 @@
+```release-note:feature
+Define anti-affinity rules so that the scheduler will attempt to evenly spread gateway pods across all available nodes
+```

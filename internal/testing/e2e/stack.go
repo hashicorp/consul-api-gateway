@@ -50,9 +50,11 @@ func SetUpStack(hostRoute string) env.Func {
 
 func TearDownStack(ctx context.Context, cfg *envconf.Config) (context.Context, error) {
 	var err error
+	namespace := Namespace(ctx)
+
 	for _, f := range []env.Func{
 		DestroyTestGatewayServer,
-		envfuncs.DeleteNamespace(Namespace(ctx)),
+		envfuncs.DeleteNamespace(namespace),
 		DestroyKindCluster(ClusterName(ctx)),
 	} {
 		ctx, err = f(ctx, cfg)

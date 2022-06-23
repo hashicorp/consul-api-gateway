@@ -1,0 +1,7 @@
+breaking-change
+security
+deprecation
+feature
+enhancement
+bug
+note

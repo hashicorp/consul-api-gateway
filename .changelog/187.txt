@@ -1,0 +1,3 @@
+```release-note:bug
+k8s/reconciler: gateway addresses have invalid empty string when LoadBalancer services use a hostname for ExternalIP (like EKS)
+```

@@ -50,6 +50,37 @@ endif
 test:
 	go test ./...
 
+generate-golden-files:
+	GENERATE=true go test ./internal/envoy
+	GENERATE=true go test ./internal/k8s/builder
+
+.PHONY: changelog
+changelog:
+ifeq (, $(shell which changelog-build))
+	@go install github.com/hashicorp/go-changelog/cmd/changelog-build@latest
+endif
+ifeq (, $(LAST_RELEASE_GIT_TAG))
+	@echo "Please set the LAST_RELEASE_GIT_TAG environment variable to generate a changelog section of notes since the last release."
+else
+	@changelog-build -last-release ${LAST_RELEASE_GIT_TAG} -entries-dir .changelog/ -changelog-template .changelog/changelog.tmpl -note-template .changelog/release-note.tmpl -this-release $(shell git rev-parse HEAD)
+endif
+
+.PHONY: changelog-entry
+changelog-entry:
+ifeq (, $(shell which changelog-entry))
+	@go install github.com/hashicorp/go-changelog/cmd/changelog-entry@latest
+endif
+	changelog-entry -dir .changelog
+
+.PHONY: changelog-check
+changelog-check:
+ifeq (, $(shell which changelog-check))
+	@rm -rf go-changelog
+	@git clone -b changelog-check https://github.com/mikemorris/go-changelog
+	@cd go-changelog && go install ./cmd/changelog-check
+endif
+	@changelog-check
+
 # Run controller tests
 .PHONY: ctrl-test
 ENVTEST_ASSETS_DIR=$(shell pwd)/testbin

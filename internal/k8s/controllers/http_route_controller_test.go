@@ -6,9 +6,12 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient/mocks"
 	reconcilerMocks "github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/mocks"
 	"github.com/hashicorp/go-hclog"
@@ -57,6 +60,7 @@ func TestHTTPRoute(t *testing.T) {
 			}
 
 			controller := &HTTPRouteReconciler{
+				Context:        context.Background(),
 				Client:         client,
 				Log:            hclog.NewNullLogger(),
 				ControllerName: mockControllerName,
@@ -74,4 +78,93 @@ func TestHTTPRoute(t *testing.T) {
 			require.Equal(t, test.result, result)
 		})
 	}
+}
+
+func TestHTTPRouteReferencePolicyToRouteRequests(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	serviceNamespace := gw.Namespace("namespace3")
+
+	backendObjRef := gw.BackendObjectReference{
+		Name:      gw.ObjectName("service"),
+		Namespace: &serviceNamespace,
+	}
+
+	httpRouteSpec := gw.HTTPRouteSpec{
+		Rules: []gw.HTTPRouteRule{{
+			BackendRefs: []gw.HTTPBackendRef{{
+				BackendRef: gw.BackendRef{
+					BackendObjectReference: backendObjRef,
+				},
+			}},
+		}},
+	}
+
+	tcpRouteSpec := gw.TCPRouteSpec{
+		Rules: []gw.TCPRouteRule{{
+			BackendRefs: []gw.BackendRef{{
+				BackendObjectReference: backendObjRef,
+			}},
+		}},
+	}
+
+	refPolicy := gw.ReferencePolicy{
+		TypeMeta:   metav1.TypeMeta{Kind: "ReferencePolicy"},
+		ObjectMeta: metav1.ObjectMeta{Namespace: "namespace3"},
+		Spec: gw.ReferencePolicySpec{
+			From: []gw.ReferencePolicyFrom{{
+				Group:     "gateway.networking.k8s.io",
+				Kind:      "HTTPRoute",
+				Namespace: "namespace1",
+			}},
+			To: []gw.ReferencePolicyTo{{
+				Kind: "Service",
+			}},
+		},
+	}
+
+	client := gatewayclient.NewTestClient(
+		nil,
+		&gw.HTTPRoute{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "httproute",
+				Namespace: "namespace1",
+			},
+			Spec: httpRouteSpec,
+		},
+		&gw.HTTPRoute{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "httproute",
+				Namespace: "namespace2",
+			},
+			Spec: httpRouteSpec,
+		},
+		&gw.TCPRoute{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "tcproute",
+				Namespace: "namespace1",
+			},
+			Spec: tcpRouteSpec,
+		},
+		&refPolicy,
+	)
+
+	controller := &HTTPRouteReconciler{
+		Client:         client,
+		Log:            hclog.NewNullLogger(),
+		ControllerName: mockControllerName,
+		Manager:        reconcilerMocks.NewMockReconcileManager(ctrl),
+	}
+
+	requests := controller.referencePolicyToRouteRequests(&refPolicy)
+
+	require.Equal(t, []reconcile.Request{{
+		NamespacedName: types.NamespacedName{
+			Name:      "httproute",
+			Namespace: "namespace1",
+		},
+	}}, requests)
 }

@@ -7,6 +7,7 @@ metadata:
     api-gateway.consul.hashicorp.com/namespace: ""
   name: test-clusterip
 spec:
+  replicas: 1
   selector:
     matchLabels:
       api-gateway.consul.hashicorp.com/created: "-62135596800"
@@ -25,6 +26,18 @@ spec:
         api-gateway.consul.hashicorp.com/name: test-clusterip
         api-gateway.consul.hashicorp.com/namespace: ""
     spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  api-gateway.consul.hashicorp.com/created: "-62135596800"
+                  api-gateway.consul.hashicorp.com/managed: "true"
+                  api-gateway.consul.hashicorp.com/name: test-clusterip
+                  api-gateway.consul.hashicorp.com/namespace: ""
+              topologyKey: kubernetes.io/hostname
+            weight: 1
       containers:
       - command:
         - /bin/sh
@@ -79,7 +92,7 @@ spec:
         - cp
         - /bin/consul-api-gateway
         - /bootstrap/consul-api-gateway
-        image: hashicorp/consul-api-gateway:0.1.0
+        image: hashicorp/consul-api-gateway:0.3.0
         name: consul-api-gateway-init
         resources: {}
         volumeMounts:

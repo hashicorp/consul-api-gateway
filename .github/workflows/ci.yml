@@ -5,7 +5,7 @@ on:
   pull_request:
     branches: ["main", "release/**"]
 env:
-  GO_VERSION: '1.17'
+  GO_VERSION: '1.18'
   CONSUL_LICENSE: ${{ secrets.CONSUL_LICENSE }}
 jobs:
   lint:
@@ -35,7 +35,11 @@ jobs:
     name: unit test (consul-version=${{ matrix.consul-version }})
     strategy:
       matrix:
-        consul-version: [1.11.4, 1.11.4+ent]
+        consul-version:
+        - 1.11.5
+        - 1.12.2
+        - 1.11.5+ent
+        - 1.12.2+ent
     runs-on: ubuntu-latest
     env:
       TEST_RESULTS_DIR: /tmp/test-results/consul@${{ matrix.consul-version }}
@@ -47,15 +51,20 @@ jobs:
         go-version: ${{ env.GO_VERSION }}
 
     - name: Install Consul
-      uses: nickethier/action-setup-hashicorp-tool@main #TODO: update action when migrated to hc org
-      with:
-        product: consul
-        version: ${{ matrix.consul-version }}
+      shell: bash
+      run: |
+        CONSUL_VERSION="${{ matrix.consul-version }}"
+        FILENAME="consul_${CONSUL_VERSION}_linux_amd64.zip"
+        curl -sSLO "https://releases.hashicorp.com/consul/${CONSUL_VERSION}/${FILENAME}" && \
+          unzip "${FILENAME}" -d /usr/local/bin && \
+          rm "${FILENAME}"
+        consul version
 
     - name: Clean Generate
       run: |
         echo "Checking that code generation is up-to-date"
         go install github.com/golang/mock/mockgen@v1.6.0
+        go install github.com/deepmap/oapi-codegen/cmd/oapi-codegen@v1.10.1
         go generate ./...
         make ctrl-generate
         make ctrl-manifests
@@ -82,7 +91,11 @@ jobs:
     name: e2e tests (consul-image=${{ matrix.consul-image }})
     strategy:
       matrix:
-        consul-image: ['hashicorp/consul:1.11.4', 'hashicorp/consul-enterprise:1.11.4-ent']
+        consul-image:
+        - 'hashicorp/consul:1.11.5'
+        - 'hashicorp/consul-enterprise:1.11.5-ent'
+        - 'hashicorp/consul:1.12.2'
+        - 'hashicorp/consul-enterprise:1.12.2-ent'
     runs-on: ubuntu-latest
     env:
       TEST_RESULTS_DIR: /tmp/test-results/e2e@${{ matrix.consul-image }}

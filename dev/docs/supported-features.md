@@ -2,7 +2,7 @@
 Below is a list of the Kubernetes Gateway API features supported in the current release of the
 Consul API Gateway.
 
-Consul API Gateway version: **v0.1.0**
+Consul API Gateway version: **v0.2.0**
 Suppoorted K8s Gateway API version: **v1alpha2**
 
 Supported features are marked with a grey checkbox
@@ -50,7 +50,7 @@ Supported features are marked with a grey checkbox
           - [x] "api-gateway.consul.hashicorp.com/tls_max_version"
           - [x] "api-gateway.consul.hashicorp.com/tls_cipher_suites"
     - [x] ~~Addresses~~ *not supported*
-  - [x] Deployment *based off of a snapshot of GatewayClass configuration at time of Gateway creation as per spec suggestions* 
+  - [x] Deployment *based off of a snapshot of GatewayClass configuration at time of Gateway creation as per spec suggestions*
   - [ ] Status
     - [ ] Addresses
     - [x] Listeners
@@ -61,7 +61,7 @@ Supported features are marked with a grey checkbox
         - [x] ~~RouteConflict~~ *unused due to the spec's confusion between when to accept a route or not, we choose not to accept routes that don't match whatever routing support the listener has*
       - [x] Detached
         - [x] Attached
-        - [x] ~~PortUnavailable~~ *unused, as the only time a port will be unavailable is if we can't schedule the Gateway due to host port binding, which will result in a gateway `Schedule` status of `NoResources`* 
+        - [x] ~~PortUnavailable~~ *unused, as the only time a port will be unavailable is if we can't schedule the Gateway due to host port binding, which will result in a gateway `Schedule` status of `NoResources`*
         - [x] ~~UnsupportedExtension~~ *unused, not sure what the spec is referring to by "extensions" for listeners*
         - [x] UnsupportedProtocol *marked for any non-HTTP/HTTPS protocols for now*
         - [x] UnsupportedAddress *set if the user specified an address for the gateway*
@@ -130,3 +130,13 @@ Supported features are marked with a grey checkbox
 - [x] TCPRoute - we are limited by Consul's ability to only route to a single TCP-based upstream, so TCP-based Gateway listeners only support a single TCPRoute with a single rule with a single backend; otherwise, either the TCPRoute is considered invalid or the Gateway status is set as having conflicting routes.
 - [ ] TLSRoute - TODO
 - [x] UDPRoute *not supported*
+- [x] ReferencePolicy - Routes currently require ReferencePolicies for all BackendRefs, and do not support partial acceptance if any BackendRefs are unpermitted
+  - [x] From
+    - [x] HTTPRoute
+    - [x] TCPRoute
+    - [ ] TLSRoute
+    - [ ] UDPRoute
+    - [ ] Gateway
+  - [x] To
+    - [x] Service
+    - [ ] Secret

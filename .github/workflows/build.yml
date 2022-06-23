@@ -2,7 +2,8 @@ name: build
 
 on:
   push:
-    branches:    
+    branches:
+      - 'main'
       - 'release/**'
 
 env:
@@ -63,7 +64,7 @@ jobs:
       matrix:
         goos: ["linux"]
         goarch: ["arm", "arm64", "386", "amd64"]
-        go: ["1.16"]
+        go: ["1.18.3"]
       fail-fast: true
 
     name: Go ${{ matrix.go }} ${{ matrix.goos }} ${{ matrix.goarch }} build
@@ -108,7 +109,8 @@ jobs:
       - name: Remove + from version
         run: |
           echo "version=$(echo $version | sed 's/+ent//g')" >> $GITHUB_ENV
-      - name: Docker Build (Action)
+
+      - name: Docker Build
         uses: hashicorp/actions-docker-build@v1
         with:
           version: ${{env.version}}
@@ -116,3 +118,6 @@ jobs:
           arch: ${{matrix.arch}}
           tags: |
             docker.io/hashicorp/${{env.repo}}:${{env.version}}
+          dev_tags: |
+            docker.io/hashicorppreview/${{env.repo}}:${{env.version}}-dev
+            docker.io/hashicorppreview/${{env.repo}}:${{env.version}}-${{github.sha}}-dev

@@ -11,57 +11,61 @@ on:
     - cron:  '0 0 * * *'
 
   workflow_dispatch:
-
+    inputs:
+      debug_enabled:
+        description: 'Start tmate session if any step fails'
+        required: false
+        type: boolean
+        default: false  # GitHub parses this value to string, see https://github.com/actions/runner/issues/1483
+      debug_timeout_minutes:
+        description: 'How many minutes should the tmate session close itself after?'
+        required: false
+        type: string  # No support for numeric value
+        default: '10'
 
 env:
-  GO_VERSION: "1.17"
+  GO_VERSION: "1.18"
 
 jobs:
   run-on-kind:
     # Run on PR only if there is a `pr/run-conformance` label
     if: "github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'pr/run-conformance')"
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        config:
+          - name: "consul@v1.11.5 + consul-k8s@v0.44.0"
+            consul-image: "hashicorp/consul:1.11"
+            envoy-image: "envoyproxy/envoy:v1.20-latest"
+            consul-k8s-version: "0.44.0"
+          - name: "consul@v1.12.2 + consul-k8s@v0.44.0"
+            consul-image: "hashicorp/consul:1.12"
+            envoy-image: "envoyproxy/envoy:v1.22-latest"
+            consul-k8s-version: "0.44.0"
+      fail-fast: true
+    name: "${{ matrix.config.name }}"
+
     steps:
       # Clone repos side-by-side:
       # GITHUB_WORKSPACE/
       #     consul-api-gateway/
-      #     consul-k8s/
       #     gateway-api/
       - name: Checkout consul-api-gateway
         uses: actions/checkout@v2
         with:
           path: "consul-api-gateway"
 
-      - name: Clone consul-k8s
-        uses: actions/checkout@v2
-        with:
-          repository: "hashicorp/consul-k8s"
-          path: "consul-k8s"
-
       - name: Clone gateway-api
         uses: actions/checkout@v2
         with:
           repository: "hashicorp/gateway-api"
-          ref: "60s-time-to-consistency"
+          ref: "conformance/v0.5.0-skipped-tests"
           path: "gateway-api"
 
       - name: Setup Goenv
         uses: ./consul-api-gateway/.github/actions/goenv
         with:
           go-version: ${{ env.GO_VERSION }}
-
-      - name: Create Kind cluster
-        uses: helm/kind-action@2a525709fd0874b75d7ae842d257981b0e0f557d
-        with:
-          cluster_name: "consul-api-gateway-test"
-          kubectl_version: "v1.21.0"
-
-      - name: Install MetalLB
-        run: |
-          kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.12.1/manifests/namespace.yaml
-          kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.12.1/manifests/metallb.yaml
-          kubectl apply -f ./consul-api-gateway/internal/testing/conformance/metallb-config.yaml
-          kubectl wait --for=condition=Ready --timeout=60s --namespace=metallb-system pods --all
 
       - name: Build binary
         env:
@@ -85,8 +89,11 @@ jobs:
           push: false
           tags: "consul-api-gateway:test"
 
-      - name: Load Docker image into Kind
-        run: kind load docker-image consul-api-gateway:test --name consul-api-gateway-test
+      - name: Setup Kind cluster
+        uses: ./consul-api-gateway/.github/actions/setup-kind
+        with:
+          load-docker-image: "consul-api-gateway:test"
+          metallb-config-path: "./consul-api-gateway/internal/testing/conformance/metallb-config.yaml"
 
       - name: Install Consul API Gateway CRDs
         working-directory: "consul-api-gateway"
@@ -95,7 +102,8 @@ jobs:
       - name: Install Consul
         working-directory: "consul-api-gateway/internal/testing/conformance"
         run: |
-          helm install --values ./consul-config.yaml consul $GITHUB_WORKSPACE/consul-k8s/charts/consul --create-namespace --namespace=consul
+          helm repo add hashicorp https://helm.releases.hashicorp.com
+          helm install --values ./consul-config.yaml consul hashicorp/consul --version "${{ matrix.config.consul-k8s-version }}" --set global.image=${{ matrix.config.consul-image }} --set global.imageEnvoy=${{ matrix.config.envoy-image }} --create-namespace --namespace=consul
           kubectl wait --for=condition=Ready --timeout=60s --namespace=consul pods --all
 
       - name: Patch testing resources
@@ -107,13 +115,19 @@ jobs:
 
       - name: Run tests
         working-directory: "gateway-api/conformance"
-        run: go test -v -timeout 10m ./ --gateway-class consul-api-gateway
+        run: go test -v -timeout 10m ./ --gateway-class=consul-api-gateway
+
+      - name: Setup tmate session
+        uses: mxschmitt/action-tmate@v3
+        if: failure() && github.event_name == 'workflow_dispatch' && github.event.inputs.debug_enabled == 'true'
+        timeout-minutes: ${{ fromJSON(github.event.inputs.debug_timeout_minutes) }}
 
       - name: Report Status
         if: always() && github.ref == 'refs/heads/main'
         uses: ravsamhq/notify-slack-action@v1
         with:
           status: ${{ job.status }}
+          message_format: '{emoji} *{workflow}/{job}* {status_message} in <{repo_url}|{repo}@{branch}> on <{commit_url}|{commit_sha}>'
           mention_groups: '!here'
           mention_groups_when: 'failure,warnings'
 

@@ -21,7 +21,7 @@ type syncState struct {
 	defaults  *consul.ConfigEntryIndex
 }
 
-type ConsulSyncAdapter struct {
+type SyncAdapter struct {
 	logger hclog.Logger
 	consul *api.Client
 
@@ -30,10 +30,10 @@ type ConsulSyncAdapter struct {
 	mutex      sync.Mutex
 }
 
-var _ core.SyncAdapter = &ConsulSyncAdapter{}
+var _ core.SyncAdapter = &SyncAdapter{}
 
-func NewConsulSyncAdapter(logger hclog.Logger, consulClient *api.Client) *ConsulSyncAdapter {
-	return &ConsulSyncAdapter{
+func NewSyncAdapter(logger hclog.Logger, consulClient *api.Client) *SyncAdapter {
+	return &SyncAdapter{
 		logger:     logger,
 		consul:     consulClient,
 		sync:       make(map[core.GatewayID]syncState),
@@ -41,7 +41,7 @@ func NewConsulSyncAdapter(logger hclog.Logger, consulClient *api.Client) *Consul
 	}
 }
 
-func (a *ConsulSyncAdapter) setConfigEntries(ctx context.Context, entries ...api.ConfigEntry) error {
+func (a *SyncAdapter) setConfigEntries(ctx context.Context, entries ...api.ConfigEntry) error {
 	options := &api.WriteOptions{}
 	var result error
 	for _, entry := range entries {
@@ -52,7 +52,7 @@ func (a *ConsulSyncAdapter) setConfigEntries(ctx context.Context, entries ...api
 	return result
 }
 
-func (a *ConsulSyncAdapter) deleteConfigEntries(ctx context.Context, entries ...api.ConfigEntry) error {
+func (a *SyncAdapter) deleteConfigEntries(ctx context.Context, entries ...api.ConfigEntry) error {
 	options := &api.WriteOptions{}
 	var result error
 	for _, entry := range entries {
@@ -208,7 +208,7 @@ func discoveryChain(gateway core.ResolvedGateway) (*api.IngressGatewayConfigEntr
 	return ingress, routers, splitters, defaults
 }
 
-func (a *ConsulSyncAdapter) entriesForGateway(id core.GatewayID) (*consul.ConfigEntryIndex, *consul.ConfigEntryIndex, *consul.ConfigEntryIndex) {
+func (a *SyncAdapter) entriesForGateway(id core.GatewayID) (*consul.ConfigEntryIndex, *consul.ConfigEntryIndex, *consul.ConfigEntryIndex) {
 	existing, found := a.sync[id]
 	if !found {
 		routers := consul.NewConfigEntryIndex(api.ServiceRouter)
@@ -219,7 +219,7 @@ func (a *ConsulSyncAdapter) entriesForGateway(id core.GatewayID) (*consul.Config
 	return existing.routers, existing.splitters, existing.defaults
 }
 
-func (a *ConsulSyncAdapter) setEntriesForGateway(gateway core.ResolvedGateway, routers *consul.ConfigEntryIndex, splitters *consul.ConfigEntryIndex, defaults *consul.ConfigEntryIndex) {
+func (a *SyncAdapter) setEntriesForGateway(gateway core.ResolvedGateway, routers *consul.ConfigEntryIndex, splitters *consul.ConfigEntryIndex, defaults *consul.ConfigEntryIndex) {
 	a.sync[gateway.ID] = syncState{
 		routers:   routers,
 		splitters: splitters,
@@ -227,7 +227,7 @@ func (a *ConsulSyncAdapter) setEntriesForGateway(gateway core.ResolvedGateway, r
 	}
 }
 
-func (a *ConsulSyncAdapter) syncIntentionsForGateway(gateway core.GatewayID, ingress *api.IngressGatewayConfigEntry) error {
+func (a *SyncAdapter) syncIntentionsForGateway(gateway core.GatewayID, ingress *api.IngressGatewayConfigEntry) error {
 	if a.intentions[gateway] == nil {
 		a.intentions[gateway] = consul.NewIntentionsReconciler(a.consul, ingress, a.logger)
 	} else {
@@ -236,14 +236,14 @@ func (a *ConsulSyncAdapter) syncIntentionsForGateway(gateway core.GatewayID, ing
 	return a.intentions[gateway].Reconcile()
 }
 
-func (a *ConsulSyncAdapter) stopIntentionSyncForGateway(gw core.GatewayID) {
+func (a *SyncAdapter) stopIntentionSyncForGateway(gw core.GatewayID) {
 	if ir, ok := a.intentions[gw]; ok {
 		ir.Stop()
 		delete(a.intentions, gw)
 	}
 }
 
-func (a *ConsulSyncAdapter) Clear(ctx context.Context, id core.GatewayID) error {
+func (a *SyncAdapter) Clear(ctx context.Context, id core.GatewayID) error {
 	a.mutex.Lock()
 	defer a.mutex.Unlock()
 
@@ -299,7 +299,7 @@ func (a *ConsulSyncAdapter) Clear(ctx context.Context, id core.GatewayID) error 
 	return nil
 }
 
-func (a *ConsulSyncAdapter) Sync(ctx context.Context, gateway core.ResolvedGateway) error {
+func (a *SyncAdapter) Sync(ctx context.Context, gateway core.ResolvedGateway) error {
 	a.mutex.Lock()
 	defer a.mutex.Unlock()
 

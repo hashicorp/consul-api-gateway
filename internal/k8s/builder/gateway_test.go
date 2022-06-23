@@ -23,6 +23,9 @@ var (
 		"static-mapping",
 		"clusterip",
 		"loadbalancer",
+		"multiple-instances",
+		"max-instances",
+		"min-instances",
 	}
 )
 
@@ -52,7 +55,7 @@ func (g *gatewayTestConfig) EncodeDeployment() runtime.Object {
 	b.WithClassConfig(*g.gatewayClassConfig)
 	b.WithConsulCA("CONSUL_CA_MOCKED")
 	b.WithConsulGatewayNamespace("test")
-	return b.Build()
+	return b.Build(nil)
 }
 
 func (g *gatewayTestConfig) EncodeService() runtime.Object {

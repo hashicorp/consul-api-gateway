@@ -51,6 +51,28 @@ type GatewayClassConfigSpec struct {
 	// +kubebuilder:validation:Enum=trace;debug;info;warning;error
 	// Logging levels
 	LogLevel string `json:"logLevel,omitempty"`
+	// Configuration information about how many instances to deploy
+	DeploymentSpec DeploymentSpec `json:"deployment,omitempty"`
+}
+
+// +k8s:deepcopy-gen=true
+
+type DeploymentSpec struct {
+	// +kubebuilder:default:=1
+	// +kubebuilder:validation:Maximum=8
+	// +kubebuilder:validation:Minimum=1
+	// Number of gateway instances that should be deployed by default
+	DefaultInstances *int32 `json:"defaultInstances,omitempty"`
+	// +kubebuilder:default:=8
+	// +kubebuilder:validation:Maximum=8
+	// +kubebuilder:validation:Minimum=1
+	// Max allowed number of gateway instances
+	MaxInstances *int32 `json:"maxInstances,omitempty"`
+	// +kubebuilder:default:=1
+	// +kubebuilder:validation:Maximum=8
+	// +kubebuilder:validation:Minimum=1
+	// Minimum allowed number of gateway instances
+	MinInstances *int32 `json:"minInstances,omitempty"`
 }
 
 type ConsulSpec struct {
@@ -190,12 +212,13 @@ func compareServices(a, b *corev1.Service) bool {
 	return true
 }
 
-// MergeDeploymentmerges a gateway deployment a onto b and returns b, overriding all of
+// MergeDeployment merges a gateway deployment a onto b and returns b, overriding all of
 // the fields that we'd normally set for a service deployment. It does not attempt
 // to change the service type
-func MergeDeployment(a, b *appsv1.Deployment) *appsv1.Deployment {
+func MergeDeployment(a, b *appsv1.Deployment, currentReplicas *int32) *appsv1.Deployment {
 	if !compareDeployments(a, b) {
 		b.Spec.Template = a.Spec.Template
+		b.Spec.Replicas = a.Spec.Replicas
 	}
 
 	return b
@@ -223,5 +246,10 @@ func compareDeployments(a, b *appsv1.Deployment) bool {
 			}
 		}
 	}
+
+	if *b.Spec.Replicas != *a.Spec.Replicas {
+		return false
+	}
+
 	return true
 }

@@ -3,16 +3,23 @@ package controllers
 import (
 	"context"
 
+	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 	gateway "sigs.k8s.io/gateway-api/apis/v1alpha2"
+
+	"github.com/hashicorp/go-hclog"
 
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler"
-	"github.com/hashicorp/go-hclog"
 )
 
 // HTTPRouteReconciler reconciles a HTTPRoute object
 type HTTPRouteReconciler struct {
+	Context        context.Context
 	Client         gatewayclient.Client
 	Log            hclog.Logger
 	ControllerName string
@@ -53,5 +60,57 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&gateway.HTTPRoute{}).
+		Watches(
+			&source.Kind{Type: &gateway.ReferencePolicy{}},
+			handler.EnqueueRequestsFromMapFunc(r.referencePolicyToRouteRequests),
+		).
 		Complete(gatewayclient.NewRequeueingMiddleware(r.Log, r))
+}
+
+// For UpdateEvents which contain both a new and old object, this transformation
+// function is run on both objects and both sets of Requests are enqueued.
+//
+// This is needed to reconcile any objects matched by both current and prior
+// state in case a ReferencePolicy has been modified to revoke permission from a
+// namespace or to a service
+//
+// It may be possible to improve performance here by filtering Routes by
+// BackendRefs selectable by the To fields, but currently we just revalidate
+// all Routes allowed in the From Namespaces
+func (r *HTTPRouteReconciler) referencePolicyToRouteRequests(object client.Object) []reconcile.Request {
+	refPolicy := object.(*gateway.ReferencePolicy)
+
+	routes := r.getRoutesAffectedByReferencePolicy(refPolicy)
+	requests := []reconcile.Request{}
+
+	for _, route := range routes {
+		requests = append(requests, reconcile.Request{
+			NamespacedName: types.NamespacedName{
+				Name:      route.Name,
+				Namespace: route.Namespace,
+			},
+		})
+	}
+
+	return requests
+}
+
+// getRoutesAffectedByReferencePolicy retrieves all HTTPRoutes potentially impacted
+// by the ReferencePolicy being modified. Currently, this is unfiltered and so returns
+// all HTTPRoutes in the namespace referenced by the ReferencePolicy.
+func (r *HTTPRouteReconciler) getRoutesAffectedByReferencePolicy(refPolicy *gateway.ReferencePolicy) []gateway.HTTPRoute {
+	var matches []gateway.HTTPRoute
+
+	for _, from := range refPolicy.Spec.From {
+		// TODO: search by from.Group and from.Kind instead of assuming this ReferencePolicy references a HTTPRoute
+		routes, err := r.Client.GetHTTPRoutesInNamespace(r.Context, string(from.Namespace))
+		if err != nil {
+			r.Log.Error("error fetching routes", err)
+			return matches
+		}
+
+		matches = append(matches, routes...)
+	}
+
+	return matches
 }
