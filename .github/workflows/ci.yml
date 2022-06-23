@@ -64,6 +64,7 @@ jobs:
       run: |
         echo "Checking that code generation is up-to-date"
         go install github.com/golang/mock/mockgen@v1.6.0
+        go install github.com/deepmap/oapi-codegen/cmd/oapi-codegen@v1.10.1
         go generate ./...
         make ctrl-generate
         make ctrl-manifests
