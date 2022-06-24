@@ -409,6 +409,21 @@ func (mr *MockClientMockRecorder) GetTCPRoute(ctx, key interface{}) *gomock.Call
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTCPRoute", reflect.TypeOf((*MockClient)(nil).GetTCPRoute), ctx, key)
 }
 
+// GetTCPRoutes mocks base method.
+func (m *MockClient) GetTCPRoutes(ctx context.Context) ([]v1alpha2.TCPRoute, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTCPRoutes", ctx)
+	ret0, _ := ret[0].([]v1alpha2.TCPRoute)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetTCPRoutes indicates an expected call of GetTCPRoutes.
+func (mr *MockClientMockRecorder) GetTCPRoutes(ctx interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTCPRoutes", reflect.TypeOf((*MockClient)(nil).GetTCPRoutes), ctx)
+}
+
 // GetTCPRoutesInNamespace mocks base method.
 func (m *MockClient) GetTCPRoutesInNamespace(ctx context.Context, ns string) ([]v1alpha2.TCPRoute, error) {
 	m.ctrl.T.Helper()
