@@ -5,16 +5,19 @@ import (
 	"testing"
 
 	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
+	"github.com/hashicorp/go-hclog"
+
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient/mocks"
 	reconcilerMocks "github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/mocks"
-	"github.com/hashicorp/go-hclog"
 )
 
 var (
@@ -78,6 +81,62 @@ func TestHTTPRoute(t *testing.T) {
 			require.Equal(t, test.result, result)
 		})
 	}
+}
+
+func TestHTTPRouteServiceToRouteRequests(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	svc := &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{Name: "echo-1"},
+	}
+
+	client := gatewayclient.NewTestClient(
+		nil,
+		&gw.HTTPRoute{
+			ObjectMeta: metav1.ObjectMeta{Name: "route-1", Namespace: "namespace-1"},
+			Spec: gw.HTTPRouteSpec{
+				Rules: []gw.HTTPRouteRule{{
+					BackendRefs: []gw.HTTPBackendRef{
+						{
+							BackendRef: gw.BackendRef{BackendObjectReference: gw.BackendObjectReference{Name: "echo-1"}},
+						},
+						{
+							BackendRef: gw.BackendRef{BackendObjectReference: gw.BackendObjectReference{Name: "echo-2"}},
+						},
+					},
+				}},
+			},
+		},
+		&gw.HTTPRoute{
+			ObjectMeta: metav1.ObjectMeta{Name: "route-2", Namespace: "namespace-2"},
+			Spec: gw.HTTPRouteSpec{
+				Rules: []gw.HTTPRouteRule{{
+					BackendRefs: []gw.HTTPBackendRef{{
+						BackendRef: gw.BackendRef{
+							BackendObjectReference: gw.BackendObjectReference{
+								Name: "echo-1",
+							},
+						},
+					}},
+				}},
+			},
+		},
+	)
+
+	controller := &HTTPRouteReconciler{
+		Client:         client,
+		Log:            hclog.NewNullLogger(),
+		ControllerName: mockControllerName,
+		Manager:        reconcilerMocks.NewMockReconcileManager(ctrl),
+	}
+
+	requests := controller.serviceToRouteRequests(svc)
+	require.Len(t, requests, 2)
+	assert.Equal(t, "namespace-1/route-1", requests[0].String())
+	assert.Equal(t, "namespace-2/route-2", requests[1].String())
 }
 
 func TestHTTPRouteReferencePolicyToRouteRequests(t *testing.T) {
