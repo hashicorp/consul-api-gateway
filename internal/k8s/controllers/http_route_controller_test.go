@@ -90,13 +90,17 @@ func TestHTTPRouteServiceToRouteRequests(t *testing.T) {
 	defer ctrl.Finish()
 
 	svc := &corev1.Service{
-		ObjectMeta: metav1.ObjectMeta{Name: "echo-1"},
+		ObjectMeta: metav1.ObjectMeta{Namespace: "namespace-1", Name: "echo-1"},
 	}
+
+	backendNS := gw.Namespace("namespace-1")
 
 	client := gatewayclient.NewTestClient(
 		nil,
+		// Include one route that references the Service name without the namespace,
+		// meaning that the namespace is implicitly the route's namespace
 		&gw.HTTPRoute{
-			ObjectMeta: metav1.ObjectMeta{Name: "route-1", Namespace: "namespace-1"},
+			ObjectMeta: metav1.ObjectMeta{Namespace: "namespace-1", Name: "route-1"},
 			Spec: gw.HTTPRouteSpec{
 				Rules: []gw.HTTPRouteRule{{
 					BackendRefs: []gw.HTTPBackendRef{
@@ -110,14 +114,17 @@ func TestHTTPRouteServiceToRouteRequests(t *testing.T) {
 				}},
 			},
 		},
+		// Include one route in a different namespace that references the Service by
+		// explicit namespace + name
 		&gw.HTTPRoute{
-			ObjectMeta: metav1.ObjectMeta{Name: "route-2", Namespace: "namespace-2"},
+			ObjectMeta: metav1.ObjectMeta{Namespace: "namespace-2", Name: "route-2"},
 			Spec: gw.HTTPRouteSpec{
 				Rules: []gw.HTTPRouteRule{{
 					BackendRefs: []gw.HTTPBackendRef{{
 						BackendRef: gw.BackendRef{
 							BackendObjectReference: gw.BackendObjectReference{
-								Name: "echo-1",
+								Namespace: &backendNS,
+								Name:      "echo-1",
 							},
 						},
 					}},
