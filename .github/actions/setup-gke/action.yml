@@ -1,0 +1,35 @@
+name: "Setup GKE"
+description: "Installs gcloud, configures GCP credentials in the workflow's environment and sets up a GKE cluster."
+inputs:
+  cluster_name:
+    description: "The name to assign to the GKE cluster"
+    required: false
+    default: "consul-api-gateway-test"
+  credentials:
+    description: "Service account key to use for creating the GKE cluster"
+    required: true
+  region:
+    description: "The GCP region to create the cluster in"
+    required: false
+    default: us-west1
+
+runs:
+  using: composite
+  steps:
+    - name: Install gcloud
+      uses: google-github-actions/setup-gcloud@877d4953d2c70a0ba7ef3290ae968eb24af233bb
+      with:
+        service_account_key: ${{ inputs.credentials }}
+        project_id: ${{ secrets.GKE_PROJECT }}
+        export_default_credentials: true
+
+    - id: Configure GKE credentials
+      uses: google-github-actions/get-gke-credentials@0a5f57b989b81d2725178cda257a00acf7d6bb5f
+      with:
+        cluster_name: ${{ inputs.cluster_name }}
+        location: ${{ inputs.region }}
+        credentials: ${{ inputs.credentials }}
+
+    - name: Create GKE cluster
+      shell: bash
+      run: echo TODO

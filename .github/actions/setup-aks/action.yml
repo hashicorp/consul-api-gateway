@@ -1,0 +1,29 @@
+name: "Setup AKS"
+description: "Installs az, configures Azure credentials in the workflow's environment and sets up an AKS cluster."
+inputs:
+  cluster_name:
+    description: "The name to assign to the AKS cluster"
+    required: false
+    default: "consul-api-gateway-test"
+  credentials:
+    description: "Service account key to use for creating the AKS cluster"
+    required: true
+  region:
+    description: "The Azure region to create the cluster in"
+    required: false
+    default: westus
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Azure credentials
+      uses: azure/login@24848bc889cfc0a8313c2b3e378ac0d625b9bc16
+      with:
+        creds: ${{ inputs.credentials }}
+
+    - name: Create AKS cluster
+      uses: azure/CLI@v1
+      with:
+        inlineScript: |
+          az account show
+          echo TODO
