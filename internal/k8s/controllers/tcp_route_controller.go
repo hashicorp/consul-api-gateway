@@ -67,7 +67,7 @@ func (r *TCPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		).
 		Watches(
 			&source.Kind{Type: &corev1.Service{}},
-			handler.EnqueueRequestsFromMapFunc(r.referencePolicyToRouteRequests),
+			handler.EnqueueRequestsFromMapFunc(r.serviceToRouteRequests),
 		).
 		Complete(gatewayclient.NewRequeueingMiddleware(r.Log, r))
 }
