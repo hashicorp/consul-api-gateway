@@ -1,6 +1,9 @@
 name: Conformance (Main)
 
 on:
+  pull_request:
+    types: ["opened", "reopened", "synchronize", "labeled"]
+    
   schedule:
     - cron:  '0 0 * * *'
 
@@ -22,6 +25,7 @@ env:
 
 jobs:
   run-on-environment:
+    if: "github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'pr/run-conformance')"
     runs-on: ubuntu-latest
     strategy:
       matrix:
