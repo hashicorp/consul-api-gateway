@@ -16,6 +16,8 @@ runs:
       env:
         AWS_EC2_METADATA_DISABLED: true
       run: |
+      
+        set +e 
 
         for each in $(kubectl get ns -o jsonpath="{.items[*].metadata.name}" | grep -v kube-system);
         do
@@ -25,6 +27,6 @@ runs:
         eksctl delete cluster --name ${{ inputs.cluster_name }} --region ${{ inputs.region}} --parallel 3 --force --wait
 
         #if unsuccesful, run delete again to account for race condition
-        if [[$? -eq 1]]; then
+        if [ $? -eq 1 ]; then
           eksctl delete cluster --name ${{ inputs.cluster_name }} --region ${{ inputs.region}} --parallel 3 --force --wait
         fi
