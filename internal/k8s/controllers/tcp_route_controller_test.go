@@ -5,7 +5,10 @@ import (
 	"testing"
 
 	"github.com/golang/mock/gomock"
+	"github.com/hashicorp/go-hclog"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -14,7 +17,6 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient/mocks"
 	reconcilerMocks "github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/mocks"
-	"github.com/hashicorp/go-hclog"
 )
 
 var (
@@ -166,4 +168,65 @@ func TestTCPRouteReferencePolicyToRouteRequests(t *testing.T) {
 			Namespace: "namespace1",
 		},
 	}}, requests)
+}
+
+func TestTCPRouteServiceToRouteRequests(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	svc := &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "namespace-1", Name: "echo-1"},
+	}
+
+	backendNS := gw.Namespace("namespace-1")
+
+	client := gatewayclient.NewTestClient(
+		nil,
+		// Include one route that references the Service name without the namespace,
+		// meaning that the namespace is implicitly the route's namespace
+		&gw.TCPRoute{
+			ObjectMeta: metav1.ObjectMeta{Namespace: "namespace-1", Name: "route-1"},
+			Spec: gw.TCPRouteSpec{
+				Rules: []gw.TCPRouteRule{{
+					BackendRefs: []gw.BackendRef{
+						{
+							BackendObjectReference: gw.BackendObjectReference{Name: "echo-1"},
+						},
+						{
+							BackendObjectReference: gw.BackendObjectReference{Name: "echo-2"},
+						},
+					},
+				}},
+			},
+		},
+		// Include one route in a different namespace that references the Service by
+		// explicit namespace + name
+		&gw.TCPRoute{
+			ObjectMeta: metav1.ObjectMeta{Namespace: "namespace-2", Name: "route-2"},
+			Spec: gw.TCPRouteSpec{
+				Rules: []gw.TCPRouteRule{{
+					BackendRefs: []gw.BackendRef{{
+						BackendObjectReference: gw.BackendObjectReference{
+							Namespace: &backendNS,
+							Name:      "echo-1",
+						},
+					}},
+				}},
+			},
+		},
+	)
+
+	controller := &TCPRouteReconciler{
+		Client:         client,
+		Log:            hclog.NewNullLogger(),
+		ControllerName: mockControllerName,
+		Manager:        reconcilerMocks.NewMockReconcileManager(ctrl),
+	}
+
+	requests := controller.serviceToRouteRequests(svc)
+	require.Len(t, requests, 2)
+	assert.Equal(t, "namespace-1/route-1", requests[0].String())
+	assert.Equal(t, "namespace-2/route-2", requests[1].String())
 }
