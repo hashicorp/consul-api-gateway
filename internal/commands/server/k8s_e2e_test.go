@@ -521,9 +521,9 @@ func TestHTTPMeshService(t *testing.T) {
 
 			namespace := e2e.Namespace(ctx)
 			gatewayName := envconf.RandomName("gw", 16)
-			routeOneName := envconf.RandomName("route", 16)
-			routeTwoName := envconf.RandomName("route", 16)
-			routeThreeName := envconf.RandomName("route", 16)
+			routeOneName := envconf.RandomName("route-1", 16)
+			routeTwoName := envconf.RandomName("route-2", 16)
+			routeThreeName := envconf.RandomName("route-3", 16)
 
 			resources := cfg.Client().Resources(namespace)
 
@@ -534,7 +534,7 @@ func TestHTTPMeshService(t *testing.T) {
 			gw := createGateway(ctx, t, resources, gatewayName, namespace, gc, []gateway.Listener{httpsListener})
 			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionReady), checkTimeout, checkInterval, "no gateway found in the allotted time")
 
-			// route 1
+			// Route 1 routes /v1 to service 1
 			port := gateway.PortNumber(serviceOne.Spec.Ports[0].Port)
 			path := "/v1"
 			pathMatch := gateway.PathMatchExact
@@ -567,10 +567,9 @@ func TestHTTPMeshService(t *testing.T) {
 					}},
 				},
 			}
-			err = resources.Create(ctx, routeOne)
-			require.NoError(t, err)
+			require.NoError(t, resources.Create(ctx, routeOne))
 
-			// route 2
+			// Route 2 routes /v2 to service 2 and / to services 4 and 5
 			port = gateway.PortNumber(serviceTwo.Spec.Ports[0].Port)
 			portFour := gateway.PortNumber(serviceFour.Spec.Ports[0].Port)
 			portFive := gateway.PortNumber(serviceFive.Spec.Ports[0].Port)
@@ -620,10 +619,9 @@ func TestHTTPMeshService(t *testing.T) {
 					}},
 				},
 			}
-			err = resources.Create(ctx, route)
-			require.NoError(t, err)
+			require.NoError(t, resources.Create(ctx, route))
 
-			// route 3
+			// Route 3 routes /v3 to service 3
 			port = gateway.PortNumber(serviceThree.Spec.Ports[0].Port)
 			path = "/v3"
 			headerMatch := gateway.HeaderMatchExact
@@ -662,9 +660,9 @@ func TestHTTPMeshService(t *testing.T) {
 					}},
 				},
 			}
-			err = resources.Create(ctx, route)
-			require.NoError(t, err)
+			require.NoError(t, resources.Create(ctx, route))
 
+			// Verify that routes are all working
 			checkPort := e2e.HTTPPort(ctx)
 			checkRoute(t, checkPort, "/v1", httpResponse{
 				StatusCode: http.StatusOK,
@@ -690,9 +688,8 @@ func TestHTTPMeshService(t *testing.T) {
 				Body:       serviceFive.Name,
 			}, nil, "service five not routable in allotted time")
 
-			err = resources.Delete(ctx, routeOne)
-			require.NoError(t, err)
-
+			// Delete service 1 and verify that everything else continues working
+			require.NoError(t, resources.Delete(ctx, serviceOne))
 			checkRoute(t, checkPort, "/v1", httpResponse{
 				StatusCode: http.StatusOK,
 				Body:       serviceFour.Name,
@@ -704,6 +701,7 @@ func TestHTTPMeshService(t *testing.T) {
 
 			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionInSync), checkTimeout, checkInterval, "gateway not synced in the allotted time")
 
+			// Verify config entry for Gateway exists in Consul
 			client := e2e.ConsulClient(ctx)
 			require.Eventually(t, func() bool {
 				entry, _, err := client.ConfigEntries().Get(api.IngressGateway, gatewayName, &api.QueryOptions{
@@ -715,9 +713,11 @@ func TestHTTPMeshService(t *testing.T) {
 				return entry != nil
 			}, checkTimeout, checkInterval, "no consul config entry found")
 
+			// Delete the gateway
 			err = resources.Delete(ctx, gw)
 			require.NoError(t, err)
 
+			// Verify config entry for Gateway removed in Consul
 			require.Eventually(t, func() bool {
 				_, _, err := client.ConfigEntries().Get(api.IngressGateway, gatewayName, &api.QueryOptions{
 					Namespace: e2e.ConsulNamespace(ctx),
