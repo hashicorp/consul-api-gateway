@@ -68,6 +68,7 @@ module "eks" {
 
   node_groups = {
     nodes = {
+      name = "${var.cluster_name}-nodegroup"
       desired_capacity = 3
       max_capacity     = 3
       min_capacity     = 3
