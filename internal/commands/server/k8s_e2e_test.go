@@ -16,10 +16,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hashicorp/consul/api"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
 	apps "k8s.io/api/apps/v1"
+	appsv1 "k8s.io/api/apps/v1"
 	core "k8s.io/api/core/v1"
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/e2e-framework/klient/k8s/resources"
@@ -28,10 +30,8 @@ import (
 	"sigs.k8s.io/e2e-framework/pkg/features"
 	gateway "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
-	"github.com/hashicorp/consul/api"
-	appsv1 "k8s.io/api/apps/v1"
-
 	"github.com/hashicorp/consul-api-gateway/internal/k8s"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler"
 	"github.com/hashicorp/consul-api-gateway/internal/testing/e2e"
 	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 )
@@ -507,6 +507,8 @@ func TestHTTPRouteFlattening(t *testing.T) {
 func TestHTTPMeshService(t *testing.T) {
 	feature := features.New("mesh service routing").
 		Assess("basic routing", func(ctx context.Context, t *testing.T, cfg *envconf.Config) context.Context {
+			t.Skip()
+
 			serviceOne, err := e2e.DeployHTTPMeshService(ctx, cfg)
 			require.NoError(t, err)
 			serviceTwo, err := e2e.DeployHTTPMeshService(ctx, cfg)
@@ -727,6 +729,82 @@ func TestHTTPMeshService(t *testing.T) {
 				}
 				return strings.Contains(err.Error(), "Unexpected response code: 404")
 			}, checkTimeout, checkInterval, "consul config entry not cleaned up")
+
+			return ctx
+		}).
+		Assess("reconcile on service change", func(ctx context.Context, t *testing.T, cfg *envconf.Config) context.Context {
+			namespace := e2e.Namespace(ctx)
+			resources := cfg.Client().Resources(namespace)
+
+			// Create GatewayClass
+			_, gc := createGatewayClass(ctx, t, resources)
+			require.Eventually(t, gatewayClassStatusCheck(ctx, resources, gc.Name, namespace, conditionAccepted), checkTimeout, checkInterval, "gatewayclass not accepted in the allotted time")
+
+			// Create Gateway
+			gatewayName := envconf.RandomName("gateway", 16)
+			httpsListener := createHTTPSListener(ctx, t, gateway.PortNumber(e2e.HTTPPort(ctx)))
+			createGateway(ctx, t, resources, gatewayName, namespace, gc, []gateway.Listener{httpsListener})
+			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionReady), checkTimeout, checkInterval, "no gateway found in the allotted time")
+
+			// Create Service
+			service, err := e2e.DeployHTTPMeshService(ctx, cfg)
+			require.NoError(t, err)
+
+			// Create HTTPRoute
+			routeName := envconf.RandomName("route", 16)
+			port := gateway.PortNumber(service.Spec.Ports[0].Port)
+			path := "/"
+			pathMatch := gateway.PathMatchExact
+			routeOne := &gateway.HTTPRoute{
+				ObjectMeta: meta.ObjectMeta{Namespace: namespace, Name: routeName},
+				Spec: gateway.HTTPRouteSpec{
+					CommonRouteSpec: gateway.CommonRouteSpec{
+						ParentRefs: []gateway.ParentRef{{Name: gateway.ObjectName(gatewayName)}},
+					},
+					Rules: []gateway.HTTPRouteRule{{
+						Matches: []gateway.HTTPRouteMatch{{
+							Path: &gateway.HTTPPathMatch{
+								Type:  &pathMatch,
+								Value: &path,
+							},
+						}},
+						BackendRefs: []gateway.HTTPBackendRef{{
+							BackendRef: gateway.BackendRef{
+								BackendObjectReference: gateway.BackendObjectReference{
+									Name: gateway.ObjectName(service.Name),
+									Port: &port,
+								},
+							},
+						}},
+					}},
+				},
+			}
+			require.NoError(t, resources.Create(ctx, routeOne))
+
+			// Verify everything works
+			checkRoute(t, e2e.HTTPPort(ctx), "/", httpResponse{StatusCode: http.StatusOK, Body: service.Name}, nil, "service not routable in allotted time")
+
+			// Delete Service
+			require.NoError(t, resources.Delete(ctx, service))
+
+			// Verify HTTPRoute has updated its status
+			check := createConditionsCheck([]meta.Condition{{
+				Type: reconciler.RouteConditionResolvedRefs, Status: "False", Reason: reconciler.RouteConditionReasonServiceNotFound},
+			})
+			require.Eventually(t, httpRouteStatusCheck(ctx, resources, gatewayName, routeName, namespace, check), checkTimeout, checkInterval, "route status not set in allotted time")
+
+			// Re-create Service
+			service.SetResourceVersion("")
+			require.NoError(t, resources.Create(ctx, service))
+
+			// Verify HTTPRoute has updated its status
+			check = createConditionsCheck([]meta.Condition{{
+				Type: reconciler.RouteConditionResolvedRefs, Status: "True", Reason: reconciler.RouteConditionReasonResolvedRefs},
+			})
+			require.Eventually(t, httpRouteStatusCheck(ctx, resources, gatewayName, routeName, namespace, check), checkTimeout, checkInterval, "route status not set in allotted time")
+
+			// Verify the HTTPRoute can find the Service
+			checkRoute(t, e2e.HTTPPort(ctx), "/", httpResponse{StatusCode: http.StatusOK, Body: service.Name}, nil, "service not routable in allotted time")
 
 			return ctx
 		})
