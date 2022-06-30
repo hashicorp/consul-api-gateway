@@ -15,16 +15,12 @@ runs:
       shell: bash
       env:
         AWS_EC2_METADATA_DISABLED: true
+        TF_VAR_cluster_name: ${{ inputs.cluster_name }}
+        TF_VAR_region: ${{ inputs.region }}
       run: |
+        terraform -chdir=$GITHUB_ACTION_PATH/../setup-eks/ destroy --auto-approve
 
-        for each in $(kubectl get ns -o jsonpath="{.items[*].metadata.name}" | grep -v kube-system);
-        do
-          kubectl delete --all svc --namespace $each
-        done
-
-        eksctl delete cluster --name ${{ inputs.cluster_name }} --region ${{ inputs.region}} --parallel 3 --force --wait
-
-        #if unsuccesful, run delete again to account for race condition
+        #if unsuccessful, run destroy again to account for race condition
         if [[$? -eq 1]]; then
-          eksctl delete cluster --name ${{ inputs.cluster_name }} --region ${{ inputs.region}} --parallel 3 --force --wait
+          terraform -chdir=$GITHUB_ACTION_PATH/../setup-eks/ destroy --auto-approve
         fi
