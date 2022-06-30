@@ -35,8 +35,8 @@ module "vpc" {
   name             = "${var.cluster_name}-vpc"
   cidr             = "10.0.0.0/16"
   azs              = data.aws_availability_zones.available.names
-  private_subnets  = ["10.0.1.0/24", "10.0.2.0/24"]
-  public_subnets   = ["10.0.4.0/24", "10.0.5.0/24"]
+  private_subnets  = ["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24"]
+  public_subnets   = ["10.0.4.0/24", "10.0.5.0/24", "10.0.6.0/24"]
   enable_nat_gateway   = true
   single_nat_gateway   = true
   enable_dns_hostnames = true
@@ -46,12 +46,12 @@ module "vpc" {
   }
 
   public_subnet_tags = {
-    "kubernetes.io/cluster/${var.cluster_name}" = "shared"
+    "kubernetes.io/cluster/${var.cluster_name}"   = "shared"
     "kubernetes.io/role/elb"                      = "1"
   }
 
   private_subnet_tags = {
-    "kubernetes.io/cluster/${var.cluster_name}" = "shared"
+    "kubernetes.io/cluster/${var.cluster_name}"   = "shared"
     "kubernetes.io/role/internal-elb"             = "1"
   }
 }
@@ -59,6 +59,7 @@ module "vpc" {
 module "eks" {
   source  = "terraform-aws-modules/eks/aws"
   version = "17.24.0"
+
   cluster_name    = var.cluster_name
   cluster_version = "1.22"
   subnets         = module.vpc.private_subnets
@@ -67,11 +68,11 @@ module "eks" {
 
   node_groups = {
     nodes = {
-      name_prefix      = "${var.cluster_name}-node"
-      instance_types   = ["t3a.medium"]
       desired_capacity = 3
       max_capacity     = 3
       min_capacity     = 3
+
+      instance_type = "m5.large"
     }
   }
 }
