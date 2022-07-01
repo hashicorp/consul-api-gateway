@@ -269,22 +269,22 @@ func TestTCPRouteServiceToRouteRequests(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{Namespace: "namespace-1", Name: "echo-1"},
 	}
 
-	backendNS := gw.Namespace("namespace-1")
+	backendNS := gwv1alpha2.Namespace("namespace-1")
 
 	client := gatewayclient.NewTestClient(
 		nil,
 		// Include one route that references the Service name without the namespace,
 		// meaning that the namespace is implicitly the route's namespace
-		&gw.TCPRoute{
+		&gwv1alpha2.TCPRoute{
 			ObjectMeta: metav1.ObjectMeta{Namespace: "namespace-1", Name: "route-1"},
-			Spec: gw.TCPRouteSpec{
-				Rules: []gw.TCPRouteRule{{
-					BackendRefs: []gw.BackendRef{
+			Spec: gwv1alpha2.TCPRouteSpec{
+				Rules: []gwv1alpha2.TCPRouteRule{{
+					BackendRefs: []gwv1alpha2.BackendRef{
 						{
-							BackendObjectReference: gw.BackendObjectReference{Name: "echo-1"},
+							BackendObjectReference: gwv1alpha2.BackendObjectReference{Name: "echo-1"},
 						},
 						{
-							BackendObjectReference: gw.BackendObjectReference{Name: "echo-2"},
+							BackendObjectReference: gwv1alpha2.BackendObjectReference{Name: "echo-2"},
 						},
 					},
 				}},
@@ -292,12 +292,12 @@ func TestTCPRouteServiceToRouteRequests(t *testing.T) {
 		},
 		// Include one route in a different namespace that references the Service by
 		// explicit namespace + name
-		&gw.TCPRoute{
+		&gwv1alpha2.TCPRoute{
 			ObjectMeta: metav1.ObjectMeta{Namespace: "namespace-2", Name: "route-2"},
-			Spec: gw.TCPRouteSpec{
-				Rules: []gw.TCPRouteRule{{
-					BackendRefs: []gw.BackendRef{{
-						BackendObjectReference: gw.BackendObjectReference{
+			Spec: gwv1alpha2.TCPRouteSpec{
+				Rules: []gwv1alpha2.TCPRouteRule{{
+					BackendRefs: []gwv1alpha2.BackendRef{{
+						BackendObjectReference: gwv1alpha2.BackendObjectReference{
 							Namespace: &backendNS,
 							Name:      "echo-1",
 						},
