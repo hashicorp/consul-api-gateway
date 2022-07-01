@@ -35,12 +35,12 @@ jobs:
             api-gateway-image: "consul-api-gateway:local-build"
             consul-image: "hashicorp/consul:1.11"
             envoy-image: "envoyproxy/envoy:v1.20-latest"
-            consul-k8s-version: charts/capigw-controller-clusterrole-referencegrants
+            consul-k8s-version: "charts/capigw-controller-clusterrole-referencegrants"
           - name: "consul@v1.12 + consul-k8s@v0.45.0"
             api-gateway-image: "consul-api-gateway:local-build"
             consul-image: "hashicorp/consul:1.12"
             envoy-image: "envoyproxy/envoy:v1.22-latest"
-            consul-k8s-version: charts/capigw-controller-clusterrole-referencegrants
+            consul-k8s-version: "charts/capigw-controller-clusterrole-referencegrants"
       fail-fast: true
     name: "${{ matrix.config.name }}"
 
