@@ -14,7 +14,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
-	gateway "sigs.k8s.io/gateway-api/apis/v1alpha2"
+	gwv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
+	gwv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/hashicorp/go-hclog"
 
@@ -35,6 +36,7 @@ type GatewayReconciler struct {
 }
 
 //+kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=referencegrants,verbs=get;list;watch
 //+kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=referencepolicies,verbs=get;list;watch
 
 //+kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways/status,verbs=get;update;patch
@@ -85,7 +87,7 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	)
 
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&gateway.Gateway{}).
+		For(&gwv1beta1.Gateway{}).
 		Owns(&appsv1.Deployment{}).
 		Owns(&corev1.Service{}).
 		Owns(&corev1.ServiceAccount{}).
@@ -95,7 +97,11 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			builder.WithPredicates(predicate),
 		).
 		Watches(
-			&source.Kind{Type: &gateway.ReferencePolicy{}},
+			&source.Kind{Type: &gwv1alpha2.ReferenceGrant{}},
+			handler.EnqueueRequestsFromMapFunc(r.referenceGrantToGatewayRequests),
+		).
+		Watches(
+			&source.Kind{Type: &gwv1alpha2.ReferencePolicy{}},
 			handler.EnqueueRequestsFromMapFunc(r.referencePolicyToGatewayRequests),
 		).
 		Complete(gatewayclient.NewRequeueingMiddleware(r.Log, r))
@@ -115,10 +121,18 @@ func podToGatewayRequest(object client.Object) []reconcile.Request {
 	return nil
 }
 
-func (r *GatewayReconciler) referencePolicyToGatewayRequests(object client.Object) []reconcile.Request {
-	refPolicy := object.(*gateway.ReferencePolicy)
+func (r *GatewayReconciler) referenceGrantToGatewayRequests(object client.Object) []reconcile.Request {
+	return r.getRequestsFromReferenceGrant(object.(*gwv1alpha2.ReferenceGrant))
+}
 
-	gateways := r.getGatewaysAffectedByReferencePolicy(refPolicy)
+func (r *GatewayReconciler) referencePolicyToGatewayRequests(object client.Object) []reconcile.Request {
+	refPolicy := object.(*gwv1alpha2.ReferencePolicy)
+	refGrant := gwv1alpha2.ReferenceGrant{Spec: refPolicy.Spec}
+	return r.getRequestsFromReferenceGrant(&refGrant)
+}
+
+func (r *GatewayReconciler) getRequestsFromReferenceGrant(refGrant *gwv1alpha2.ReferenceGrant) []reconcile.Request {
+	gateways := r.getGatewaysAffectedByReferenceGrant(refGrant)
 
 	requests := make([]reconcile.Request, 0, len(gateways))
 
@@ -134,14 +148,14 @@ func (r *GatewayReconciler) referencePolicyToGatewayRequests(object client.Objec
 	return requests
 }
 
-// getGatewaysAffectedByReferencePolicy retrieves all Gateways potentially impacted by the ReferencePolicy
+// getGatewaysAffectedByReferenceGrant retrieves all Gateways potentially impacted by the ReferenceGrant
 // modification. Currently, this is unfiltered and so returns all Gateways in the namespace referenced by
-// the ReferencePolicy.
-func (r *GatewayReconciler) getGatewaysAffectedByReferencePolicy(refPolicy *gateway.ReferencePolicy) []gateway.Gateway {
-	var matches []gateway.Gateway
+// the ReferenceGrant.
+func (r *GatewayReconciler) getGatewaysAffectedByReferenceGrant(refGrant *gwv1alpha2.ReferenceGrant) []gwv1beta1.Gateway {
+	var matches []gwv1beta1.Gateway
 
-	for _, from := range refPolicy.Spec.From {
-		// TODO: search by from.Group and from.Kind instead of assuming this ReferencePolicy references a Gateway
+	for _, from := range refGrant.Spec.From {
+		// TODO: search by from.Group and from.Kind instead of assuming this ReferenceGrant references a Gateway
 		gateways, err := r.Client.GetGatewaysInNamespace(r.Context, string(from.Namespace))
 		if err != nil {
 			r.Log.Error("error fetching gateways", err)

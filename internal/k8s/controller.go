@@ -11,7 +11,8 @@ import (
 	klogv2 "k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
-	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
+	gwv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
+	gwv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
@@ -41,7 +42,8 @@ const (
 
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
-	utilruntime.Must(gw.AddToScheme(scheme))
+	utilruntime.Must(gwv1beta1.AddToScheme(scheme))
+	utilruntime.Must(gwv1alpha2.AddToScheme(scheme))
 }
 
 type ConsulNamespaceConfig struct {

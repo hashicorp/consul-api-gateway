@@ -9,7 +9,8 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
-	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
+	gwv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
+	gwv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/hashicorp/go-hclog"
 
@@ -21,17 +22,17 @@ import (
 )
 
 var (
-	supportedProtocols = map[gw.ProtocolType][]gw.RouteGroupKind{
-		gw.HTTPProtocolType: {{
-			Group: (*gw.Group)(&gw.GroupVersion.Group),
+	supportedProtocols = map[gwv1beta1.ProtocolType][]gwv1beta1.RouteGroupKind{
+		gwv1beta1.HTTPProtocolType: {{
+			Group: (*gwv1beta1.Group)(&gwv1beta1.GroupVersion.Group),
 			Kind:  "HTTPRoute",
 		}},
-		gw.HTTPSProtocolType: {{
-			Group: (*gw.Group)(&gw.GroupVersion.Group),
+		gwv1beta1.HTTPSProtocolType: {{
+			Group: (*gwv1beta1.Group)(&gwv1beta1.GroupVersion.Group),
 			Kind:  "HTTPRoute",
 		}},
-		gw.TCPProtocolType: {{
-			Group: (*gw.Group)(&gw.GroupVersion.Group),
+		gwv1beta1.TCPProtocolType: {{
+			Group: (*gwv1beta1.Group)(&gwv1alpha2.GroupVersion.Group),
 			Kind:  "TCPRoute",
 		}},
 	}
@@ -48,14 +49,14 @@ const (
 type K8sListener struct {
 	consulNamespace string
 	logger          hclog.Logger
-	gateway         *gw.Gateway
-	listener        gw.Listener
+	gateway         *gwv1beta1.Gateway
+	listener        gwv1beta1.Listener
 	client          gatewayclient.Client
 
 	status         ListenerStatus
 	tls            core.TLSParams
 	routeCount     int32
-	supportedKinds []gw.RouteGroupKind
+	supportedKinds []gwv1beta1.RouteGroupKind
 }
 
 var _ store.RouteTrackingListener = &K8sListener{}
@@ -66,7 +67,7 @@ type K8sListenerConfig struct {
 	Client          gatewayclient.Client
 }
 
-func NewK8sListener(gateway *gw.Gateway, listener gw.Listener, config K8sListenerConfig) *K8sListener {
+func NewK8sListener(gateway *gwv1beta1.Gateway, listener gwv1beta1.Listener, config K8sListenerConfig) *K8sListener {
 	listenerLogger := config.Logger.Named("listener").With("listener", string(listener.Name))
 
 	return &K8sListener{
@@ -109,7 +110,7 @@ func (l *K8sListener) validateTLS(ctx context.Context) error {
 		return nil
 	}
 
-	if l.listener.TLS.Mode != nil && *l.listener.TLS.Mode == gw.TLSModePassthrough {
+	if l.listener.TLS.Mode != nil && *l.listener.TLS.Mode == gwv1beta1.TLSModePassthrough {
 		l.status.Ready.Invalid = errors.New("tls passthrough not supported")
 		return nil
 	}
@@ -120,17 +121,17 @@ func (l *K8sListener) validateTLS(ctx context.Context) error {
 	}
 
 	// we only support a single certificate for now
-	ref := *l.listener.TLS.CertificateRefs[0]
+	ref := l.listener.TLS.CertificateRefs[0]
 
-	// require ReferencePolicy for cross-namespace certificateRef
+	// require ReferenceGrant for cross-namespace certificateRef
 	allowed, err := gatewayAllowedForSecretRef(ctx, l.gateway, ref, l.client)
 	if err != nil {
 		return err
 	} else if !allowed {
 		nsName := getNamespacedName(ref.Name, ref.Namespace, l.gateway.Namespace)
-		l.logger.Warn("Cross-namespace listener certificate not allowed without matching ReferencePolicy", "refName", nsName.Name, "refNamespace", nsName.Namespace)
+		l.logger.Warn("Cross-namespace listener certificate not allowed without matching ReferenceGrant", "refName", nsName.Name, "refNamespace", nsName.Namespace)
 		l.status.ResolvedRefs.InvalidCertificateRef = NewCertificateResolutionErrorNotPermitted(
-			fmt.Sprintf("Cross-namespace listener certificate not allowed without matching ReferencePolicy for Secret %q", nsName))
+			fmt.Sprintf("Cross-namespace listener certificate not allowed without matching ReferenceGrant for Secret %q", nsName))
 		return nil
 	}
 
@@ -241,8 +242,8 @@ func (l *K8sListener) validateProtocols() {
 	}
 }
 
-func kindsNotInSet(set, parent []gw.RouteGroupKind) []gw.RouteGroupKind {
-	kinds := []gw.RouteGroupKind{}
+func kindsNotInSet(set, parent []gwv1beta1.RouteGroupKind) []gwv1beta1.RouteGroupKind {
+	kinds := []gwv1beta1.RouteGroupKind{}
 	for _, kind := range set {
 		if !isKindInSet(kind, parent) {
 			kinds = append(kinds, kind)
@@ -251,7 +252,7 @@ func kindsNotInSet(set, parent []gw.RouteGroupKind) []gw.RouteGroupKind {
 	return kinds
 }
 
-func isKindInSet(value gw.RouteGroupKind, set []gw.RouteGroupKind) bool {
+func isKindInSet(value gwv1beta1.RouteGroupKind, set []gwv1beta1.RouteGroupKind) bool {
 	for _, kind := range set {
 		groupsMatch := false
 		if value.Group == nil && kind.Group == nil {
@@ -266,7 +267,7 @@ func isKindInSet(value gw.RouteGroupKind, set []gw.RouteGroupKind) bool {
 	return false
 }
 
-func (l *K8sListener) resolveCertificateReference(ctx context.Context, ref gw.SecretObjectReference) (string, error) {
+func (l *K8sListener) resolveCertificateReference(ctx context.Context, ref gwv1beta1.SecretObjectReference) (string, error) {
 	group := corev1.GroupName
 	kind := "Secret"
 	namespace := l.gateway.Namespace
@@ -351,7 +352,7 @@ func (l *K8sListener) CanBind(ctx context.Context, route store.Route) (bool, err
 	return false, nil
 }
 
-func (l *K8sListener) canBind(ctx context.Context, ref gw.ParentRef, route *K8sRoute) (bool, error) {
+func (l *K8sListener) canBind(ctx context.Context, ref gwv1alpha2.ParentReference, route *K8sRoute) (bool, error) {
 	if l.status.Ready.HasError() {
 		l.logger.Trace("listener not ready, unable to bind", "route", route.ID())
 		return false, nil
@@ -410,16 +411,16 @@ func (l *K8sListener) OnRouteRemoved(_ string) {
 	atomic.AddInt32(&l.routeCount, -1)
 }
 
-func (l *K8sListener) Status() gw.ListenerStatus {
+func (l *K8sListener) Status() gwv1beta1.ListenerStatus {
 	routeCount := atomic.LoadInt32(&l.routeCount)
-	if l.listener.Protocol == gw.TCPProtocolType {
+	if l.listener.Protocol == gwv1beta1.TCPProtocolType {
 		if routeCount > 1 {
 			l.status.Conflicted.RouteConflict = errors.New("only a single TCP route can be bound to a TCP listener")
 		} else {
 			l.status.Conflicted.RouteConflict = nil
 		}
 	}
-	return gw.ListenerStatus{
+	return gwv1beta1.ListenerStatus{
 		Name:           l.listener.Name,
 		SupportedKinds: l.supportedKinds,
 		AttachedRoutes: routeCount,
@@ -429,7 +430,7 @@ func (l *K8sListener) Status() gw.ListenerStatus {
 
 func (l *K8sListener) IsValid() bool {
 	routeCount := atomic.LoadInt32(&l.routeCount)
-	if l.listener.Protocol == gw.TCPProtocolType {
+	if l.listener.Protocol == gwv1beta1.TCPProtocolType {
 		if routeCount > 1 {
 			return false
 		}

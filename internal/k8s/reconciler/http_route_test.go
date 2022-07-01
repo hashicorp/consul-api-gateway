@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/types"
-	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
+	gwv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/service"
 )
@@ -21,62 +21,62 @@ func TestConvertHTTPRoute(t *testing.T) {
 	t.Parallel()
 
 	path := "/"
-	method := gw.HTTPMethodPost
-	matchType := gw.PathMatchExact
-	queryMatchType := gw.QueryParamMatchExact
-	headerMatchType := gw.HeaderMatchExact
+	method := gwv1alpha2.HTTPMethodPost
+	matchType := gwv1alpha2.PathMatchExact
+	queryMatchType := gwv1alpha2.QueryParamMatchExact
+	headerMatchType := gwv1alpha2.HeaderMatchExact
 	weight := int32(10)
 	protocol := "https"
-	hostname := gw.PreciseHostname("example.com")
-	port := gw.PortNumber(8443)
+	hostname := gwv1alpha2.PreciseHostname("example.com")
+	port := gwv1alpha2.PortNumber(8443)
 	statusCode := 302
 	for _, test := range []struct {
 		name       string
 		namespace  string
 		hostname   string
 		meta       map[string]string
-		route      *gw.HTTPRoute
+		route      *gwv1alpha2.HTTPRoute
 		references service.RouteRuleReferenceMap
 		expected   string
 	}{{
 		name:  "kitchen-sink",
-		route: &gw.HTTPRoute{},
+		route: &gwv1alpha2.HTTPRoute{},
 		references: service.RouteRuleReferenceMap{
 			service.RouteRule{
-				HTTPRule: &gw.HTTPRouteRule{
-					Matches: []gw.HTTPRouteMatch{{
+				HTTPRule: &gwv1alpha2.HTTPRouteRule{
+					Matches: []gwv1alpha2.HTTPRouteMatch{{
 						Method: &method,
-						Path: &gw.HTTPPathMatch{
+						Path: &gwv1alpha2.HTTPPathMatch{
 							Value: &path,
 							Type:  &matchType,
 						},
-						QueryParams: []gw.HTTPQueryParamMatch{{
+						QueryParams: []gwv1alpha2.HTTPQueryParamMatch{{
 							Type:  &queryMatchType,
 							Name:  "a",
 							Value: "b",
 						}},
-						Headers: []gw.HTTPHeaderMatch{{
+						Headers: []gwv1alpha2.HTTPHeaderMatch{{
 							Type:  &headerMatchType,
-							Name:  gw.HTTPHeaderName("a"),
+							Name:  gwv1alpha2.HTTPHeaderName("a"),
 							Value: "b",
 						}},
 					}},
-					Filters: []gw.HTTPRouteFilter{{
-						Type: gw.HTTPRouteFilterRequestRedirect,
-						RequestRedirect: &gw.HTTPRequestRedirectFilter{
+					Filters: []gwv1alpha2.HTTPRouteFilter{{
+						Type: gwv1alpha2.HTTPRouteFilterRequestRedirect,
+						RequestRedirect: &gwv1alpha2.HTTPRequestRedirectFilter{
 							Scheme:     &protocol,
 							Hostname:   &hostname,
 							Port:       &port,
 							StatusCode: &statusCode,
 						},
 					}, {
-						Type: gw.HTTPRouteFilterRequestHeaderModifier,
-						RequestHeaderModifier: &gw.HTTPRequestHeaderFilter{
-							Set: []gw.HTTPHeader{{
+						Type: gwv1alpha2.HTTPRouteFilterRequestHeaderModifier,
+						RequestHeaderModifier: &gwv1alpha2.HTTPRequestHeaderFilter{
+							Set: []gwv1alpha2.HTTPHeader{{
 								Name:  "x-a",
 								Value: "a",
 							}},
-							Add: []gw.HTTPHeader{{
+							Add: []gwv1alpha2.HTTPHeader{{
 								Name:  "x-b",
 								Value: "b",
 							}},
@@ -91,8 +91,8 @@ func TestConvertHTTPRoute(t *testing.T) {
 					Namespace: "namespace",
 				},
 				Reference: &service.BackendReference{
-					HTTPRef: &gw.HTTPBackendRef{
-						BackendRef: gw.BackendRef{
+					HTTPRef: &gwv1alpha2.HTTPBackendRef{
+						BackendRef: gwv1alpha2.BackendRef{
 							Weight: &weight,
 						},
 					},
@@ -186,9 +186,9 @@ func TestConvertHTTPRoute(t *testing.T) {
 `,
 	}, {
 		name: "hostnames",
-		route: &gw.HTTPRoute{
-			Spec: gw.HTTPRouteSpec{
-				Hostnames: []gw.Hostname{"*"},
+		route: &gwv1alpha2.HTTPRoute{
+			Spec: gwv1alpha2.HTTPRouteSpec{
+				Hostnames: []gwv1alpha2.Hostname{"*"},
 			},
 		},
 		references: service.RouteRuleReferenceMap{},

@@ -11,7 +11,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
+	gwv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	"github.com/hashicorp/go-hclog"
 
@@ -93,22 +93,22 @@ func TestHTTPRouteServiceToRouteRequests(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{Namespace: "namespace-1", Name: "echo-1"},
 	}
 
-	backendNS := gw.Namespace("namespace-1")
+	backendNS := gwv1alpha2.Namespace("namespace-1")
 
 	client := gatewayclient.NewTestClient(
 		nil,
 		// Include one route that references the Service name without the namespace,
 		// meaning that the namespace is implicitly the route's namespace
-		&gw.HTTPRoute{
+		&gwv1alpha2.HTTPRoute{
 			ObjectMeta: metav1.ObjectMeta{Namespace: "namespace-1", Name: "route-1"},
-			Spec: gw.HTTPRouteSpec{
-				Rules: []gw.HTTPRouteRule{{
-					BackendRefs: []gw.HTTPBackendRef{
+			Spec: gwv1alpha2.HTTPRouteSpec{
+				Rules: []gwv1alpha2.HTTPRouteRule{{
+					BackendRefs: []gwv1alpha2.HTTPBackendRef{
 						{
-							BackendRef: gw.BackendRef{BackendObjectReference: gw.BackendObjectReference{Name: "echo-1"}},
+							BackendRef: gwv1alpha2.BackendRef{BackendObjectReference: gwv1alpha2.BackendObjectReference{Name: "echo-1"}},
 						},
 						{
-							BackendRef: gw.BackendRef{BackendObjectReference: gw.BackendObjectReference{Name: "echo-2"}},
+							BackendRef: gwv1alpha2.BackendRef{BackendObjectReference: gwv1alpha2.BackendObjectReference{Name: "echo-2"}},
 						},
 					},
 				}},
@@ -116,13 +116,13 @@ func TestHTTPRouteServiceToRouteRequests(t *testing.T) {
 		},
 		// Include one route in a different namespace that references the Service by
 		// explicit namespace + name
-		&gw.HTTPRoute{
+		&gwv1alpha2.HTTPRoute{
 			ObjectMeta: metav1.ObjectMeta{Namespace: "namespace-2", Name: "route-2"},
-			Spec: gw.HTTPRouteSpec{
-				Rules: []gw.HTTPRouteRule{{
-					BackendRefs: []gw.HTTPBackendRef{{
-						BackendRef: gw.BackendRef{
-							BackendObjectReference: gw.BackendObjectReference{
+			Spec: gwv1alpha2.HTTPRouteSpec{
+				Rules: []gwv1alpha2.HTTPRouteRule{{
+					BackendRefs: []gwv1alpha2.HTTPBackendRef{{
+						BackendRef: gwv1alpha2.BackendRef{
+							BackendObjectReference: gwv1alpha2.BackendObjectReference{
 								Namespace: &backendNS,
 								Name:      "echo-1",
 							},
@@ -132,20 +132,20 @@ func TestHTTPRouteServiceToRouteRequests(t *testing.T) {
 			},
 		},
 		// Include one route in the same namespace that does not reference the Service
-		&gw.HTTPRoute{
+		&gwv1alpha2.HTTPRoute{
 			ObjectMeta: metav1.ObjectMeta{Namespace: "namespace-1", Name: "route-3"},
-			Spec: gw.HTTPRouteSpec{
-				Rules: []gw.HTTPRouteRule{{
-					BackendRefs: []gw.HTTPBackendRef{},
+			Spec: gwv1alpha2.HTTPRouteSpec{
+				Rules: []gwv1alpha2.HTTPRouteRule{{
+					BackendRefs: []gwv1alpha2.HTTPBackendRef{},
 				}},
 			},
 		},
 		// Include one route in a different namespace that does not reference the Service
-		&gw.HTTPRoute{
+		&gwv1alpha2.HTTPRoute{
 			ObjectMeta: metav1.ObjectMeta{Namespace: "namespace-2", Name: "route-4"},
-			Spec: gw.HTTPRouteSpec{
-				Rules: []gw.HTTPRouteRule{{
-					BackendRefs: []gw.HTTPBackendRef{},
+			Spec: gwv1alpha2.HTTPRouteSpec{
+				Rules: []gwv1alpha2.HTTPRouteRule{{
+					BackendRefs: []gwv1alpha2.HTTPBackendRef{},
 				}},
 			},
 		},
@@ -164,47 +164,47 @@ func TestHTTPRouteServiceToRouteRequests(t *testing.T) {
 	assert.Equal(t, "namespace-2/route-2", requests[1].String())
 }
 
-func TestHTTPRouteReferencePolicyToRouteRequests(t *testing.T) {
+func TestHTTPRouteReferenceGrantToRouteRequests(t *testing.T) {
 	t.Parallel()
 
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	serviceNamespace := gw.Namespace("namespace3")
+	serviceNamespace := gwv1alpha2.Namespace("namespace3")
 
-	backendObjRef := gw.BackendObjectReference{
-		Name:      gw.ObjectName("service"),
+	backendObjRef := gwv1alpha2.BackendObjectReference{
+		Name:      gwv1alpha2.ObjectName("service"),
 		Namespace: &serviceNamespace,
 	}
 
-	httpRouteSpec := gw.HTTPRouteSpec{
-		Rules: []gw.HTTPRouteRule{{
-			BackendRefs: []gw.HTTPBackendRef{{
-				BackendRef: gw.BackendRef{
+	httpRouteSpec := gwv1alpha2.HTTPRouteSpec{
+		Rules: []gwv1alpha2.HTTPRouteRule{{
+			BackendRefs: []gwv1alpha2.HTTPBackendRef{{
+				BackendRef: gwv1alpha2.BackendRef{
 					BackendObjectReference: backendObjRef,
 				},
 			}},
 		}},
 	}
 
-	tcpRouteSpec := gw.TCPRouteSpec{
-		Rules: []gw.TCPRouteRule{{
-			BackendRefs: []gw.BackendRef{{
+	tcpRouteSpec := gwv1alpha2.TCPRouteSpec{
+		Rules: []gwv1alpha2.TCPRouteRule{{
+			BackendRefs: []gwv1alpha2.BackendRef{{
 				BackendObjectReference: backendObjRef,
 			}},
 		}},
 	}
 
-	refPolicy := gw.ReferencePolicy{
-		TypeMeta:   metav1.TypeMeta{Kind: "ReferencePolicy"},
+	refGrant := gwv1alpha2.ReferenceGrant{
+		TypeMeta:   metav1.TypeMeta{Kind: "ReferenceGrant"},
 		ObjectMeta: metav1.ObjectMeta{Namespace: "namespace3"},
-		Spec: gw.ReferencePolicySpec{
-			From: []gw.ReferencePolicyFrom{{
+		Spec: gwv1alpha2.ReferenceGrantSpec{
+			From: []gwv1alpha2.ReferenceGrantFrom{{
 				Group:     "gateway.networking.k8s.io",
 				Kind:      "HTTPRoute",
 				Namespace: "namespace1",
 			}},
-			To: []gw.ReferencePolicyTo{{
+			To: []gwv1alpha2.ReferenceGrantTo{{
 				Kind: "Service",
 			}},
 		},
@@ -212,21 +212,110 @@ func TestHTTPRouteReferencePolicyToRouteRequests(t *testing.T) {
 
 	client := gatewayclient.NewTestClient(
 		nil,
-		&gw.HTTPRoute{
+		&gwv1alpha2.HTTPRoute{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "httproute",
 				Namespace: "namespace1",
 			},
 			Spec: httpRouteSpec,
 		},
-		&gw.HTTPRoute{
+		&gwv1alpha2.HTTPRoute{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "httproute",
 				Namespace: "namespace2",
 			},
 			Spec: httpRouteSpec,
 		},
-		&gw.TCPRoute{
+		&gwv1alpha2.TCPRoute{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "tcproute",
+				Namespace: "namespace1",
+			},
+			Spec: tcpRouteSpec,
+		},
+		&refGrant,
+	)
+
+	controller := &HTTPRouteReconciler{
+		Client:         client,
+		Log:            hclog.NewNullLogger(),
+		ControllerName: mockControllerName,
+		Manager:        reconcilerMocks.NewMockReconcileManager(ctrl),
+	}
+
+	requests := controller.referenceGrantToRouteRequests(&refGrant)
+
+	require.Equal(t, []reconcile.Request{{
+		NamespacedName: types.NamespacedName{
+			Name:      "httproute",
+			Namespace: "namespace1",
+		},
+	}}, requests)
+}
+
+func TestHTTPRouteReferencePolicyToRouteRequests(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	serviceNamespace := gwv1alpha2.Namespace("namespace3")
+
+	backendObjRef := gwv1alpha2.BackendObjectReference{
+		Name:      gwv1alpha2.ObjectName("service"),
+		Namespace: &serviceNamespace,
+	}
+
+	httpRouteSpec := gwv1alpha2.HTTPRouteSpec{
+		Rules: []gwv1alpha2.HTTPRouteRule{{
+			BackendRefs: []gwv1alpha2.HTTPBackendRef{{
+				BackendRef: gwv1alpha2.BackendRef{
+					BackendObjectReference: backendObjRef,
+				},
+			}},
+		}},
+	}
+
+	tcpRouteSpec := gwv1alpha2.TCPRouteSpec{
+		Rules: []gwv1alpha2.TCPRouteRule{{
+			BackendRefs: []gwv1alpha2.BackendRef{{
+				BackendObjectReference: backendObjRef,
+			}},
+		}},
+	}
+
+	refPolicy := gwv1alpha2.ReferencePolicy{
+		TypeMeta:   metav1.TypeMeta{Kind: "ReferencePolicy"},
+		ObjectMeta: metav1.ObjectMeta{Namespace: "namespace3"},
+		Spec: gwv1alpha2.ReferenceGrantSpec{
+			From: []gwv1alpha2.ReferenceGrantFrom{{
+				Group:     "gateway.networking.k8s.io",
+				Kind:      "HTTPRoute",
+				Namespace: "namespace1",
+			}},
+			To: []gwv1alpha2.ReferenceGrantTo{{
+				Kind: "Service",
+			}},
+		},
+	}
+
+	client := gatewayclient.NewTestClient(
+		nil,
+		&gwv1alpha2.HTTPRoute{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "httproute",
+				Namespace: "namespace1",
+			},
+			Spec: httpRouteSpec,
+		},
+		&gwv1alpha2.HTTPRoute{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "httproute",
+				Namespace: "namespace2",
+			},
+			Spec: httpRouteSpec,
+		},
+		&gwv1alpha2.TCPRoute{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "tcproute",
 				Namespace: "namespace1",

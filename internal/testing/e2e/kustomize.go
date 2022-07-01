@@ -6,14 +6,15 @@ import (
 	"os/exec"
 	"time"
 
-	"sigs.k8s.io/controller-runtime/pkg/client"
+	api "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 )
 
-func kubectlKustomizeCRDs(ctx context.Context, url string) ([]client.Object, error) {
+// TODO: switch this to krusty implementation after integration for conformance tests
+func kubectlKustomizeCRDs(ctx context.Context, path string) ([]*api.CustomResourceDefinition, error) {
 	var stdout, stderr bytes.Buffer
 	timeoutContext, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(timeoutContext, "kubectl", "kustomize", url)
+	cmd := exec.CommandContext(timeoutContext, "kubectl", "kustomize", path)
 	cmd.Stderr = &stderr
 	cmd.Stdout = &stdout
 	if err := cmd.Run(); err != nil {

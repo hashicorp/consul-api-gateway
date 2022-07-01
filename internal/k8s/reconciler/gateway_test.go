@@ -12,14 +12,16 @@ import (
 	"github.com/stretchr/testify/require"
 	core "k8s.io/api/core/v1"
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
-	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
+	gwv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
+	gwv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
+
+	"github.com/hashicorp/go-hclog"
 
 	internalCore "github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient/mocks"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/service"
 	storeMocks "github.com/hashicorp/consul-api-gateway/internal/store/mocks"
 	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
-	"github.com/hashicorp/go-hclog"
 )
 
 func TestGatewayValidate(t *testing.T) {
@@ -29,14 +31,14 @@ func TestGatewayValidate(t *testing.T) {
 	defer ctrl.Finish()
 	client := mocks.NewMockClient(ctrl)
 
-	hostname := gw.Hostname("*")
-	gateway := NewK8sGateway(&gw.Gateway{
-		Spec: gw.GatewaySpec{
-			Listeners: []gw.Listener{{
+	hostname := gwv1beta1.Hostname("*")
+	gateway := NewK8sGateway(&gwv1beta1.Gateway{
+		Spec: gwv1beta1.GatewaySpec{
+			Listeners: []gwv1beta1.Listener{{
 				Hostname: &hostname,
-				Protocol: gw.HTTPSProtocolType,
-				TLS: &gw.GatewayTLSConfig{
-					CertificateRefs: []*gw.SecretObjectReference{{}},
+				Protocol: gwv1beta1.HTTPSProtocolType,
+				TLS: &gwv1beta1.GatewayTLSConfig{
+					CertificateRefs: []gwv1beta1.SecretObjectReference{{}},
 				},
 			}},
 		},
@@ -73,15 +75,15 @@ func TestGatewayValidateGatewayIP(t *testing.T) {
 	defer ctrl.Finish()
 	client := mocks.NewMockClient(ctrl)
 
-	hostname := gw.Hostname("*")
+	hostname := gwv1beta1.Hostname("*")
 
-	gwDef := &gw.Gateway{
-		Spec: gw.GatewaySpec{
-			Listeners: []gw.Listener{{
+	gwDef := &gwv1beta1.Gateway{
+		Spec: gwv1beta1.GatewaySpec{
+			Listeners: []gwv1beta1.Listener{{
 				Hostname: &hostname,
-				Protocol: gw.HTTPSProtocolType,
-				TLS: &gw.GatewayTLSConfig{
-					CertificateRefs: []*gw.SecretObjectReference{{}},
+				Protocol: gwv1beta1.HTTPSProtocolType,
+				TLS: &gwv1beta1.GatewayTLSConfig{
+					CertificateRefs: []gwv1beta1.SecretObjectReference{{}},
 				},
 			}},
 		},
@@ -182,16 +184,16 @@ func TestGatewayValidate_ListenerProtocolConflicts(t *testing.T) {
 	defer ctrl.Finish()
 	client := mocks.NewMockClient(ctrl)
 
-	gateway := NewK8sGateway(&gw.Gateway{
-		Spec: gw.GatewaySpec{
-			Listeners: []gw.Listener{{
-				Name:     gw.SectionName("1"),
-				Protocol: gw.HTTPProtocolType,
-				Port:     gw.PortNumber(1),
+	gateway := NewK8sGateway(&gwv1beta1.Gateway{
+		Spec: gwv1beta1.GatewaySpec{
+			Listeners: []gwv1beta1.Listener{{
+				Name:     gwv1beta1.SectionName("1"),
+				Protocol: gwv1beta1.HTTPProtocolType,
+				Port:     gwv1beta1.PortNumber(1),
 			}, {
-				Name:     gw.SectionName("2"),
-				Protocol: gw.UDPProtocolType,
-				Port:     gw.PortNumber(1),
+				Name:     gwv1beta1.SectionName("2"),
+				Protocol: gwv1beta1.UDPProtocolType,
+				Port:     gwv1beta1.PortNumber(1),
 			}},
 		},
 	}, K8sGatewayConfig{
@@ -219,20 +221,20 @@ func TestGatewayValidate_ListenerHostnameConflicts(t *testing.T) {
 	defer ctrl.Finish()
 	client := mocks.NewMockClient(ctrl)
 
-	hostname := gw.Hostname("1")
-	other := gw.Hostname("2")
-	gateway := NewK8sGateway(&gw.Gateway{
-		Spec: gw.GatewaySpec{
-			Listeners: []gw.Listener{{
-				Name:     gw.SectionName("1"),
-				Protocol: gw.HTTPProtocolType,
+	hostname := gwv1beta1.Hostname("1")
+	other := gwv1beta1.Hostname("2")
+	gateway := NewK8sGateway(&gwv1beta1.Gateway{
+		Spec: gwv1beta1.GatewaySpec{
+			Listeners: []gwv1beta1.Listener{{
+				Name:     gwv1beta1.SectionName("1"),
+				Protocol: gwv1beta1.HTTPProtocolType,
 				Hostname: &hostname,
-				Port:     gw.PortNumber(1),
+				Port:     gwv1beta1.PortNumber(1),
 			}, {
-				Name:     gw.SectionName("2"),
-				Protocol: gw.HTTPProtocolType,
+				Name:     gwv1beta1.SectionName("2"),
+				Protocol: gwv1beta1.HTTPProtocolType,
 				Hostname: &other,
-				Port:     gw.PortNumber(1),
+				Port:     gwv1beta1.PortNumber(1),
 			}},
 		},
 	}, K8sGatewayConfig{
@@ -260,9 +262,9 @@ func TestGatewayValidate_Pods(t *testing.T) {
 	defer ctrl.Finish()
 	client := mocks.NewMockClient(ctrl)
 
-	gateway := NewK8sGateway(&gw.Gateway{
-		Spec: gw.GatewaySpec{
-			Listeners: []gw.Listener{{}},
+	gateway := NewK8sGateway(&gwv1beta1.Gateway{
+		Spec: gwv1beta1.GatewaySpec{
+			Listeners: []gwv1beta1.Listener{{}},
 		},
 	}, K8sGatewayConfig{
 		Logger: hclog.New(&hclog.LoggerOptions{
@@ -343,7 +345,7 @@ func TestGatewayValidate_Pods(t *testing.T) {
 func TestGatewayID(t *testing.T) {
 	t.Parallel()
 
-	gateway := NewK8sGateway(&gw.Gateway{
+	gateway := NewK8sGateway(&gwv1beta1.Gateway{
 		ObjectMeta: meta.ObjectMeta{
 			Name:      "name",
 			Namespace: "namespace",
@@ -358,7 +360,7 @@ func TestGatewayID(t *testing.T) {
 func TestGatewayMeta(t *testing.T) {
 	t.Parallel()
 
-	gateway := NewK8sGateway(&gw.Gateway{
+	gateway := NewK8sGateway(&gwv1beta1.Gateway{
 		ObjectMeta: meta.ObjectMeta{
 			Name:      "name",
 			Namespace: "namespace",
@@ -373,9 +375,9 @@ func TestGatewayMeta(t *testing.T) {
 func TestGatewayListeners(t *testing.T) {
 	t.Parallel()
 
-	gateway := NewK8sGateway(&gw.Gateway{
-		Spec: gw.GatewaySpec{
-			Listeners: []gw.Listener{{}},
+	gateway := NewK8sGateway(&gwv1beta1.Gateway{
+		Spec: gwv1beta1.GatewaySpec{
+			Listeners: []gwv1beta1.Listener{{}},
 		},
 	}, K8sGatewayConfig{
 		Logger: hclog.NewNullLogger(),
@@ -387,10 +389,10 @@ func TestGatewayOutputStatus(t *testing.T) {
 	t.Parallel()
 
 	// Pending listener
-	gateway := NewK8sGateway(&gw.Gateway{
-		Spec: gw.GatewaySpec{
-			Listeners: []gw.Listener{{
-				Name: gw.SectionName("1"),
+	gateway := NewK8sGateway(&gwv1beta1.Gateway{
+		Spec: gwv1beta1.GatewaySpec{
+			Listeners: []gwv1beta1.Listener{{
+				Name: gwv1beta1.SectionName("1"),
 			}},
 		},
 	}, K8sGatewayConfig{
@@ -402,10 +404,10 @@ func TestGatewayOutputStatus(t *testing.T) {
 	assert.Equal(t, GatewayConditionReasonListenersNotReady, gateway.status.Ready.Condition(0).Reason)
 
 	// Service ready, pods not
-	gateway = NewK8sGateway(&gw.Gateway{
-		Spec: gw.GatewaySpec{
-			Listeners: []gw.Listener{{
-				Name: gw.SectionName("1"),
+	gateway = NewK8sGateway(&gwv1beta1.Gateway{
+		Spec: gwv1beta1.GatewaySpec{
+			Listeners: []gwv1beta1.Listener{{
+				Name: gwv1beta1.SectionName("1"),
 			}},
 		},
 	}, K8sGatewayConfig{
@@ -418,10 +420,10 @@ func TestGatewayOutputStatus(t *testing.T) {
 	assert.Equal(t, GatewayConditionReasonListenersNotValid, gateway.status.Ready.Condition(0).Reason)
 
 	// Pods ready, service not
-	gateway = NewK8sGateway(&gw.Gateway{
-		Spec: gw.GatewaySpec{
-			Listeners: []gw.Listener{{
-				Name: gw.SectionName("1"),
+	gateway = NewK8sGateway(&gwv1beta1.Gateway{
+		Spec: gwv1beta1.GatewaySpec{
+			Listeners: []gwv1beta1.Listener{{
+				Name: gwv1beta1.SectionName("1"),
 			}},
 		},
 	}, K8sGatewayConfig{
@@ -434,12 +436,12 @@ func TestGatewayOutputStatus(t *testing.T) {
 	assert.Equal(t, GatewayConditionReasonListenersNotValid, gateway.status.Ready.Condition(0).Reason)
 
 	// Pods + service ready
-	gateway = NewK8sGateway(&gw.Gateway{
-		Spec: gw.GatewaySpec{
-			Listeners: []gw.Listener{{
-				Name: gw.SectionName("1"),
+	gateway = NewK8sGateway(&gwv1beta1.Gateway{
+		Spec: gwv1beta1.GatewaySpec{
+			Listeners: []gwv1beta1.Listener{{
+				Name: gwv1beta1.SectionName("1"),
 			}},
-			Addresses: []gw.GatewayAddress{{}},
+			Addresses: []gwv1beta1.GatewayAddress{{}},
 		},
 	}, K8sGatewayConfig{
 		Logger: hclog.NewNullLogger(),
@@ -449,12 +451,12 @@ func TestGatewayOutputStatus(t *testing.T) {
 	require.Len(t, gateway.Status().Listeners, 1)
 	assert.Equal(t, GatewayConditionReasonAddressNotAssigned, gateway.status.Ready.Condition(0).Reason)
 
-	gateway = NewK8sGateway(&gw.Gateway{
-		Spec: gw.GatewaySpec{
-			Listeners: []gw.Listener{{
-				Name: gw.SectionName("1"),
+	gateway = NewK8sGateway(&gwv1beta1.Gateway{
+		Spec: gwv1beta1.GatewaySpec{
+			Listeners: []gwv1beta1.Listener{{
+				Name: gwv1beta1.SectionName("1"),
 			}},
-			Addresses: []gw.GatewayAddress{{}},
+			Addresses: []gwv1beta1.GatewayAddress{{}},
 		},
 	}, K8sGatewayConfig{
 		Logger: hclog.NewNullLogger(),
@@ -470,7 +472,7 @@ func TestGatewayTrackSync(t *testing.T) {
 	defer ctrl.Finish()
 	client := mocks.NewMockClient(ctrl)
 
-	gateway := NewK8sGateway(&gw.Gateway{}, K8sGatewayConfig{
+	gateway := NewK8sGateway(&gwv1beta1.Gateway{}, K8sGatewayConfig{
 		Logger: hclog.New(&hclog.LoggerOptions{
 			Output: io.Discard,
 			Level:  hclog.Trace,
@@ -485,7 +487,7 @@ func TestGatewayTrackSync(t *testing.T) {
 	}))
 
 	var instances int32 = 2
-	gateway = NewK8sGateway(&gw.Gateway{}, K8sGatewayConfig{
+	gateway = NewK8sGateway(&gwv1beta1.Gateway{}, K8sGatewayConfig{
 		Logger: hclog.New(&hclog.LoggerOptions{
 			Output: io.Discard,
 			Level:  hclog.Trace,
@@ -509,7 +511,7 @@ func TestGatewayTrackSync(t *testing.T) {
 
 	expected := errors.New("expected")
 
-	gateway = NewK8sGateway(&gw.Gateway{}, K8sGatewayConfig{
+	gateway = NewK8sGateway(&gwv1beta1.Gateway{}, K8sGatewayConfig{
 		Logger: hclog.New(&hclog.LoggerOptions{
 			Output: io.Discard,
 			Level:  hclog.Trace,
@@ -522,7 +524,7 @@ func TestGatewayTrackSync(t *testing.T) {
 		return false, nil
 	}), expected))
 
-	gateway = NewK8sGateway(&gw.Gateway{}, K8sGatewayConfig{
+	gateway = NewK8sGateway(&gwv1beta1.Gateway{}, K8sGatewayConfig{
 		Logger: hclog.New(&hclog.LoggerOptions{
 			Output: io.Discard,
 			Level:  hclog.Trace,
@@ -536,7 +538,7 @@ func TestGatewayTrackSync(t *testing.T) {
 		return false, nil
 	}))
 
-	gateway = NewK8sGateway(&gw.Gateway{}, K8sGatewayConfig{
+	gateway = NewK8sGateway(&gwv1beta1.Gateway{}, K8sGatewayConfig{
 		Logger: hclog.New(&hclog.LoggerOptions{
 			Output: io.Discard,
 			Level:  hclog.Trace,
@@ -551,7 +553,7 @@ func TestGatewayTrackSync(t *testing.T) {
 		return true, nil
 	}))
 
-	gateway = NewK8sGateway(&gw.Gateway{}, K8sGatewayConfig{
+	gateway = NewK8sGateway(&gwv1beta1.Gateway{}, K8sGatewayConfig{
 		Logger: hclog.New(&hclog.LoggerOptions{
 			Output: io.Discard,
 			Level:  hclog.Trace,
@@ -569,11 +571,11 @@ func TestGatewayTrackSync(t *testing.T) {
 func TestGatewayShouldUpdate(t *testing.T) {
 	t.Parallel()
 
-	gateway := NewK8sGateway(&gw.Gateway{}, K8sGatewayConfig{
+	gateway := NewK8sGateway(&gwv1beta1.Gateway{}, K8sGatewayConfig{
 		Logger: hclog.NewNullLogger(),
 	})
 
-	other := NewK8sGateway(&gw.Gateway{}, K8sGatewayConfig{
+	other := NewK8sGateway(&gwv1beta1.Gateway{}, K8sGatewayConfig{
 		Logger: hclog.NewNullLogger(),
 	})
 
@@ -613,23 +615,23 @@ func TestGatewayShouldUpdate(t *testing.T) {
 func TestGatewayShouldBind(t *testing.T) {
 	t.Parallel()
 
-	gateway := NewK8sGateway(&gw.Gateway{}, K8sGatewayConfig{
+	gateway := NewK8sGateway(&gwv1beta1.Gateway{}, K8sGatewayConfig{
 		Logger: hclog.NewNullLogger(),
 	})
 	gateway.gateway.Name = "name"
 
 	require.False(t, gateway.ShouldBind(storeMocks.NewMockRoute(nil)))
 
-	route := NewK8sRoute(&gw.HTTPRoute{}, K8sRouteConfig{
+	route := NewK8sRoute(&gwv1alpha2.HTTPRoute{}, K8sRouteConfig{
 		Logger: hclog.NewNullLogger(),
 	})
 	route.resolutionErrors.Add(service.NewConsulResolutionError("test"))
 	require.False(t, gateway.ShouldBind(route))
 
-	require.True(t, gateway.ShouldBind(NewK8sRoute(&gw.HTTPRoute{
-		Spec: gw.HTTPRouteSpec{
-			CommonRouteSpec: gw.CommonRouteSpec{
-				ParentRefs: []gw.ParentRef{{
+	require.True(t, gateway.ShouldBind(NewK8sRoute(&gwv1alpha2.HTTPRoute{
+		Spec: gwv1alpha2.HTTPRouteSpec{
+			CommonRouteSpec: gwv1alpha2.CommonRouteSpec{
+				ParentRefs: []gwv1alpha2.ParentReference{{
 					Name: "name",
 				}},
 			},
@@ -638,7 +640,7 @@ func TestGatewayShouldBind(t *testing.T) {
 		Logger: hclog.NewNullLogger(),
 	})))
 
-	require.False(t, gateway.ShouldBind(NewK8sRoute(&gw.HTTPRoute{}, K8sRouteConfig{
+	require.False(t, gateway.ShouldBind(NewK8sRoute(&gwv1alpha2.HTTPRoute{}, K8sRouteConfig{
 		Logger: hclog.NewNullLogger(),
 	})))
 }

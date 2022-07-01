@@ -1,0 +1,6 @@
+```release-note:feature
+gateway-api: update to the [v0.5.0-rc1](https://github.com/kubernetes-sigs/gateway-api/releases/tag/v0.5.0-rc1) release with v1beta1 resource support
+```
+```release-note:deprecation
+gateway-api: ReferencePolicy is deprecated and will be removed in a future release. The functionally identical ReferenceGrant should be used instead.
+```

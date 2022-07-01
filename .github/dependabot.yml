@@ -1,0 +1,10 @@
+version: 2
+updates:
+  - package-ecosystem: gomod
+    open-pull-requests-limit: 5
+    directory: "/"
+    labels:
+      - "dependencies"
+      - "pr/no-changelog"
+    schedule:
+      interval: daily

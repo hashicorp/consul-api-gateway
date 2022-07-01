@@ -5,7 +5,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	gateway "sigs.k8s.io/gateway-api/apis/v1alpha2"
+	gwv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 )
 
 const (
@@ -15,7 +15,7 @@ const (
 	createdAtLabel = "api-gateway.consul.hashicorp.com/created"
 )
 
-func LabelsForGateway(gw *gateway.Gateway) map[string]string {
+func LabelsForGateway(gw *gwv1beta1.Gateway) map[string]string {
 	return map[string]string{
 		nameLabel:      gw.Name,
 		namespaceLabel: gw.Namespace,

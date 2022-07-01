@@ -604,7 +604,7 @@ type RouteResolvedRefsStatus struct {
 	ConsulServiceNotFound error
 	// This reason is used with the “ResolvedRefs” condition when one of the
 	// Listener’s Routes has a BackendRef to an object in another namespace, where
-	// the object in the other namespace does not have a ReferencePolicy explicitly
+	// the object in the other namespace does not have a ReferenceGrant explicitly
 	// allowing the reference.
 	//
 	// [spec]
@@ -641,7 +641,7 @@ const (
 	// RouteConditionReasonRefNotPermitted - This reason is used with the
 	// “ResolvedRefs” condition when one of the Listener’s Routes has a
 	// BackendRef to an object in another namespace, where the object in the other
-	// namespace does not have a ReferencePolicy explicitly allowing the reference.
+	// namespace does not have a ReferenceGrant explicitly allowing the reference.
 	//
 	// [spec]
 	RouteConditionReasonRefNotPermitted = "RefNotPermitted"
@@ -1104,7 +1104,7 @@ type ListenerResolvedRefsStatus struct {
 	InvalidRouteKinds error
 	// This reason is used with the “ResolvedRefs” condition when one of the
 	// Listener’s Routes has a BackendRef to an object in another namespace, where
-	// the object in the other namespace does not have a ReferencePolicy explicitly
+	// the object in the other namespace does not have a ReferenceGrant explicitly
 	// allowing the reference.
 	//
 	// [spec]
@@ -1137,7 +1137,7 @@ const (
 	// ListenerConditionReasonRefNotPermitted - This reason is used with the
 	// “ResolvedRefs” condition when one of the Listener’s Routes has a
 	// BackendRef to an object in another namespace, where the object in the other
-	// namespace does not have a ReferencePolicy explicitly allowing the reference.
+	// namespace does not have a ReferenceGrant explicitly allowing the reference.
 	//
 	// [spec]
 	ListenerConditionReasonRefNotPermitted = "RefNotPermitted"

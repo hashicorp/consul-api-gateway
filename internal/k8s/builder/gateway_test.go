@@ -11,7 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer/json"
 	"k8s.io/apimachinery/pkg/util/yaml"
-	gateway "sigs.k8s.io/gateway-api/apis/v1alpha2"
+	gwv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 )
@@ -37,15 +37,15 @@ func init() {
 
 type gatewayTestConfig struct {
 	gatewayClassConfig *v1alpha1.GatewayClassConfig
-	gatewayClass       *gateway.GatewayClass
-	gateway            *gateway.Gateway
+	gatewayClass       *gwv1beta1.GatewayClass
+	gateway            *gwv1beta1.Gateway
 }
 
 func newGatewayTestConfig() *gatewayTestConfig {
 	return &gatewayTestConfig{
 		gatewayClassConfig: &v1alpha1.GatewayClassConfig{},
-		gatewayClass:       &gateway.GatewayClass{},
-		gateway:            &gateway.Gateway{},
+		gatewayClass:       &gwv1beta1.GatewayClass{},
+		gateway:            &gwv1beta1.Gateway{},
 	}
 }
 

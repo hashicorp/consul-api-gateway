@@ -5,7 +5,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	gateway "sigs.k8s.io/gateway-api/apis/v1alpha2"
+	gwv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 )
@@ -132,7 +132,7 @@ type GatewayClassConfigList struct {
 }
 
 // ServicesAccountFor returns the service account to be created for the given gateway.
-func (c *GatewayClassConfig) ServiceAccountFor(gw *gateway.Gateway) *corev1.ServiceAccount {
+func (c *GatewayClassConfig) ServiceAccountFor(gw *gwv1beta1.Gateway) *corev1.ServiceAccount {
 	if !c.Spec.ConsulSpec.AuthSpec.Managed {
 		return nil
 	}

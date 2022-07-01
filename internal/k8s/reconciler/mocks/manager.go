@@ -11,7 +11,7 @@ import (
 	gomock "github.com/golang/mock/gomock"
 	reconciler "github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler"
 	types "k8s.io/apimachinery/pkg/types"
-	v1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
+	v1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 )
 
 // MockReconcileManager is a mock of ReconcileManager interface.
@@ -108,7 +108,7 @@ func (mr *MockReconcileManagerMockRecorder) DeleteTLSRoute(ctx, name interface{}
 }
 
 // UpsertGateway mocks base method.
-func (m *MockReconcileManager) UpsertGateway(ctx context.Context, g *v1alpha2.Gateway) error {
+func (m *MockReconcileManager) UpsertGateway(ctx context.Context, g *v1beta1.Gateway) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpsertGateway", ctx, g)
 	ret0, _ := ret[0].(error)
@@ -122,7 +122,7 @@ func (mr *MockReconcileManagerMockRecorder) UpsertGateway(ctx, g interface{}) *g
 }
 
 // UpsertGatewayClass mocks base method.
-func (m *MockReconcileManager) UpsertGatewayClass(ctx context.Context, gc *v1alpha2.GatewayClass) error {
+func (m *MockReconcileManager) UpsertGatewayClass(ctx context.Context, gc *v1beta1.GatewayClass) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpsertGatewayClass", ctx, gc)
 	ret0, _ := ret[0].(error)

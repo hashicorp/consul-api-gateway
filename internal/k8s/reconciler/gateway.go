@@ -9,7 +9,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
-	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
+	gwv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/hashicorp/go-hclog"
 	"golang.org/x/exp/slices"
@@ -26,7 +26,7 @@ type K8sGateway struct {
 	consulNamespace   string
 	logger            hclog.Logger
 	client            gatewayclient.Client
-	gateway           *gw.Gateway
+	gateway           *gwv1beta1.Gateway
 	config            apigwv1alpha1.GatewayClassConfig
 	deploymentBuilder builder.DeploymentBuilder
 	serviceBuilder    builder.ServiceBuilder
@@ -50,7 +50,7 @@ type K8sGatewayConfig struct {
 	Client          gatewayclient.Client
 }
 
-func NewK8sGateway(gateway *gw.Gateway, config K8sGatewayConfig) *K8sGateway {
+func NewK8sGateway(gateway *gwv1beta1.Gateway, config K8sGatewayConfig) *K8sGateway {
 	gatewayLogger := config.Logger.Named("gateway").With("name", gateway.Name, "namespace", gateway.Namespace)
 	listeners := make(map[string]*K8sListener)
 	for _, listener := range gateway.Spec.Listeners {
@@ -104,14 +104,14 @@ func (g *K8sGateway) Validate(ctx context.Context) error {
 }
 
 type mergedListener struct {
-	port      gw.PortNumber
+	port      gwv1beta1.PortNumber
 	listeners []*K8sListener
 	protocols map[string]struct{}
 	hostnames map[string]struct{}
 }
 
-func (g *K8sGateway) mergeListenersByPort() map[gw.PortNumber]mergedListener {
-	mergedListeners := make(map[gw.PortNumber]mergedListener)
+func (g *K8sGateway) mergeListenersByPort() map[gwv1beta1.PortNumber]mergedListener {
+	mergedListeners := make(map[gwv1beta1.PortNumber]mergedListener)
 	for _, listener := range g.listeners {
 		merged, found := mergedListeners[listener.listener.Port]
 		if !found {
@@ -395,8 +395,8 @@ func (g *K8sGateway) ShouldBind(route store.Route) bool {
 	return false
 }
 
-func (g *K8sGateway) Status() gw.GatewayStatus {
-	listenerStatuses := []gw.ListenerStatus{}
+func (g *K8sGateway) Status() gwv1beta1.GatewayStatus {
+	listenerStatuses := []gwv1beta1.ListenerStatus{}
 	listenersReady := true
 	listenersInvalid := false
 	for _, listener := range g.listeners {
@@ -426,16 +426,16 @@ func (g *K8sGateway) Status() gw.GatewayStatus {
 		conditions = g.gateway.Status.Conditions
 	}
 
-	ipType := gw.IPAddressType
-	addresses := make([]gw.GatewayAddress, 0, len(g.addresses))
+	ipType := gwv1beta1.IPAddressType
+	addresses := make([]gwv1beta1.GatewayAddress, 0, len(g.addresses))
 	for _, address := range g.addresses {
-		addresses = append(addresses, gw.GatewayAddress{
+		addresses = append(addresses, gwv1beta1.GatewayAddress{
 			Type:  &ipType,
 			Value: address,
 		})
 	}
 
-	return gw.GatewayStatus{
+	return gwv1beta1.GatewayStatus{
 		Addresses:  addresses,
 		Conditions: conditions,
 		Listeners:  listenerStatuses,

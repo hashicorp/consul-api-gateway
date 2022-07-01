@@ -4,14 +4,9 @@ import (
 	"context"
 	"log"
 	"os"
-	"path"
-	"strings"
 	"time"
 
 	"golang.org/x/sync/errgroup"
-	"k8s.io/client-go/kubernetes/scheme"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/e2e-framework/pkg/env"
 	"sigs.k8s.io/e2e-framework/pkg/envconf"
 
@@ -20,7 +15,6 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/envoy"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s"
 	"github.com/hashicorp/consul-api-gateway/internal/store/memory"
-	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 	"github.com/hashicorp/go-hclog"
 )
 
@@ -153,37 +147,5 @@ func DestroyTestGatewayServer(ctx context.Context, cfg *envconf.Config) (context
 	if err := os.RemoveAll(env.directory); err != nil {
 		return nil, err
 	}
-	return ctx, nil
-}
-
-func InstallConsulAPIGatewayCRDs(ctx context.Context, cfg *envconf.Config) (context.Context, error) {
-	directory := path.Join("..", "..", "..", "config", "crd", "bases")
-	entries, err := os.ReadDir(directory)
-	crds := []client.Object{}
-	if err != nil {
-		return nil, err
-	}
-	for _, file := range entries {
-		if strings.HasPrefix(file.Name(), ".") {
-			continue
-		}
-		data, err := os.ReadFile(path.Join(directory, file.Name()))
-		if err != nil {
-			return nil, err
-		}
-		fileCRDs, err := readCRDs(data)
-		if err != nil {
-			return nil, err
-		}
-		crds = append(crds, fileCRDs...)
-	}
-	if _, err := envtest.InstallCRDs(cfg.Client().RESTConfig(), envtest.CRDInstallOptions{
-		CRDs: crds,
-	}); err != nil {
-		return nil, err
-	}
-
-	apigwv1alpha1.RegisterTypes(scheme.Scheme)
-
 	return ctx, nil
 }

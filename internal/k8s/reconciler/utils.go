@@ -12,7 +12,8 @@ import (
 	klabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 
-	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
+	gwv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
+	gwv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 )
@@ -22,14 +23,14 @@ const (
 	NamespaceNameLabel = "kubernetes.io/metadata.name"
 )
 
-func routeMatchesListener(listenerName gw.SectionName, sectionName *gw.SectionName) (bool, bool) {
-	if sectionName == nil {
+func routeMatchesListener(listenerName gwv1beta1.SectionName, routeSectionName *gwv1alpha2.SectionName) (can bool, must bool) {
+	if routeSectionName == nil {
 		return true, false
 	}
-	return listenerName == *sectionName, true
+	return string(listenerName) == string(*routeSectionName), true
 }
 
-func routeMatchesListenerHostname(listenerHostname *gw.Hostname, hostnames []gw.Hostname) bool {
+func routeMatchesListenerHostname(listenerHostname *gwv1beta1.Hostname, hostnames []gwv1alpha2.Hostname) bool {
 	if listenerHostname == nil || len(hostnames) == 0 {
 		return true
 	}
@@ -42,7 +43,7 @@ func routeMatchesListenerHostname(listenerHostname *gw.Hostname, hostnames []gw.
 	return false
 }
 
-func hostnamesMatch(a, b gw.Hostname) bool {
+func hostnamesMatch(a gwv1alpha2.Hostname, b gwv1beta1.Hostname) bool {
 	if a == "" || a == "*" || b == "" || b == "*" {
 		// any wildcard always matches
 		return true
@@ -62,17 +63,17 @@ func hostnamesMatch(a, b gw.Hostname) bool {
 		return true
 	}
 
-	return a == b
+	return string(a) == string(b)
 }
 
-func routeKindIsAllowedForListener(kinds []gw.RouteGroupKind, route *K8sRoute) bool {
+func routeKindIsAllowedForListener(kinds []gwv1beta1.RouteGroupKind, route *K8sRoute) bool {
 	if kinds == nil {
 		return true
 	}
 
 	gvk := route.GroupVersionKind()
 	for _, kind := range kinds {
-		group := gw.GroupName
+		group := gwv1beta1.GroupName
 		if kind.Group != nil && *kind.Group != "" {
 			group = string(*kind.Group)
 		}
@@ -86,24 +87,24 @@ func routeKindIsAllowedForListener(kinds []gw.RouteGroupKind, route *K8sRoute) b
 
 // routeAllowedForListenerNamespaces determines whether the route is allowed
 // to bind to the Gateway based on the AllowedRoutes namespace selectors.
-func routeAllowedForListenerNamespaces(ctx context.Context, gatewayNS string, allowedRoutes *gw.AllowedRoutes, route *K8sRoute, c gatewayclient.Client) (bool, error) {
-	var namespaceSelector *gw.RouteNamespaces
+func routeAllowedForListenerNamespaces(ctx context.Context, gatewayNS string, allowedRoutes *gwv1beta1.AllowedRoutes, route *K8sRoute, c gatewayclient.Client) (bool, error) {
+	var namespaceSelector *gwv1beta1.RouteNamespaces
 	if allowedRoutes != nil {
 		// check gateway namespace
 		namespaceSelector = allowedRoutes.Namespaces
 	}
 
 	// set default if namespace selector is nil
-	from := gw.NamespacesFromSame
+	from := gwv1beta1.NamespacesFromSame
 	if namespaceSelector != nil && namespaceSelector.From != nil && *namespaceSelector.From != "" {
 		from = *namespaceSelector.From
 	}
 	switch from {
-	case gw.NamespacesFromAll:
+	case gwv1beta1.NamespacesFromAll:
 		return true, nil
-	case gw.NamespacesFromSame:
+	case gwv1beta1.NamespacesFromSame:
 		return gatewayNS == route.GetNamespace(), nil
-	case gw.NamespacesFromSelector:
+	case gwv1beta1.NamespacesFromSelector:
 		namespaceSelector, err := metav1.LabelSelectorAsSelector(namespaceSelector.Selector)
 		if err != nil {
 			return false, fmt.Errorf("error parsing label selector: %w", err)
@@ -122,8 +123,8 @@ func routeAllowedForListenerNamespaces(ctx context.Context, gatewayNS string, al
 
 // gatewayAllowedForSecretRef determines whether the gateway is allowed
 // for the secret either by being in the same namespace or by having
-// an applicable ReferencePolicy in the same namespace as the secret.
-func gatewayAllowedForSecretRef(ctx context.Context, gateway *gw.Gateway, secretRef gw.SecretObjectReference, c gatewayclient.Client) (bool, error) {
+// an applicable ReferenceGrant in the same namespace as the secret.
+func gatewayAllowedForSecretRef(ctx context.Context, gateway *gwv1beta1.Gateway, secretRef gwv1beta1.SecretObjectReference, c gatewayclient.Client) (bool, error) {
 	fromNS := gateway.GetNamespace()
 	fromGK := metav1.GroupKind{
 		Group: gateway.GroupVersionKind().Group,
@@ -151,11 +152,11 @@ func gatewayAllowedForSecretRef(ctx context.Context, gateway *gw.Gateway, secret
 
 // routeAllowedForBackendRef determines whether the route is allowed
 // for the backend either by being in the same namespace or by having
-// an applicable ReferencePolicy in the same namespace as the backend.
+// an applicable ReferenceGrant in the same namespace as the backend.
 //
 // TODO This func is currently called once for each backendRef on a route and results
-//   in fetching ReferencePolicies more than we technically have to in some cases
-func routeAllowedForBackendRef(ctx context.Context, route Route, backendRef gw.BackendRef, c gatewayclient.Client) (bool, error) {
+//   in fetching ReferenceGrants more than we technically have to in some cases
+func routeAllowedForBackendRef(ctx context.Context, route Route, backendRef gwv1alpha2.BackendRef, c gatewayclient.Client) (bool, error) {
 	fromNS := route.GetNamespace()
 	fromGK := metav1.GroupKind{
 		Group: route.GroupVersionKind().Group,
@@ -183,27 +184,27 @@ func routeAllowedForBackendRef(ctx context.Context, route Route, backendRef gw.B
 
 // referenceAllowed checks to see if a reference between resources is allowed.
 // In particular, references from one namespace to a resource in a different namespace
-// require an applicable ReferencePolicy be found in the namespace containing the resource
+// require an applicable ReferenceGrant be found in the namespace containing the resource
 // being referred to.
 //
 // For example, a Gateway in namespace "foo" may only reference a Secret in namespace "bar"
-// if a ReferencePolicy in namespace "bar" allows references from namespace "foo".
+// if a ReferenceGrant in namespace "bar" allows references from namespace "foo".
 func referenceAllowed(ctx context.Context, fromGK metav1.GroupKind, fromNamespace string, toGK metav1.GroupKind, toNamespace, toName string, c gatewayclient.Client) (bool, error) {
 	// Reference does not cross namespaces
 	if toNamespace == "" || toNamespace == fromNamespace {
 		return true, nil
 	}
 
-	// Fetch all ReferencePolicies in the referenced namespace
-	refPolicies, err := c.GetReferencePoliciesInNamespace(ctx, toNamespace)
-	if err != nil || len(refPolicies) == 0 {
+	// Fetch all ReferenceGrants in the referenced namespace
+	refGrants, err := c.GetReferenceGrantsInNamespace(ctx, toNamespace)
+	if err != nil || len(refGrants) == 0 {
 		return false, err
 	}
 
-	for _, refPolicy := range refPolicies {
+	for _, refGrant := range refGrants {
 		// Check for a From that applies
 		fromMatch := false
-		for _, from := range refPolicy.Spec.From {
+		for _, from := range refGrant.Spec.From {
 			if fromGK.Group == string(from.Group) && fromGK.Kind == string(from.Kind) && fromNamespace == string(from.Namespace) {
 				fromMatch = true
 				break
@@ -215,22 +216,22 @@ func referenceAllowed(ctx context.Context, fromGK metav1.GroupKind, fromNamespac
 		}
 
 		// Check for a To that applies
-		for _, to := range refPolicy.Spec.To {
+		for _, to := range refGrant.Spec.To {
 			if toGK.Group == string(to.Group) && toGK.Kind == string(to.Kind) {
 				if to.Name == nil || *to.Name == "" {
 					// No name specified is treated as a wildcard within the namespace
 					return true, nil
 				}
 
-				if gw.ObjectName(toName) == *to.Name {
-					// The ReferencePolicy specifically targets this object
+				if gwv1alpha2.ObjectName(toName) == *to.Name {
+					// The ReferenceGrant specifically targets this object
 					return true, nil
 				}
 			}
 		}
 	}
 
-	// No ReferencePolicy was found which allows this cross-namespace reference
+	// No ReferenceGrant was found which allows this cross-namespace reference
 	return false, nil
 }
 
@@ -249,7 +250,7 @@ func toNamespaceSet(name string, labels map[string]string) klabels.Labels {
 	return klabels.Set(ret)
 }
 
-func sortParents(parents []gw.RouteParentStatus) []gw.RouteParentStatus {
+func sortParents(parents []gwv1alpha2.RouteParentStatus) []gwv1alpha2.RouteParentStatus {
 	for _, parent := range parents {
 		sort.SliceStable(parent.Conditions, func(i, j int) bool {
 			return asJSON(parent.Conditions[i]) < asJSON(parent.Conditions[j])
@@ -273,8 +274,8 @@ func asJSON(item interface{}) string {
 	return string(data)
 }
 
-func parseParent(stringified string) gw.ParentRef {
-	var ref gw.ParentRef
+func parseParent(stringified string) gwv1alpha2.ParentReference {
+	var ref gwv1alpha2.ParentReference
 	if err := json.Unmarshal([]byte(stringified), &ref); err != nil {
 		// everything passed to this internally should be
 		// deserializable, if something is passed to it that
@@ -310,7 +311,7 @@ func conditionsEqual(a, b []metav1.Condition) bool {
 	return true
 }
 
-func listenerStatusEqual(a, b gw.ListenerStatus) bool {
+func listenerStatusEqual(a, b gwv1beta1.ListenerStatus) bool {
 	if a.Name != b.Name {
 		return false
 	}
@@ -323,7 +324,7 @@ func listenerStatusEqual(a, b gw.ListenerStatus) bool {
 	return conditionsEqual(a.Conditions, b.Conditions)
 }
 
-func listenerStatusesEqual(a, b []gw.ListenerStatus) bool {
+func listenerStatusesEqual(a, b []gwv1beta1.ListenerStatus) bool {
 	if len(a) != len(b) {
 		// we have a different number of conditions, so they aren't the same
 		return false
@@ -336,7 +337,7 @@ func listenerStatusesEqual(a, b []gw.ListenerStatus) bool {
 	return true
 }
 
-func parentStatusEqual(a, b gw.RouteParentStatus) bool {
+func parentStatusEqual(a, b gwv1alpha2.RouteParentStatus) bool {
 	if a.ControllerName != b.ControllerName {
 		return false
 	}
@@ -347,7 +348,7 @@ func parentStatusEqual(a, b gw.RouteParentStatus) bool {
 	return conditionsEqual(a.Conditions, b.Conditions)
 }
 
-func routeStatusEqual(a, b gw.RouteStatus) bool {
+func routeStatusEqual(a, b gwv1alpha2.RouteStatus) bool {
 	if len(a.Parents) != len(b.Parents) {
 		return false
 	}
@@ -360,7 +361,7 @@ func routeStatusEqual(a, b gw.RouteStatus) bool {
 	return true
 }
 
-func gatewayStatusEqual(a, b gw.GatewayStatus) bool {
+func gatewayStatusEqual(a, b gwv1beta1.GatewayStatus) bool {
 	if !conditionsEqual(a.Conditions, b.Conditions) {
 		return false
 	}
@@ -372,9 +373,17 @@ func gatewayStatusEqual(a, b gw.GatewayStatus) bool {
 	return true
 }
 
+type gwObjectName interface {
+	gwv1beta1.ObjectName | gwv1alpha2.ObjectName
+}
+
+type gwNamespace interface {
+	gwv1beta1.Namespace | gwv1alpha2.Namespace
+}
+
 // getNamespacedName returns types.NamespacedName defaulted to a parent
 // namespace in the case where the provided namespace is nil.
-func getNamespacedName(name gw.ObjectName, namespace *gw.Namespace, parentNamespace string) types.NamespacedName {
+func getNamespacedName[O gwObjectName, N gwNamespace](name O, namespace *N, parentNamespace string) types.NamespacedName {
 	if namespace != nil {
 		return types.NamespacedName{Namespace: string(*namespace), Name: string(name)}
 	}

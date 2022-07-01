@@ -6,7 +6,8 @@ import (
 	"sync"
 
 	"k8s.io/apimachinery/pkg/types"
-	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
+	gwv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
+	gwv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
@@ -27,8 +28,8 @@ const (
 )
 
 type ReconcileManager interface {
-	UpsertGatewayClass(ctx context.Context, gc *gw.GatewayClass) error
-	UpsertGateway(ctx context.Context, g *gw.Gateway) error
+	UpsertGatewayClass(ctx context.Context, gc *gwv1beta1.GatewayClass) error
+	UpsertGateway(ctx context.Context, g *gwv1beta1.Gateway) error
 	UpsertHTTPRoute(ctx context.Context, r Route) error
 	UpsertTCPRoute(ctx context.Context, r Route) error
 	UpsertTLSRoute(ctx context.Context, r Route) error
@@ -90,7 +91,7 @@ func NewReconcileManager(config ManagerConfig) *GatewayReconcileManager {
 	}
 }
 
-func (m *GatewayReconcileManager) UpsertGatewayClass(ctx context.Context, gc *gw.GatewayClass) error {
+func (m *GatewayReconcileManager) UpsertGatewayClass(ctx context.Context, gc *gwv1beta1.GatewayClass) error {
 	class := NewK8sGatewayClass(gc, K8sGatewayClassConfig{
 		Logger: m.logger,
 		Client: m.client,
@@ -103,7 +104,7 @@ func (m *GatewayReconcileManager) UpsertGatewayClass(ctx context.Context, gc *gw
 	return m.gatewayClasses.Upsert(ctx, class)
 }
 
-func (m *GatewayReconcileManager) UpsertGateway(ctx context.Context, g *gw.Gateway) error {
+func (m *GatewayReconcileManager) UpsertGateway(ctx context.Context, g *gwv1beta1.Gateway) error {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
@@ -280,7 +281,7 @@ func (m *GatewayReconcileManager) deleteUnmanagedRoute(ctx context.Context, rout
 	return true, nil
 }
 
-func (m *GatewayReconcileManager) managedByCachedGatewaysForRoute(namespace string, parents []gw.ParentRef) bool {
+func (m *GatewayReconcileManager) managedByCachedGatewaysForRoute(namespace string, parents []gwv1alpha2.ParentReference) bool {
 	for _, parent := range parents {
 		name, isGateway := utils.ReferencesGateway(namespace, parent)
 		if isGateway {

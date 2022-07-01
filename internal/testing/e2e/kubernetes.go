@@ -8,8 +8,10 @@ import (
 	"io"
 	"log"
 	"os"
+	"path"
 
 	"github.com/cenkalti/backoff"
+	consulapigw "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 	core "k8s.io/api/core/v1"
 	rbac "k8s.io/api/rbac/v1"
 	api "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -17,24 +19,23 @@ import (
 	"k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/e2e-framework/klient"
 	"sigs.k8s.io/e2e-framework/pkg/env"
 	"sigs.k8s.io/e2e-framework/pkg/envconf"
-	gateway "sigs.k8s.io/gateway-api/apis/v1alpha2"
+	gwv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
+	gwv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 )
 
 type k8sTokenContext struct{}
 
 var k8sTokenContextKey = k8sTokenContext{}
 
-const gatewayCRDs = "github.com/kubernetes-sigs/gateway-api/config/crd?ref=v0.4.1"
+func InstallCRDs(ctx context.Context, cfg *envconf.Config) (context.Context, error) {
+	log.Print("Installing CRDs")
 
-func InstallGatewayCRDs(ctx context.Context, cfg *envconf.Config) (context.Context, error) {
-	log.Print("Installing Gateway CRDs")
-
-	crds, err := kubectlKustomizeCRDs(ctx, gatewayCRDs)
+	dir := path.Join("..", "..", "..", "config", "crd")
+	crds, err := kubectlKustomizeCRDs(ctx, dir)
 	if err != nil {
 		return nil, err
 	}
@@ -45,19 +46,29 @@ func InstallGatewayCRDs(ctx context.Context, cfg *envconf.Config) (context.Conte
 		return nil, err
 	}
 
+	// Register Gateway API types
 	scheme.Scheme.AddKnownTypes(
-		gateway.SchemeGroupVersion,
-		&gateway.GatewayClass{},
-		&gateway.GatewayClassList{},
-		&gateway.Gateway{},
-		&gateway.GatewayList{},
-		&gateway.HTTPRoute{},
-		&gateway.HTTPRouteList{},
-		&gateway.TCPRoute{},
-		&gateway.TCPRouteList{},
-		&gateway.ReferencePolicy{},
+		gwv1beta1.SchemeGroupVersion,
+		&gwv1beta1.GatewayClass{},
+		&gwv1beta1.GatewayClassList{},
+		&gwv1beta1.Gateway{},
+		&gwv1beta1.GatewayList{},
 	)
-	meta.AddToGroupVersion(scheme.Scheme, gateway.SchemeGroupVersion)
+	meta.AddToGroupVersion(scheme.Scheme, gwv1beta1.SchemeGroupVersion)
+
+	scheme.Scheme.AddKnownTypes(
+		gwv1alpha2.SchemeGroupVersion,
+		&gwv1alpha2.HTTPRoute{},
+		&gwv1alpha2.HTTPRouteList{},
+		&gwv1alpha2.TCPRoute{},
+		&gwv1alpha2.TCPRouteList{},
+		&gwv1alpha2.ReferenceGrant{},
+		&gwv1alpha2.ReferencePolicy{},
+	)
+	meta.AddToGroupVersion(scheme.Scheme, gwv1alpha2.SchemeGroupVersion)
+
+	// Register Consul API Gateway types
+	consulapigw.RegisterTypes(scheme.Scheme)
 
 	return ctx, nil
 }
@@ -226,9 +237,9 @@ func serviceClusterRoleAuthBinding(namespace, accountName string) *rbac.ClusterR
 	}
 }
 
-func readCRDs(data []byte) ([]client.Object, error) {
+func readCRDs(data []byte) ([]*api.CustomResourceDefinition, error) {
 	decoder := yaml.NewYAMLOrJSONDecoder(bytes.NewReader(data), len(data))
-	crds := []client.Object{}
+	crds := []*api.CustomResourceDefinition{}
 	for {
 		crd := &api.CustomResourceDefinition{}
 		err := decoder.Decode(crd)

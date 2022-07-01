@@ -1,10 +1,9 @@
 name: "Tear down EKS"
-description: "Tear down an EKS cluster"
+description: "Tears down an EKS cluster. Requires eksctl and credentials in the workflow's environment from the setup-eks action."
 inputs:
   cluster_name:
     description: "The name assigned to the EKS cluster"
-    required: false
-    default: "consul-api-gateway-test"
+    required: true
   region:
     description: "The AWS region that the cluster was created in"
     required: false
@@ -16,16 +15,12 @@ runs:
       shell: bash
       env:
         AWS_EC2_METADATA_DISABLED: true
+        TF_VAR_cluster_name: ${{ inputs.cluster_name }}
+        TF_VAR_region: ${{ inputs.region }}
       run: |
+        terraform -chdir=$GITHUB_ACTION_PATH/../setup-eks/ destroy --auto-approve
 
-        for each in $(kubectl get ns -o jsonpath="{.items[*].metadata.name}" | grep -v kube-system);
-        do
-          kubectl delete --all svc --namespace $each
-        done
-
-        eksctl delete cluster --name ${{ inputs.cluster_name }} --region ${{ inputs.region}} --parallel 3 --force
-
-        #if unsuccesful, run delete again to account for race condition
+        #if unsuccessful, run destroy again to account for race condition
         if [[$? -eq 1]]; then
-          eksctl delete cluster --name ${{ inputs.cluster_name }} --region ${{ inputs.region}} --parallel 3 --force --wait
+          terraform -chdir=$GITHUB_ACTION_PATH/../setup-eks/ destroy --auto-approve
         fi

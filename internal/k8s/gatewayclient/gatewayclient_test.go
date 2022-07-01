@@ -8,7 +8,8 @@ import (
 	core "k8s.io/api/core/v1"
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	gateway "sigs.k8s.io/gateway-api/apis/v1alpha2"
+	gwv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
+	gwv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -19,7 +20,7 @@ import (
 func TestGetGateway(t *testing.T) {
 	t.Parallel()
 
-	gatewayclient := NewTestClient(nil, &gateway.Gateway{
+	gatewayclient := NewTestClient(nil, &gwv1beta1.Gateway{
 		ObjectMeta: meta.ObjectMeta{
 			Name:      "gateway",
 			Namespace: "namespace",
@@ -66,7 +67,7 @@ func TestGetGatewayClassConfig(t *testing.T) {
 func TestGetHTTPRoute(t *testing.T) {
 	t.Parallel()
 
-	gatewayclient := NewTestClient(nil, &gateway.HTTPRoute{
+	gatewayclient := NewTestClient(nil, &gwv1alpha2.HTTPRoute{
 		ObjectMeta: meta.ObjectMeta{
 			Name:      "httproute",
 			Namespace: "namespace",
@@ -98,7 +99,7 @@ func TestGetHTTPRoute(t *testing.T) {
 func TestGetHTTPRoutesInNamespace(t *testing.T) {
 	t.Parallel()
 
-	gatewayclient := NewTestClient(nil, &gateway.HTTPRoute{
+	gatewayclient := NewTestClient(nil, &gwv1alpha2.HTTPRoute{
 		ObjectMeta: meta.ObjectMeta{
 			Name:      "httproute",
 			Namespace: "namespace1",
@@ -117,7 +118,7 @@ func TestGetHTTPRoutesInNamespace(t *testing.T) {
 func TestGetGatewayClass(t *testing.T) {
 	t.Parallel()
 
-	gatewayclient := NewTestClient(nil, &gateway.GatewayClass{
+	gatewayclient := NewTestClient(nil, &gwv1beta1.GatewayClass{
 		ObjectMeta: meta.ObjectMeta{
 			Name: "gatewayclass",
 		},
@@ -146,7 +147,7 @@ func TestDeploymentForGateway(t *testing.T) {
 		},
 	})
 
-	deployment, err := gatewayclient.DeploymentForGateway(context.Background(), &gateway.Gateway{
+	deployment, err := gatewayclient.DeploymentForGateway(context.Background(), &gwv1beta1.Gateway{
 		ObjectMeta: meta.ObjectMeta{
 			Name:      "notgateway",
 			Namespace: "namespace",
@@ -155,7 +156,7 @@ func TestDeploymentForGateway(t *testing.T) {
 	require.NoError(t, err)
 	require.Nil(t, deployment)
 
-	deployment, err = gatewayclient.DeploymentForGateway(context.Background(), &gateway.Gateway{
+	deployment, err = gatewayclient.DeploymentForGateway(context.Background(), &gwv1beta1.Gateway{
 		ObjectMeta: meta.ObjectMeta{
 			Name:      "gateway",
 			Namespace: "notnamespace",
@@ -164,7 +165,7 @@ func TestDeploymentForGateway(t *testing.T) {
 	require.NoError(t, err)
 	require.Nil(t, deployment)
 
-	deployment, err = gatewayclient.DeploymentForGateway(context.Background(), &gateway.Gateway{
+	deployment, err = gatewayclient.DeploymentForGateway(context.Background(), &gwv1beta1.Gateway{
 		ObjectMeta: meta.ObjectMeta{
 			Name:      "gateway",
 			Namespace: "namespace",
@@ -177,7 +178,7 @@ func TestDeploymentForGateway(t *testing.T) {
 func TestEnsureFinalizer(t *testing.T) {
 	t.Parallel()
 
-	gatewayclient := NewTestClient(nil, &gateway.GatewayClass{
+	gatewayclient := NewTestClient(nil, &gwv1beta1.GatewayClass{
 		ObjectMeta: meta.ObjectMeta{
 			Name: "gatewayclass",
 		},
@@ -211,7 +212,7 @@ func TestEnsureFinalizer(t *testing.T) {
 func TestRemoveFinalizer(t *testing.T) {
 	t.Parallel()
 
-	gatewayclient := NewTestClient(nil, &gateway.GatewayClass{
+	gatewayclient := NewTestClient(nil, &gwv1beta1.GatewayClass{
 		ObjectMeta: meta.ObjectMeta{
 			Name:       "gatewayclass",
 			Finalizers: []string{"finalizer", "other"},
@@ -253,12 +254,12 @@ func TestRemoveFinalizer(t *testing.T) {
 func TestGatewayClassesUsingConfig(t *testing.T) {
 	t.Parallel()
 
-	gatewayClient := NewTestClient(&gateway.GatewayClassList{
-		Items: []gateway.GatewayClass{
+	gatewayClient := NewTestClient(&gwv1beta1.GatewayClassList{
+		Items: []gwv1beta1.GatewayClass{
 			{
 				ObjectMeta: meta.ObjectMeta{Name: "gatewayclass1"},
-				Spec: gateway.GatewayClassSpec{
-					ParametersRef: &gateway.ParametersReference{
+				Spec: gwv1beta1.GatewayClassSpec{
+					ParametersRef: &gwv1beta1.ParametersReference{
 						Group: apigwv1alpha1.Group,
 						Kind:  apigwv1alpha1.GatewayClassConfigKind,
 						Name:  "gatewayclassconfig",
@@ -267,8 +268,8 @@ func TestGatewayClassesUsingConfig(t *testing.T) {
 			},
 			{
 				ObjectMeta: meta.ObjectMeta{Name: "gatewayclass2"},
-				Spec: gateway.GatewayClassSpec{
-					ParametersRef: &gateway.ParametersReference{
+				Spec: gwv1beta1.GatewayClassSpec{
+					ParametersRef: &gwv1beta1.ParametersReference{
 						Group: apigwv1alpha1.Group,
 						Kind:  apigwv1alpha1.GatewayClassConfigKind,
 						Name:  "gatewayclassconfig",
@@ -300,13 +301,13 @@ func TestGatewayClassesUsingConfig(t *testing.T) {
 func TestGatewayClassConfigInUse(t *testing.T) {
 	t.Parallel()
 
-	gatewayclient := NewTestClient(&gateway.GatewayClassList{
-		Items: []gateway.GatewayClass{{
+	gatewayclient := NewTestClient(&gwv1beta1.GatewayClassList{
+		Items: []gwv1beta1.GatewayClass{{
 			ObjectMeta: meta.ObjectMeta{
 				Name: "gatewayclass",
 			},
-			Spec: gateway.GatewayClassSpec{
-				ParametersRef: &gateway.ParametersReference{
+			Spec: gwv1beta1.GatewayClassSpec{
+				ParametersRef: &gwv1beta1.ParametersReference{
 					Group: apigwv1alpha1.Group,
 					Kind:  apigwv1alpha1.GatewayClassConfigKind,
 					Name:  "gatewayclassconfig",
@@ -334,17 +335,17 @@ func TestGatewayClassConfigInUse(t *testing.T) {
 func TestGatewayClassInUse(t *testing.T) {
 	t.Parallel()
 
-	gatewayclient := NewTestClient(&gateway.GatewayList{
-		Items: []gateway.Gateway{{
+	gatewayclient := NewTestClient(&gwv1beta1.GatewayList{
+		Items: []gwv1beta1.Gateway{{
 			ObjectMeta: meta.ObjectMeta{
 				Name: "gateway",
 			},
-			Spec: gateway.GatewaySpec{
+			Spec: gwv1beta1.GatewaySpec{
 				GatewayClassName: "gatewayclass",
 			},
 		}}})
 
-	used, err := gatewayclient.GatewayClassInUse(context.Background(), &gateway.GatewayClass{
+	used, err := gatewayclient.GatewayClassInUse(context.Background(), &gwv1beta1.GatewayClass{
 		ObjectMeta: meta.ObjectMeta{
 			Name: "gatewayclass",
 		},
@@ -352,7 +353,7 @@ func TestGatewayClassInUse(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, used)
 
-	used, err = gatewayclient.GatewayClassInUse(context.Background(), &gateway.GatewayClass{
+	used, err = gatewayclient.GatewayClassInUse(context.Background(), &gwv1beta1.GatewayClass{
 		ObjectMeta: meta.ObjectMeta{
 			Name: "nogatewayclass",
 		},

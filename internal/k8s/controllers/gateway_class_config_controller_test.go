@@ -12,7 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	gateway "sigs.k8s.io/gateway-api/apis/v1alpha2"
+	gwv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/hashicorp/go-hclog"
 
@@ -106,23 +106,23 @@ func TestGatewayClassConfig(t *testing.T) {
 		err:  errExpected,
 		expectationCB: func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager) {
 			client.EXPECT().GetGatewayClassConfig(gomock.Any(), classConfigName).Return(&apigwv1alpha1.GatewayClassConfig{}, nil)
-			client.EXPECT().GatewayClassesUsingConfig(gomock.Any(), gomock.Any()).Return(&gateway.GatewayClassList{}, nil)
+			client.EXPECT().GatewayClassesUsingConfig(gomock.Any(), gomock.Any()).Return(&gwv1beta1.GatewayClassList{}, nil)
 			client.EXPECT().EnsureFinalizer(gomock.Any(), gomock.Any(), gatewayClassConfigFinalizer).Return(false, errExpected)
 		},
 	}, {
 		name: "create",
 		expectationCB: func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager) {
 			client.EXPECT().GetGatewayClassConfig(gomock.Any(), classConfigName).Return(&apigwv1alpha1.GatewayClassConfig{}, nil)
-			client.EXPECT().GatewayClassesUsingConfig(gomock.Any(), gomock.Any()).Return(&gateway.GatewayClassList{}, nil)
+			client.EXPECT().GatewayClassesUsingConfig(gomock.Any(), gomock.Any()).Return(&gwv1beta1.GatewayClassList{}, nil)
 			client.EXPECT().EnsureFinalizer(gomock.Any(), gomock.Any(), gatewayClassConfigFinalizer).Return(true, nil)
 		},
 	}, {
 		name: "update-in-use",
 		expectationCB: func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager) {
-			gcUsing := gateway.GatewayClass{
+			gcUsing := gwv1beta1.GatewayClass{
 				ObjectMeta: meta.ObjectMeta{Name: "class"},
-				Spec: gateway.GatewayClassSpec{
-					ParametersRef: &gateway.ParametersReference{
+				Spec: gwv1beta1.GatewayClassSpec{
+					ParametersRef: &gwv1beta1.ParametersReference{
 						Group: apigwv1alpha1.Group,
 						Kind:  apigwv1alpha1.GatewayClassConfigKind,
 						Name:  "config",
@@ -131,8 +131,8 @@ func TestGatewayClassConfig(t *testing.T) {
 			}
 
 			client.EXPECT().GetGatewayClassConfig(gomock.Any(), classConfigName).Return(&apigwv1alpha1.GatewayClassConfig{}, nil)
-			client.EXPECT().GatewayClassesUsingConfig(gomock.Any(), gomock.Any()).Return(&gateway.GatewayClassList{
-				Items: []gateway.GatewayClass{gcUsing},
+			client.EXPECT().GatewayClassesUsingConfig(gomock.Any(), gomock.Any()).Return(&gwv1beta1.GatewayClassList{
+				Items: []gwv1beta1.GatewayClass{gcUsing},
 			}, nil)
 			reconciler.EXPECT().DeleteGatewayClass(gomock.Any(), gcUsing.Name).Return(nil)
 			client.EXPECT().EnsureFinalizer(gomock.Any(), gomock.Any(), gatewayClassConfigFinalizer).Return(true, nil)
