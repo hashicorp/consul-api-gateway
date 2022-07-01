@@ -74,11 +74,11 @@ func TestHTTPRoute(t *testing.T) {
 			})
 			if test.err != nil {
 				require.Error(t, err)
-				require.ErrorIs(t, err, test.err)
+				assert.ErrorIs(t, err, test.err)
 			} else {
 				require.NoError(t, err)
 			}
-			require.Equal(t, test.result, result)
+			assert.Equal(t, test.result, result)
 		})
 	}
 }
@@ -159,9 +159,10 @@ func TestHTTPRouteServiceToRouteRequests(t *testing.T) {
 	}
 
 	requests := controller.serviceToRouteRequests(svc)
-	require.Len(t, requests, 2)
-	assert.Equal(t, "namespace-1/route-1", requests[0].String())
-	assert.Equal(t, "namespace-2/route-2", requests[1].String())
+	assert.ElementsMatch(t, []reconcile.Request{
+		{NamespacedName: types.NamespacedName{Namespace: "namespace-1", Name: "route-1"}},
+		{NamespacedName: types.NamespacedName{Namespace: "namespace-2", Name: "route-2"}},
+	}, requests)
 }
 
 func TestHTTPRouteReferenceGrantToRouteRequests(t *testing.T) {
@@ -245,7 +246,7 @@ func TestHTTPRouteReferenceGrantToRouteRequests(t *testing.T) {
 
 	requests := controller.referenceGrantToRouteRequests(&refGrant)
 
-	require.Equal(t, []reconcile.Request{{
+	assert.Equal(t, []reconcile.Request{{
 		NamespacedName: types.NamespacedName{
 			Name:      "httproute",
 			Namespace: "namespace1",
@@ -334,7 +335,7 @@ func TestHTTPRouteReferencePolicyToRouteRequests(t *testing.T) {
 
 	requests := controller.referencePolicyToRouteRequests(&refPolicy)
 
-	require.Equal(t, []reconcile.Request{{
+	assert.Equal(t, []reconcile.Request{{
 		NamespacedName: types.NamespacedName{
 			Name:      "httproute",
 			Namespace: "namespace1",

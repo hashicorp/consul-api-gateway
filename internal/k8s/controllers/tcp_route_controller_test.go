@@ -315,7 +315,8 @@ func TestTCPRouteServiceToRouteRequests(t *testing.T) {
 	}
 
 	requests := controller.serviceToRouteRequests(svc)
-	require.Len(t, requests, 2)
-	assert.Equal(t, "namespace-1/route-1", requests[0].String())
-	assert.Equal(t, "namespace-2/route-2", requests[1].String())
+	assert.ElementsMatch(t, []reconcile.Request{
+		{NamespacedName: types.NamespacedName{Namespace: "namespace-1", Name: "route-1"}},
+		{NamespacedName: types.NamespacedName{Namespace: "namespace-2", Name: "route-2"}},
+	}, requests)
 }

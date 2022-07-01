@@ -115,7 +115,7 @@ func (r *TCPRouteReconciler) getRoutesAffectedByService(service *corev1.Service)
 			for _, ref := range rule.BackendRefs {
 				// The BackendRef may or may not specify a namespace, defaults to route's namespace
 				refNamespace := route.Namespace
-				if ref.Namespace != nil && *ref.Namespace != "" {
+				if ref.Namespace != nil {
 					refNamespace = string(*ref.Namespace)
 				}
 
