@@ -35,8 +35,10 @@ type Client interface {
 	GetSecret(ctx context.Context, key types.NamespacedName) (*core.Secret, error)
 	GetService(ctx context.Context, key types.NamespacedName) (*core.Service, error)
 	GetHTTPRoute(ctx context.Context, key types.NamespacedName) (*gwv1alpha2.HTTPRoute, error)
+	GetHTTPRoutes(ctx context.Context) ([]gwv1alpha2.HTTPRoute, error)
 	GetHTTPRoutesInNamespace(ctx context.Context, ns string) ([]gwv1alpha2.HTTPRoute, error)
 	GetTCPRoute(ctx context.Context, key types.NamespacedName) (*gwv1alpha2.TCPRoute, error)
+	GetTCPRoutes(ctx context.Context) ([]gwv1alpha2.TCPRoute, error)
 	GetTCPRoutesInNamespace(ctx context.Context, ns string) ([]gwv1alpha2.TCPRoute, error)
 	GetMeshService(ctx context.Context, key types.NamespacedName) (*apigwv1alpha1.MeshService, error)
 	GetNamespace(ctx context.Context, key types.NamespacedName) (*core.Namespace, error)
@@ -270,6 +272,14 @@ func (g *gatewayClient) GetHTTPRoute(ctx context.Context, key types.NamespacedNa
 	return route, nil
 }
 
+func (g *gatewayClient) GetHTTPRoutes(ctx context.Context) ([]gwv1alpha2.HTTPRoute, error) {
+	routeList := &gwv1alpha2.HTTPRouteList{}
+	if err := g.Client.List(ctx, routeList); err != nil {
+		return []gwv1alpha2.HTTPRoute{}, NewK8sError(err)
+	}
+	return routeList.Items, nil
+}
+
 // TODO: Make this generic over Group and Kind, returning []client.Object
 func (g *gatewayClient) GetHTTPRoutesInNamespace(ctx context.Context, ns string) ([]gwv1alpha2.HTTPRoute, error) {
 	routeList := &gwv1alpha2.HTTPRouteList{}
@@ -288,6 +298,14 @@ func (g *gatewayClient) GetTCPRoute(ctx context.Context, key types.NamespacedNam
 		return nil, NewK8sError(err)
 	}
 	return route, nil
+}
+
+func (g *gatewayClient) GetTCPRoutes(ctx context.Context) ([]gwv1alpha2.TCPRoute, error) {
+	routeList := &gwv1alpha2.TCPRouteList{}
+	if err := g.Client.List(ctx, routeList); err != nil {
+		return []gwv1alpha2.TCPRoute{}, NewK8sError(err)
+	}
+	return routeList.Items, nil
 }
 
 func (g *gatewayClient) GetTCPRoutesInNamespace(ctx context.Context, ns string) ([]gwv1alpha2.TCPRoute, error) {

@@ -5,16 +5,19 @@ import (
 	"testing"
 
 	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	gwv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
+	"github.com/hashicorp/go-hclog"
+
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient/mocks"
 	reconcilerMocks "github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/mocks"
-	"github.com/hashicorp/go-hclog"
 )
 
 var (
@@ -71,13 +74,95 @@ func TestHTTPRoute(t *testing.T) {
 			})
 			if test.err != nil {
 				require.Error(t, err)
-				require.ErrorIs(t, err, test.err)
+				assert.ErrorIs(t, err, test.err)
 			} else {
 				require.NoError(t, err)
 			}
-			require.Equal(t, test.result, result)
+			assert.Equal(t, test.result, result)
 		})
 	}
+}
+
+func TestHTTPRouteServiceToRouteRequests(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	svc := &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "namespace-1", Name: "echo-1"},
+	}
+
+	backendNS := gwv1alpha2.Namespace("namespace-1")
+
+	client := gatewayclient.NewTestClient(
+		nil,
+		// Include one route that references the Service name without the namespace,
+		// meaning that the namespace is implicitly the route's namespace
+		&gwv1alpha2.HTTPRoute{
+			ObjectMeta: metav1.ObjectMeta{Namespace: "namespace-1", Name: "route-1"},
+			Spec: gwv1alpha2.HTTPRouteSpec{
+				Rules: []gwv1alpha2.HTTPRouteRule{{
+					BackendRefs: []gwv1alpha2.HTTPBackendRef{
+						{
+							BackendRef: gwv1alpha2.BackendRef{BackendObjectReference: gwv1alpha2.BackendObjectReference{Name: "echo-1"}},
+						},
+						{
+							BackendRef: gwv1alpha2.BackendRef{BackendObjectReference: gwv1alpha2.BackendObjectReference{Name: "echo-2"}},
+						},
+					},
+				}},
+			},
+		},
+		// Include one route in a different namespace that references the Service by
+		// explicit namespace + name
+		&gwv1alpha2.HTTPRoute{
+			ObjectMeta: metav1.ObjectMeta{Namespace: "namespace-2", Name: "route-2"},
+			Spec: gwv1alpha2.HTTPRouteSpec{
+				Rules: []gwv1alpha2.HTTPRouteRule{{
+					BackendRefs: []gwv1alpha2.HTTPBackendRef{{
+						BackendRef: gwv1alpha2.BackendRef{
+							BackendObjectReference: gwv1alpha2.BackendObjectReference{
+								Namespace: &backendNS,
+								Name:      "echo-1",
+							},
+						},
+					}},
+				}},
+			},
+		},
+		// Include one route in the same namespace that does not reference the Service
+		&gwv1alpha2.HTTPRoute{
+			ObjectMeta: metav1.ObjectMeta{Namespace: "namespace-1", Name: "route-3"},
+			Spec: gwv1alpha2.HTTPRouteSpec{
+				Rules: []gwv1alpha2.HTTPRouteRule{{
+					BackendRefs: []gwv1alpha2.HTTPBackendRef{},
+				}},
+			},
+		},
+		// Include one route in a different namespace that does not reference the Service
+		&gwv1alpha2.HTTPRoute{
+			ObjectMeta: metav1.ObjectMeta{Namespace: "namespace-2", Name: "route-4"},
+			Spec: gwv1alpha2.HTTPRouteSpec{
+				Rules: []gwv1alpha2.HTTPRouteRule{{
+					BackendRefs: []gwv1alpha2.HTTPBackendRef{},
+				}},
+			},
+		},
+	)
+
+	controller := &HTTPRouteReconciler{
+		Client:         client,
+		Log:            hclog.NewNullLogger(),
+		ControllerName: mockControllerName,
+		Manager:        reconcilerMocks.NewMockReconcileManager(ctrl),
+	}
+
+	requests := controller.serviceToRouteRequests(svc)
+	assert.ElementsMatch(t, []reconcile.Request{
+		{NamespacedName: types.NamespacedName{Namespace: "namespace-1", Name: "route-1"}},
+		{NamespacedName: types.NamespacedName{Namespace: "namespace-2", Name: "route-2"}},
+	}, requests)
 }
 
 func TestHTTPRouteReferenceGrantToRouteRequests(t *testing.T) {
@@ -161,7 +246,7 @@ func TestHTTPRouteReferenceGrantToRouteRequests(t *testing.T) {
 
 	requests := controller.referenceGrantToRouteRequests(&refGrant)
 
-	require.Equal(t, []reconcile.Request{{
+	assert.Equal(t, []reconcile.Request{{
 		NamespacedName: types.NamespacedName{
 			Name:      "httproute",
 			Namespace: "namespace1",
@@ -250,7 +335,7 @@ func TestHTTPRouteReferencePolicyToRouteRequests(t *testing.T) {
 
 	requests := controller.referencePolicyToRouteRequests(&refPolicy)
 
-	require.Equal(t, []reconcile.Request{{
+	assert.Equal(t, []reconcile.Request{{
 		NamespacedName: types.NamespacedName{
 			Name:      "httproute",
 			Namespace: "namespace1",

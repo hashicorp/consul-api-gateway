@@ -1,5 +1,4 @@
 //go:build e2e
-// +build e2e
 
 package server
 
@@ -16,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hashicorp/consul/api"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
@@ -29,9 +29,8 @@ import (
 	gwv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 	gwv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
-	"github.com/hashicorp/consul/api"
-
 	"github.com/hashicorp/consul-api-gateway/internal/k8s"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler"
 	"github.com/hashicorp/consul-api-gateway/internal/testing/e2e"
 	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 )
@@ -521,9 +520,9 @@ func TestHTTPMeshService(t *testing.T) {
 
 			namespace := e2e.Namespace(ctx)
 			gatewayName := envconf.RandomName("gw", 16)
-			routeOneName := envconf.RandomName("route", 16)
-			routeTwoName := envconf.RandomName("route", 16)
-			routeThreeName := envconf.RandomName("route", 16)
+			routeOneName := envconf.RandomName("route-1", 16)
+			routeTwoName := envconf.RandomName("route-2", 16)
+			routeThreeName := envconf.RandomName("route-3", 16)
 
 			resources := cfg.Client().Resources(namespace)
 
@@ -534,7 +533,7 @@ func TestHTTPMeshService(t *testing.T) {
 			gw := createGateway(ctx, t, resources, gatewayName, namespace, gc, []gwv1beta1.Listener{httpsListener})
 			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionReady), checkTimeout, checkInterval, "no gateway found in the allotted time")
 
-			// route 1
+			// Route 1 routes /v1 to service 1
 			port := gwv1alpha2.PortNumber(serviceOne.Spec.Ports[0].Port)
 			path := "/v1"
 			pathMatch := gwv1alpha2.PathMatchExact
@@ -567,10 +566,9 @@ func TestHTTPMeshService(t *testing.T) {
 					}},
 				},
 			}
-			err = resources.Create(ctx, routeOne)
-			require.NoError(t, err)
+			require.NoError(t, resources.Create(ctx, routeOne))
 
-			// route 2
+			// Route 2 routes /v2 to service 2 and / to services 4 and 5
 			port = gwv1alpha2.PortNumber(serviceTwo.Spec.Ports[0].Port)
 			portFour := gwv1alpha2.PortNumber(serviceFour.Spec.Ports[0].Port)
 			portFive := gwv1alpha2.PortNumber(serviceFive.Spec.Ports[0].Port)
@@ -620,10 +618,9 @@ func TestHTTPMeshService(t *testing.T) {
 					}},
 				},
 			}
-			err = resources.Create(ctx, route)
-			require.NoError(t, err)
+			require.NoError(t, resources.Create(ctx, route))
 
-			// route 3
+			// Route 3 routes /v3 to service 3
 			port = gwv1alpha2.PortNumber(serviceThree.Spec.Ports[0].Port)
 			path = "/v3"
 			headerMatch := gwv1alpha2.HeaderMatchExact
@@ -662,9 +659,9 @@ func TestHTTPMeshService(t *testing.T) {
 					}},
 				},
 			}
-			err = resources.Create(ctx, route)
-			require.NoError(t, err)
+			require.NoError(t, resources.Create(ctx, route))
 
+			// Verify that routes are all working
 			checkPort := e2e.HTTPPort(ctx)
 			checkRoute(t, checkPort, "/v1", httpResponse{
 				StatusCode: http.StatusOK,
@@ -690,9 +687,8 @@ func TestHTTPMeshService(t *testing.T) {
 				Body:       serviceFive.Name,
 			}, nil, "service five not routable in allotted time")
 
-			err = resources.Delete(ctx, routeOne)
-			require.NoError(t, err)
-
+			// Delete service 1 and verify that everything else continues working
+			require.NoError(t, resources.Delete(ctx, serviceOne))
 			checkRoute(t, checkPort, "/v1", httpResponse{
 				StatusCode: http.StatusOK,
 				Body:       serviceFour.Name,
@@ -704,6 +700,7 @@ func TestHTTPMeshService(t *testing.T) {
 
 			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionInSync), checkTimeout, checkInterval, "gateway not synced in the allotted time")
 
+			// Verify config entry for Gateway exists in Consul
 			client := e2e.ConsulClient(ctx)
 			require.Eventually(t, func() bool {
 				entry, _, err := client.ConfigEntries().Get(api.IngressGateway, gatewayName, &api.QueryOptions{
@@ -715,9 +712,11 @@ func TestHTTPMeshService(t *testing.T) {
 				return entry != nil
 			}, checkTimeout, checkInterval, "no consul config entry found")
 
+			// Delete the gateway
 			err = resources.Delete(ctx, gw)
 			require.NoError(t, err)
 
+			// Verify config entry for Gateway removed in Consul
 			require.Eventually(t, func() bool {
 				_, _, err := client.ConfigEntries().Get(api.IngressGateway, gatewayName, &api.QueryOptions{
 					Namespace: e2e.ConsulNamespace(ctx),
@@ -727,6 +726,82 @@ func TestHTTPMeshService(t *testing.T) {
 				}
 				return strings.Contains(err.Error(), "Unexpected response code: 404")
 			}, checkTimeout, checkInterval, "consul config entry not cleaned up")
+
+			return ctx
+		}).
+		Assess("reconcile on service change", func(ctx context.Context, t *testing.T, cfg *envconf.Config) context.Context {
+			namespace := e2e.Namespace(ctx)
+			resources := cfg.Client().Resources(namespace)
+
+			// Create GatewayClass
+			_, gc := createGatewayClass(ctx, t, resources)
+			require.Eventually(t, gatewayClassStatusCheck(ctx, resources, gc.Name, namespace, conditionAccepted), checkTimeout, checkInterval, "gatewayclass not accepted in the allotted time")
+
+			// Create Gateway
+			gatewayName := envconf.RandomName("gateway", 16)
+			httpsListener := createHTTPSListener(ctx, t, gwv1beta1.PortNumber(e2e.HTTPPort(ctx)))
+			createGateway(ctx, t, resources, gatewayName, namespace, gc, []gwv1beta1.Listener{httpsListener})
+			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionReady), checkTimeout, checkInterval, "no gateway found in the allotted time")
+
+			// Create Service
+			service, err := e2e.DeployHTTPMeshService(ctx, cfg)
+			require.NoError(t, err)
+
+			// Create HTTPRoute
+			routeName := envconf.RandomName("route", 16)
+			port := gwv1alpha2.PortNumber(service.Spec.Ports[0].Port)
+			path := "/"
+			pathMatch := gwv1alpha2.PathMatchExact
+			routeOne := &gwv1alpha2.HTTPRoute{
+				ObjectMeta: meta.ObjectMeta{Namespace: namespace, Name: routeName},
+				Spec: gwv1alpha2.HTTPRouteSpec{
+					CommonRouteSpec: gwv1alpha2.CommonRouteSpec{
+						ParentRefs: []gwv1alpha2.ParentReference{{Name: gwv1alpha2.ObjectName(gatewayName)}},
+					},
+					Rules: []gwv1alpha2.HTTPRouteRule{{
+						Matches: []gwv1alpha2.HTTPRouteMatch{{
+							Path: &gwv1alpha2.HTTPPathMatch{
+								Type:  &pathMatch,
+								Value: &path,
+							},
+						}},
+						BackendRefs: []gwv1alpha2.HTTPBackendRef{{
+							BackendRef: gwv1alpha2.BackendRef{
+								BackendObjectReference: gwv1alpha2.BackendObjectReference{
+									Name: gwv1alpha2.ObjectName(service.Name),
+									Port: &port,
+								},
+							},
+						}},
+					}},
+				},
+			}
+			require.NoError(t, resources.Create(ctx, routeOne))
+
+			// Verify everything works
+			checkRoute(t, e2e.HTTPPort(ctx), "/", httpResponse{StatusCode: http.StatusOK, Body: service.Name}, nil, "service not routable in allotted time")
+
+			// Delete Service
+			require.NoError(t, resources.Delete(ctx, service))
+
+			// Verify HTTPRoute has updated its status
+			check := createConditionsCheck([]meta.Condition{{
+				Type: reconciler.RouteConditionResolvedRefs, Status: "False", Reason: reconciler.RouteConditionReasonServiceNotFound},
+			})
+			require.Eventually(t, httpRouteStatusCheck(ctx, resources, gatewayName, routeName, namespace, check), checkTimeout, checkInterval, "route status not set in allotted time")
+
+			// Re-create Service
+			service.SetResourceVersion("")
+			require.NoError(t, resources.Create(ctx, service))
+
+			// Verify HTTPRoute has updated its status
+			check = createConditionsCheck([]meta.Condition{{
+				Type: reconciler.RouteConditionResolvedRefs, Status: "True", Reason: reconciler.RouteConditionReasonResolvedRefs},
+			})
+			require.Eventually(t, httpRouteStatusCheck(ctx, resources, gatewayName, routeName, namespace, check), checkTimeout, checkInterval, "route status not set in allotted time")
+
+			// Verify the HTTPRoute can find the Service
+			checkRoute(t, e2e.HTTPPort(ctx), "/", httpResponse{StatusCode: http.StatusOK, Body: service.Name}, nil, "service not routable in allotted time")
 
 			return ctx
 		})

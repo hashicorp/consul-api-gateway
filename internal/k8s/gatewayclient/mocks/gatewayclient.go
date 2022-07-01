@@ -290,6 +290,21 @@ func (mr *MockClientMockRecorder) GetHTTPRoute(ctx, key interface{}) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHTTPRoute", reflect.TypeOf((*MockClient)(nil).GetHTTPRoute), ctx, key)
 }
 
+// GetHTTPRoutes mocks base method.
+func (m *MockClient) GetHTTPRoutes(ctx context.Context) ([]v1alpha2.HTTPRoute, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetHTTPRoutes", ctx)
+	ret0, _ := ret[0].([]v1alpha2.HTTPRoute)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetHTTPRoutes indicates an expected call of GetHTTPRoutes.
+func (mr *MockClientMockRecorder) GetHTTPRoutes(ctx interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHTTPRoutes", reflect.TypeOf((*MockClient)(nil).GetHTTPRoutes), ctx)
+}
+
 // GetHTTPRoutesInNamespace mocks base method.
 func (m *MockClient) GetHTTPRoutesInNamespace(ctx context.Context, ns string) ([]v1alpha2.HTTPRoute, error) {
 	m.ctrl.T.Helper()
@@ -393,6 +408,21 @@ func (m *MockClient) GetTCPRoute(ctx context.Context, key types.NamespacedName) 
 func (mr *MockClientMockRecorder) GetTCPRoute(ctx, key interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTCPRoute", reflect.TypeOf((*MockClient)(nil).GetTCPRoute), ctx, key)
+}
+
+// GetTCPRoutes mocks base method.
+func (m *MockClient) GetTCPRoutes(ctx context.Context) ([]v1alpha2.TCPRoute, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTCPRoutes", ctx)
+	ret0, _ := ret[0].([]v1alpha2.TCPRoute)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetTCPRoutes indicates an expected call of GetTCPRoutes.
+func (mr *MockClientMockRecorder) GetTCPRoutes(ctx interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTCPRoutes", reflect.TypeOf((*MockClient)(nil).GetTCPRoutes), ctx)
 }
 
 // GetTCPRoutesInNamespace mocks base method.

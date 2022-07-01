@@ -3,6 +3,7 @@ package controllers
 import (
 	"context"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -68,7 +69,67 @@ func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			&source.Kind{Type: &gwv1alpha2.ReferencePolicy{}},
 			handler.EnqueueRequestsFromMapFunc(r.referencePolicyToRouteRequests),
 		).
+		Watches(
+			&source.Kind{Type: &corev1.Service{}},
+			handler.EnqueueRequestsFromMapFunc(r.serviceToRouteRequests),
+		).
 		Complete(gatewayclient.NewRequeueingMiddleware(r.Log, r))
+}
+
+// serviceToRouteRequests builds a list of HTTPRoutes that need to be reconciled
+// based on changes to a Service
+func (r *HTTPRouteReconciler) serviceToRouteRequests(object client.Object) []reconcile.Request {
+	service := object.(*corev1.Service)
+
+	routes := r.getRoutesAffectedByService(service)
+	var requests []reconcile.Request
+
+	for _, route := range routes {
+		requests = append(requests, reconcile.Request{
+			NamespacedName: types.NamespacedName{
+				Name:      route.Name,
+				Namespace: route.Namespace,
+			},
+		})
+	}
+
+	return requests
+}
+
+// getRoutesAffectedByService retrieves all HTTPRoutes potentially impacted
+// by the Service being modified. This is done by filtering to HTTPRoutes that
+// have a backendRef matching the Service's namespace and name.
+func (r *HTTPRouteReconciler) getRoutesAffectedByService(service *corev1.Service) []gwv1alpha2.HTTPRoute {
+	var matches []gwv1alpha2.HTTPRoute
+
+	routes, err := r.Client.GetHTTPRoutes(r.Context)
+	if err != nil {
+		r.Log.Error("error fetching routes", err)
+		return matches
+	}
+
+	// Return any routes that have a backend reference to service
+	for _, route := range routes {
+	nextRoute:
+		for _, rule := range route.Spec.Rules {
+			for _, ref := range rule.BackendRefs {
+				// The BackendRef may or may not specify a namespace, defaults to route's namespace
+				refNamespace := route.Namespace
+				if ref.Namespace != nil {
+					refNamespace = string(*ref.Namespace)
+				}
+
+				// If this BackendRef matches the service namespace + name, then this HTTPRoute
+				// is affected. No need to check other refs, skip ahead to next HTTPRoute.
+				if refNamespace == service.Namespace && ref.Name == gwv1alpha2.ObjectName(service.Name) {
+					matches = append(matches, route)
+					break nextRoute
+				}
+			}
+		}
+	}
+
+	return matches
 }
 
 func (r *HTTPRouteReconciler) referenceGrantToRouteRequests(object client.Object) []reconcile.Request {
