@@ -8,12 +8,14 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/types"
-	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
+	gwv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
+	gwv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
+
+	"github.com/hashicorp/go-hclog"
 
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient/mocks"
 	storeMocks "github.com/hashicorp/consul-api-gateway/internal/store/mocks"
 	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
-	"github.com/hashicorp/go-hclog"
 )
 
 func testNamespaceMapper(namespace string) string {
@@ -32,7 +34,7 @@ func TestUpsertGatewayClass(t *testing.T) {
 		Logger: hclog.NewNullLogger(),
 	})
 
-	inner := &gw.GatewayClass{}
+	inner := &gwv1beta1.GatewayClass{}
 	expected := errors.New("expected")
 	client.EXPECT().UpdateStatus(gomock.Any(), inner).Return(expected)
 	require.Equal(t, expected, manager.UpsertGatewayClass(context.Background(), inner))
@@ -42,9 +44,9 @@ func TestUpsertGatewayClass(t *testing.T) {
 
 	// validation
 	client.EXPECT().GetGatewayClassConfig(gomock.Any(), gomock.Any()).Return(nil, expected)
-	require.Equal(t, expected, manager.UpsertGatewayClass(context.Background(), &gw.GatewayClass{
-		Spec: gw.GatewayClassSpec{
-			ParametersRef: &gw.ParametersReference{
+	require.Equal(t, expected, manager.UpsertGatewayClass(context.Background(), &gwv1beta1.GatewayClass{
+		Spec: gwv1beta1.GatewayClassSpec{
+			ParametersRef: &gwv1beta1.ParametersReference{
 				Group: apigwv1alpha1.Group,
 				Kind:  apigwv1alpha1.GatewayClassConfigKind,
 			},
@@ -67,7 +69,7 @@ func TestUpsertGateway(t *testing.T) {
 		ConsulNamespaceMapper: testNamespaceMapper,
 	})
 
-	inner := &gw.Gateway{}
+	inner := &gwv1beta1.Gateway{}
 	expected := errors.New("expected")
 
 	client.EXPECT().GetConfigForGatewayClassName(gomock.Any(), "").Return(apigwv1alpha1.GatewayClassConfig{}, false, expected)
@@ -113,22 +115,22 @@ func TestUpsertHTTPRoute(t *testing.T) {
 	expected := errors.New("expected")
 
 	client.EXPECT().IsManagedRoute(gomock.Any(), gomock.Any(), gomock.Any()).Return(false, expected)
-	require.Equal(t, expected, manager.UpsertHTTPRoute(context.Background(), &gw.HTTPRoute{}))
+	require.Equal(t, expected, manager.UpsertHTTPRoute(context.Background(), &gwv1alpha2.HTTPRoute{}))
 
 	client.EXPECT().IsManagedRoute(gomock.Any(), gomock.Any(), gomock.Any()).Return(false, nil)
 	store.EXPECT().DeleteRoute(gomock.Any(), gomock.Any()).Return(expected)
-	require.Equal(t, expected, manager.UpsertHTTPRoute(context.Background(), &gw.HTTPRoute{}))
+	require.Equal(t, expected, manager.UpsertHTTPRoute(context.Background(), &gwv1alpha2.HTTPRoute{}))
 
 	client.EXPECT().IsManagedRoute(gomock.Any(), gomock.Any(), gomock.Any()).Return(false, nil)
 	store.EXPECT().DeleteRoute(gomock.Any(), gomock.Any()).Return(nil)
-	require.NoError(t, manager.UpsertHTTPRoute(context.Background(), &gw.HTTPRoute{}))
+	require.NoError(t, manager.UpsertHTTPRoute(context.Background(), &gwv1alpha2.HTTPRoute{}))
 
 	manager.namespaceMap[types.NamespacedName{Name: "gateway"}] = ""
 	store.EXPECT().UpsertRoute(gomock.Any(), gomock.Any()).Return(nil)
-	require.NoError(t, manager.UpsertHTTPRoute(context.Background(), &gw.HTTPRoute{
-		Spec: gw.HTTPRouteSpec{
-			CommonRouteSpec: gw.CommonRouteSpec{
-				ParentRefs: []gw.ParentRef{{
+	require.NoError(t, manager.UpsertHTTPRoute(context.Background(), &gwv1alpha2.HTTPRoute{
+		Spec: gwv1alpha2.HTTPRouteSpec{
+			CommonRouteSpec: gwv1alpha2.CommonRouteSpec{
+				ParentRefs: []gwv1alpha2.ParentReference{{
 					Name: "gateway",
 				}},
 			},
@@ -137,17 +139,17 @@ func TestUpsertHTTPRoute(t *testing.T) {
 
 	client.EXPECT().IsManagedRoute(gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil)
 	store.EXPECT().UpsertRoute(gomock.Any(), gomock.Any()).Return(nil)
-	require.NoError(t, manager.UpsertHTTPRoute(context.Background(), &gw.HTTPRoute{}))
+	require.NoError(t, manager.UpsertHTTPRoute(context.Background(), &gwv1alpha2.HTTPRoute{}))
 
 	client.EXPECT().IsManagedRoute(gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil)
 	client.EXPECT().GetService(gomock.Any(), gomock.Any()).Return(nil, expected)
-	port := gw.PortNumber(1)
-	require.Equal(t, expected, manager.UpsertHTTPRoute(context.Background(), &gw.HTTPRoute{
-		Spec: gw.HTTPRouteSpec{
-			Rules: []gw.HTTPRouteRule{{
-				BackendRefs: []gw.HTTPBackendRef{{
-					BackendRef: gw.BackendRef{
-						BackendObjectReference: gw.BackendObjectReference{
+	port := gwv1alpha2.PortNumber(1)
+	require.Equal(t, expected, manager.UpsertHTTPRoute(context.Background(), &gwv1alpha2.HTTPRoute{
+		Spec: gwv1alpha2.HTTPRouteSpec{
+			Rules: []gwv1alpha2.HTTPRouteRule{{
+				BackendRefs: []gwv1alpha2.HTTPBackendRef{{
+					BackendRef: gwv1alpha2.BackendRef{
+						BackendObjectReference: gwv1alpha2.BackendObjectReference{
 							Name: "name",
 							Port: &port,
 						},
@@ -175,7 +177,7 @@ func TestUpsertTCPRoute(t *testing.T) {
 
 	client.EXPECT().IsManagedRoute(gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil)
 	store.EXPECT().UpsertRoute(gomock.Any(), gomock.Any()).Return(nil)
-	require.NoError(t, manager.UpsertTCPRoute(context.Background(), &gw.TCPRoute{}))
+	require.NoError(t, manager.UpsertTCPRoute(context.Background(), &gwv1alpha2.TCPRoute{}))
 }
 
 func TestUpsertTLSRoute(t *testing.T) {
@@ -195,7 +197,7 @@ func TestUpsertTLSRoute(t *testing.T) {
 
 	client.EXPECT().IsManagedRoute(gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil)
 	store.EXPECT().UpsertRoute(gomock.Any(), gomock.Any()).Return(nil)
-	require.NoError(t, manager.UpsertTLSRoute(context.Background(), &gw.TLSRoute{}))
+	require.NoError(t, manager.UpsertTLSRoute(context.Background(), &gwv1alpha2.TLSRoute{}))
 }
 
 func TestDeleteGatewayClass(t *testing.T) {

@@ -15,6 +15,7 @@ import (
 	types "k8s.io/apimachinery/pkg/types"
 	client "sigs.k8s.io/controller-runtime/pkg/client"
 	v1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
+	v1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 )
 
 // MockClient is a mock of Client interface.
@@ -95,7 +96,7 @@ func (mr *MockClientMockRecorder) DeleteService(ctx, service interface{}) *gomoc
 }
 
 // DeploymentForGateway mocks base method.
-func (m *MockClient) DeploymentForGateway(ctx context.Context, gw *v1alpha2.Gateway) (*v1.Deployment, error) {
+func (m *MockClient) DeploymentForGateway(ctx context.Context, gw *v1beta1.Gateway) (*v1.Deployment, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeploymentForGateway", ctx, gw)
 	ret0, _ := ret[0].(*v1.Deployment)
@@ -125,7 +126,7 @@ func (mr *MockClientMockRecorder) EnsureFinalizer(ctx, object, finalizer interfa
 }
 
 // EnsureServiceAccount mocks base method.
-func (m *MockClient) EnsureServiceAccount(ctx context.Context, owner *v1alpha2.Gateway, serviceAccount *v10.ServiceAccount) error {
+func (m *MockClient) EnsureServiceAccount(ctx context.Context, owner *v1beta1.Gateway, serviceAccount *v10.ServiceAccount) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "EnsureServiceAccount", ctx, owner, serviceAccount)
 	ret0, _ := ret[0].(error)
@@ -154,7 +155,7 @@ func (mr *MockClientMockRecorder) GatewayClassConfigInUse(ctx, gcc interface{}) 
 }
 
 // GatewayClassInUse mocks base method.
-func (m *MockClient) GatewayClassInUse(ctx context.Context, gc *v1alpha2.GatewayClass) (bool, error) {
+func (m *MockClient) GatewayClassInUse(ctx context.Context, gc *v1beta1.GatewayClass) (bool, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GatewayClassInUse", ctx, gc)
 	ret0, _ := ret[0].(bool)
@@ -169,10 +170,10 @@ func (mr *MockClientMockRecorder) GatewayClassInUse(ctx, gc interface{}) *gomock
 }
 
 // GatewayClassesUsingConfig mocks base method.
-func (m *MockClient) GatewayClassesUsingConfig(ctx context.Context, gcc *v1alpha1.GatewayClassConfig) (*v1alpha2.GatewayClassList, error) {
+func (m *MockClient) GatewayClassesUsingConfig(ctx context.Context, gcc *v1alpha1.GatewayClassConfig) (*v1beta1.GatewayClassList, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GatewayClassesUsingConfig", ctx, gcc)
-	ret0, _ := ret[0].(*v1alpha2.GatewayClassList)
+	ret0, _ := ret[0].(*v1beta1.GatewayClassList)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -215,10 +216,10 @@ func (mr *MockClientMockRecorder) GetDeployment(ctx, key interface{}) *gomock.Ca
 }
 
 // GetGateway mocks base method.
-func (m *MockClient) GetGateway(ctx context.Context, key types.NamespacedName) (*v1alpha2.Gateway, error) {
+func (m *MockClient) GetGateway(ctx context.Context, key types.NamespacedName) (*v1beta1.Gateway, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetGateway", ctx, key)
-	ret0, _ := ret[0].(*v1alpha2.Gateway)
+	ret0, _ := ret[0].(*v1beta1.Gateway)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -230,10 +231,10 @@ func (mr *MockClientMockRecorder) GetGateway(ctx, key interface{}) *gomock.Call 
 }
 
 // GetGatewayClass mocks base method.
-func (m *MockClient) GetGatewayClass(ctx context.Context, key types.NamespacedName) (*v1alpha2.GatewayClass, error) {
+func (m *MockClient) GetGatewayClass(ctx context.Context, key types.NamespacedName) (*v1beta1.GatewayClass, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetGatewayClass", ctx, key)
-	ret0, _ := ret[0].(*v1alpha2.GatewayClass)
+	ret0, _ := ret[0].(*v1beta1.GatewayClass)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -260,10 +261,10 @@ func (mr *MockClientMockRecorder) GetGatewayClassConfig(ctx, key interface{}) *g
 }
 
 // GetGatewaysInNamespace mocks base method.
-func (m *MockClient) GetGatewaysInNamespace(ctx context.Context, ns string) ([]v1alpha2.Gateway, error) {
+func (m *MockClient) GetGatewaysInNamespace(ctx context.Context, ns string) ([]v1beta1.Gateway, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetGatewaysInNamespace", ctx, ns)
-	ret0, _ := ret[0].([]v1alpha2.Gateway)
+	ret0, _ := ret[0].([]v1beta1.Gateway)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -334,19 +335,19 @@ func (mr *MockClientMockRecorder) GetNamespace(ctx, key interface{}) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNamespace", reflect.TypeOf((*MockClient)(nil).GetNamespace), ctx, key)
 }
 
-// GetReferencePoliciesInNamespace mocks base method.
-func (m *MockClient) GetReferencePoliciesInNamespace(ctx context.Context, namespace string) ([]v1alpha2.ReferencePolicy, error) {
+// GetReferenceGrantsInNamespace mocks base method.
+func (m *MockClient) GetReferenceGrantsInNamespace(ctx context.Context, namespace string) ([]v1alpha2.ReferenceGrant, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetReferencePoliciesInNamespace", ctx, namespace)
-	ret0, _ := ret[0].([]v1alpha2.ReferencePolicy)
+	ret := m.ctrl.Call(m, "GetReferenceGrantsInNamespace", ctx, namespace)
+	ret0, _ := ret[0].([]v1alpha2.ReferenceGrant)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetReferencePoliciesInNamespace indicates an expected call of GetReferencePoliciesInNamespace.
-func (mr *MockClientMockRecorder) GetReferencePoliciesInNamespace(ctx, namespace interface{}) *gomock.Call {
+// GetReferenceGrantsInNamespace indicates an expected call of GetReferenceGrantsInNamespace.
+func (mr *MockClientMockRecorder) GetReferenceGrantsInNamespace(ctx, namespace interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetReferencePoliciesInNamespace", reflect.TypeOf((*MockClient)(nil).GetReferencePoliciesInNamespace), ctx, namespace)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetReferenceGrantsInNamespace", reflect.TypeOf((*MockClient)(nil).GetReferenceGrantsInNamespace), ctx, namespace)
 }
 
 // GetSecret mocks base method.
@@ -410,7 +411,7 @@ func (mr *MockClientMockRecorder) GetTCPRoutesInNamespace(ctx, ns interface{}) *
 }
 
 // HasManagedDeployment mocks base method.
-func (m *MockClient) HasManagedDeployment(ctx context.Context, gw *v1alpha2.Gateway) (bool, error) {
+func (m *MockClient) HasManagedDeployment(ctx context.Context, gw *v1beta1.Gateway) (bool, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "HasManagedDeployment", ctx, gw)
 	ret0, _ := ret[0].(bool)
@@ -425,7 +426,7 @@ func (mr *MockClientMockRecorder) HasManagedDeployment(ctx, gw interface{}) *gom
 }
 
 // IsManagedRoute mocks base method.
-func (m *MockClient) IsManagedRoute(ctx context.Context, namespace string, parents []v1alpha2.ParentRef) (bool, error) {
+func (m *MockClient) IsManagedRoute(ctx context.Context, namespace string, parents []v1alpha2.ParentReference) (bool, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IsManagedRoute", ctx, namespace, parents)
 	ret0, _ := ret[0].(bool)

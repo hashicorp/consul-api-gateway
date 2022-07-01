@@ -1,26 +1,26 @@
 package service
 
 import (
-	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
+	gwv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 )
 
 type RouteRule struct {
-	HTTPRule *gw.HTTPRouteRule
-	TCPRule  *gw.TCPRouteRule
-	TLSRule  *gw.TLSRouteRule
-	UDPRule  *gw.UDPRouteRule
+	HTTPRule *gwv1alpha2.HTTPRouteRule
+	TCPRule  *gwv1alpha2.TCPRouteRule
+	TLSRule  *gwv1alpha2.TLSRouteRule
+	UDPRule  *gwv1alpha2.UDPRouteRule
 }
 
 func NewRouteRule(rule interface{}) RouteRule {
 	r := RouteRule{}
 	switch routeRule := rule.(type) {
-	case *gw.HTTPRouteRule:
+	case *gwv1alpha2.HTTPRouteRule:
 		r.HTTPRule = routeRule
-	case *gw.TCPRouteRule:
+	case *gwv1alpha2.TCPRouteRule:
 		r.TCPRule = routeRule
-	case *gw.UDPRouteRule:
+	case *gwv1alpha2.UDPRouteRule:
 		r.UDPRule = routeRule
-	case *gw.TLSRouteRule:
+	case *gwv1alpha2.TLSRouteRule:
 		r.TLSRule = routeRule
 	}
 	return r

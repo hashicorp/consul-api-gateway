@@ -10,7 +10,7 @@ import (
 	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 	"github.com/hashicorp/go-hclog"
 	"k8s.io/apimachinery/pkg/types"
-	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
+	gwv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 )
 
 type K8sGatewayClasses struct {
@@ -73,7 +73,7 @@ type K8sGatewayClass struct {
 	client gatewayclient.Client
 
 	status GatewayClassStatus
-	class  *gw.GatewayClass
+	class  *gwv1beta1.GatewayClass
 	config apigwv1alpha1.GatewayClassConfig
 }
 
@@ -82,7 +82,7 @@ type K8sGatewayClassConfig struct {
 	Client gatewayclient.Client
 }
 
-func NewK8sGatewayClass(class *gw.GatewayClass, config K8sGatewayClassConfig) *K8sGatewayClass {
+func NewK8sGatewayClass(class *gwv1beta1.GatewayClass, config K8sGatewayClassConfig) *K8sGatewayClass {
 	classLogger := config.Logger.Named("gatewayclass").With("name", class.Name)
 	return &K8sGatewayClass{
 		logger: classLogger,

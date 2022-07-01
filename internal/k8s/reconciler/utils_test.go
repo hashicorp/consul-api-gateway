@@ -12,7 +12,8 @@ import (
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
-	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
+	gwv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
+	gwv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/hashicorp/go-hclog"
 
@@ -22,16 +23,17 @@ import (
 func TestRouteMatchesListener(t *testing.T) {
 	t.Parallel()
 
-	name := gw.SectionName("name")
-	can, must := routeMatchesListener(name, &name)
+	listenerName := gwv1beta1.SectionName("name")
+	routeSectionName := gwv1alpha2.SectionName("name")
+	can, must := routeMatchesListener(listenerName, &routeSectionName)
 	require.True(t, can)
 	require.True(t, must)
 
-	can, must = routeMatchesListener(name, nil)
+	can, must = routeMatchesListener(listenerName, nil)
 	require.True(t, can)
 	require.False(t, must)
 
-	can, must = routeMatchesListener(gw.SectionName("other"), &name)
+	can, must = routeMatchesListener(gwv1beta1.SectionName("other"), &routeSectionName)
 	require.False(t, can)
 	require.True(t, must)
 }
@@ -39,11 +41,11 @@ func TestRouteMatchesListener(t *testing.T) {
 func TestRouteMatchesListenerHostname(t *testing.T) {
 	t.Parallel()
 
-	hostname := gw.Hostname("name")
+	hostname := gwv1beta1.Hostname("name")
 	require.True(t, routeMatchesListenerHostname(nil, nil))
 	require.True(t, routeMatchesListenerHostname(&hostname, nil))
-	require.True(t, routeMatchesListenerHostname(&hostname, []gw.Hostname{"*"}))
-	require.False(t, routeMatchesListenerHostname(&hostname, []gw.Hostname{"other"}))
+	require.True(t, routeMatchesListenerHostname(&hostname, []gwv1alpha2.Hostname{"*"}))
+	require.False(t, routeMatchesListenerHostname(&hostname, []gwv1alpha2.Hostname{"other"}))
 }
 
 func TestHostnamesMatch(t *testing.T) {
@@ -69,22 +71,22 @@ func TestRouteKindIsAllowedForListener(t *testing.T) {
 
 	routeMeta := meta.TypeMeta{}
 	routeMeta.SetGroupVersionKind(schema.GroupVersionKind{
-		Group:   gw.GroupVersion.Group,
-		Version: gw.GroupVersion.Version,
+		Group:   gwv1alpha2.GroupVersion.Group,
+		Version: gwv1alpha2.GroupVersion.Version,
 		Kind:    "HTTPRoute",
 	})
-	require.True(t, routeKindIsAllowedForListener([]gw.RouteGroupKind{{
-		Group: (*gw.Group)(&gw.GroupVersion.Group),
+	require.True(t, routeKindIsAllowedForListener([]gwv1beta1.RouteGroupKind{{
+		Group: (*gwv1beta1.Group)(&gwv1alpha2.GroupVersion.Group),
 		Kind:  "HTTPRoute",
-	}}, NewK8sRoute(&gw.HTTPRoute{
+	}}, NewK8sRoute(&gwv1alpha2.HTTPRoute{
 		TypeMeta: routeMeta,
 	}, K8sRouteConfig{
 		Logger: hclog.NewNullLogger(),
 	})))
-	require.False(t, routeKindIsAllowedForListener([]gw.RouteGroupKind{{
-		Group: (*gw.Group)(&gw.GroupVersion.Group),
+	require.False(t, routeKindIsAllowedForListener([]gwv1beta1.RouteGroupKind{{
+		Group: (*gwv1beta1.Group)(&gwv1alpha2.GroupVersion.Group),
 		Kind:  "TCPRoute",
-	}}, NewK8sRoute(&gw.HTTPRoute{
+	}}, NewK8sRoute(&gwv1alpha2.HTTPRoute{
 		TypeMeta: routeMeta,
 	}, K8sRouteConfig{
 		Logger: hclog.NewNullLogger(),
@@ -99,13 +101,13 @@ func TestRouteAllowedForListenerNamespaces(t *testing.T) {
 	client := mocks.NewMockClient(ctrl)
 
 	// same
-	same := gw.NamespacesFromSame
+	same := gwv1beta1.NamespacesFromSame
 
-	allowed, err := routeAllowedForListenerNamespaces(context.Background(), "expected", &gw.AllowedRoutes{
-		Namespaces: &gw.RouteNamespaces{
+	allowed, err := routeAllowedForListenerNamespaces(context.Background(), "expected", &gwv1beta1.AllowedRoutes{
+		Namespaces: &gwv1beta1.RouteNamespaces{
 			From: &same,
 		},
-	}, NewK8sRoute(&gw.HTTPRoute{
+	}, NewK8sRoute(&gwv1alpha2.HTTPRoute{
 		ObjectMeta: meta.ObjectMeta{
 			Namespace: "expected",
 		},
@@ -115,11 +117,11 @@ func TestRouteAllowedForListenerNamespaces(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, allowed)
 
-	allowed, err = routeAllowedForListenerNamespaces(context.Background(), "expected", &gw.AllowedRoutes{
-		Namespaces: &gw.RouteNamespaces{
+	allowed, err = routeAllowedForListenerNamespaces(context.Background(), "expected", &gwv1beta1.AllowedRoutes{
+		Namespaces: &gwv1beta1.RouteNamespaces{
 			From: &same,
 		},
-	}, NewK8sRoute(&gw.HTTPRoute{
+	}, NewK8sRoute(&gwv1alpha2.HTTPRoute{
 		ObjectMeta: meta.ObjectMeta{
 			Namespace: "other",
 		},
@@ -130,12 +132,12 @@ func TestRouteAllowedForListenerNamespaces(t *testing.T) {
 	require.False(t, allowed)
 
 	// all
-	all := gw.NamespacesFromAll
-	allowed, err = routeAllowedForListenerNamespaces(context.Background(), "expected", &gw.AllowedRoutes{
-		Namespaces: &gw.RouteNamespaces{
+	all := gwv1beta1.NamespacesFromAll
+	allowed, err = routeAllowedForListenerNamespaces(context.Background(), "expected", &gwv1beta1.AllowedRoutes{
+		Namespaces: &gwv1beta1.RouteNamespaces{
 			From: &all,
 		},
-	}, NewK8sRoute(&gw.HTTPRoute{
+	}, NewK8sRoute(&gwv1alpha2.HTTPRoute{
 		ObjectMeta: meta.ObjectMeta{
 			Namespace: "other",
 		},
@@ -146,7 +148,7 @@ func TestRouteAllowedForListenerNamespaces(t *testing.T) {
 	require.True(t, allowed)
 
 	// selector
-	selector := gw.NamespacesFromSelector
+	selector := gwv1beta1.NamespacesFromSelector
 
 	matchingNamespace := &core.Namespace{
 		ObjectMeta: meta.ObjectMeta{
@@ -157,8 +159,8 @@ func TestRouteAllowedForListenerNamespaces(t *testing.T) {
 	invalidNamespace := &core.Namespace{ObjectMeta: meta.ObjectMeta{Labels: map[string]string{}}}
 
 	client.EXPECT().GetNamespace(context.Background(), types.NamespacedName{Name: "expected"}).Return(invalidNamespace, nil).Times(1)
-	allowed, err = routeAllowedForListenerNamespaces(context.Background(), "expected", &gw.AllowedRoutes{
-		Namespaces: &gw.RouteNamespaces{
+	allowed, err = routeAllowedForListenerNamespaces(context.Background(), "expected", &gwv1beta1.AllowedRoutes{
+		Namespaces: &gwv1beta1.RouteNamespaces{
 			From: &selector,
 			Selector: &meta.LabelSelector{
 				MatchLabels: map[string]string{
@@ -166,7 +168,7 @@ func TestRouteAllowedForListenerNamespaces(t *testing.T) {
 				},
 			},
 		},
-	}, NewK8sRoute(&gw.HTTPRoute{
+	}, NewK8sRoute(&gwv1alpha2.HTTPRoute{
 		ObjectMeta: meta.ObjectMeta{
 			Namespace: "expected",
 		},
@@ -177,8 +179,8 @@ func TestRouteAllowedForListenerNamespaces(t *testing.T) {
 	require.False(t, allowed)
 
 	client.EXPECT().GetNamespace(context.Background(), types.NamespacedName{Name: "expected"}).Return(matchingNamespace, nil).Times(1)
-	allowed, err = routeAllowedForListenerNamespaces(context.Background(), "expected", &gw.AllowedRoutes{
-		Namespaces: &gw.RouteNamespaces{
+	allowed, err = routeAllowedForListenerNamespaces(context.Background(), "expected", &gwv1beta1.AllowedRoutes{
+		Namespaces: &gwv1beta1.RouteNamespaces{
 			From: &selector,
 			Selector: &meta.LabelSelector{
 				MatchLabels: map[string]string{
@@ -186,7 +188,7 @@ func TestRouteAllowedForListenerNamespaces(t *testing.T) {
 				},
 			},
 		},
-	}, NewK8sRoute(&gw.HTTPRoute{
+	}, NewK8sRoute(&gwv1alpha2.HTTPRoute{
 		ObjectMeta: meta.ObjectMeta{
 			Namespace: "expected",
 		},
@@ -196,8 +198,8 @@ func TestRouteAllowedForListenerNamespaces(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, allowed)
 
-	_, err = routeAllowedForListenerNamespaces(context.Background(), "expected", &gw.AllowedRoutes{
-		Namespaces: &gw.RouteNamespaces{
+	_, err = routeAllowedForListenerNamespaces(context.Background(), "expected", &gwv1beta1.AllowedRoutes{
+		Namespaces: &gwv1beta1.RouteNamespaces{
 			From: &selector,
 			Selector: &meta.LabelSelector{
 				MatchExpressions: []meta.LabelSelectorRequirement{{
@@ -206,7 +208,7 @@ func TestRouteAllowedForListenerNamespaces(t *testing.T) {
 				}},
 			},
 		},
-	}, NewK8sRoute(&gw.HTTPRoute{
+	}, NewK8sRoute(&gwv1alpha2.HTTPRoute{
 		ObjectMeta: meta.ObjectMeta{
 			Namespace: "expected",
 		},
@@ -216,12 +218,12 @@ func TestRouteAllowedForListenerNamespaces(t *testing.T) {
 	require.Error(t, err)
 
 	// unknown
-	unknown := gw.FromNamespaces("unknown")
-	allowed, err = routeAllowedForListenerNamespaces(context.Background(), "expected", &gw.AllowedRoutes{
-		Namespaces: &gw.RouteNamespaces{
+	unknown := gwv1beta1.FromNamespaces("unknown")
+	allowed, err = routeAllowedForListenerNamespaces(context.Background(), "expected", &gwv1beta1.AllowedRoutes{
+		Namespaces: &gwv1beta1.RouteNamespaces{
 			From: &unknown,
 		},
-	}, NewK8sRoute(&gw.HTTPRoute{
+	}, NewK8sRoute(&gwv1alpha2.HTTPRoute{
 		ObjectMeta: meta.ObjectMeta{
 			Namespace: "expected",
 		},
@@ -283,42 +285,42 @@ func TestConditionsEqual(t *testing.T) {
 func TestListenerStatusEqual(t *testing.T) {
 	t.Parallel()
 
-	require.True(t, listenerStatusEqual(gw.ListenerStatus{}, gw.ListenerStatus{}))
-	require.False(t, listenerStatusEqual(gw.ListenerStatus{
+	require.True(t, listenerStatusEqual(gwv1beta1.ListenerStatus{}, gwv1beta1.ListenerStatus{}))
+	require.False(t, listenerStatusEqual(gwv1beta1.ListenerStatus{
 		Name: "expected",
-	}, gw.ListenerStatus{
+	}, gwv1beta1.ListenerStatus{
 		Name: "other",
 	}))
-	require.False(t, listenerStatusEqual(gw.ListenerStatus{
+	require.False(t, listenerStatusEqual(gwv1beta1.ListenerStatus{
 		AttachedRoutes: 1,
-	}, gw.ListenerStatus{
+	}, gwv1beta1.ListenerStatus{
 		AttachedRoutes: 2,
 	}))
 
-	groupOne := gw.Group("group")
-	kindOne := gw.Kind("kind")
-	groupTwo := gw.Group("group")
-	kindTwo := gw.Kind("kind")
-	require.True(t, listenerStatusEqual(gw.ListenerStatus{
-		SupportedKinds: []gw.RouteGroupKind{{
+	groupOne := gwv1beta1.Group("group")
+	kindOne := gwv1beta1.Kind("kind")
+	groupTwo := gwv1beta1.Group("group")
+	kindTwo := gwv1beta1.Kind("kind")
+	require.True(t, listenerStatusEqual(gwv1beta1.ListenerStatus{
+		SupportedKinds: []gwv1beta1.RouteGroupKind{{
 			Group: &groupOne,
 			Kind:  kindOne,
 		}},
-	}, gw.ListenerStatus{
-		SupportedKinds: []gw.RouteGroupKind{{
+	}, gwv1beta1.ListenerStatus{
+		SupportedKinds: []gwv1beta1.RouteGroupKind{{
 			Group: &groupTwo,
 			Kind:  kindTwo,
 		}},
 	}))
 
-	groupTwo = gw.Group("other")
-	require.False(t, listenerStatusEqual(gw.ListenerStatus{
-		SupportedKinds: []gw.RouteGroupKind{{
+	groupTwo = gwv1beta1.Group("other")
+	require.False(t, listenerStatusEqual(gwv1beta1.ListenerStatus{
+		SupportedKinds: []gwv1beta1.RouteGroupKind{{
 			Group: &groupOne,
 			Kind:  kindOne,
 		}},
-	}, gw.ListenerStatus{
-		SupportedKinds: []gw.RouteGroupKind{{
+	}, gwv1beta1.ListenerStatus{
+		SupportedKinds: []gwv1beta1.RouteGroupKind{{
 			Group: &groupTwo,
 			Kind:  kindTwo,
 		}},
@@ -328,11 +330,11 @@ func TestListenerStatusEqual(t *testing.T) {
 func TestListenerStatusesEqual(t *testing.T) {
 	t.Parallel()
 
-	require.True(t, listenerStatusesEqual([]gw.ListenerStatus{}, []gw.ListenerStatus{}))
-	require.False(t, listenerStatusesEqual([]gw.ListenerStatus{}, []gw.ListenerStatus{{}}))
-	require.False(t, listenerStatusesEqual([]gw.ListenerStatus{{
+	require.True(t, listenerStatusesEqual([]gwv1beta1.ListenerStatus{}, []gwv1beta1.ListenerStatus{}))
+	require.False(t, listenerStatusesEqual([]gwv1beta1.ListenerStatus{}, []gwv1beta1.ListenerStatus{{}}))
+	require.False(t, listenerStatusesEqual([]gwv1beta1.ListenerStatus{{
 		Name: "expected",
-	}}, []gw.ListenerStatus{{
+	}}, []gwv1beta1.ListenerStatus{{
 		Name: "other",
 	}}))
 }
@@ -340,12 +342,12 @@ func TestListenerStatusesEqual(t *testing.T) {
 func TestParentStatusEqual(t *testing.T) {
 	t.Parallel()
 
-	require.True(t, parentStatusEqual(gw.RouteParentStatus{}, gw.RouteParentStatus{}))
-	require.False(t, parentStatusEqual(gw.RouteParentStatus{}, gw.RouteParentStatus{
+	require.True(t, parentStatusEqual(gwv1alpha2.RouteParentStatus{}, gwv1alpha2.RouteParentStatus{}))
+	require.False(t, parentStatusEqual(gwv1alpha2.RouteParentStatus{}, gwv1alpha2.RouteParentStatus{
 		ControllerName: "other",
 	}))
-	require.False(t, parentStatusEqual(gw.RouteParentStatus{}, gw.RouteParentStatus{
-		ParentRef: gw.ParentRef{
+	require.False(t, parentStatusEqual(gwv1alpha2.RouteParentStatus{}, gwv1alpha2.RouteParentStatus{
+		ParentRef: gwv1alpha2.ParentReference{
 			Name: "other",
 		},
 	}))
@@ -354,115 +356,115 @@ func TestParentStatusEqual(t *testing.T) {
 func TestGatewayStatusEqual(t *testing.T) {
 	t.Parallel()
 
-	require.True(t, gatewayStatusEqual(gw.GatewayStatus{}, gw.GatewayStatus{}))
-	require.False(t, gatewayStatusEqual(gw.GatewayStatus{}, gw.GatewayStatus{
+	require.True(t, gatewayStatusEqual(gwv1beta1.GatewayStatus{}, gwv1beta1.GatewayStatus{}))
+	require.False(t, gatewayStatusEqual(gwv1beta1.GatewayStatus{}, gwv1beta1.GatewayStatus{
 		Conditions: []meta.Condition{{}},
 	}))
-	require.False(t, gatewayStatusEqual(gw.GatewayStatus{}, gw.GatewayStatus{
-		Listeners: []gw.ListenerStatus{{}},
+	require.False(t, gatewayStatusEqual(gwv1beta1.GatewayStatus{}, gwv1beta1.GatewayStatus{
+		Listeners: []gwv1beta1.ListenerStatus{{}},
 	}))
 }
 
 func TestGatewayAllowedForSecretRef(t *testing.T) {
 	type testCase struct {
-		name         string
-		fromNS       string
-		toNS         *string
-		toKind       *string
-		toName       string
-		policyFromNS string
-		policyToName *string
-		allowed      bool
+		name        string
+		fromNS      string
+		toNS        *string
+		toKind      *string
+		toName      string
+		grantFromNS string
+		grantToName *string
+		allowed     bool
 	}
 
 	ns1, ns2, ns3 := "namespace1", "namespace2", "namespace3"
 	secret1, secret2, secret3 := "secret1", "secret2", "secret3"
 
 	for _, tc := range []testCase{
-		{name: "unspecified-secret-namespace-allowed", fromNS: ns1, toNS: nil, toName: secret1, policyFromNS: ns1, policyToName: nil, allowed: true},
-		{name: "same-namespace-no-name-allowed", fromNS: ns1, toNS: &ns1, toName: secret1, policyFromNS: ns1, policyToName: nil, allowed: true},
-		{name: "same-namespace-with-name-allowed", fromNS: ns1, toNS: &ns1, toName: secret1, policyFromNS: ns1, policyToName: &secret1, allowed: true},
-		{name: "different-namespace-no-name-allowed", fromNS: ns1, toNS: &ns2, toName: secret2, policyFromNS: ns1, policyToName: nil, allowed: true},
-		{name: "different-namespace-with-name-allowed", fromNS: ns1, toNS: &ns2, toName: secret2, policyFromNS: ns1, policyToName: &secret2, allowed: true},
-		{name: "mismatched-policy-from-namespace-disallowed", fromNS: ns1, toNS: &ns2, toName: secret2, policyFromNS: ns3, policyToName: &secret2, allowed: false},
-		{name: "mismatched-policy-to-name-disallowed", fromNS: ns1, toNS: &ns2, toName: secret2, policyFromNS: ns1, policyToName: &secret3, allowed: false},
+		{name: "unspecified-secret-namespace-allowed", fromNS: ns1, toNS: nil, toName: secret1, grantToName: nil, allowed: true},
+		{name: "same-namespace-no-name-allowed", fromNS: ns1, toNS: &ns1, toName: secret1, grantToName: nil, allowed: true},
+		{name: "same-namespace-with-name-allowed", fromNS: ns1, toNS: &ns1, toName: secret1, grantToName: &secret1, allowed: true},
+		{name: "different-namespace-no-name-allowed", fromNS: ns1, toNS: &ns2, toName: secret2, grantFromNS: ns1, grantToName: nil, allowed: true},
+		{name: "different-namespace-with-name-allowed", fromNS: ns1, toNS: &ns2, toName: secret2, grantFromNS: ns1, grantToName: &secret2, allowed: true},
+		{name: "mismatched-grant-from-namespace-disallowed", fromNS: ns1, toNS: &ns2, toName: secret2, grantFromNS: ns3, grantToName: &secret2, allowed: false},
+		{name: "mismatched-grant-to-name-disallowed", fromNS: ns1, toNS: &ns2, toName: secret2, grantFromNS: ns1, grantToName: &secret3, allowed: false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 			client := mocks.NewMockClient(ctrl)
 
-			group := gw.Group("")
+			group := gwv1beta1.Group("")
 
-			secretRef := gw.SecretObjectReference{
+			secretRef := gwv1beta1.SecretObjectReference{
 				Group: &group,
-				Name:  gw.ObjectName(tc.toName),
+				Name:  gwv1beta1.ObjectName(tc.toName),
 			}
 
 			if tc.toNS != nil {
-				ns := gw.Namespace(*tc.toNS)
+				ns := gwv1beta1.Namespace(*tc.toNS)
 				secretRef.Namespace = &ns
 			}
 
 			if tc.toKind != nil {
-				k := gw.Kind(*tc.toKind)
+				k := gwv1beta1.Kind(*tc.toKind)
 				secretRef.Kind = &k
 			}
 
-			gateway := &gw.Gateway{
+			gateway := &gwv1beta1.Gateway{
 				TypeMeta:   meta.TypeMeta{APIVersion: "gateway.networking.k8s.io/v1alpha2", Kind: "Gateway"},
 				ObjectMeta: meta.ObjectMeta{Namespace: tc.fromNS},
-				Spec: gw.GatewaySpec{
-					Listeners: []gw.Listener{{
-						TLS: &gw.GatewayTLSConfig{
-							CertificateRefs: []*gw.SecretObjectReference{{
+				Spec: gwv1beta1.GatewaySpec{
+					Listeners: []gwv1beta1.Listener{{
+						TLS: &gwv1beta1.GatewayTLSConfig{
+							CertificateRefs: []gwv1beta1.SecretObjectReference{{
 								Group: &group,
-								Name:  gw.ObjectName(tc.toName),
+								Name:  gwv1beta1.ObjectName(tc.toName),
 							}},
 						},
 					}},
 				},
 			}
 
-			var toName *gw.ObjectName
-			if tc.policyToName != nil {
-				on := gw.ObjectName(*tc.policyToName)
+			var toName *gwv1alpha2.ObjectName
+			if tc.grantToName != nil {
+				on := gwv1alpha2.ObjectName(*tc.grantToName)
 				toName = &on
 			}
 
 			if tc.toNS != nil && tc.fromNS != *tc.toNS {
-				otherName := gw.ObjectName("blah")
+				otherName := gwv1alpha2.ObjectName("blah")
 
-				refPolicies := []gw.ReferencePolicy{
-					// Create a ReferencePolicy that does not match at all (kind, etc.)
+				refGrants := []gwv1alpha2.ReferenceGrant{
+					// Create a ReferenceGrant that does not match at all (kind, etc.)
 					{
 						ObjectMeta: meta.ObjectMeta{Namespace: *tc.toNS},
-						Spec: gw.ReferencePolicySpec{
-							From: []gw.ReferencePolicyFrom{{Group: "Kool & The Gang", Kind: "Jungle Boogie", Namespace: "Wild And Peaceful"}},
-							To:   []gw.ReferencePolicyTo{{Group: "does not exist", Kind: "does not exist", Name: nil}},
+						Spec: gwv1alpha2.ReferenceGrantSpec{
+							From: []gwv1alpha2.ReferenceGrantFrom{{Group: "Kool & The Gang", Kind: "Jungle Boogie", Namespace: "Wild And Peaceful"}},
+							To:   []gwv1alpha2.ReferenceGrantTo{{Group: "does not exist", Kind: "does not exist", Name: nil}},
 						},
 					},
-					// Create a ReferencePolicy that matches completely except for To.Name
+					// Create a ReferenceGrant that matches completely except for To.Name
 					{
 						ObjectMeta: meta.ObjectMeta{Namespace: *tc.toNS},
-						Spec: gw.ReferencePolicySpec{
-							From: []gw.ReferencePolicyFrom{{Group: "gateway.networking.k8s.io", Kind: gw.Kind("Gateway"), Namespace: gw.Namespace(tc.policyFromNS)}},
-							To:   []gw.ReferencePolicyTo{{Group: "", Kind: "Secret", Name: &otherName}},
+						Spec: gwv1alpha2.ReferenceGrantSpec{
+							From: []gwv1alpha2.ReferenceGrantFrom{{Group: "gateway.networking.k8s.io", Kind: gwv1alpha2.Kind("Gateway"), Namespace: gwv1alpha2.Namespace(tc.grantFromNS)}},
+							To:   []gwv1alpha2.ReferenceGrantTo{{Group: "", Kind: "Secret", Name: &otherName}},
 						},
 					},
-					// Create a ReferencePolicy that matches completely
+					// Create a ReferenceGrant that matches completely
 					{
 						ObjectMeta: meta.ObjectMeta{Namespace: *tc.toNS},
-						Spec: gw.ReferencePolicySpec{
-							From: []gw.ReferencePolicyFrom{{Group: "gateway.networking.k8s.io", Kind: gw.Kind("Gateway"), Namespace: gw.Namespace(tc.policyFromNS)}},
-							To:   []gw.ReferencePolicyTo{{Group: "", Kind: "Secret", Name: toName}},
+						Spec: gwv1alpha2.ReferenceGrantSpec{
+							From: []gwv1alpha2.ReferenceGrantFrom{{Group: "gateway.networking.k8s.io", Kind: gwv1alpha2.Kind("Gateway"), Namespace: gwv1alpha2.Namespace(tc.grantFromNS)}},
+							To:   []gwv1alpha2.ReferenceGrantTo{{Group: "", Kind: "Secret", Name: toName}},
 						},
 					},
 				}
 
 				client.EXPECT().
-					GetReferencePoliciesInNamespace(gomock.Any(), *tc.toNS).
-					Return(refPolicies, nil)
+					GetReferenceGrantsInNamespace(gomock.Any(), *tc.toNS).
+					Return(refGrants, nil)
 			}
 
 			allowed, err := gatewayAllowedForSecretRef(context.Background(), gateway, secretRef, client)
@@ -474,27 +476,27 @@ func TestGatewayAllowedForSecretRef(t *testing.T) {
 
 func TestRouteAllowedForBackendRef(t *testing.T) {
 	type testCase struct {
-		name         string
-		fromNS       string
-		toNS         *string
-		toKind       *string
-		toName       string
-		policyFromNS string
-		policyToName *string
-		allowed      bool
+		name        string
+		fromNS      string
+		toNS        *string
+		toKind      *string
+		toName      string
+		grantFromNS string
+		grantToName *string
+		allowed     bool
 	}
 
 	ns1, ns2, ns3 := "namespace1", "namespace2", "namespace3"
 	backend1, backend2, backend3 := "backend1", "backend2", "backend3"
 
 	for _, tc := range []testCase{
-		{name: "unspecified-backend-namespace-allowed", fromNS: ns1, toNS: nil, toName: backend1, policyFromNS: ns1, policyToName: nil, allowed: true},
-		{name: "same-namespace-no-name-allowed", fromNS: ns1, toNS: &ns1, toName: backend1, policyFromNS: ns1, policyToName: nil, allowed: true},
-		{name: "same-namespace-with-name-allowed", fromNS: ns1, toNS: &ns1, toName: backend1, policyFromNS: ns1, policyToName: &backend1, allowed: true},
-		{name: "different-namespace-no-name-allowed", fromNS: ns1, toNS: &ns2, toName: backend2, policyFromNS: ns1, policyToName: nil, allowed: true},
-		{name: "different-namespace-with-name-allowed", fromNS: ns1, toNS: &ns2, toName: backend2, policyFromNS: ns1, policyToName: &backend2, allowed: true},
-		{name: "mismatched-policy-from-namespace-disallowed", fromNS: ns1, toNS: &ns2, toName: backend2, policyFromNS: ns3, policyToName: &backend2, allowed: false},
-		{name: "mismatched-policy-to-name-disallowed", fromNS: ns1, toNS: &ns2, toName: backend2, policyFromNS: ns1, policyToName: &backend3, allowed: false},
+		{name: "unspecified-backend-namespace-allowed", fromNS: ns1, toNS: nil, toName: backend1, grantFromNS: ns1, grantToName: nil, allowed: true},
+		{name: "same-namespace-no-name-allowed", fromNS: ns1, toNS: &ns1, toName: backend1, grantFromNS: ns1, grantToName: nil, allowed: true},
+		{name: "same-namespace-with-name-allowed", fromNS: ns1, toNS: &ns1, toName: backend1, grantFromNS: ns1, grantToName: &backend1, allowed: true},
+		{name: "different-namespace-no-name-allowed", fromNS: ns1, toNS: &ns2, toName: backend2, grantFromNS: ns1, grantToName: nil, allowed: true},
+		{name: "different-namespace-with-name-allowed", fromNS: ns1, toNS: &ns2, toName: backend2, grantFromNS: ns1, grantToName: &backend2, allowed: true},
+		{name: "mismatched-grant-from-namespace-disallowed", fromNS: ns1, toNS: &ns2, toName: backend2, grantFromNS: ns3, grantToName: &backend2, allowed: false},
+		{name: "mismatched-grant-to-name-disallowed", fromNS: ns1, toNS: &ns2, toName: backend2, grantFromNS: ns1, grantToName: &backend3, allowed: false},
 	} {
 		// Test each case for both HTTPRoute + TCPRoute which should function identically
 		for _, routeType := range []string{"HTTPRoute", "TCPRoute"} {
@@ -503,44 +505,44 @@ func TestRouteAllowedForBackendRef(t *testing.T) {
 				defer ctrl.Finish()
 				client := mocks.NewMockClient(ctrl)
 
-				group := gw.Group("")
+				group := gwv1alpha2.Group("")
 
-				backendRef := gw.BackendRef{
-					BackendObjectReference: gw.BackendObjectReference{
+				backendRef := gwv1alpha2.BackendRef{
+					BackendObjectReference: gwv1alpha2.BackendObjectReference{
 						Group: &group,
-						Name:  gw.ObjectName(tc.toName),
+						Name:  gwv1alpha2.ObjectName(tc.toName),
 					},
 				}
 
 				if tc.toNS != nil {
-					ns := gw.Namespace(*tc.toNS)
+					ns := gwv1alpha2.Namespace(*tc.toNS)
 					backendRef.BackendObjectReference.Namespace = &ns
 				}
 
 				if tc.toKind != nil {
-					k := gw.Kind(*tc.toKind)
+					k := gwv1alpha2.Kind(*tc.toKind)
 					backendRef.Kind = &k
 				}
 
 				var route Route
 				switch routeType {
 				case "HTTPRoute":
-					route = &gw.HTTPRoute{
+					route = &gwv1alpha2.HTTPRoute{
 						ObjectMeta: meta.ObjectMeta{Namespace: tc.fromNS},
 						TypeMeta:   meta.TypeMeta{APIVersion: "gateway.networking.k8s.io/v1alpha2", Kind: "HTTPRoute"},
-						Spec: gw.HTTPRouteSpec{
-							Rules: []gw.HTTPRouteRule{{
-								BackendRefs: []gw.HTTPBackendRef{{BackendRef: backendRef}},
+						Spec: gwv1alpha2.HTTPRouteSpec{
+							Rules: []gwv1alpha2.HTTPRouteRule{{
+								BackendRefs: []gwv1alpha2.HTTPBackendRef{{BackendRef: backendRef}},
 							}},
 						},
 					}
 				case "TCPRoute":
-					route = &gw.TCPRoute{
+					route = &gwv1alpha2.TCPRoute{
 						ObjectMeta: meta.ObjectMeta{Namespace: tc.fromNS},
 						TypeMeta:   meta.TypeMeta{APIVersion: "gateway.networking.k8s.io/v1alpha2", Kind: "TCPRoute"},
-						Spec: gw.TCPRouteSpec{
-							Rules: []gw.TCPRouteRule{{
-								BackendRefs: []gw.BackendRef{backendRef},
+						Spec: gwv1alpha2.TCPRouteSpec{
+							Rules: []gwv1alpha2.TCPRouteRule{{
+								BackendRefs: []gwv1alpha2.BackendRef{backendRef},
 							}},
 						},
 					}
@@ -548,23 +550,23 @@ func TestRouteAllowedForBackendRef(t *testing.T) {
 					require.Fail(t, fmt.Sprintf("unhandled route type %q", routeType))
 				}
 
-				var toName *gw.ObjectName
-				if tc.policyToName != nil {
-					on := gw.ObjectName(*tc.policyToName)
+				var toName *gwv1alpha2.ObjectName
+				if tc.grantToName != nil {
+					on := gwv1alpha2.ObjectName(*tc.grantToName)
 					toName = &on
 				}
 
 				if tc.toNS != nil && tc.fromNS != *tc.toNS {
-					referencePolicy := gw.ReferencePolicy{
+					referenceGrant := gwv1alpha2.ReferenceGrant{
 						TypeMeta:   meta.TypeMeta{},
 						ObjectMeta: meta.ObjectMeta{Namespace: *tc.toNS},
-						Spec: gw.ReferencePolicySpec{
-							From: []gw.ReferencePolicyFrom{{
+						Spec: gwv1alpha2.ReferenceGrantSpec{
+							From: []gwv1alpha2.ReferenceGrantFrom{{
 								Group:     "gateway.networking.k8s.io",
-								Kind:      gw.Kind(routeType),
-								Namespace: gw.Namespace(tc.policyFromNS),
+								Kind:      gwv1alpha2.Kind(routeType),
+								Namespace: gwv1alpha2.Namespace(tc.grantFromNS),
 							}},
-							To: []gw.ReferencePolicyTo{{
+							To: []gwv1alpha2.ReferenceGrantTo{{
 								Group: "",
 								Kind:  "Service",
 								Name:  toName,
@@ -572,15 +574,15 @@ func TestRouteAllowedForBackendRef(t *testing.T) {
 						},
 					}
 
-					throwawayPolicy := gw.ReferencePolicy{
+					throwawayGrant := gwv1alpha2.ReferenceGrant{
 						ObjectMeta: meta.ObjectMeta{Namespace: *tc.toNS},
-						Spec: gw.ReferencePolicySpec{
-							From: []gw.ReferencePolicyFrom{{
+						Spec: gwv1alpha2.ReferenceGrantSpec{
+							From: []gwv1alpha2.ReferenceGrantFrom{{
 								Group:     "Kool & The Gang",
 								Kind:      "Jungle Boogie",
 								Namespace: "Wild And Peaceful",
 							}},
-							To: []gw.ReferencePolicyTo{{
+							To: []gwv1alpha2.ReferenceGrantTo{{
 								Group: "does not exist",
 								Kind:  "does not exist",
 								Name:  nil,
@@ -589,8 +591,8 @@ func TestRouteAllowedForBackendRef(t *testing.T) {
 					}
 
 					client.EXPECT().
-						GetReferencePoliciesInNamespace(gomock.Any(), *tc.toNS).
-						Return([]gw.ReferencePolicy{throwawayPolicy, referencePolicy}, nil)
+						GetReferenceGrantsInNamespace(gomock.Any(), *tc.toNS).
+						Return([]gwv1alpha2.ReferenceGrant{throwawayGrant, referenceGrant}, nil)
 				}
 
 				allowed, err := routeAllowedForBackendRef(context.Background(), route, backendRef, client)

@@ -12,7 +12,8 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-	gateway "sigs.k8s.io/gateway-api/apis/v1alpha2"
+	gwv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
+	gwv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	"github.com/hashicorp/consul-api-gateway/internal/metrics"
@@ -28,33 +29,33 @@ import (
 type Client interface {
 	// getters
 	GetGatewayClassConfig(ctx context.Context, key types.NamespacedName) (*apigwv1alpha1.GatewayClassConfig, error)
-	GetGatewayClass(ctx context.Context, key types.NamespacedName) (*gateway.GatewayClass, error)
-	GetGateway(ctx context.Context, key types.NamespacedName) (*gateway.Gateway, error)
-	GetGatewaysInNamespace(ctx context.Context, ns string) ([]gateway.Gateway, error)
+	GetGatewayClass(ctx context.Context, key types.NamespacedName) (*gwv1beta1.GatewayClass, error)
+	GetGateway(ctx context.Context, key types.NamespacedName) (*gwv1beta1.Gateway, error)
+	GetGatewaysInNamespace(ctx context.Context, ns string) ([]gwv1beta1.Gateway, error)
 	GetSecret(ctx context.Context, key types.NamespacedName) (*core.Secret, error)
 	GetService(ctx context.Context, key types.NamespacedName) (*core.Service, error)
-	GetHTTPRoute(ctx context.Context, key types.NamespacedName) (*gateway.HTTPRoute, error)
-	GetHTTPRoutesInNamespace(ctx context.Context, ns string) ([]gateway.HTTPRoute, error)
-	GetTCPRoute(ctx context.Context, key types.NamespacedName) (*gateway.TCPRoute, error)
-	GetTCPRoutesInNamespace(ctx context.Context, ns string) ([]gateway.TCPRoute, error)
+	GetHTTPRoute(ctx context.Context, key types.NamespacedName) (*gwv1alpha2.HTTPRoute, error)
+	GetHTTPRoutesInNamespace(ctx context.Context, ns string) ([]gwv1alpha2.HTTPRoute, error)
+	GetTCPRoute(ctx context.Context, key types.NamespacedName) (*gwv1alpha2.TCPRoute, error)
+	GetTCPRoutesInNamespace(ctx context.Context, ns string) ([]gwv1alpha2.TCPRoute, error)
 	GetMeshService(ctx context.Context, key types.NamespacedName) (*apigwv1alpha1.MeshService, error)
 	GetNamespace(ctx context.Context, key types.NamespacedName) (*core.Namespace, error)
 	GetDeployment(ctx context.Context, key types.NamespacedName) (*apps.Deployment, error)
 
 	// finalizer helpers
 
-	GatewayClassInUse(ctx context.Context, gc *gateway.GatewayClass) (bool, error)
+	GatewayClassInUse(ctx context.Context, gc *gwv1beta1.GatewayClass) (bool, error)
 	GatewayClassConfigInUse(ctx context.Context, gcc *apigwv1alpha1.GatewayClassConfig) (bool, error)
-	GatewayClassesUsingConfig(ctx context.Context, gcc *apigwv1alpha1.GatewayClassConfig) (*gateway.GatewayClassList, error)
+	GatewayClassesUsingConfig(ctx context.Context, gcc *apigwv1alpha1.GatewayClassConfig) (*gwv1beta1.GatewayClassList, error)
 	RemoveFinalizer(ctx context.Context, object client.Object, finalizer string) (bool, error)
 	EnsureFinalizer(ctx context.Context, object client.Object, finalizer string) (bool, error)
 
 	// relationships
 
-	HasManagedDeployment(ctx context.Context, gw *gateway.Gateway) (bool, error)
-	IsManagedRoute(ctx context.Context, namespace string, parents []gateway.ParentRef) (bool, error)
+	HasManagedDeployment(ctx context.Context, gw *gwv1beta1.Gateway) (bool, error)
+	IsManagedRoute(ctx context.Context, namespace string, parents []gwv1alpha2.ParentReference) (bool, error)
 	GetConfigForGatewayClassName(ctx context.Context, name string) (apigwv1alpha1.GatewayClassConfig, bool, error)
-	DeploymentForGateway(ctx context.Context, gw *gateway.Gateway) (*apps.Deployment, error)
+	DeploymentForGateway(ctx context.Context, gw *gwv1beta1.Gateway) (*apps.Deployment, error)
 	SetControllerOwnership(owner, object client.Object) error
 
 	// general utilities
@@ -74,10 +75,10 @@ type Client interface {
 	CreateOrUpdateDeployment(ctx context.Context, deployment *apps.Deployment, mutators ...func() error) (bool, error)
 	CreateOrUpdateService(ctx context.Context, service *core.Service, mutators ...func() error) (bool, error)
 	DeleteService(ctx context.Context, service *core.Service) error
-	EnsureServiceAccount(ctx context.Context, owner *gateway.Gateway, serviceAccount *core.ServiceAccount) error
+	EnsureServiceAccount(ctx context.Context, owner *gwv1beta1.Gateway, serviceAccount *core.ServiceAccount) error
 
 	//referencepolicy
-	GetReferencePoliciesInNamespace(ctx context.Context, namespace string) ([]gateway.ReferencePolicy, error)
+	GetReferenceGrantsInNamespace(ctx context.Context, namespace string) ([]gwv1alpha2.ReferenceGrant, error)
 }
 
 type gatewayClient struct {
@@ -97,7 +98,7 @@ func New(client client.Client, scheme *runtime.Scheme, controllerName string) Cl
 // gatewayClassUsesConfig determines whether a given GatewayClass references a
 // given GatewayClassConfig. Since these resources are scoped to the cluster,
 // namespace is not considered.
-func gatewayClassUsesConfig(gc gateway.GatewayClass, gcc *apigwv1alpha1.GatewayClassConfig) bool {
+func gatewayClassUsesConfig(gc gwv1beta1.GatewayClass, gcc *apigwv1alpha1.GatewayClassConfig) bool {
 	paramaterRef := gc.Spec.ParametersRef
 	return paramaterRef != nil &&
 		paramaterRef.Group == apigwv1alpha1.Group &&
@@ -108,7 +109,7 @@ func gatewayClassUsesConfig(gc gateway.GatewayClass, gcc *apigwv1alpha1.GatewayC
 // GatewayClassConfigInUse determines whether any GatewayClass in the cluster
 // references the provided GatewayClassConfig.
 func (g *gatewayClient) GatewayClassConfigInUse(ctx context.Context, gcc *apigwv1alpha1.GatewayClassConfig) (bool, error) {
-	list := &gateway.GatewayClassList{}
+	list := &gwv1beta1.GatewayClassList{}
 	if err := g.List(ctx, list); err != nil {
 		return false, NewK8sError(err)
 	}
@@ -124,8 +125,8 @@ func (g *gatewayClient) GatewayClassConfigInUse(ctx context.Context, gcc *apigwv
 
 // GatewayClassesUsingConfig returns the list of all GatewayClasses in the
 // cluster that reference the provided GatewayClassConfig.
-func (g *gatewayClient) GatewayClassesUsingConfig(ctx context.Context, gcc *apigwv1alpha1.GatewayClassConfig) (*gateway.GatewayClassList, error) {
-	list, filteredList := &gateway.GatewayClassList{}, &gateway.GatewayClassList{}
+func (g *gatewayClient) GatewayClassesUsingConfig(ctx context.Context, gcc *apigwv1alpha1.GatewayClassConfig) (*gwv1beta1.GatewayClassList, error) {
+	list, filteredList := &gwv1beta1.GatewayClassList{}, &gwv1beta1.GatewayClassList{}
 	if err := g.List(ctx, list); err != nil {
 		return nil, NewK8sError(err)
 	}
@@ -141,8 +142,8 @@ func (g *gatewayClient) GatewayClassesUsingConfig(ctx context.Context, gcc *apig
 
 // GatewayClassInUse determines whether any Gateway in the cluster
 // references the provided GatewayClass.
-func (g *gatewayClient) GatewayClassInUse(ctx context.Context, gc *gateway.GatewayClass) (bool, error) {
-	list := &gateway.GatewayList{}
+func (g *gatewayClient) GatewayClassInUse(ctx context.Context, gc *gwv1beta1.GatewayClass) (bool, error) {
+	list := &gwv1beta1.GatewayList{}
 	if err := g.List(ctx, list); err != nil {
 		return false, NewK8sError(err)
 	}
@@ -172,7 +173,7 @@ func (g *gatewayClient) PodsWithLabels(ctx context.Context, labels map[string]st
 	return items, nil
 }
 
-func (g *gatewayClient) DeploymentForGateway(ctx context.Context, gw *gateway.Gateway) (*apps.Deployment, error) {
+func (g *gatewayClient) DeploymentForGateway(ctx context.Context, gw *gwv1beta1.Gateway) (*apps.Deployment, error) {
 	deployment := &apps.Deployment{}
 	key := types.NamespacedName{Name: gw.Name, Namespace: gw.Namespace}
 	if err := g.Client.Get(ctx, key, deployment); err != nil {
@@ -195,8 +196,8 @@ func (g *gatewayClient) GetGatewayClassConfig(ctx context.Context, key types.Nam
 	return gcc, nil
 }
 
-func (g *gatewayClient) GetGatewayClass(ctx context.Context, key types.NamespacedName) (*gateway.GatewayClass, error) {
-	gc := &gateway.GatewayClass{}
+func (g *gatewayClient) GetGatewayClass(ctx context.Context, key types.NamespacedName) (*gwv1beta1.GatewayClass, error) {
+	gc := &gwv1beta1.GatewayClass{}
 	if err := g.Client.Get(ctx, key, gc); err != nil {
 		if k8serrors.IsNotFound(err) {
 			return nil, nil
@@ -206,8 +207,8 @@ func (g *gatewayClient) GetGatewayClass(ctx context.Context, key types.Namespace
 	return gc, nil
 }
 
-func (g *gatewayClient) GetGateway(ctx context.Context, key types.NamespacedName) (*gateway.Gateway, error) {
-	gw := &gateway.Gateway{}
+func (g *gatewayClient) GetGateway(ctx context.Context, key types.NamespacedName) (*gwv1beta1.Gateway, error) {
+	gw := &gwv1beta1.Gateway{}
 	if err := g.Client.Get(ctx, key, gw); err != nil {
 		if k8serrors.IsNotFound(err) {
 			return nil, nil
@@ -217,10 +218,10 @@ func (g *gatewayClient) GetGateway(ctx context.Context, key types.NamespacedName
 	return gw, nil
 }
 
-func (g *gatewayClient) GetGatewaysInNamespace(ctx context.Context, ns string) ([]gateway.Gateway, error) {
-	gwList := &gateway.GatewayList{}
+func (g *gatewayClient) GetGatewaysInNamespace(ctx context.Context, ns string) ([]gwv1beta1.Gateway, error) {
+	gwList := &gwv1beta1.GatewayList{}
 	if err := g.Client.List(ctx, gwList, client.InNamespace(ns)); err != nil {
-		return []gateway.Gateway{}, NewK8sError(err)
+		return []gwv1beta1.Gateway{}, NewK8sError(err)
 	}
 	return gwList.Items, nil
 }
@@ -258,8 +259,8 @@ func (g *gatewayClient) GetSecret(ctx context.Context, key types.NamespacedName)
 	return secret, nil
 }
 
-func (g *gatewayClient) GetHTTPRoute(ctx context.Context, key types.NamespacedName) (*gateway.HTTPRoute, error) {
-	route := &gateway.HTTPRoute{}
+func (g *gatewayClient) GetHTTPRoute(ctx context.Context, key types.NamespacedName) (*gwv1alpha2.HTTPRoute, error) {
+	route := &gwv1alpha2.HTTPRoute{}
 	if err := g.Client.Get(ctx, key, route); err != nil {
 		if k8serrors.IsNotFound(err) {
 			return nil, nil
@@ -270,16 +271,16 @@ func (g *gatewayClient) GetHTTPRoute(ctx context.Context, key types.NamespacedNa
 }
 
 // TODO: Make this generic over Group and Kind, returning []client.Object
-func (g *gatewayClient) GetHTTPRoutesInNamespace(ctx context.Context, ns string) ([]gateway.HTTPRoute, error) {
-	routeList := &gateway.HTTPRouteList{}
+func (g *gatewayClient) GetHTTPRoutesInNamespace(ctx context.Context, ns string) ([]gwv1alpha2.HTTPRoute, error) {
+	routeList := &gwv1alpha2.HTTPRouteList{}
 	if err := g.Client.List(ctx, routeList, client.InNamespace(ns)); err != nil {
-		return []gateway.HTTPRoute{}, NewK8sError(err)
+		return []gwv1alpha2.HTTPRoute{}, NewK8sError(err)
 	}
 	return routeList.Items, nil
 }
 
-func (g *gatewayClient) GetTCPRoute(ctx context.Context, key types.NamespacedName) (*gateway.TCPRoute, error) {
-	route := &gateway.TCPRoute{}
+func (g *gatewayClient) GetTCPRoute(ctx context.Context, key types.NamespacedName) (*gwv1alpha2.TCPRoute, error) {
+	route := &gwv1alpha2.TCPRoute{}
 	if err := g.Client.Get(ctx, key, route); err != nil {
 		if k8serrors.IsNotFound(err) {
 			return nil, nil
@@ -289,10 +290,10 @@ func (g *gatewayClient) GetTCPRoute(ctx context.Context, key types.NamespacedNam
 	return route, nil
 }
 
-func (g *gatewayClient) GetTCPRoutesInNamespace(ctx context.Context, ns string) ([]gateway.TCPRoute, error) {
-	routeList := &gateway.TCPRouteList{}
+func (g *gatewayClient) GetTCPRoutesInNamespace(ctx context.Context, ns string) ([]gwv1alpha2.TCPRoute, error) {
+	routeList := &gwv1alpha2.TCPRouteList{}
 	if err := g.Client.List(ctx, routeList, client.InNamespace(ns)); err != nil {
-		return []gateway.TCPRoute{}, NewK8sError(err)
+		return []gwv1alpha2.TCPRoute{}, NewK8sError(err)
 	}
 	return routeList.Items, nil
 }
@@ -412,7 +413,7 @@ func (g *gatewayClient) DeleteService(ctx context.Context, service *core.Service
 	return nil
 }
 
-func (g *gatewayClient) EnsureServiceAccount(ctx context.Context, owner *gateway.Gateway, serviceAccount *core.ServiceAccount) error {
+func (g *gatewayClient) EnsureServiceAccount(ctx context.Context, owner *gwv1beta1.Gateway, serviceAccount *core.ServiceAccount) error {
 	created := &core.ServiceAccount{}
 	key := types.NamespacedName{Name: serviceAccount.Name, Namespace: serviceAccount.Namespace}
 	if err := g.Client.Get(ctx, key, created); err != nil {
@@ -453,7 +454,7 @@ func (g *gatewayClient) GetConfigForGatewayClassName(ctx context.Context, name s
 		// no class found
 		return apigwv1alpha1.GatewayClassConfig{}, false, nil
 	}
-	if class.Spec.ControllerName != gateway.GatewayController(g.controllerName) {
+	if class.Spec.ControllerName != gwv1beta1.GatewayController(g.controllerName) {
 		// we're not owned by this controller, so pretend we don't exist
 		return apigwv1alpha1.GatewayClassConfig{}, false, nil
 	}
@@ -480,7 +481,8 @@ func (g *gatewayClient) GetConfigForGatewayClassName(ctx context.Context, name s
 	return apigwv1alpha1.GatewayClassConfig{}, true, nil
 }
 
-func (g *gatewayClient) IsManagedRoute(ctx context.Context, namespace string, parents []gateway.ParentRef) (bool, error) {
+// TODO: this likely needs to support gwv1alpha2.ParentReference too
+func (g *gatewayClient) IsManagedRoute(ctx context.Context, namespace string, parents []gwv1alpha2.ParentReference) (bool, error) {
 	// we look up a list of deployments that are managed by us, and try and check our references based on them.
 	list := &apps.DeploymentList{}
 	if err := g.Client.List(ctx, list, client.MatchingLabels(map[string]string{
@@ -503,7 +505,7 @@ func (g *gatewayClient) IsManagedRoute(ctx context.Context, namespace string, pa
 	return false, nil
 }
 
-func (g *gatewayClient) HasManagedDeployment(ctx context.Context, gw *gateway.Gateway) (bool, error) {
+func (g *gatewayClient) HasManagedDeployment(ctx context.Context, gw *gwv1beta1.Gateway) (bool, error) {
 	list := &apps.DeploymentList{}
 	if err := g.Client.List(ctx, list, client.MatchingLabels(utils.LabelsForGateway(gw))); err != nil {
 		return false, NewK8sError(err)
@@ -511,10 +513,38 @@ func (g *gatewayClient) HasManagedDeployment(ctx context.Context, gw *gateway.Ga
 	return len(list.Items) > 0, nil
 }
 
-func (g *gatewayClient) GetReferencePoliciesInNamespace(ctx context.Context, namespace string) ([]gateway.ReferencePolicy, error) {
-	list := &gateway.ReferencePolicyList{}
-	if err := g.Client.List(ctx, list, client.InNamespace(namespace)); err != nil {
+func (g *gatewayClient) GetReferenceGrantsInNamespace(ctx context.Context, namespace string) ([]gwv1alpha2.ReferenceGrant, error) {
+	refGrantList := &gwv1alpha2.ReferenceGrantList{}
+	if err := g.Client.List(ctx, refGrantList, client.InNamespace(namespace)); err != nil {
 		return nil, NewK8sError(err)
 	}
-	return list.Items, nil
+	refGrants := refGrantList.Items
+
+	// TODO: this can't be enabled until the ReferencePolicy object is restored
+	// lookup ReferencePolicies here too for backwards compatibility, create
+	// ReferenceGrants from them and add to list
+	// refPolicyList := &gwv1alpha2.ReferencePolicyList{}
+	// if err := g.Client.List(ctx, refPolicyList, client.InNamespace(namespace)); err != nil {
+	// 	return nil, NewK8sError(err)
+	// }
+	// for _, refPolicy := range refPolicyList {
+	// 	refGrant := gwv1alpha2.ReferenceGrant{}
+	// 	for _, refPolicyFrom := range refPolicy.Spec.From {
+	// 		refGrant.Spec.From = append(refGrant.Spec.From, gwv1alpha2.ReferenceGrantFrom{
+	// 			Group:     refPolicyFrom.Group,
+	// 			Kind:      refPolicyFrom.Kind,
+	// 			Namespace: refPolicyFrom.Namespace,
+	// 		})
+	// 	}
+	// 	for _, refPolicyTo := range refPolicy.Spec.To {
+	// 		refGrant.Spec.To = append(refGrant.Spec.To, gwv1alpha2.ReferenceGrantTo{
+	// 			Group: refPolicyTo.Group,
+	// 			Kind:  refPolicyTo.Kind,
+	// 			Name:  refPolicyTo.Name,
+	// 		})
+	// 	}
+	// 	refGrants = append(refGrants, refGrant)
+	// }
+
+	return refGrants, nil
 }

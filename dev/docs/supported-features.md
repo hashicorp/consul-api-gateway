@@ -125,12 +125,12 @@ Supported features are marked with a grey checkbox
         - [x] *ResolvedRefs* indicates that we were able to resolve all route references to things like Kubernetes/Consul services
         - [x] *ServiceNotFound* weren't able to find the referenced Kubernetes service
         - [x] *ConsulServiceNotFound* weren't able to find the referenced Consul mesh service
-        - [x] *RefNotPermitted* weren't able to route across namespaces due to a missing ReferencePolicy
+        - [x] *RefNotPermitted* weren't able to route across namespaces due to a missing ReferenceGrant
 
 - [x] TCPRoute - we are limited by Consul's ability to only route to a single TCP-based upstream, so TCP-based Gateway listeners only support a single TCPRoute with a single rule with a single backend; otherwise, either the TCPRoute is considered invalid or the Gateway status is set as having conflicting routes.
 - [ ] TLSRoute - TODO
 - [x] UDPRoute *not supported*
-- [x] ReferencePolicy - Routes currently require ReferencePolicies for all BackendRefs, and do not support partial acceptance if any BackendRefs are unpermitted
+- [x] ReferenceGrant - Routes currently require ReferenceGrant for all BackendRefs, and do not support partial acceptance if any BackendRefs are unpermitted
   - [x] From
     - [x] HTTPRoute
     - [x] TCPRoute
@@ -140,3 +140,4 @@ Supported features are marked with a grey checkbox
   - [x] To
     - [x] Service
     - [x] Secret
+- [x] ReferencePolicy - Supported for backwards compatibility, will be removed in a future release

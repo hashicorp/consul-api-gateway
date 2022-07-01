@@ -2,15 +2,16 @@ package utils
 
 import (
 	"k8s.io/apimachinery/pkg/types"
-	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
+	gwv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
+	gwv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 )
 
 var (
-	gatewayGroup = gw.Group(gw.GroupName)
-	gatewayKind  = gw.Kind("Gateway")
+	gatewayGroup = gwv1alpha2.Group(gwv1beta1.GroupName)
+	gatewayKind  = gwv1alpha2.Kind("Gateway")
 )
 
-func ReferencesGateway(namespace string, ref gw.ParentRef) (types.NamespacedName, bool) {
+func ReferencesGateway(namespace string, ref gwv1alpha2.ParentReference) (types.NamespacedName, bool) {
 	if ref.Group != nil && *ref.Group != gatewayGroup {
 		return types.NamespacedName{}, false
 	}

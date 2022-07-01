@@ -11,7 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 	core "k8s.io/api/core/v1"
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
-	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
+	gwv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
+	gwv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	clientMocks "github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient/mocks"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/service"
@@ -32,16 +33,16 @@ func TestRouteID(t *testing.T) {
 		Namespace: "namespace",
 	}
 
-	require.Equal(t, "http-namespace/name", NewK8sRoute(&gw.HTTPRoute{
+	require.Equal(t, "http-namespace/name", NewK8sRoute(&gwv1alpha2.HTTPRoute{
 		ObjectMeta: meta,
 	}, config).ID())
-	require.Equal(t, "udp-namespace/name", NewK8sRoute(&gw.UDPRoute{
+	require.Equal(t, "udp-namespace/name", NewK8sRoute(&gwv1alpha2.UDPRoute{
 		ObjectMeta: meta,
 	}, config).ID())
-	require.Equal(t, "tcp-namespace/name", NewK8sRoute(&gw.TCPRoute{
+	require.Equal(t, "tcp-namespace/name", NewK8sRoute(&gwv1alpha2.TCPRoute{
 		ObjectMeta: meta,
 	}, config).ID())
-	require.Equal(t, "tls-namespace/name", NewK8sRoute(&gw.TLSRoute{
+	require.Equal(t, "tls-namespace/name", NewK8sRoute(&gwv1alpha2.TLSRoute{
 		ObjectMeta: meta,
 	}, config).ID())
 	require.Equal(t, "", NewK8sRoute(&core.Pod{
@@ -56,62 +57,62 @@ func TestRouteCommonRouteSpec(t *testing.T) {
 		Logger: hclog.NewNullLogger(),
 	}
 
-	expected := gw.CommonRouteSpec{
-		ParentRefs: []gw.ParentRef{{
+	expected := gwv1alpha2.CommonRouteSpec{
+		ParentRefs: []gwv1alpha2.ParentReference{{
 			Name: "expected",
 		}},
 	}
 
-	require.Equal(t, expected, NewK8sRoute(&gw.HTTPRoute{
-		Spec: gw.HTTPRouteSpec{
+	require.Equal(t, expected, NewK8sRoute(&gwv1alpha2.HTTPRoute{
+		Spec: gwv1alpha2.HTTPRouteSpec{
 			CommonRouteSpec: expected,
 		},
 	}, config).CommonRouteSpec())
-	require.Equal(t, expected, NewK8sRoute(&gw.UDPRoute{
-		Spec: gw.UDPRouteSpec{
+	require.Equal(t, expected, NewK8sRoute(&gwv1alpha2.UDPRoute{
+		Spec: gwv1alpha2.UDPRouteSpec{
 			CommonRouteSpec: expected,
 		},
 	}, config).CommonRouteSpec())
-	require.Equal(t, expected, NewK8sRoute(&gw.TCPRoute{
-		Spec: gw.TCPRouteSpec{
+	require.Equal(t, expected, NewK8sRoute(&gwv1alpha2.TCPRoute{
+		Spec: gwv1alpha2.TCPRouteSpec{
 			CommonRouteSpec: expected,
 		},
 	}, config).CommonRouteSpec())
-	require.Equal(t, expected, NewK8sRoute(&gw.TLSRoute{
-		Spec: gw.TLSRouteSpec{
+	require.Equal(t, expected, NewK8sRoute(&gwv1alpha2.TLSRoute{
+		Spec: gwv1alpha2.TLSRouteSpec{
 			CommonRouteSpec: expected,
 		},
 	}, config).CommonRouteSpec())
-	require.Equal(t, gw.CommonRouteSpec{}, NewK8sRoute(&core.Pod{}, config).CommonRouteSpec())
+	require.Equal(t, gwv1alpha2.CommonRouteSpec{}, NewK8sRoute(&core.Pod{}, config).CommonRouteSpec())
 }
 
 func TestRouteFilterParentStatuses(t *testing.T) {
 	t.Parallel()
 
-	route := NewK8sRoute(&gw.HTTPRoute{
-		Spec: gw.HTTPRouteSpec{
-			CommonRouteSpec: gw.CommonRouteSpec{
-				ParentRefs: []gw.ParentRef{{
+	route := NewK8sRoute(&gwv1alpha2.HTTPRoute{
+		Spec: gwv1alpha2.HTTPRouteSpec{
+			CommonRouteSpec: gwv1alpha2.CommonRouteSpec{
+				ParentRefs: []gwv1alpha2.ParentReference{{
 					Name: "expected",
 				}, {
 					Name: "other",
 				}},
 			},
 		},
-		Status: gw.HTTPRouteStatus{
-			RouteStatus: gw.RouteStatus{
-				Parents: []gw.RouteParentStatus{{
-					ParentRef: gw.ParentRef{
+		Status: gwv1alpha2.HTTPRouteStatus{
+			RouteStatus: gwv1alpha2.RouteStatus{
+				Parents: []gwv1alpha2.RouteParentStatus{{
+					ParentRef: gwv1alpha2.ParentReference{
 						Name: "expected",
 					},
 					ControllerName: "expected",
 				}, {
-					ParentRef: gw.ParentRef{
+					ParentRef: gwv1alpha2.ParentReference{
 						Name: "expected",
 					},
 					ControllerName: "other",
 				}, {
-					ParentRef: gw.ParentRef{
+					ParentRef: gwv1alpha2.ParentReference{
 						Name: "other",
 					},
 					ControllerName: "other",
@@ -123,7 +124,7 @@ func TestRouteFilterParentStatuses(t *testing.T) {
 		Logger:         hclog.NewNullLogger(),
 	})
 
-	route.OnBound(NewK8sGateway(&gw.Gateway{
+	route.OnBound(NewK8sGateway(&gwv1beta1.Gateway{
 		ObjectMeta: meta.ObjectMeta{
 			Name: "expected",
 		},
@@ -142,37 +143,37 @@ func TestRouteFilterParentStatuses(t *testing.T) {
 func TestRouteMergedStatusAndBinding(t *testing.T) {
 	t.Parallel()
 
-	gateway := NewK8sGateway(&gw.Gateway{
+	gateway := NewK8sGateway(&gwv1beta1.Gateway{
 		ObjectMeta: meta.ObjectMeta{
 			Name: "expected",
 		},
 	}, K8sGatewayConfig{
 		Logger: hclog.NewNullLogger(),
 	})
-	inner := &gw.TLSRoute{
-		Spec: gw.TLSRouteSpec{
-			CommonRouteSpec: gw.CommonRouteSpec{
-				ParentRefs: []gw.ParentRef{{
+	inner := &gwv1alpha2.TLSRoute{
+		Spec: gwv1alpha2.TLSRouteSpec{
+			CommonRouteSpec: gwv1alpha2.CommonRouteSpec{
+				ParentRefs: []gwv1alpha2.ParentReference{{
 					Name: "expected",
 				}, {
 					Name: "other",
 				}},
 			},
 		},
-		Status: gw.TLSRouteStatus{
-			RouteStatus: gw.RouteStatus{
-				Parents: []gw.RouteParentStatus{{
-					ParentRef: gw.ParentRef{
+		Status: gwv1alpha2.TLSRouteStatus{
+			RouteStatus: gwv1alpha2.RouteStatus{
+				Parents: []gwv1alpha2.RouteParentStatus{{
+					ParentRef: gwv1alpha2.ParentReference{
 						Name: "expected",
 					},
 					ControllerName: "expected",
 				}, {
-					ParentRef: gw.ParentRef{
+					ParentRef: gwv1alpha2.ParentReference{
 						Name: "expected",
 					},
 					ControllerName: "other",
 				}, {
-					ParentRef: gw.ParentRef{
+					ParentRef: gwv1alpha2.ParentReference{
 						Name: "other",
 					},
 					ControllerName: "other",
@@ -281,7 +282,7 @@ func TestRouteMergedStatusAndBinding(t *testing.T) {
 	require.Equal(t, RouteConditionReasonRefNotPermitted, statuses[0].Conditions[1].Reason)
 
 	// check binding for non-existent route
-	gateway = NewK8sGateway(&gw.Gateway{
+	gateway = NewK8sGateway(&gwv1beta1.Gateway{
 		ObjectMeta: meta.ObjectMeta{
 			Name: "nothing",
 		},
@@ -301,30 +302,30 @@ func TestRouteMergedStatusAndBinding(t *testing.T) {
 func TestRouteNeedsStatusUpdate(t *testing.T) {
 	t.Parallel()
 
-	route := NewK8sRoute(&gw.TCPRoute{
-		Spec: gw.TCPRouteSpec{
-			CommonRouteSpec: gw.CommonRouteSpec{
-				ParentRefs: []gw.ParentRef{{
+	route := NewK8sRoute(&gwv1alpha2.TCPRoute{
+		Spec: gwv1alpha2.TCPRouteSpec{
+			CommonRouteSpec: gwv1alpha2.CommonRouteSpec{
+				ParentRefs: []gwv1alpha2.ParentReference{{
 					Name: "expected",
 				}, {
 					Name: "other",
 				}},
 			},
 		},
-		Status: gw.TCPRouteStatus{
-			RouteStatus: gw.RouteStatus{
-				Parents: []gw.RouteParentStatus{{
-					ParentRef: gw.ParentRef{
+		Status: gwv1alpha2.TCPRouteStatus{
+			RouteStatus: gwv1alpha2.RouteStatus{
+				Parents: []gwv1alpha2.RouteParentStatus{{
+					ParentRef: gwv1alpha2.ParentReference{
 						Name: "expected",
 					},
 					ControllerName: "expected",
 				}, {
-					ParentRef: gw.ParentRef{
+					ParentRef: gwv1alpha2.ParentReference{
 						Name: "expected",
 					},
 					ControllerName: "other",
 				}, {
-					ParentRef: gw.ParentRef{
+					ParentRef: gwv1alpha2.ParentReference{
 						Name: "other",
 					},
 					ControllerName: "other",
@@ -339,7 +340,7 @@ func TestRouteNeedsStatusUpdate(t *testing.T) {
 
 	require.False(t, route.NeedsStatusUpdate())
 
-	route.OnBound(NewK8sGateway(&gw.Gateway{
+	route.OnBound(NewK8sGateway(&gwv1beta1.Gateway{
 		ObjectMeta: meta.ObjectMeta{
 			Name: "expected",
 		},
@@ -361,33 +362,33 @@ func TestRouteSetStatus(t *testing.T) {
 		Logger: hclog.NewNullLogger(),
 	}
 
-	expected := gw.RouteStatus{
-		Parents: []gw.RouteParentStatus{{
-			ParentRef: gw.ParentRef{
+	expected := gwv1alpha2.RouteStatus{
+		Parents: []gwv1alpha2.RouteParentStatus{{
+			ParentRef: gwv1alpha2.ParentReference{
 				Name: "expected",
 			},
 		}},
 	}
 
-	httpRoute := &gw.HTTPRoute{}
+	httpRoute := &gwv1alpha2.HTTPRoute{}
 	route := NewK8sRoute(httpRoute, config)
 	route.SetStatus(expected)
 	require.Equal(t, expected, httpRoute.Status.RouteStatus)
 	require.Equal(t, expected, route.routeStatus())
 
-	tcpRoute := &gw.TCPRoute{}
+	tcpRoute := &gwv1alpha2.TCPRoute{}
 	route = NewK8sRoute(tcpRoute, config)
 	route.SetStatus(expected)
 	require.Equal(t, expected, tcpRoute.Status.RouteStatus)
 	require.Equal(t, expected, route.routeStatus())
 
-	tlsRoute := &gw.TLSRoute{}
+	tlsRoute := &gwv1alpha2.TLSRoute{}
 	route = NewK8sRoute(tlsRoute, config)
 	route.SetStatus(expected)
 	require.Equal(t, expected, tlsRoute.Status.RouteStatus)
 	require.Equal(t, expected, route.routeStatus())
 
-	udpRoute := &gw.UDPRoute{}
+	udpRoute := &gwv1alpha2.UDPRoute{}
 	route = NewK8sRoute(udpRoute, config)
 	route.SetStatus(expected)
 	require.Equal(t, expected, udpRoute.Status.RouteStatus)
@@ -395,7 +396,7 @@ func TestRouteSetStatus(t *testing.T) {
 
 	route = NewK8sRoute(&core.Pod{}, config)
 	route.SetStatus(expected)
-	require.Equal(t, gw.RouteStatus{}, route.routeStatus())
+	require.Equal(t, gwv1alpha2.RouteStatus{}, route.routeStatus())
 }
 
 func TestRouteParents(t *testing.T) {
@@ -405,22 +406,22 @@ func TestRouteParents(t *testing.T) {
 		Logger: hclog.NewNullLogger(),
 	}
 
-	expected := gw.CommonRouteSpec{
-		ParentRefs: []gw.ParentRef{{
+	expected := gwv1alpha2.CommonRouteSpec{
+		ParentRefs: []gwv1alpha2.ParentReference{{
 			Name: "expected",
 		}},
 	}
 
-	parents := NewK8sRoute(&gw.HTTPRoute{Spec: gw.HTTPRouteSpec{CommonRouteSpec: expected}}, config).Parents()
+	parents := NewK8sRoute(&gwv1alpha2.HTTPRoute{Spec: gwv1alpha2.HTTPRouteSpec{CommonRouteSpec: expected}}, config).Parents()
 	require.Equal(t, expected.ParentRefs, parents)
 
-	parents = NewK8sRoute(&gw.TCPRoute{Spec: gw.TCPRouteSpec{CommonRouteSpec: expected}}, config).Parents()
+	parents = NewK8sRoute(&gwv1alpha2.TCPRoute{Spec: gwv1alpha2.TCPRouteSpec{CommonRouteSpec: expected}}, config).Parents()
 	require.Equal(t, expected.ParentRefs, parents)
 
-	parents = NewK8sRoute(&gw.TLSRoute{Spec: gw.TLSRouteSpec{CommonRouteSpec: expected}}, config).Parents()
+	parents = NewK8sRoute(&gwv1alpha2.TLSRoute{Spec: gwv1alpha2.TLSRouteSpec{CommonRouteSpec: expected}}, config).Parents()
 	require.Equal(t, expected.ParentRefs, parents)
 
-	parents = NewK8sRoute(&gw.UDPRoute{Spec: gw.UDPRouteSpec{CommonRouteSpec: expected}}, config).Parents()
+	parents = NewK8sRoute(&gwv1alpha2.UDPRoute{Spec: gwv1alpha2.UDPRouteSpec{CommonRouteSpec: expected}}, config).Parents()
 	require.Equal(t, expected.ParentRefs, parents)
 
 	require.Nil(t, NewK8sRoute(&core.Pod{}, config).Parents())
@@ -429,19 +430,19 @@ func TestRouteParents(t *testing.T) {
 func TestRouteMatchesHostname(t *testing.T) {
 	t.Parallel()
 
-	hostname := gw.Hostname("domain.test")
+	hostname := gwv1beta1.Hostname("domain.test")
 
-	require.True(t, NewK8sRoute(&gw.HTTPRoute{
-		Spec: gw.HTTPRouteSpec{
-			Hostnames: []gw.Hostname{"*"},
+	require.True(t, NewK8sRoute(&gwv1alpha2.HTTPRoute{
+		Spec: gwv1alpha2.HTTPRouteSpec{
+			Hostnames: []gwv1alpha2.Hostname{"*"},
 		},
 	}, K8sRouteConfig{
 		Logger: hclog.NewNullLogger(),
 	}).MatchesHostname(&hostname))
 
-	require.False(t, NewK8sRoute(&gw.HTTPRoute{
-		Spec: gw.HTTPRouteSpec{
-			Hostnames: []gw.Hostname{"other.text"},
+	require.False(t, NewK8sRoute(&gwv1alpha2.HTTPRoute{
+		Spec: gwv1alpha2.HTTPRouteSpec{
+			Hostnames: []gwv1alpha2.Hostname{"other.text"},
 		},
 	}, K8sRouteConfig{
 		Logger: hclog.NewNullLogger(),
@@ -449,7 +450,7 @@ func TestRouteMatchesHostname(t *testing.T) {
 
 	// check where the underlying route doesn't implement
 	// a matching routine
-	require.True(t, NewK8sRoute(&gw.TCPRoute{}, K8sRouteConfig{
+	require.True(t, NewK8sRoute(&gwv1alpha2.TCPRoute{}, K8sRouteConfig{
 		Logger: hclog.NewNullLogger(),
 	}).MatchesHostname(&hostname))
 }
@@ -461,7 +462,7 @@ func TestRouteValidate(t *testing.T) {
 		Logger: hclog.NewNullLogger(),
 	}).Validate(context.Background()))
 
-	require.True(t, NewK8sRoute(&gw.HTTPRoute{}, K8sRouteConfig{
+	require.True(t, NewK8sRoute(&gwv1alpha2.HTTPRoute{}, K8sRouteConfig{
 		Logger: hclog.NewNullLogger(),
 	}).IsValid())
 
@@ -469,7 +470,7 @@ func TestRouteValidate(t *testing.T) {
 	defer ctrl.Finish()
 	resolver := mocks.NewMockBackendResolver(ctrl)
 
-	reference := gw.BackendObjectReference{
+	reference := gwv1alpha2.BackendObjectReference{
 		Name: "expected",
 	}
 	resolved := &service.ResolvedReference{
@@ -479,11 +480,11 @@ func TestRouteValidate(t *testing.T) {
 
 	resolver.EXPECT().Resolve(gomock.Any(), reference).Return(resolved, nil)
 
-	route := NewK8sRoute(&gw.HTTPRoute{
-		Spec: gw.HTTPRouteSpec{
-			Rules: []gw.HTTPRouteRule{{
-				BackendRefs: []gw.HTTPBackendRef{{
-					BackendRef: gw.BackendRef{
+	route := NewK8sRoute(&gwv1alpha2.HTTPRoute{
+		Spec: gwv1alpha2.HTTPRouteSpec{
+			Rules: []gwv1alpha2.HTTPRouteRule{{
+				BackendRefs: []gwv1alpha2.HTTPBackendRef{{
+					BackendRef: gwv1alpha2.BackendRef{
 						BackendObjectReference: reference,
 					},
 				}},
@@ -514,13 +515,13 @@ func TestRouteValidateDontAllowCrossNamespace(t *testing.T) {
 	client := clientMocks.NewMockClient(ctrl)
 
 	//set up backend ref with a different namespace
-	namespace := gw.Namespace("test")
-	route := NewK8sRoute(&gw.HTTPRoute{
-		Spec: gw.HTTPRouteSpec{
-			Rules: []gw.HTTPRouteRule{{
-				BackendRefs: []gw.HTTPBackendRef{{
-					BackendRef: gw.BackendRef{
-						BackendObjectReference: gw.BackendObjectReference{
+	namespace := gwv1alpha2.Namespace("test")
+	route := NewK8sRoute(&gwv1alpha2.HTTPRoute{
+		Spec: gwv1alpha2.HTTPRouteSpec{
+			Rules: []gwv1alpha2.HTTPRouteRule{{
+				BackendRefs: []gwv1alpha2.HTTPBackendRef{{
+					BackendRef: gwv1alpha2.BackendRef{
+						BackendObjectReference: gwv1alpha2.BackendObjectReference{
 							Name:      "expected",
 							Namespace: &namespace,
 						},
@@ -535,23 +536,23 @@ func TestRouteValidateDontAllowCrossNamespace(t *testing.T) {
 	})
 
 	client.EXPECT().
-		GetReferencePoliciesInNamespace(gomock.Any(), gomock.Any()).
-		Return([]gw.ReferencePolicy{
+		GetReferenceGrantsInNamespace(gomock.Any(), gomock.Any()).
+		Return([]gwv1alpha2.ReferenceGrant{
 			{
-				Spec: gw.ReferencePolicySpec{
-					From: []gw.ReferencePolicyFrom{},
-					To:   []gw.ReferencePolicyTo{},
+				Spec: gwv1alpha2.ReferenceGrantSpec{
+					From: []gwv1alpha2.ReferenceGrantFrom{},
+					To:   []gwv1alpha2.ReferenceGrantTo{},
 				},
 			},
 		}, nil)
 
-	// FUTURE Assert appropriate status set on route and !route.IsValid() once ReferencePolicy requirement is enforced
+	// FUTURE Assert appropriate status set on route and !route.IsValid() once ReferenceGrant requirement is enforced
 	_ = route.Validate(context.Background())
 }
 
-// TestRouteValidateAllowCrossNamespaceWithReferencePolicy verifies that a cross-namespace
-// route + backend combination is allowed if an applicable ReferencePolicy is found.
-func TestRouteValidateAllowCrossNamespaceWithReferencePolicy(t *testing.T) {
+// TestRouteValidateAllowCrossNamespaceWithReferenceGrant verifies that a cross-namespace
+// route + backend combination is allowed if an applicable ReferenceGrant is found.
+func TestRouteValidateAllowCrossNamespaceWithReferenceGrant(t *testing.T) {
 	t.Parallel()
 
 	ctrl := gomock.NewController(t)
@@ -560,18 +561,18 @@ func TestRouteValidateAllowCrossNamespaceWithReferencePolicy(t *testing.T) {
 	client := clientMocks.NewMockClient(ctrl)
 
 	//set up backend ref with a different namespace
-	backendGroup := gw.Group("")
-	backendKind := gw.Kind("Service")
-	backendNamespace := gw.Namespace("namespace2")
-	backendName := gw.ObjectName("backend2")
-	route := NewK8sRoute(&gw.HTTPRoute{
+	backendGroup := gwv1alpha2.Group("")
+	backendKind := gwv1alpha2.Kind("Service")
+	backendNamespace := gwv1alpha2.Namespace("namespace2")
+	backendName := gwv1alpha2.ObjectName("backend2")
+	route := NewK8sRoute(&gwv1alpha2.HTTPRoute{
 		ObjectMeta: meta.ObjectMeta{Namespace: "namespace1"},
 		TypeMeta:   meta.TypeMeta{APIVersion: "gateway.networking.k8s.io/v1alpha2", Kind: "HTTPRoute"},
-		Spec: gw.HTTPRouteSpec{
-			Rules: []gw.HTTPRouteRule{{
-				BackendRefs: []gw.HTTPBackendRef{{
-					BackendRef: gw.BackendRef{
-						BackendObjectReference: gw.BackendObjectReference{
+		Spec: gwv1alpha2.HTTPRouteSpec{
+			Rules: []gwv1alpha2.HTTPRouteRule{{
+				BackendRefs: []gwv1alpha2.HTTPBackendRef{{
+					BackendRef: gwv1alpha2.BackendRef{
+						BackendObjectReference: gwv1alpha2.BackendObjectReference{
 							Group:     &backendGroup,
 							Kind:      &backendKind,
 							Name:      backendName,
@@ -587,16 +588,16 @@ func TestRouteValidateAllowCrossNamespaceWithReferencePolicy(t *testing.T) {
 		Resolver: resolver,
 	})
 
-	referencePolicy := gw.ReferencePolicy{
+	refGrant := gwv1alpha2.ReferenceGrant{
 		TypeMeta:   meta.TypeMeta{},
 		ObjectMeta: meta.ObjectMeta{Namespace: "namespace2"},
-		Spec: gw.ReferencePolicySpec{
-			From: []gw.ReferencePolicyFrom{{
+		Spec: gwv1alpha2.ReferenceGrantSpec{
+			From: []gwv1alpha2.ReferenceGrantFrom{{
 				Group:     "gateway.networking.k8s.io",
 				Kind:      "HTTPRoute",
 				Namespace: "namespace1",
 			}},
-			To: []gw.ReferencePolicyTo{{
+			To: []gwv1alpha2.ReferenceGrantTo{{
 				Group: "",
 				Kind:  "Service",
 				Name:  &backendName,
@@ -605,8 +606,8 @@ func TestRouteValidateAllowCrossNamespaceWithReferencePolicy(t *testing.T) {
 	}
 
 	client.EXPECT().
-		GetReferencePoliciesInNamespace(gomock.Any(), gomock.Any()).
-		Return([]gw.ReferencePolicy{referencePolicy}, nil)
+		GetReferenceGrantsInNamespace(gomock.Any(), gomock.Any()).
+		Return([]gwv1alpha2.ReferenceGrant{refGrant}, nil)
 
 	resolver.EXPECT().
 		Resolve(gomock.Any(), gomock.Any()).
@@ -618,14 +619,14 @@ func TestRouteValidateAllowCrossNamespaceWithReferencePolicy(t *testing.T) {
 func TestRouteResolve(t *testing.T) {
 	t.Parallel()
 
-	gateway := &gw.Gateway{
+	gateway := &gwv1beta1.Gateway{
 		ObjectMeta: meta.ObjectMeta{
 			Name: "expected",
 		},
 	}
-	listener := gw.Listener{}
+	listener := gwv1beta1.Listener{}
 
-	require.Nil(t, NewK8sRoute(&gw.HTTPRoute{}, K8sRouteConfig{
+	require.Nil(t, NewK8sRoute(&gwv1alpha2.HTTPRoute{}, K8sRouteConfig{
 		Logger: hclog.NewNullLogger(),
 	}).Resolve(nil))
 
@@ -635,7 +636,7 @@ func TestRouteResolve(t *testing.T) {
 		Logger: hclog.NewNullLogger(),
 	})))
 
-	require.NotNil(t, NewK8sRoute(&gw.HTTPRoute{}, K8sRouteConfig{
+	require.NotNil(t, NewK8sRoute(&gwv1alpha2.HTTPRoute{}, K8sRouteConfig{
 		Logger: hclog.NewNullLogger(),
 	}).Resolve(NewK8sListener(gateway, listener, K8sListenerConfig{
 		Logger: hclog.NewNullLogger(),
@@ -659,16 +660,16 @@ func TestRouteCompare(t *testing.T) {
 	require.Equal(t, store.CompareResultNotEqual, route.Compare(other))
 
 	// http route comparison
-	route = NewK8sRoute(&gw.HTTPRoute{}, K8sRouteConfig{
+	route = NewK8sRoute(&gwv1alpha2.HTTPRoute{}, K8sRouteConfig{
 		Logger: hclog.NewNullLogger(),
 	})
-	other = NewK8sRoute(&gw.HTTPRoute{}, K8sRouteConfig{
+	other = NewK8sRoute(&gwv1alpha2.HTTPRoute{}, K8sRouteConfig{
 		Logger: hclog.NewNullLogger(),
 	})
 	require.Equal(t, store.CompareResultEqual, route.Compare(other))
 	other.resolutionErrors.Add(service.NewConsulResolutionError("error"))
 	require.Equal(t, store.CompareResultNotEqual, route.Compare(other))
-	route = NewK8sRoute(&gw.HTTPRoute{
+	route = NewK8sRoute(&gwv1alpha2.HTTPRoute{
 		ObjectMeta: meta.ObjectMeta{
 			ResourceVersion: "1",
 		},
@@ -677,49 +678,49 @@ func TestRouteCompare(t *testing.T) {
 	})
 	require.Equal(t, store.CompareResultNewer, route.Compare(other))
 
-	route = NewK8sRoute(&gw.HTTPRoute{}, K8sRouteConfig{
+	route = NewK8sRoute(&gwv1alpha2.HTTPRoute{}, K8sRouteConfig{
 		Logger: hclog.NewNullLogger(),
 	})
-	other = NewK8sRoute(&gw.TCPRoute{}, K8sRouteConfig{
+	other = NewK8sRoute(&gwv1alpha2.TCPRoute{}, K8sRouteConfig{
 		Logger: hclog.NewNullLogger(),
 	})
 	require.Equal(t, store.CompareResultNotEqual, route.Compare(other))
 
 	// tcp route comparison
-	route = NewK8sRoute(&gw.TCPRoute{}, K8sRouteConfig{
+	route = NewK8sRoute(&gwv1alpha2.TCPRoute{}, K8sRouteConfig{
 		Logger: hclog.NewNullLogger(),
 	})
-	other = NewK8sRoute(&gw.TCPRoute{}, K8sRouteConfig{
+	other = NewK8sRoute(&gwv1alpha2.TCPRoute{}, K8sRouteConfig{
 		Logger: hclog.NewNullLogger(),
 	})
 	require.Equal(t, store.CompareResultEqual, route.Compare(other))
-	other = NewK8sRoute(&gw.HTTPRoute{}, K8sRouteConfig{
+	other = NewK8sRoute(&gwv1alpha2.HTTPRoute{}, K8sRouteConfig{
 		Logger: hclog.NewNullLogger(),
 	})
 	require.Equal(t, store.CompareResultNotEqual, route.Compare(other))
 
 	// tls route comparison
-	route = NewK8sRoute(&gw.TLSRoute{}, K8sRouteConfig{
+	route = NewK8sRoute(&gwv1alpha2.TLSRoute{}, K8sRouteConfig{
 		Logger: hclog.NewNullLogger(),
 	})
-	other = NewK8sRoute(&gw.TLSRoute{}, K8sRouteConfig{
+	other = NewK8sRoute(&gwv1alpha2.TLSRoute{}, K8sRouteConfig{
 		Logger: hclog.NewNullLogger(),
 	})
 	require.Equal(t, store.CompareResultEqual, route.Compare(other))
-	other = NewK8sRoute(&gw.HTTPRoute{}, K8sRouteConfig{
+	other = NewK8sRoute(&gwv1alpha2.HTTPRoute{}, K8sRouteConfig{
 		Logger: hclog.NewNullLogger(),
 	})
 	require.Equal(t, store.CompareResultNotEqual, route.Compare(other))
 
 	// udp route comparison
-	route = NewK8sRoute(&gw.UDPRoute{}, K8sRouteConfig{
+	route = NewK8sRoute(&gwv1alpha2.UDPRoute{}, K8sRouteConfig{
 		Logger: hclog.NewNullLogger(),
 	})
-	other = NewK8sRoute(&gw.UDPRoute{}, K8sRouteConfig{
+	other = NewK8sRoute(&gwv1alpha2.UDPRoute{}, K8sRouteConfig{
 		Logger: hclog.NewNullLogger(),
 	})
 	require.Equal(t, store.CompareResultEqual, route.Compare(other))
-	other = NewK8sRoute(&gw.HTTPRoute{}, K8sRouteConfig{
+	other = NewK8sRoute(&gwv1alpha2.HTTPRoute{}, K8sRouteConfig{
 		Logger: hclog.NewNullLogger(),
 	})
 	require.Equal(t, store.CompareResultNotEqual, route.Compare(other))
@@ -731,37 +732,37 @@ func TestRouteCompare(t *testing.T) {
 func TestRouteSyncStatus(t *testing.T) {
 	t.Parallel()
 
-	gateway := NewK8sGateway(&gw.Gateway{
+	gateway := NewK8sGateway(&gwv1beta1.Gateway{
 		ObjectMeta: meta.ObjectMeta{
 			Name: "expected",
 		},
 	}, K8sGatewayConfig{
 		Logger: hclog.NewNullLogger(),
 	})
-	inner := &gw.TLSRoute{
-		Spec: gw.TLSRouteSpec{
-			CommonRouteSpec: gw.CommonRouteSpec{
-				ParentRefs: []gw.ParentRef{{
+	inner := &gwv1alpha2.TLSRoute{
+		Spec: gwv1alpha2.TLSRouteSpec{
+			CommonRouteSpec: gwv1alpha2.CommonRouteSpec{
+				ParentRefs: []gwv1alpha2.ParentReference{{
 					Name: "expected",
 				}, {
 					Name: "other",
 				}},
 			},
 		},
-		Status: gw.TLSRouteStatus{
-			RouteStatus: gw.RouteStatus{
-				Parents: []gw.RouteParentStatus{{
-					ParentRef: gw.ParentRef{
+		Status: gwv1alpha2.TLSRouteStatus{
+			RouteStatus: gwv1alpha2.RouteStatus{
+				Parents: []gwv1alpha2.RouteParentStatus{{
+					ParentRef: gwv1alpha2.ParentReference{
 						Name: "expected",
 					},
 					ControllerName: "expected",
 				}, {
-					ParentRef: gw.ParentRef{
+					ParentRef: gwv1alpha2.ParentReference{
 						Name: "expected",
 					},
 					ControllerName: "other",
 				}, {
-					ParentRef: gw.ParentRef{
+					ParentRef: gwv1alpha2.ParentReference{
 						Name: "other",
 					},
 					ControllerName: "other",

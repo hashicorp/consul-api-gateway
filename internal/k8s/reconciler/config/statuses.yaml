@@ -152,7 +152,7 @@
         - name: RefNotPermitted
           description: >
             This reason is used with the “ResolvedRefs” condition when one of the Listener’s Routes has a BackendRef
-            to an object in another namespace, where the object in the other namespace does not have a ReferencePolicy
+            to an object in another namespace, where the object in the other namespace does not have a ReferenceGrant
             explicitly allowing the reference.
 
 
@@ -264,5 +264,5 @@
         - name: RefNotPermitted
           description: >
             This reason is used with the “ResolvedRefs” condition when one of the Listener’s Routes has a BackendRef
-            to an object in another namespace, where the object in the other namespace does not have a ReferencePolicy
+            to an object in another namespace, where the object in the other namespace does not have a ReferenceGrant
             explicitly allowing the reference.

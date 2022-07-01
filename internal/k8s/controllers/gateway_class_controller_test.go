@@ -11,7 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	gateway "sigs.k8s.io/gateway-api/apis/v1alpha2"
+	gwv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient/mocks"
 	reconcilerMocks "github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/mocks"
@@ -53,9 +53,9 @@ func TestGatewayClass(t *testing.T) {
 	}, {
 		name: "not-managed",
 		expectationCB: func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager) {
-			client.EXPECT().GetGatewayClass(gomock.Any(), className).Return(&gateway.GatewayClass{
-				Spec: gateway.GatewayClassSpec{
-					ControllerName: gateway.GatewayController("other"),
+			client.EXPECT().GetGatewayClass(gomock.Any(), className).Return(&gwv1beta1.GatewayClass{
+				Spec: gwv1beta1.GatewayClassSpec{
+					ControllerName: gwv1beta1.GatewayController("other"),
 				},
 			}, nil)
 		},
@@ -64,12 +64,12 @@ func TestGatewayClass(t *testing.T) {
 		err:  errExpected,
 		expectationCB: func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager) {
 			now := meta.Now()
-			client.EXPECT().GetGatewayClass(gomock.Any(), className).Return(&gateway.GatewayClass{
+			client.EXPECT().GetGatewayClass(gomock.Any(), className).Return(&gwv1beta1.GatewayClass{
 				ObjectMeta: meta.ObjectMeta{
 					DeletionTimestamp: &now,
 				},
-				Spec: gateway.GatewayClassSpec{
-					ControllerName: gateway.GatewayController(mockControllerName),
+				Spec: gwv1beta1.GatewayClassSpec{
+					ControllerName: gwv1beta1.GatewayController(mockControllerName),
 				},
 			}, nil)
 			client.EXPECT().GatewayClassInUse(gomock.Any(), gomock.Any()).Return(false, errExpected)
@@ -79,12 +79,12 @@ func TestGatewayClass(t *testing.T) {
 		result: ctrl.Result{RequeueAfter: 10 * time.Second},
 		expectationCB: func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager) {
 			now := meta.Now()
-			client.EXPECT().GetGatewayClass(gomock.Any(), className).Return(&gateway.GatewayClass{
+			client.EXPECT().GetGatewayClass(gomock.Any(), className).Return(&gwv1beta1.GatewayClass{
 				ObjectMeta: meta.ObjectMeta{
 					DeletionTimestamp: &now,
 				},
-				Spec: gateway.GatewayClassSpec{
-					ControllerName: gateway.GatewayController(mockControllerName),
+				Spec: gwv1beta1.GatewayClassSpec{
+					ControllerName: gwv1beta1.GatewayController(mockControllerName),
 				},
 			}, nil)
 			client.EXPECT().GatewayClassInUse(gomock.Any(), gomock.Any()).Return(true, nil)
@@ -94,12 +94,12 @@ func TestGatewayClass(t *testing.T) {
 		err:  errExpected,
 		expectationCB: func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager) {
 			now := meta.Now()
-			client.EXPECT().GetGatewayClass(gomock.Any(), className).Return(&gateway.GatewayClass{
+			client.EXPECT().GetGatewayClass(gomock.Any(), className).Return(&gwv1beta1.GatewayClass{
 				ObjectMeta: meta.ObjectMeta{
 					DeletionTimestamp: &now,
 				},
-				Spec: gateway.GatewayClassSpec{
-					ControllerName: gateway.GatewayController(mockControllerName),
+				Spec: gwv1beta1.GatewayClassSpec{
+					ControllerName: gwv1beta1.GatewayController(mockControllerName),
 				},
 			}, nil)
 			client.EXPECT().GatewayClassInUse(gomock.Any(), gomock.Any()).Return(false, nil)
@@ -109,12 +109,12 @@ func TestGatewayClass(t *testing.T) {
 		name: "deleting",
 		expectationCB: func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager) {
 			now := meta.Now()
-			client.EXPECT().GetGatewayClass(gomock.Any(), className).Return(&gateway.GatewayClass{
+			client.EXPECT().GetGatewayClass(gomock.Any(), className).Return(&gwv1beta1.GatewayClass{
 				ObjectMeta: meta.ObjectMeta{
 					DeletionTimestamp: &now,
 				},
-				Spec: gateway.GatewayClassSpec{
-					ControllerName: gateway.GatewayController(mockControllerName),
+				Spec: gwv1beta1.GatewayClassSpec{
+					ControllerName: gwv1beta1.GatewayController(mockControllerName),
 				},
 			}, nil)
 			client.EXPECT().GatewayClassInUse(gomock.Any(), gomock.Any()).Return(false, nil)
@@ -124,9 +124,9 @@ func TestGatewayClass(t *testing.T) {
 		name: "create-finalizer-error",
 		err:  errExpected,
 		expectationCB: func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager) {
-			client.EXPECT().GetGatewayClass(gomock.Any(), className).Return(&gateway.GatewayClass{
-				Spec: gateway.GatewayClassSpec{
-					ControllerName: gateway.GatewayController(mockControllerName),
+			client.EXPECT().GetGatewayClass(gomock.Any(), className).Return(&gwv1beta1.GatewayClass{
+				Spec: gwv1beta1.GatewayClassSpec{
+					ControllerName: gwv1beta1.GatewayController(mockControllerName),
 				},
 			}, nil)
 			client.EXPECT().EnsureFinalizer(gomock.Any(), gomock.Any(), gatewayClassFinalizer).Return(false, errExpected)
@@ -134,9 +134,9 @@ func TestGatewayClass(t *testing.T) {
 	}, {
 		name: "create-finalizer-updated",
 		expectationCB: func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager) {
-			client.EXPECT().GetGatewayClass(gomock.Any(), className).Return(&gateway.GatewayClass{
-				Spec: gateway.GatewayClassSpec{
-					ControllerName: gateway.GatewayController(mockControllerName),
+			client.EXPECT().GetGatewayClass(gomock.Any(), className).Return(&gwv1beta1.GatewayClass{
+				Spec: gwv1beta1.GatewayClassSpec{
+					ControllerName: gwv1beta1.GatewayController(mockControllerName),
 				},
 			}, nil)
 			client.EXPECT().EnsureFinalizer(gomock.Any(), gomock.Any(), gatewayClassFinalizer).Return(true, nil)
@@ -145,9 +145,9 @@ func TestGatewayClass(t *testing.T) {
 		name: "create-upsert-error",
 		err:  errExpected,
 		expectationCB: func(client *mocks.MockClient, reconciler *reconcilerMocks.MockReconcileManager) {
-			client.EXPECT().GetGatewayClass(gomock.Any(), className).Return(&gateway.GatewayClass{
-				Spec: gateway.GatewayClassSpec{
-					ControllerName: gateway.GatewayController(mockControllerName),
+			client.EXPECT().GetGatewayClass(gomock.Any(), className).Return(&gwv1beta1.GatewayClass{
+				Spec: gwv1beta1.GatewayClassSpec{
+					ControllerName: gwv1beta1.GatewayController(mockControllerName),
 				},
 			}, nil)
 			client.EXPECT().EnsureFinalizer(gomock.Any(), gomock.Any(), gatewayClassFinalizer).Return(false, nil)

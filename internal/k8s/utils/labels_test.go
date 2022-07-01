@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
-	gateway "sigs.k8s.io/gateway-api/apis/v1alpha2"
+	gwv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 )
 
 func TestIsManagedGateway(t *testing.T) {
@@ -48,7 +48,7 @@ func TestIsManagedGateway(t *testing.T) {
 func TestLabelsForGateway(t *testing.T) {
 	t.Parallel()
 
-	labels := LabelsForGateway(&gateway.Gateway{
+	labels := LabelsForGateway(&gwv1beta1.Gateway{
 		ObjectMeta: meta.ObjectMeta{
 			Name:      "gateway",
 			Namespace: "default",

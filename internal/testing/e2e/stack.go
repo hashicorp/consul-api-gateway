@@ -30,13 +30,12 @@ func SetUpStack(hostRoute string) env.Func {
 			CreateKindCluster(kindClusterName),
 			LoadKindDockerImage(kindClusterName),
 			envfuncs.CreateNamespace(namespace),
-			InstallGatewayCRDs,
+			InstallCRDs,
 			CreateServiceAccount(namespace, "consul-api-gateway", getBasePath()+"/config/rbac/role.yaml"),
 			CreateTestConsulContainer(kindClusterName, namespace),
 			CreateConsulACLPolicy,
 			CreateConsulAuthMethod(),
 			CreateConsulNamespace,
-			InstallConsulAPIGatewayCRDs,
 			CreateTestGatewayServer(namespace),
 		} {
 			ctx, err = f(ctx, cfg)

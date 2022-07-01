@@ -90,8 +90,8 @@ type consulTestEnvironment struct {
 	policy                           *api.ACLPolicy
 	httpPort                         int
 	httpFlattenedPort                int
-	httpReferencePolicyPort          int
-	tcpReferencePolicyPort           int
+	httpReferenceGrantPort           int
+	tcpReferenceGrantPort            int
 	parentRefChangeFirstGatewayPort  int
 	parentRefChangeSecondGatewayPort int
 	grpcPort                         int
@@ -114,8 +114,8 @@ func CreateTestConsulContainer(name, namespace string) env.Func {
 		cluster := clusterVal.(*kindCluster)
 		httpsPort := cluster.httpsPort
 		httpFlattenedPort := cluster.httpsFlattenedPort
-		httpReferencePolicyPort := cluster.httpsReferencePolicyPort
-		tcpReferencePolicyPort := cluster.tcpReferencePolicyPort
+		httpReferenceGrantPort := cluster.httpsReferenceGrantPort
+		tcpReferenceGrantPort := cluster.tcpReferenceGrantPort
 		parentRefChangeFirstGatewayPort := cluster.parentRefChangeFirstGatewayPort
 		parentRefChangeSecondGatewayPort := cluster.parentRefChangeSecondGatewayPort
 		grpcPort := cluster.grpcPort
@@ -210,8 +210,8 @@ func CreateTestConsulContainer(name, namespace string) env.Func {
 			consulClient:                     consulClient,
 			httpPort:                         httpsPort,
 			httpFlattenedPort:                httpFlattenedPort,
-			httpReferencePolicyPort:          httpReferencePolicyPort,
-			tcpReferencePolicyPort:           tcpReferencePolicyPort,
+			httpReferenceGrantPort:           httpReferenceGrantPort,
+			tcpReferenceGrantPort:            tcpReferenceGrantPort,
 			parentRefChangeFirstGatewayPort:  parentRefChangeFirstGatewayPort,
 			parentRefChangeSecondGatewayPort: parentRefChangeSecondGatewayPort,
 			grpcPort:                         grpcPort,
@@ -460,12 +460,12 @@ func HTTPFlattenedPort(ctx context.Context) int {
 	return mustGetTestEnvironment(ctx).httpFlattenedPort
 }
 
-func HTTPReferencePolicyPort(ctx context.Context) int {
-	return mustGetTestEnvironment(ctx).httpReferencePolicyPort
+func HTTPReferenceGrantPort(ctx context.Context) int {
+	return mustGetTestEnvironment(ctx).httpReferenceGrantPort
 }
 
-func TCPReferencePolicyPort(ctx context.Context) int {
-	return mustGetTestEnvironment(ctx).tcpReferencePolicyPort
+func TCPReferenceGrantPort(ctx context.Context) int {
+	return mustGetTestEnvironment(ctx).tcpReferenceGrantPort
 }
 
 func ParentRefChangeFirstGatewayPort(ctx context.Context) int {

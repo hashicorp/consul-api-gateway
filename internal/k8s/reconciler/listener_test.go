@@ -11,7 +11,8 @@ import (
 	k8s "k8s.io/api/core/v1"
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	gw "sigs.k8s.io/gateway-api/apis/v1alpha2"
+	gwv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
+	gwv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/hashicorp/go-hclog"
 
@@ -24,11 +25,11 @@ import (
 func TestListenerID(t *testing.T) {
 	t.Parallel()
 
-	require.Equal(t, "", NewK8sListener(&gw.Gateway{}, gw.Listener{}, K8sListenerConfig{
+	require.Equal(t, "", NewK8sListener(&gwv1beta1.Gateway{}, gwv1beta1.Listener{}, K8sListenerConfig{
 		Logger: hclog.NewNullLogger(),
 	}).ID())
-	require.Equal(t, "test", NewK8sListener(&gw.Gateway{}, gw.Listener{
-		Name: gw.SectionName("test"),
+	require.Equal(t, "test", NewK8sListener(&gwv1beta1.Gateway{}, gwv1beta1.Listener{
+		Name: gwv1beta1.SectionName("test"),
 	}, K8sListenerConfig{
 		Logger: hclog.NewNullLogger(),
 	}).ID())
@@ -43,7 +44,7 @@ func TestListenerValidate(t *testing.T) {
 	client := mocks.NewMockClient(ctrl)
 
 	t.Run("Unsupported protocol", func(t *testing.T) {
-		listener := NewK8sListener(&gw.Gateway{}, gw.Listener{}, K8sListenerConfig{
+		listener := NewK8sListener(&gwv1beta1.Gateway{}, gwv1beta1.Listener{}, K8sListenerConfig{
 			Logger: hclog.NewNullLogger(),
 		})
 		require.NoError(t, listener.Validate(context.Background()))
@@ -54,10 +55,10 @@ func TestListenerValidate(t *testing.T) {
 	})
 
 	t.Run("Invalid route kinds", func(t *testing.T) {
-		listener := NewK8sListener(&gw.Gateway{}, gw.Listener{
-			Protocol: gw.HTTPProtocolType,
-			AllowedRoutes: &gw.AllowedRoutes{
-				Kinds: []gw.RouteGroupKind{{
+		listener := NewK8sListener(&gwv1beta1.Gateway{}, gwv1beta1.Listener{
+			Protocol: gwv1beta1.HTTPProtocolType,
+			AllowedRoutes: &gwv1beta1.AllowedRoutes{
+				Kinds: []gwv1beta1.RouteGroupKind{{
 					Kind: "UDPRoute",
 				}},
 			},
@@ -70,12 +71,12 @@ func TestListenerValidate(t *testing.T) {
 	})
 
 	t.Run("Unsupported address", func(t *testing.T) {
-		listener := NewK8sListener(&gw.Gateway{
-			Spec: gw.GatewaySpec{
-				Addresses: []gw.GatewayAddress{{}},
+		listener := NewK8sListener(&gwv1beta1.Gateway{
+			Spec: gwv1beta1.GatewaySpec{
+				Addresses: []gwv1beta1.GatewayAddress{{}},
 			},
-		}, gw.Listener{
-			Protocol: gw.HTTPProtocolType,
+		}, gwv1beta1.Listener{
+			Protocol: gwv1beta1.HTTPProtocolType,
 		}, K8sListenerConfig{
 			Logger: hclog.NewNullLogger(),
 		})
@@ -85,8 +86,8 @@ func TestListenerValidate(t *testing.T) {
 	})
 
 	t.Run("Invalid TLS config", func(t *testing.T) {
-		listener := NewK8sListener(&gw.Gateway{}, gw.Listener{
-			Protocol: gw.HTTPSProtocolType,
+		listener := NewK8sListener(&gwv1beta1.Gateway{}, gwv1beta1.Listener{
+			Protocol: gwv1beta1.HTTPSProtocolType,
 		}, K8sListenerConfig{
 			Logger: hclog.NewNullLogger(),
 		})
@@ -96,10 +97,10 @@ func TestListenerValidate(t *testing.T) {
 	})
 
 	t.Run("Invalid TLS passthrough", func(t *testing.T) {
-		mode := gw.TLSModePassthrough
-		listener := NewK8sListener(&gw.Gateway{}, gw.Listener{
-			Protocol: gw.HTTPSProtocolType,
-			TLS: &gw.GatewayTLSConfig{
+		mode := gwv1beta1.TLSModePassthrough
+		listener := NewK8sListener(&gwv1beta1.Gateway{}, gwv1beta1.Listener{
+			Protocol: gwv1beta1.HTTPSProtocolType,
+			TLS: &gwv1beta1.GatewayTLSConfig{
 				Mode: &mode,
 			},
 		}, K8sListenerConfig{
@@ -111,9 +112,9 @@ func TestListenerValidate(t *testing.T) {
 	})
 
 	t.Run("Invalid certificate ref", func(t *testing.T) {
-		listener := NewK8sListener(&gw.Gateway{}, gw.Listener{
-			Protocol: gw.HTTPSProtocolType,
-			TLS:      &gw.GatewayTLSConfig{},
+		listener := NewK8sListener(&gwv1beta1.Gateway{}, gwv1beta1.Listener{
+			Protocol: gwv1beta1.HTTPSProtocolType,
+			TLS:      &gwv1beta1.GatewayTLSConfig{},
 		}, K8sListenerConfig{
 			Logger: hclog.NewNullLogger(),
 		})
@@ -123,10 +124,10 @@ func TestListenerValidate(t *testing.T) {
 	})
 
 	t.Run("Fail to retrieve secret", func(t *testing.T) {
-		listener := NewK8sListener(&gw.Gateway{}, gw.Listener{
-			Protocol: gw.HTTPSProtocolType,
-			TLS: &gw.GatewayTLSConfig{
-				CertificateRefs: []*gw.SecretObjectReference{{
+		listener := NewK8sListener(&gwv1beta1.Gateway{}, gwv1beta1.Listener{
+			Protocol: gwv1beta1.HTTPSProtocolType,
+			TLS: &gwv1beta1.GatewayTLSConfig{
+				CertificateRefs: []gwv1beta1.SecretObjectReference{{
 					Name: "secret",
 				}},
 			},
@@ -139,10 +140,10 @@ func TestListenerValidate(t *testing.T) {
 	})
 
 	t.Run("No secret found", func(t *testing.T) {
-		listener := NewK8sListener(&gw.Gateway{}, gw.Listener{
-			Protocol: gw.HTTPSProtocolType,
-			TLS: &gw.GatewayTLSConfig{
-				CertificateRefs: []*gw.SecretObjectReference{{
+		listener := NewK8sListener(&gwv1beta1.Gateway{}, gwv1beta1.Listener{
+			Protocol: gwv1beta1.HTTPSProtocolType,
+			TLS: &gwv1beta1.GatewayTLSConfig{
+				CertificateRefs: []gwv1beta1.SecretObjectReference{{
 					Name: "secret",
 				}},
 			},
@@ -156,12 +157,12 @@ func TestListenerValidate(t *testing.T) {
 		require.Equal(t, ListenerConditionReasonInvalidCertificateRef, condition.Reason)
 	})
 
-	t.Run("Invalid cross-namespace secret ref with no ReferencePolicy", func(t *testing.T) {
-		otherNamespace := gw.Namespace("other-namespace")
-		listener := NewK8sListener(&gw.Gateway{}, gw.Listener{
-			Protocol: gw.HTTPSProtocolType,
-			TLS: &gw.GatewayTLSConfig{
-				CertificateRefs: []*gw.SecretObjectReference{{
+	t.Run("Invalid cross-namespace secret ref with no ReferenceGrant", func(t *testing.T) {
+		otherNamespace := gwv1beta1.Namespace("other-namespace")
+		listener := NewK8sListener(&gwv1beta1.Gateway{}, gwv1beta1.Listener{
+			Protocol: gwv1beta1.HTTPSProtocolType,
+			TLS: &gwv1beta1.GatewayTLSConfig{
+				CertificateRefs: []gwv1beta1.SecretObjectReference{{
 					Namespace: &otherNamespace,
 					Name:      "secret",
 				}},
@@ -170,23 +171,24 @@ func TestListenerValidate(t *testing.T) {
 			Logger: hclog.NewNullLogger(),
 			Client: client,
 		})
-		client.EXPECT().GetReferencePoliciesInNamespace(gomock.Any(), string(otherNamespace)).Return([]gw.ReferencePolicy{}, nil)
+		client.EXPECT().GetReferenceGrantsInNamespace(gomock.Any(), string(otherNamespace)).Return([]gwv1alpha2.ReferenceGrant{}, nil)
 		require.NoError(t, listener.Validate(context.Background()))
 		condition := listener.status.ResolvedRefs.Condition(0)
 		assert.Equal(t, ListenerConditionReasonInvalidCertificateRef, condition.Reason)
 	})
 
-	t.Run("Valid cross-namespace secret ref with ReferencePolicy", func(t *testing.T) {
-		gatewayNamespace := gw.Namespace("gateway-namespace")
-		secretNamespace := gw.Namespace("secret-namespace")
+	t.Run("Valid cross-namespace secret ref with ReferenceGrant", func(t *testing.T) {
+		gatewayNamespace := gwv1beta1.Namespace("gateway-namespace")
+		refGrantGatewayNamespace := gwv1alpha2.Namespace("gateway-namespace")
+		secretNamespace := gwv1beta1.Namespace("secret-namespace")
 		listener := NewK8sListener(
-			&gw.Gateway{
+			&gwv1beta1.Gateway{
 				ObjectMeta: meta.ObjectMeta{Namespace: string(gatewayNamespace)},
 				TypeMeta:   meta.TypeMeta{APIVersion: "gateway.networking.k8s.io/v1alpha2", Kind: "Gateway"}},
-			gw.Listener{
-				Protocol: gw.HTTPSProtocolType,
-				TLS: &gw.GatewayTLSConfig{
-					CertificateRefs: []*gw.SecretObjectReference{{
+			gwv1beta1.Listener{
+				Protocol: gwv1beta1.HTTPSProtocolType,
+				TLS: &gwv1beta1.GatewayTLSConfig{
+					CertificateRefs: []gwv1beta1.SecretObjectReference{{
 						Namespace: &secretNamespace,
 						Name:      "secret",
 					}},
@@ -195,15 +197,15 @@ func TestListenerValidate(t *testing.T) {
 				Logger: hclog.NewNullLogger(),
 				Client: client,
 			})
-		client.EXPECT().GetReferencePoliciesInNamespace(gomock.Any(), string(secretNamespace)).
-			Return([]gw.ReferencePolicy{{
-				Spec: gw.ReferencePolicySpec{
-					From: []gw.ReferencePolicyFrom{{
+		client.EXPECT().GetReferenceGrantsInNamespace(gomock.Any(), string(secretNamespace)).
+			Return([]gwv1alpha2.ReferenceGrant{{
+				Spec: gwv1alpha2.ReferenceGrantSpec{
+					From: []gwv1alpha2.ReferenceGrantFrom{{
 						Group:     "gateway.networking.k8s.io",
 						Kind:      "Gateway",
-						Namespace: gatewayNamespace,
+						Namespace: refGrantGatewayNamespace,
 					}},
-					To: []gw.ReferencePolicyTo{{
+					To: []gwv1alpha2.ReferenceGrantTo{{
 						Kind: "Secret",
 					}},
 				},
@@ -218,11 +220,11 @@ func TestListenerValidate(t *testing.T) {
 		assert.Equal(t, meta.ConditionTrue, condition.Status)
 	})
 
-	t.Run("Valid same-namespace secret ref without ReferencePolicy", func(t *testing.T) {
-		listener := NewK8sListener(&gw.Gateway{}, gw.Listener{
-			Protocol: gw.HTTPSProtocolType,
-			TLS: &gw.GatewayTLSConfig{
-				CertificateRefs: []*gw.SecretObjectReference{{
+	t.Run("Valid same-namespace secret ref without ReferenceGrant", func(t *testing.T) {
+		listener := NewK8sListener(&gwv1beta1.Gateway{}, gwv1beta1.Listener{
+			Protocol: gwv1beta1.HTTPSProtocolType,
+			TLS: &gwv1beta1.GatewayTLSConfig{
+				CertificateRefs: []gwv1beta1.SecretObjectReference{{
 					Name: "secret",
 				}},
 			},
@@ -241,12 +243,12 @@ func TestListenerValidate(t *testing.T) {
 	})
 
 	t.Run("Unsupported certificate type", func(t *testing.T) {
-		group := gw.Group("group")
-		kind := gw.Kind("kind")
-		listener := NewK8sListener(&gw.Gateway{}, gw.Listener{
-			Protocol: gw.HTTPSProtocolType,
-			TLS: &gw.GatewayTLSConfig{
-				CertificateRefs: []*gw.SecretObjectReference{{
+		group := gwv1beta1.Group("group")
+		kind := gwv1beta1.Kind("kind")
+		listener := NewK8sListener(&gwv1beta1.Gateway{}, gwv1beta1.Listener{
+			Protocol: gwv1beta1.HTTPSProtocolType,
+			TLS: &gwv1beta1.GatewayTLSConfig{
+				CertificateRefs: []gwv1beta1.SecretObjectReference{{
 					Group: &group,
 					Kind:  &kind,
 					Name:  "secret",
@@ -262,13 +264,13 @@ func TestListenerValidate(t *testing.T) {
 	})
 
 	t.Run("Valid minimum TLS version", func(t *testing.T) {
-		listener := NewK8sListener(&gw.Gateway{}, gw.Listener{
-			Protocol: gw.HTTPSProtocolType,
-			TLS: &gw.GatewayTLSConfig{
-				CertificateRefs: []*gw.SecretObjectReference{{
+		listener := NewK8sListener(&gwv1beta1.Gateway{}, gwv1beta1.Listener{
+			Protocol: gwv1beta1.HTTPSProtocolType,
+			TLS: &gwv1beta1.GatewayTLSConfig{
+				CertificateRefs: []gwv1beta1.SecretObjectReference{{
 					Name: "secret",
 				}},
-				Options: map[gw.AnnotationKey]gw.AnnotationValue{
+				Options: map[gwv1beta1.AnnotationKey]gwv1beta1.AnnotationValue{
 					"api-gateway.consul.hashicorp.com/tls_min_version": "TLSv1_2",
 				},
 			},
@@ -288,13 +290,13 @@ func TestListenerValidate(t *testing.T) {
 	})
 
 	t.Run("Invalid minimum TLS version", func(t *testing.T) {
-		listener := NewK8sListener(&gw.Gateway{}, gw.Listener{
-			Protocol: gw.HTTPSProtocolType,
-			TLS: &gw.GatewayTLSConfig{
-				CertificateRefs: []*gw.SecretObjectReference{{
+		listener := NewK8sListener(&gwv1beta1.Gateway{}, gwv1beta1.Listener{
+			Protocol: gwv1beta1.HTTPSProtocolType,
+			TLS: &gwv1beta1.GatewayTLSConfig{
+				CertificateRefs: []gwv1beta1.SecretObjectReference{{
 					Name: "secret",
 				}},
-				Options: map[gw.AnnotationKey]gw.AnnotationValue{
+				Options: map[gwv1beta1.AnnotationKey]gwv1beta1.AnnotationValue{
 					"api-gateway.consul.hashicorp.com/tls_min_version": "foo",
 				},
 			},
@@ -314,13 +316,13 @@ func TestListenerValidate(t *testing.T) {
 	})
 
 	t.Run("Valid TLS cipher suite", func(t *testing.T) {
-		listener := NewK8sListener(&gw.Gateway{}, gw.Listener{
-			Protocol: gw.HTTPSProtocolType,
-			TLS: &gw.GatewayTLSConfig{
-				CertificateRefs: []*gw.SecretObjectReference{{
+		listener := NewK8sListener(&gwv1beta1.Gateway{}, gwv1beta1.Listener{
+			Protocol: gwv1beta1.HTTPSProtocolType,
+			TLS: &gwv1beta1.GatewayTLSConfig{
+				CertificateRefs: []gwv1beta1.SecretObjectReference{{
 					Name: "secret",
 				}},
-				Options: map[gw.AnnotationKey]gw.AnnotationValue{
+				Options: map[gwv1beta1.AnnotationKey]gwv1beta1.AnnotationValue{
 					"api-gateway.consul.hashicorp.com/tls_cipher_suites": "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256",
 				},
 			},
@@ -340,13 +342,13 @@ func TestListenerValidate(t *testing.T) {
 	})
 
 	t.Run("TLS cipher suite not allowed", func(t *testing.T) {
-		listener := NewK8sListener(&gw.Gateway{}, gw.Listener{
-			Protocol: gw.HTTPSProtocolType,
-			TLS: &gw.GatewayTLSConfig{
-				CertificateRefs: []*gw.SecretObjectReference{{
+		listener := NewK8sListener(&gwv1beta1.Gateway{}, gwv1beta1.Listener{
+			Protocol: gwv1beta1.HTTPSProtocolType,
+			TLS: &gwv1beta1.GatewayTLSConfig{
+				CertificateRefs: []gwv1beta1.SecretObjectReference{{
 					Name: "secret",
 				}},
-				Options: map[gw.AnnotationKey]gw.AnnotationValue{
+				Options: map[gwv1beta1.AnnotationKey]gwv1beta1.AnnotationValue{
 					"api-gateway.consul.hashicorp.com/tls_min_version":   "TLSv1_3",
 					"api-gateway.consul.hashicorp.com/tls_cipher_suites": "foo",
 				},
@@ -367,13 +369,13 @@ func TestListenerValidate(t *testing.T) {
 	})
 
 	t.Run("Invalid TLS cipher suite", func(t *testing.T) {
-		listener := NewK8sListener(&gw.Gateway{}, gw.Listener{
-			Protocol: gw.HTTPSProtocolType,
-			TLS: &gw.GatewayTLSConfig{
-				CertificateRefs: []*gw.SecretObjectReference{{
+		listener := NewK8sListener(&gwv1beta1.Gateway{}, gwv1beta1.Listener{
+			Protocol: gwv1beta1.HTTPSProtocolType,
+			TLS: &gwv1beta1.GatewayTLSConfig{
+				CertificateRefs: []gwv1beta1.SecretObjectReference{{
 					Name: "secret",
 				}},
-				Options: map[gw.AnnotationKey]gw.AnnotationValue{
+				Options: map[gwv1beta1.AnnotationKey]gwv1beta1.AnnotationValue{
 					"api-gateway.consul.hashicorp.com/tls_cipher_suites": "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, foo",
 				},
 			},
@@ -396,21 +398,21 @@ func TestListenerValidate(t *testing.T) {
 func TestIsKindInSet(t *testing.T) {
 	t.Parallel()
 
-	require.False(t, isKindInSet(gw.RouteGroupKind{
-		Kind: gw.Kind("test"),
-	}, []gw.RouteGroupKind{}))
-	require.True(t, isKindInSet(gw.RouteGroupKind{
-		Kind: gw.Kind("test"),
-	}, []gw.RouteGroupKind{{
-		Kind: gw.Kind("test"),
+	require.False(t, isKindInSet(gwv1beta1.RouteGroupKind{
+		Kind: gwv1beta1.Kind("test"),
+	}, []gwv1beta1.RouteGroupKind{}))
+	require.True(t, isKindInSet(gwv1beta1.RouteGroupKind{
+		Kind: gwv1beta1.Kind("test"),
+	}, []gwv1beta1.RouteGroupKind{{
+		Kind: gwv1beta1.Kind("test"),
 	}}))
 
-	group := gw.Group("group")
-	require.True(t, isKindInSet(gw.RouteGroupKind{
-		Kind:  gw.Kind("test"),
+	group := gwv1beta1.Group("group")
+	require.True(t, isKindInSet(gwv1beta1.RouteGroupKind{
+		Kind:  gwv1beta1.Kind("test"),
 		Group: &group,
-	}, []gw.RouteGroupKind{{
-		Kind:  gw.Kind("test"),
+	}, []gwv1beta1.RouteGroupKind{{
+		Kind:  gwv1beta1.Kind("test"),
 		Group: &group,
 	}}))
 }
@@ -421,18 +423,18 @@ func TestListenerConfig(t *testing.T) {
 	require.Equal(t, store.ListenerConfig{
 		Name: "listener",
 		TLS:  core.TLSParams{Enabled: false},
-	}, NewK8sListener(&gw.Gateway{}, gw.Listener{
-		Name: gw.SectionName("listener"),
+	}, NewK8sListener(&gwv1beta1.Gateway{}, gwv1beta1.Listener{
+		Name: gwv1beta1.SectionName("listener"),
 	}, K8sListenerConfig{
 		Logger: hclog.NewNullLogger(),
 	}).Config())
 
-	hostname := gw.Hostname("hostname")
+	hostname := gwv1beta1.Hostname("hostname")
 	require.Equal(t, store.ListenerConfig{
 		Name:     "default",
 		Hostname: "hostname",
 		TLS:      core.TLSParams{Enabled: false},
-	}, NewK8sListener(&gw.Gateway{}, gw.Listener{
+	}, NewK8sListener(&gwv1beta1.Gateway{}, gwv1beta1.Listener{
 		Hostname: &hostname,
 	}, K8sListenerConfig{
 		Logger: hclog.NewNullLogger(),
@@ -442,7 +444,7 @@ func TestListenerConfig(t *testing.T) {
 func TestRouteAddedCallbacks(t *testing.T) {
 	t.Parallel()
 
-	listener := NewK8sListener(&gw.Gateway{}, gw.Listener{}, K8sListenerConfig{
+	listener := NewK8sListener(&gwv1beta1.Gateway{}, gwv1beta1.Listener{}, K8sListenerConfig{
 		Logger: hclog.NewNullLogger(),
 	})
 	require.Equal(t, int32(0), listener.routeCount)
@@ -455,7 +457,7 @@ func TestRouteAddedCallbacks(t *testing.T) {
 func TestListenerStatusConditions(t *testing.T) {
 	t.Parallel()
 
-	listener := NewK8sListener(&gw.Gateway{}, gw.Listener{}, K8sListenerConfig{
+	listener := NewK8sListener(&gwv1beta1.Gateway{}, gwv1beta1.Listener{}, K8sListenerConfig{
 		Logger: hclog.NewNullLogger(),
 	})
 	require.Len(t, listener.Status().Conditions, 4)
@@ -465,7 +467,7 @@ func TestListenerCanBind(t *testing.T) {
 	t.Parallel()
 
 	// alternative type
-	listener := NewK8sListener(&gw.Gateway{}, gw.Listener{}, K8sListenerConfig{
+	listener := NewK8sListener(&gwv1beta1.Gateway{}, gwv1beta1.Listener{}, K8sListenerConfig{
 		Logger: hclog.NewNullLogger(),
 	})
 	canBind, err := listener.CanBind(context.Background(), storeMocks.NewMockRoute(nil))
@@ -473,27 +475,27 @@ func TestListenerCanBind(t *testing.T) {
 	require.False(t, canBind)
 
 	// no match
-	listener = NewK8sListener(&gw.Gateway{}, gw.Listener{}, K8sListenerConfig{
+	listener = NewK8sListener(&gwv1beta1.Gateway{}, gwv1beta1.Listener{}, K8sListenerConfig{
 		Logger: hclog.NewNullLogger(),
 	})
-	canBind, err = listener.CanBind(context.Background(), NewK8sRoute(&gw.HTTPRoute{}, K8sRouteConfig{
+	canBind, err = listener.CanBind(context.Background(), NewK8sRoute(&gwv1alpha2.HTTPRoute{}, K8sRouteConfig{
 		Logger: hclog.NewNullLogger(),
 	}))
 	require.NoError(t, err)
 	require.False(t, canBind)
 
 	// match
-	listener = NewK8sListener(&gw.Gateway{
+	listener = NewK8sListener(&gwv1beta1.Gateway{
 		ObjectMeta: meta.ObjectMeta{
 			Name: "gateway",
 		},
-	}, gw.Listener{}, K8sListenerConfig{
+	}, gwv1beta1.Listener{}, K8sListenerConfig{
 		Logger: hclog.NewNullLogger(),
 	})
-	canBind, err = listener.CanBind(context.Background(), NewK8sRoute(&gw.HTTPRoute{
-		Spec: gw.HTTPRouteSpec{
-			CommonRouteSpec: gw.CommonRouteSpec{
-				ParentRefs: []gw.ParentRef{{
+	canBind, err = listener.CanBind(context.Background(), NewK8sRoute(&gwv1alpha2.HTTPRoute{
+		Spec: gwv1alpha2.HTTPRouteSpec{
+			CommonRouteSpec: gwv1alpha2.CommonRouteSpec{
+				ParentRefs: []gwv1alpha2.ParentReference{{
 					Name: "gateway",
 				}},
 			},
@@ -505,18 +507,18 @@ func TestListenerCanBind(t *testing.T) {
 	require.True(t, canBind)
 
 	// not ready
-	listener = NewK8sListener(&gw.Gateway{
+	listener = NewK8sListener(&gwv1beta1.Gateway{
 		ObjectMeta: meta.ObjectMeta{
 			Name: "gateway",
 		},
-	}, gw.Listener{}, K8sListenerConfig{
+	}, gwv1beta1.Listener{}, K8sListenerConfig{
 		Logger: hclog.NewNullLogger(),
 	})
 	listener.status.Ready.Invalid = errors.New("invalid")
-	canBind, err = listener.CanBind(context.Background(), NewK8sRoute(&gw.HTTPRoute{
-		Spec: gw.HTTPRouteSpec{
-			CommonRouteSpec: gw.CommonRouteSpec{
-				ParentRefs: []gw.ParentRef{{
+	canBind, err = listener.CanBind(context.Background(), NewK8sRoute(&gwv1alpha2.HTTPRoute{
+		Spec: gwv1alpha2.HTTPRouteSpec{
+			CommonRouteSpec: gwv1alpha2.CommonRouteSpec{
+				ParentRefs: []gwv1alpha2.ParentReference{{
 					Name: "gateway",
 				}},
 			},
@@ -533,27 +535,28 @@ func TestListenerCanBind_RouteKind(t *testing.T) {
 
 	routeMeta := meta.TypeMeta{}
 	routeMeta.SetGroupVersionKind(schema.GroupVersionKind{
-		Group:   gw.GroupVersion.Group,
-		Version: gw.GroupVersion.Version,
+		Group:   gwv1alpha2.GroupVersion.Group,
+		Version: gwv1alpha2.GroupVersion.Version,
 		Kind:    "UDPRoute",
 	})
-	name := gw.SectionName("listener")
+	listenerName := gwv1beta1.SectionName("listener")
+	routeSectionName := gwv1alpha2.SectionName("listener")
 
-	listener := NewK8sListener(&gw.Gateway{
+	listener := NewK8sListener(&gwv1beta1.Gateway{
 		ObjectMeta: meta.ObjectMeta{
 			Name: "gateway",
 		},
-	}, gw.Listener{
-		Protocol: gw.HTTPProtocolType,
+	}, gwv1beta1.Listener{
+		Protocol: gwv1beta1.HTTPProtocolType,
 	}, K8sListenerConfig{
 		Logger: hclog.NewNullLogger(),
 	})
 	require.NoError(t, listener.Validate(context.Background()))
-	canBind, err := listener.CanBind(context.Background(), NewK8sRoute(&gw.UDPRoute{
+	canBind, err := listener.CanBind(context.Background(), NewK8sRoute(&gwv1alpha2.UDPRoute{
 		TypeMeta: routeMeta,
-		Spec: gw.UDPRouteSpec{
-			CommonRouteSpec: gw.CommonRouteSpec{
-				ParentRefs: []gw.ParentRef{{
+		Spec: gwv1alpha2.UDPRouteSpec{
+			CommonRouteSpec: gwv1alpha2.CommonRouteSpec{
+				ParentRefs: []gwv1alpha2.ParentReference{{
 					Name: "gateway",
 				}},
 			},
@@ -564,24 +567,24 @@ func TestListenerCanBind_RouteKind(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, canBind)
 
-	listener = NewK8sListener(&gw.Gateway{
+	listener = NewK8sListener(&gwv1beta1.Gateway{
 		ObjectMeta: meta.ObjectMeta{
 			Name: "gateway",
 		},
-	}, gw.Listener{
-		Name:     name,
-		Protocol: gw.HTTPProtocolType,
+	}, gwv1beta1.Listener{
+		Name:     listenerName,
+		Protocol: gwv1beta1.HTTPProtocolType,
 	}, K8sListenerConfig{
 		Logger: hclog.NewNullLogger(),
 	})
-	listener.supportedKinds = supportedProtocols[gw.HTTPProtocolType]
-	_, err = listener.CanBind(context.Background(), NewK8sRoute(&gw.UDPRoute{
+	listener.supportedKinds = supportedProtocols[gwv1beta1.HTTPProtocolType]
+	_, err = listener.CanBind(context.Background(), NewK8sRoute(&gwv1alpha2.UDPRoute{
 		TypeMeta: routeMeta,
-		Spec: gw.UDPRouteSpec{
-			CommonRouteSpec: gw.CommonRouteSpec{
-				ParentRefs: []gw.ParentRef{{
+		Spec: gwv1alpha2.UDPRouteSpec{
+			CommonRouteSpec: gwv1alpha2.CommonRouteSpec{
+				ParentRefs: []gwv1alpha2.ParentReference{{
 					Name:        "gateway",
-					SectionName: &name,
+					SectionName: &routeSectionName,
 				}},
 			},
 		},
@@ -594,42 +597,43 @@ func TestListenerCanBind_RouteKind(t *testing.T) {
 func TestListenerCanBind_AllowedNamespaces(t *testing.T) {
 	t.Parallel()
 
-	name := gw.SectionName("listener")
-	same := gw.NamespacesFromSame
-	selector := gw.NamespacesFromSelector
-	other := gw.Namespace("other")
+	listenerName := gwv1beta1.SectionName("listener")
+	routeSectionName := gwv1alpha2.SectionName("listener")
+	same := gwv1beta1.NamespacesFromSame
+	selector := gwv1beta1.NamespacesFromSelector
+	other := gwv1alpha2.Namespace("other")
 	routeMeta := meta.TypeMeta{}
 	routeMeta.SetGroupVersionKind(schema.GroupVersionKind{
-		Group:   gw.GroupVersion.Group,
-		Version: gw.GroupVersion.Version,
+		Group:   gwv1beta1.GroupVersion.Group,
+		Version: gwv1beta1.GroupVersion.Version,
 		Kind:    "HTTPRoute",
 	})
 
-	listener := NewK8sListener(&gw.Gateway{
+	listener := NewK8sListener(&gwv1beta1.Gateway{
 		ObjectMeta: meta.ObjectMeta{
 			Name:      "gateway",
 			Namespace: "other",
 		},
-	}, gw.Listener{
-		Name:     name,
-		Protocol: gw.HTTPProtocolType,
-		AllowedRoutes: &gw.AllowedRoutes{
-			Namespaces: &gw.RouteNamespaces{
+	}, gwv1beta1.Listener{
+		Name:     listenerName,
+		Protocol: gwv1beta1.HTTPProtocolType,
+		AllowedRoutes: &gwv1beta1.AllowedRoutes{
+			Namespaces: &gwv1beta1.RouteNamespaces{
 				From: &same,
 			},
 		},
 	}, K8sListenerConfig{
 		Logger: hclog.NewNullLogger(),
 	})
-	listener.supportedKinds = supportedProtocols[gw.HTTPProtocolType]
-	_, err := listener.CanBind(context.Background(), NewK8sRoute(&gw.HTTPRoute{
+	listener.supportedKinds = supportedProtocols[gwv1beta1.HTTPProtocolType]
+	_, err := listener.CanBind(context.Background(), NewK8sRoute(&gwv1alpha2.HTTPRoute{
 		TypeMeta: routeMeta,
-		Spec: gw.HTTPRouteSpec{
-			CommonRouteSpec: gw.CommonRouteSpec{
-				ParentRefs: []gw.ParentRef{{
+		Spec: gwv1alpha2.HTTPRouteSpec{
+			CommonRouteSpec: gwv1alpha2.CommonRouteSpec{
+				ParentRefs: []gwv1alpha2.ParentReference{{
 					Name:        "gateway",
 					Namespace:   &other,
-					SectionName: &name,
+					SectionName: &routeSectionName,
 				}},
 			},
 		},
@@ -637,11 +641,11 @@ func TestListenerCanBind_AllowedNamespaces(t *testing.T) {
 		Logger: hclog.NewNullLogger(),
 	}))
 	require.Error(t, err)
-	canBind, err := listener.CanBind(context.Background(), NewK8sRoute(&gw.HTTPRoute{
+	canBind, err := listener.CanBind(context.Background(), NewK8sRoute(&gwv1alpha2.HTTPRoute{
 		TypeMeta: routeMeta,
-		Spec: gw.HTTPRouteSpec{
-			CommonRouteSpec: gw.CommonRouteSpec{
-				ParentRefs: []gw.ParentRef{{
+		Spec: gwv1alpha2.HTTPRouteSpec{
+			CommonRouteSpec: gwv1alpha2.CommonRouteSpec{
+				ParentRefs: []gwv1alpha2.ParentReference{{
 					Name:      "gateway",
 					Namespace: &other,
 				}},
@@ -653,16 +657,16 @@ func TestListenerCanBind_AllowedNamespaces(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, canBind)
 
-	listener = NewK8sListener(&gw.Gateway{
+	listener = NewK8sListener(&gwv1beta1.Gateway{
 		ObjectMeta: meta.ObjectMeta{
 			Name:      "gateway",
 			Namespace: "other",
 		},
-	}, gw.Listener{
-		Name:     name,
-		Protocol: gw.HTTPProtocolType,
-		AllowedRoutes: &gw.AllowedRoutes{
-			Namespaces: &gw.RouteNamespaces{
+	}, gwv1beta1.Listener{
+		Name:     listenerName,
+		Protocol: gwv1beta1.HTTPProtocolType,
+		AllowedRoutes: &gwv1beta1.AllowedRoutes{
+			Namespaces: &gwv1beta1.RouteNamespaces{
 				From: &selector,
 				Selector: &meta.LabelSelector{
 					MatchExpressions: []meta.LabelSelectorRequirement{{
@@ -675,15 +679,15 @@ func TestListenerCanBind_AllowedNamespaces(t *testing.T) {
 	}, K8sListenerConfig{
 		Logger: hclog.NewNullLogger(),
 	})
-	listener.supportedKinds = supportedProtocols[gw.HTTPProtocolType]
-	_, err = listener.CanBind(context.Background(), NewK8sRoute(&gw.HTTPRoute{
+	listener.supportedKinds = supportedProtocols[gwv1beta1.HTTPProtocolType]
+	_, err = listener.CanBind(context.Background(), NewK8sRoute(&gwv1alpha2.HTTPRoute{
 		TypeMeta: routeMeta,
-		Spec: gw.HTTPRouteSpec{
-			CommonRouteSpec: gw.CommonRouteSpec{
-				ParentRefs: []gw.ParentRef{{
+		Spec: gwv1alpha2.HTTPRouteSpec{
+			CommonRouteSpec: gwv1alpha2.CommonRouteSpec{
+				ParentRefs: []gwv1alpha2.ParentReference{{
 					Name:        "gateway",
 					Namespace:   &other,
-					SectionName: &name,
+					SectionName: &routeSectionName,
 				}},
 			},
 		},
@@ -691,11 +695,11 @@ func TestListenerCanBind_AllowedNamespaces(t *testing.T) {
 		Logger: hclog.NewNullLogger(),
 	}))
 	require.Error(t, err)
-	_, err = listener.CanBind(context.Background(), NewK8sRoute(&gw.HTTPRoute{
+	_, err = listener.CanBind(context.Background(), NewK8sRoute(&gwv1alpha2.HTTPRoute{
 		TypeMeta: routeMeta,
-		Spec: gw.HTTPRouteSpec{
-			CommonRouteSpec: gw.CommonRouteSpec{
-				ParentRefs: []gw.ParentRef{{
+		Spec: gwv1alpha2.HTTPRouteSpec{
+			CommonRouteSpec: gwv1alpha2.CommonRouteSpec{
+				ParentRefs: []gwv1alpha2.ParentReference{{
 					Name:      "gateway",
 					Namespace: &other,
 				}},
@@ -712,49 +716,50 @@ func TestListenerCanBind_HostnameMatch(t *testing.T) {
 
 	routeMeta := meta.TypeMeta{}
 	routeMeta.SetGroupVersionKind(schema.GroupVersionKind{
-		Group:   gw.GroupVersion.Group,
-		Version: gw.GroupVersion.Version,
+		Group:   gwv1beta1.GroupVersion.Group,
+		Version: gwv1beta1.GroupVersion.Version,
 		Kind:    "HTTPRoute",
 	})
-	name := gw.SectionName("listener")
-	hostname := gw.Hostname("hostname")
-	listener := NewK8sListener(&gw.Gateway{
+	listenerName := gwv1beta1.SectionName("listener")
+	routeSectionName := gwv1alpha2.SectionName("listener")
+	hostname := gwv1beta1.Hostname("hostname")
+	listener := NewK8sListener(&gwv1beta1.Gateway{
 		ObjectMeta: meta.ObjectMeta{
 			Name: "gateway",
 		},
-	}, gw.Listener{
-		Name:     name,
+	}, gwv1beta1.Listener{
+		Name:     listenerName,
 		Hostname: &hostname,
-		Protocol: gw.HTTPProtocolType,
+		Protocol: gwv1beta1.HTTPProtocolType,
 	}, K8sListenerConfig{
 		Logger: hclog.NewNullLogger(),
 	})
-	listener.supportedKinds = supportedProtocols[gw.HTTPProtocolType]
-	_, err := listener.CanBind(context.Background(), NewK8sRoute(&gw.HTTPRoute{
+	listener.supportedKinds = supportedProtocols[gwv1beta1.HTTPProtocolType]
+	_, err := listener.CanBind(context.Background(), NewK8sRoute(&gwv1alpha2.HTTPRoute{
 		TypeMeta: routeMeta,
-		Spec: gw.HTTPRouteSpec{
-			CommonRouteSpec: gw.CommonRouteSpec{
-				ParentRefs: []gw.ParentRef{{
+		Spec: gwv1alpha2.HTTPRouteSpec{
+			CommonRouteSpec: gwv1alpha2.CommonRouteSpec{
+				ParentRefs: []gwv1alpha2.ParentReference{{
 					Name:        "gateway",
-					SectionName: &name,
+					SectionName: &routeSectionName,
 				}},
 			},
-			Hostnames: []gw.Hostname{"other"},
+			Hostnames: []gwv1alpha2.Hostname{"other"},
 		},
 	}, K8sRouteConfig{
 		Logger: hclog.NewNullLogger(),
 	}))
 	require.Error(t, err)
 
-	canBind, err := listener.CanBind(context.Background(), NewK8sRoute(&gw.HTTPRoute{
+	canBind, err := listener.CanBind(context.Background(), NewK8sRoute(&gwv1alpha2.HTTPRoute{
 		TypeMeta: routeMeta,
-		Spec: gw.HTTPRouteSpec{
-			CommonRouteSpec: gw.CommonRouteSpec{
-				ParentRefs: []gw.ParentRef{{
+		Spec: gwv1alpha2.HTTPRouteSpec{
+			CommonRouteSpec: gwv1alpha2.CommonRouteSpec{
+				ParentRefs: []gwv1alpha2.ParentReference{{
 					Name: "gateway",
 				}},
 			},
-			Hostnames: []gw.Hostname{"other"},
+			Hostnames: []gwv1alpha2.Hostname{"other"},
 		},
 	}, K8sRouteConfig{
 		Logger: hclog.NewNullLogger(),
@@ -766,27 +771,27 @@ func TestListenerCanBind_HostnameMatch(t *testing.T) {
 func TestListenerCanBind_NameMatch(t *testing.T) {
 	t.Parallel()
 
-	name := gw.SectionName("listener")
-	otherName := gw.SectionName("other")
-	listener := NewK8sListener(&gw.Gateway{
+	listenerName := gwv1beta1.SectionName("listener")
+	otherName := gwv1alpha2.SectionName("other")
+	listener := NewK8sListener(&gwv1beta1.Gateway{
 		ObjectMeta: meta.ObjectMeta{
 			Name: "gateway",
 		},
-	}, gw.Listener{
-		Name:     name,
-		Protocol: gw.HTTPProtocolType,
+	}, gwv1beta1.Listener{
+		Name:     listenerName,
+		Protocol: gwv1beta1.HTTPProtocolType,
 	}, K8sListenerConfig{
 		Logger: hclog.NewNullLogger(),
 	})
-	canBind, err := listener.CanBind(context.Background(), NewK8sRoute(&gw.HTTPRoute{
-		Spec: gw.HTTPRouteSpec{
-			CommonRouteSpec: gw.CommonRouteSpec{
-				ParentRefs: []gw.ParentRef{{
+	canBind, err := listener.CanBind(context.Background(), NewK8sRoute(&gwv1alpha2.HTTPRoute{
+		Spec: gwv1alpha2.HTTPRouteSpec{
+			CommonRouteSpec: gwv1alpha2.CommonRouteSpec{
+				ParentRefs: []gwv1alpha2.ParentReference{{
 					Name:        "gateway",
 					SectionName: &otherName,
 				}},
 			},
-			Hostnames: []gw.Hostname{"other"},
+			Hostnames: []gwv1alpha2.Hostname{"other"},
 		},
 	}, K8sRouteConfig{
 		Logger: hclog.NewNullLogger(),
