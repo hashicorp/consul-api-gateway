@@ -749,26 +749,26 @@ func TestHTTPMeshService(t *testing.T) {
 
 			// Create HTTPRoute
 			routeName := envconf.RandomName("route", 16)
-			port := gwv1beta1.PortNumber(service.Spec.Ports[0].Port)
+			port := gwv1alpha2.PortNumber(service.Spec.Ports[0].Port)
 			path := "/"
-			pathMatch := gwv1beta1.PathMatchExact
-			routeOne := &gwv1beta1.HTTPRoute{
+			pathMatch := gwv1alpha2.PathMatchExact
+			routeOne := &gwv1alpha2.HTTPRoute{
 				ObjectMeta: meta.ObjectMeta{Namespace: namespace, Name: routeName},
-				Spec: gwv1beta1.HTTPRouteSpec{
-					CommonRouteSpec: gwv1beta1.CommonRouteSpec{
-						ParentRefs: []gwv1beta1.ParentReference{{Name: gwv1beta1.ObjectName(gatewayName)}},
+				Spec: gwv1alpha2.HTTPRouteSpec{
+					CommonRouteSpec: gwv1alpha2.CommonRouteSpec{
+						ParentRefs: []gwv1alpha2.ParentReference{{Name: gwv1alpha2.ObjectName(gatewayName)}},
 					},
-					Rules: []gwv1beta1.HTTPRouteRule{{
-						Matches: []gwv1beta1.HTTPRouteMatch{{
-							Path: &gwv1beta1.HTTPPathMatch{
+					Rules: []gwv1alpha2.HTTPRouteRule{{
+						Matches: []gwv1alpha2.HTTPRouteMatch{{
+							Path: &gwv1alpha2.HTTPPathMatch{
 								Type:  &pathMatch,
 								Value: &path,
 							},
 						}},
-						BackendRefs: []gwv1beta1.HTTPBackendRef{{
-							BackendRef: gwv1beta1.BackendRef{
-								BackendObjectReference: gwv1beta1.BackendObjectReference{
-									Name: gwv1beta1.ObjectName(service.Name),
+						BackendRefs: []gwv1alpha2.HTTPBackendRef{{
+							BackendRef: gwv1alpha2.BackendRef{
+								BackendObjectReference: gwv1alpha2.BackendObjectReference{
+									Name: gwv1alpha2.ObjectName(service.Name),
 									Port: &port,
 								},
 							},
