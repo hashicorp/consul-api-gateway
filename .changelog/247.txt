@@ -1,3 +1,3 @@
 ```release-note:bug
-Reconfigure HTTPRoutes and TCPRoutes when the Kubernetes Service(s) that they reference are modified
+Revalidate HTTPRoutes and TCPRoutes and update status when the Kubernetes Service(s) that they reference are modified
 ```
