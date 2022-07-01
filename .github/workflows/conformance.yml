@@ -1,9 +1,6 @@
 name: Conformance (Main)
 
 on:
-  push:
-    branches: ["tf-conformance"]
-
   schedule:
     - cron:  '0 0 * * *'
 
