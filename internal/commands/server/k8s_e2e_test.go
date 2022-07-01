@@ -507,8 +507,6 @@ func TestHTTPRouteFlattening(t *testing.T) {
 func TestHTTPMeshService(t *testing.T) {
 	feature := features.New("mesh service routing").
 		Assess("basic routing", func(ctx context.Context, t *testing.T, cfg *envconf.Config) context.Context {
-			t.Skip()
-
 			serviceOne, err := e2e.DeployHTTPMeshService(ctx, cfg)
 			require.NoError(t, err)
 			serviceTwo, err := e2e.DeployHTTPMeshService(ctx, cfg)

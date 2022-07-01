@@ -131,6 +131,24 @@ func TestHTTPRouteServiceToRouteRequests(t *testing.T) {
 				}},
 			},
 		},
+                // Include one route in the same namespace that does not reference the Service
+		&gw.HTTPRoute{
+			ObjectMeta: metav1.ObjectMeta{Namespace: "namespace-1", Name: "route-3"},
+			Spec: gw.HTTPRouteSpec{
+				Rules: []gw.HTTPRouteRule{{
+					BackendRefs: []gw.HTTPBackendRef{},
+				}},
+			},
+		},
+                // Include one route in a different namespace that does not reference the Service
+		&gw.HTTPRoute{
+			ObjectMeta: metav1.ObjectMeta{Namespace: "namespace-2", Name: "route-4"},
+			Spec: gw.HTTPRouteSpec{
+				Rules: []gw.HTTPRouteRule{{
+					BackendRefs: []gw.HTTPBackendRef{},
+				}},
+			},
+		},
 	)
 
 	controller := &HTTPRouteReconciler{
