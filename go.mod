@@ -18,7 +18,7 @@ require (
 	github.com/hashicorp/go-multierror v1.1.0
 	github.com/mitchellh/cli v1.1.4
 	github.com/prometheus/client_golang v1.12.1
-	github.com/stretchr/testify v1.7.2
+	github.com/stretchr/testify v1.8.0
 	github.com/vladimirvivien/gexe v0.1.1
 	golang.org/x/exp v0.0.0-20220518171630-0b5c67f07fdf
 	golang.org/x/net v0.0.0-20220225172249-27dd8689420f
