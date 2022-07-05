@@ -22,7 +22,7 @@ endif
 REVISION = $(shell git rev-parse HEAD)
 
 # Kubernetes-specific stuff
-CRD_OPTIONS ?= "crd:trivialVersions=true,allowDangerousTypes=true"
+CRD_OPTIONS ?= "crd:allowDangerousTypes=true"
 
 ################
 
@@ -106,7 +106,7 @@ ctrl-generate: controller-gen
 .PHONY: controller-gen
 controller-gen:
 ifeq (, $(shell which controller-gen))
-	@go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.6.0
+	@go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.9.2
 endif
 CONTROLLER_GEN=$(shell which controller-gen)
 
