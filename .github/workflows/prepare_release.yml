@@ -118,3 +118,6 @@ jobs:
             - consul: `${{ env.NEW_CONSUL_REQ }}`
             - consul-k8s: `${{ env.NEW_CONSUL_K8S_REQ }}`
           create_branch: true
+
+      - name: Output link to status
+        run: echo '[Create a Pull Request with these changes ](https://github.com/hashicorp/consul-api-gateway/pull/new/v${{ env.NEW_API_GATEWAY_VERSION }}-release-prep)' >> $GITHUB_STEP_SUMMARY
