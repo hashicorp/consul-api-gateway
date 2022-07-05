@@ -12,8 +12,8 @@ require (
 	github.com/go-logr/logr v1.2.0
 	github.com/golang/mock v1.6.0
 	github.com/google/uuid v1.2.0
-	github.com/hashicorp/consul/api v1.12.1-0.20220111183205-dcf1cd485363
-	github.com/hashicorp/consul/sdk v0.8.0
+	github.com/hashicorp/consul/api v1.13.0
+	github.com/hashicorp/consul/sdk v0.9.0
 	github.com/hashicorp/go-hclog v0.16.2
 	github.com/hashicorp/go-multierror v1.1.0
 	github.com/mitchellh/cli v1.1.2
@@ -67,7 +67,7 @@ require (
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/google/gnostic v0.5.7-v3refs // indirect
-	github.com/google/go-cmp v0.5.6 // indirect
+	github.com/google/go-cmp v0.5.7 // indirect
 	github.com/google/gofuzz v1.1.0 // indirect
 	github.com/gorilla/mux v1.8.0 // indirect
 	github.com/hashicorp/errwrap v1.0.0 // indirect
@@ -88,7 +88,6 @@ require (
 	github.com/matttproud/golang_protobuf_extensions v1.0.2-0.20181231171920-c182affec369 // indirect
 	github.com/mitchellh/copystructure v1.0.0 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
-	github.com/mitchellh/go-testing-interface v1.0.0 // indirect
 	github.com/mitchellh/mapstructure v1.4.1 // indirect
 	github.com/mitchellh/reflectwalk v1.0.0 // indirect
 	github.com/moby/sys/mount v0.2.0 // indirect
