@@ -3,7 +3,7 @@ module github.com/hashicorp/consul-api-gateway
 go 1.18
 
 require (
-	github.com/armon/go-metrics v0.3.9
+	github.com/armon/go-metrics v0.4.0
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/docker/docker v20.10.17+incompatible
 	github.com/envoyproxy/go-control-plane v0.9.10-0.20211015211602-cfdef0997689
