@@ -9,7 +9,7 @@ require (
 	github.com/envoyproxy/go-control-plane v0.9.10-0.20211015211602-cfdef0997689
 	github.com/getkin/kin-openapi v0.97.0
 	github.com/go-chi/chi/v5 v5.0.7
-	github.com/go-logr/logr v1.2.0
+	github.com/go-logr/logr v1.2.3
 	github.com/golang/mock v1.6.0
 	github.com/google/uuid v1.3.0
 	github.com/hashicorp/consul/api v1.13.0
