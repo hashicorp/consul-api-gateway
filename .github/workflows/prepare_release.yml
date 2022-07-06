@@ -107,17 +107,27 @@ jobs:
             ${{ env.CHANGELOG_PATCH }}
           regex: false
 
-      - name: Create branch
-        uses: stefanzweifel/git-auto-commit-action@49620cd3ed21ee620a48530e81dba0d139c9cb80
+      - name: Create pull request
+        id: create-pr
+        uses: peter-evans/create-pull-request@923ad837f191474af6b1721408744feb989a4c27
         with:
-          branch: 'v${{ env.NEW_API_GATEWAY_VERSION }}-release-prep'
-          commit_message: |
+          body: |
             Prepare for release of v${{ env.NEW_API_GATEWAY_VERSION }}
             Consul API Gateway version being released: `${{ env.NEW_API_GATEWAY_VERSION }}`
             Now requires:
             - consul: `${{ env.NEW_CONSUL_REQ }}`
             - consul-k8s: `${{ env.NEW_CONSUL_K8S_REQ }}`
-          create_branch: true
+          branch: 'v${{ env.NEW_API_GATEWAY_VERSION }}-release-prep'
+          commit-message: |
+            Prepare for release of v${{ env.NEW_API_GATEWAY_VERSION }}
+            Consul API Gateway version being released: `${{ env.NEW_API_GATEWAY_VERSION }}`
+            Now requires:
+            - consul: `${{ env.NEW_CONSUL_REQ }}`
+            - consul-k8s: `${{ env.NEW_CONSUL_K8S_REQ }}`
+          delete-branch: true
+          labels: 'pr/no-changelog'
+          title: 'Prepare for release of v${{ env.NEW_API_GATEWAY_VERSION }}'
+          token: ${{ secrets.ELEVATED_GITHUB_TOKEN }}
 
-      - name: Output link to status
-        run: echo '[Create a Pull Request with these changes ](https://github.com/hashicorp/consul-api-gateway/pull/new/v${{ env.NEW_API_GATEWAY_VERSION }}-release-prep)' >> $GITHUB_STEP_SUMMARY
+      - name: Output link to PR
+        run: echo '[Resulting PR](${{ steps.create-pr.outputs.pull-request-url }})' >> $GITHUB_STEP_SUMMARY
