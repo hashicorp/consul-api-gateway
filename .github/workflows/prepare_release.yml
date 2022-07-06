@@ -112,7 +112,6 @@ jobs:
         uses: peter-evans/create-pull-request@923ad837f191474af6b1721408744feb989a4c27
         with:
           body: |
-            Prepare for release of v${{ env.NEW_API_GATEWAY_VERSION }}
             Consul API Gateway version being released: `${{ env.NEW_API_GATEWAY_VERSION }}`
             Now requires:
             - consul: `${{ env.NEW_CONSUL_REQ }}`
