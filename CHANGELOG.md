@@ -1,5 +1,18 @@
 ## UNRELEASED
 
+## 0.4.0 (July 06, 2022)
+DEPRECATIONS:
+
+* gateway-api: ReferencePolicy is deprecated and will be removed in a future release. The functionally identical ReferenceGrant should be used instead. [[GH-224](https://github.com/hashicorp/consul-api-gateway/issues/224)]
+
+FEATURES:
+
+* gateway-api: update to the [v0.5.0-rc1](https://github.com/kubernetes-sigs/gateway-api/releases/tag/v0.5.0-rc1) release with v1beta1 resource support [[GH-224](https://github.com/hashicorp/consul-api-gateway/issues/224)]
+
+BUG FIXES:
+
+* Revalidate HTTPRoutes and TCPRoutes and update status when the Kubernetes Service(s) that they reference are modified [[GH-247](https://github.com/hashicorp/consul-api-gateway/issues/247)]
+
 ## 0.3.0 (June 21, 2022)
 BREAKING CHANGES:
 
