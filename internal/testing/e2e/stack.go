@@ -27,7 +27,7 @@ func SetUpStack(hostRoute string) env.Func {
 			SetNamespace(namespace),
 			CrossCompileProject,
 			BuildDockerImage,
-			CreateKindCluster(kindClusterName),
+			envfuncs.CreateKindCluster(kindClusterName),
 			LoadKindDockerImage(kindClusterName),
 			envfuncs.CreateNamespace(namespace),
 			InstallCRDs,
@@ -54,7 +54,7 @@ func TearDownStack(ctx context.Context, cfg *envconf.Config) (context.Context, e
 	for _, f := range []env.Func{
 		DestroyTestGatewayServer,
 		envfuncs.DeleteNamespace(namespace),
-		DestroyKindCluster(ClusterName(ctx)),
+		envfuncs.DestroyKindCluster(ClusterName(ctx)),
 	} {
 		ctx, err = f(ctx, cfg)
 		if err != nil {

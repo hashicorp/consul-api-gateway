@@ -216,49 +216,6 @@ func (k *kindCluster) Destroy() error {
 	return nil
 }
 
-// https://github.com/kubernetes-sigs/e2e-framework/blob/63fa8b05c52cc136a3e529b9f9f812b061cea165/pkg/envfuncs/kind_funcs.go#L38
-func CreateKindCluster(clusterName string) env.Func {
-	return func(ctx context.Context, cfg *envconf.Config) (context.Context, error) {
-		k := newKindCluster(clusterName)
-		kubecfg, err := k.Create()
-		if err != nil {
-			return ctx, err
-		}
-
-		// stall, wait for pods initializations
-		time.Sleep(7 * time.Second)
-
-		// update envconfig  with kubeconfig
-		if _, err := cfg.WithKubeconfigFile(kubecfg); err != nil {
-			return ctx, fmt.Errorf("create kind cluster func: update envconfig: %w", err)
-		}
-
-		// store entire cluster value in ctx for future access using the cluster name
-		return context.WithValue(ctx, kindContextKey(clusterName), k), nil
-	}
-}
-
-// https://github.com/kubernetes-sigs/e2e-framework/blob/63fa8b05c52cc136a3e529b9f9f812b061cea165/pkg/envfuncs/kind_funcs.go#L64
-func DestroyKindCluster(name string) env.Func {
-	return func(ctx context.Context, cfg *envconf.Config) (context.Context, error) {
-		clusterVal := ctx.Value(kindContextKey(name))
-		if clusterVal == nil {
-			return ctx, fmt.Errorf("destroy kind cluster func: context cluster is nil")
-		}
-
-		cluster, ok := clusterVal.(*kindCluster)
-		if !ok {
-			return ctx, fmt.Errorf("destroy kind cluster func: unexpected type for cluster value")
-		}
-
-		if err := cluster.Destroy(); err != nil {
-			return ctx, fmt.Errorf("destroy kind cluster: %w", err)
-		}
-
-		return ctx, nil
-	}
-}
-
 func LoadKindDockerImage(clusterName string) env.Func {
 	return func(ctx context.Context, cfg *envconf.Config) (context.Context, error) {
 		log.Println("Loading docker image into kind cluster")
