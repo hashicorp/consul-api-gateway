@@ -9,7 +9,7 @@ import (
 	reflect "reflect"
 	time "time"
 
-	envoy_extensions_transport_sockets_tls_v3 "github.com/envoyproxy/go-control-plane/envoy/extensions/transport_sockets/tls/v3"
+	tlsv3 "github.com/envoyproxy/go-control-plane/envoy/extensions/transport_sockets/tls/v3"
 	types "github.com/envoyproxy/go-control-plane/pkg/cache/types"
 	gomock "github.com/golang/mock/gomock"
 )
@@ -89,10 +89,10 @@ func (m *MockSecretClient) EXPECT() *MockSecretClientMockRecorder {
 }
 
 // FetchSecret mocks base method.
-func (m *MockSecretClient) FetchSecret(ctx context.Context, name string) (*envoy_extensions_transport_sockets_tls_v3.Secret, time.Time, error) {
+func (m *MockSecretClient) FetchSecret(ctx context.Context, name string) (*tlsv3.Secret, time.Time, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchSecret", ctx, name)
-	ret0, _ := ret[0].(*envoy_extensions_transport_sockets_tls_v3.Secret)
+	ret0, _ := ret[0].(*tlsv3.Secret)
 	ret1, _ := ret[1].(time.Time)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
