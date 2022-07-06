@@ -27,7 +27,7 @@ func SetUpStack(hostRoute string) env.Func {
 			SetNamespace(namespace),
 			CrossCompileProject,
 			BuildDockerImage,
-			envfuncs.CreateKindCluster(kindClusterName),
+			CreateKindCluster(kindClusterName),
 			LoadKindDockerImage(kindClusterName),
 			envfuncs.CreateNamespace(namespace),
 			InstallCRDs,
