@@ -12,10 +12,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/hashicorp/consul-api-gateway/internal/common"
-	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/consul/sdk/testutil"
+
+	"github.com/hashicorp/consul-api-gateway/internal/common"
+	"github.com/hashicorp/consul-api-gateway/internal/core"
 )
 
 var (
@@ -151,6 +152,10 @@ func TestHTTPRouteDiscoveryChain(t *testing.T) {
 }
 
 func TestConsulSyncAdapter_Sync(t *testing.T) {
+	if generate {
+		t.Skip("Skipping for generate due to consul binary dependency")
+	}
+
 	t.Parallel()
 
 	ctx, cancel := context.WithCancel(context.Background())
