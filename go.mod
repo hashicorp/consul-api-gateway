@@ -15,7 +15,7 @@ require (
 	github.com/hashicorp/consul/api v1.13.0
 	github.com/hashicorp/consul/sdk v0.9.0
 	github.com/hashicorp/go-hclog v1.2.1
-	github.com/hashicorp/go-multierror v1.1.0
+	github.com/hashicorp/go-multierror v1.1.1
 	github.com/mitchellh/cli v1.1.4
 	github.com/prometheus/client_golang v1.12.2
 	github.com/stretchr/testify v1.8.0
