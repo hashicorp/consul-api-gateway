@@ -173,11 +173,13 @@ func (s *Store) SyncAtInterval(ctx context.Context) {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
+				s.mutex.RLock()
 				if err := s.sync(ctx); err != nil {
 					s.logger.Warn("An error occurred during memory store sync, some changes may be out of sync", "error", err)
 				} else {
 					s.logger.Trace("Synced memory store in background")
 				}
+				s.mutex.RUnlock()
 			}
 		}
 	})
