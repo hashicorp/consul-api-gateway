@@ -1,0 +1,3 @@
+```release-note:bug
+Sync in-memory store to Consul at a regular interval in the background
+```
