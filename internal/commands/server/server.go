@@ -64,7 +64,10 @@ func RunServer(config ServerConfig) int {
 		Adapter: consulAdapters.NewSyncAdapter(config.Logger.Named("consul-adapter"), consulClient),
 		Logger:  config.Logger.Named("state"),
 	})
-	store.SyncAtInterval(groupCtx)
+	group.Go(func() error {
+		store.SyncAtInterval(groupCtx)
+		return nil
+	})
 
 	controller.SetConsul(consulClient)
 	controller.SetStore(store)
