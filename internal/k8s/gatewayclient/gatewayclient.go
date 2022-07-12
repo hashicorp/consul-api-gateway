@@ -538,31 +538,30 @@ func (g *gatewayClient) GetReferenceGrantsInNamespace(ctx context.Context, names
 	}
 	refGrants := refGrantList.Items
 
-	// TODO: this can't be enabled until the ReferencePolicy object is restored
-	// lookup ReferencePolicies here too for backwards compatibility, create
-	// ReferenceGrants from them and add to list
-	// refPolicyList := &gwv1alpha2.ReferencePolicyList{}
-	// if err := g.Client.List(ctx, refPolicyList, client.InNamespace(namespace)); err != nil {
-	// 	return nil, NewK8sError(err)
-	// }
-	// for _, refPolicy := range refPolicyList {
-	// 	refGrant := gwv1alpha2.ReferenceGrant{}
-	// 	for _, refPolicyFrom := range refPolicy.Spec.From {
-	// 		refGrant.Spec.From = append(refGrant.Spec.From, gwv1alpha2.ReferenceGrantFrom{
-	// 			Group:     refPolicyFrom.Group,
-	// 			Kind:      refPolicyFrom.Kind,
-	// 			Namespace: refPolicyFrom.Namespace,
-	// 		})
-	// 	}
-	// 	for _, refPolicyTo := range refPolicy.Spec.To {
-	// 		refGrant.Spec.To = append(refGrant.Spec.To, gwv1alpha2.ReferenceGrantTo{
-	// 			Group: refPolicyTo.Group,
-	// 			Kind:  refPolicyTo.Kind,
-	// 			Name:  refPolicyTo.Name,
-	// 		})
-	// 	}
-	// 	refGrants = append(refGrants, refGrant)
-	// }
+	// Lookup ReferencePolicies here too for backwards compatibility, create
+	// ReferenceGrants from them, and add them to list
+	refPolicyList := &gwv1alpha2.ReferencePolicyList{}
+	if err := g.Client.List(ctx, refPolicyList, client.InNamespace(namespace)); err != nil {
+		return nil, NewK8sError(err)
+	}
+	for _, refPolicy := range refPolicyList.Items {
+		refGrant := gwv1alpha2.ReferenceGrant{}
+		for _, refPolicyFrom := range refPolicy.Spec.From {
+			refGrant.Spec.From = append(refGrant.Spec.From, gwv1alpha2.ReferenceGrantFrom{
+				Group:     refPolicyFrom.Group,
+				Kind:      refPolicyFrom.Kind,
+				Namespace: refPolicyFrom.Namespace,
+			})
+		}
+		for _, refPolicyTo := range refPolicy.Spec.To {
+			refGrant.Spec.To = append(refGrant.Spec.To, gwv1alpha2.ReferenceGrantTo{
+				Group: refPolicyTo.Group,
+				Kind:  refPolicyTo.Kind,
+				Name:  refPolicyTo.Name,
+			})
+		}
+		refGrants = append(refGrants, refGrant)
+	}
 
 	return refGrants, nil
 }
