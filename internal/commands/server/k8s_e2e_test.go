@@ -627,7 +627,7 @@ func TestHTTPRoutePathRewrite(t *testing.T) {
 
 			checkRoute(t, checkPort, invalidPath, httpResponse{
 				StatusCode: http.StatusOK,
-				Body:       invalid.Name,
+				Body:       invalidService.Name,
 			}, map[string]string{
 				"Host": "test.foo",
 			}, "invalid not routable in allotted time")
