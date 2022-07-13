@@ -550,11 +550,13 @@ func TestHTTPRoutePathRewrite(t *testing.T) {
 
 					Rules: []gwv1alpha2.HTTPRouteRule{{
 						Filters: []gwv1alpha2.HTTPRouteFilter{
-							Type: gwv1alpha2.HTTPRouteFilterURLRewrite,
-							URLRewrite: &gwv1alpha2.HTTPURLRewriteFilter{
-								Path: &gwv1alpha2.HTTPPathModifier{
-									Type:               gwv1alpha2.PrefixMatchHTTPPathModifier,
-									ReplacePrefixMatch: &invalidPrefixMatch,
+							{
+								Type: gwv1alpha2.HTTPRouteFilterURLRewrite,
+								URLRewrite: &gwv1alpha2.HTTPURLRewriteFilter{
+									Path: &gwv1alpha2.HTTPPathModifier{
+										Type:               gwv1alpha2.PrefixMatchHTTPPathModifier,
+										ReplacePrefixMatch: &invalidPrefixMatch,
+									},
 								},
 							},
 						},
