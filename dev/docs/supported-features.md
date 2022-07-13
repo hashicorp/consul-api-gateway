@@ -102,13 +102,13 @@ Supported features are marked with a grey checkbox
         - [x] Header modification
           - [x] Set headers
           - [x] Add headers
-         - [x] Remove headers
-       - [ ] Request mirroring
-       - [ ] Request redirecting
-       - [ ] URL Rewrite
-         - [x] Path Prefix Rewrite
-         - [ ] Full Path Rewrite
-       - [x] Extensions *not supported*
+          - [x] Remove headers
+        - [ ] Request mirroring
+        - [ ] Request redirecting
+        - [ ] URL Rewrite
+          - [x] Path Prefix Rewrite
+          - [ ] Full Path Rewrite
+        - [x] Extensions *not supported*
     - [ ] Backend Refs
       - [ ] Filters (see above)
       - [x] References
