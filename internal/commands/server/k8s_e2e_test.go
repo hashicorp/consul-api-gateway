@@ -518,7 +518,6 @@ func TestHTTPRoutePathRewrite(t *testing.T) {
 			validRouteName := envconf.RandomName("route", 16)
 
 			prefixMatch := gwv1alpha2.PathMatchPathPrefix
-			headerMatch := gwv1alpha2.HeaderMatchExact
 
 			resources := cfg.Client().Resources(namespace)
 
@@ -569,7 +568,7 @@ func TestHTTPRoutePathRewrite(t *testing.T) {
 						BackendRefs: []gwv1alpha2.HTTPBackendRef{{
 							BackendRef: gwv1alpha2.BackendRef{
 								BackendObjectReference: gwv1alpha2.BackendObjectReference{
-									Name: gwv1alpha2.ObjectName(service.Name),
+									Name: gwv1alpha2.ObjectName(invalidService.Name),
 									Port: &port,
 								},
 							},
@@ -596,11 +595,13 @@ func TestHTTPRoutePathRewrite(t *testing.T) {
 
 					Rules: []gwv1alpha2.HTTPRouteRule{{
 						Filters: []gwv1alpha2.HTTPRouteFilter{
-							Type: gwv1alpha2.HTTPRouteFilterURLRewrite,
-							URLRewrite: &gwv1alpha2.HTTPURLRewriteFilter{
-								Path: &gwv1alpha2.HTTPPathModifier{
-									Type:               gwv1alpha2.PrefixMatchHTTPPathModifier,
-									ReplacePrefixMatch: &validPrefixMatch,
+							{
+								Type: gwv1alpha2.HTTPRouteFilterURLRewrite,
+								URLRewrite: &gwv1alpha2.HTTPURLRewriteFilter{
+									Path: &gwv1alpha2.HTTPPathModifier{
+										Type:               gwv1alpha2.PrefixMatchHTTPPathModifier,
+										ReplacePrefixMatch: &validPrefixMatch,
+									},
 								},
 							},
 						},
