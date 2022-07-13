@@ -515,7 +515,7 @@ func TestHTTPRoutePathRewrite(t *testing.T) {
 			namespace := e2e.Namespace(ctx)
 			gatewayName := envconf.RandomName("gw", 16)
 			invalidRouteName := envconf.RandomName("route", 16)
-			validRrouteName := envconf.RandomName("route", 16)
+			validRouteName := envconf.RandomName("route", 16)
 
 			prefixMatch := gwv1alpha2.PathMatchPathPrefix
 			headerMatch := gwv1alpha2.HeaderMatchExact
@@ -530,7 +530,7 @@ func TestHTTPRoutePathRewrite(t *testing.T) {
 			gw := createGateway(ctx, t, resources, gatewayName, namespace, gc, []gwv1beta1.Listener{httpsListener})
 			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionReady), checkTimeout, checkInterval, "no gateway found in the allotted time")
 
-			port := gwv1alpha2.PortNumber(serviceOne.Spec.Ports[0].Port)
+			port := gwv1alpha2.PortNumber(invalidService.Spec.Ports[0].Port)
 			validPath := "/foo"
 			invalidPath := "/bar"
 			invalidPrefixMatch := "/v1/invalid"
@@ -578,6 +578,7 @@ func TestHTTPRoutePathRewrite(t *testing.T) {
 			err = resources.Create(ctx, invalidRoute)
 			require.NoError(t, err)
 
+			port = gwv1alpha2.PortNumber(validService.Spec.Ports[0].Port)
 			validRoute := &gwv1alpha2.HTTPRoute{
 				ObjectMeta: meta.ObjectMeta{
 					Name:      validRouteName,
@@ -610,7 +611,7 @@ func TestHTTPRoutePathRewrite(t *testing.T) {
 						BackendRefs: []gwv1alpha2.HTTPBackendRef{{
 							BackendRef: gwv1alpha2.BackendRef{
 								BackendObjectReference: gwv1alpha2.BackendObjectReference{
-									Name: gwv1alpha2.ObjectName(service.Name),
+									Name: gwv1alpha2.ObjectName(validService.Name),
 									Port: &port,
 								},
 							},
