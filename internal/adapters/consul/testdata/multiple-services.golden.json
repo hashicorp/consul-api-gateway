@@ -13,6 +13,7 @@
         "Destination": {
           "Service": "multiple-services-0",
           "Namespace": "k8s",
+          "PrefixRewrite": "/",
           "RequestHeaders": {
             "Add": {
               "x-add": "2",
