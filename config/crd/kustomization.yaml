@@ -2,6 +2,6 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 resources:
-- github.com/kubernetes-sigs/gateway-api/config/crd/experimental?ref=v0.5.0-rc2
+- github.com/kubernetes-sigs/gateway-api/config/crd/experimental?ref=v0.5.0
 - bases/api-gateway.consul.hashicorp.com_gatewayclassconfigs.yaml
 - bases/api-gateway.consul.hashicorp.com_meshservices.yaml
