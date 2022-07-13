@@ -11,6 +11,7 @@ type HTTPFilterType int
 const (
 	HTTPHeaderFilterType HTTPFilterType = iota
 	HTTPRedirectFilterType
+	HTTPURLRewriteFilterType
 )
 
 type HTTPHeaderFilter struct {
@@ -26,10 +27,22 @@ type HTTPRedirectFilter struct {
 	Status   int
 }
 
+type URLRewriteType int
+
+const (
+	ReplacePrefixMatchURLRewriteType = iota
+)
+
+type HTTPURLRewriteFilter struct {
+	Type               URLRewriteType
+	ReplacePrefixMatch string
+}
+
 type HTTPFilter struct {
-	Type     HTTPFilterType
-	Header   HTTPHeaderFilter
-	Redirect HTTPRedirectFilter
+	Type       HTTPFilterType
+	Header     HTTPHeaderFilter
+	Redirect   HTTPRedirectFilter
+	URLRewrite HTTPURLRewriteFilter
 }
 
 type HTTPMethod int
