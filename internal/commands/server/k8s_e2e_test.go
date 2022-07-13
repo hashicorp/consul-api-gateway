@@ -621,18 +621,18 @@ func TestHTTPRoutePathRewrite(t *testing.T) {
 			err = resources.Create(ctx, validRoute)
 			require.NoError(t, err)
 
-			checkRoute(t, checkPort, "/foo", httpResponse{
+			checkRoute(t, checkPort, invalidPath, httpResponse{
 				StatusCode: http.StatusOK,
-				Body:       serviceTwo.Name,
+				Body:       invalid.Name,
 			}, map[string]string{
 				"Host": "test.foo",
-			}, "service two not routable in allotted time")
-			checkRoute(t, checkPort, "/bar", httpResponse{
+			}, "invalid not routable in allotted time")
+			checkRoute(t, checkPort, validPath, httpResponse{
 				StatusCode: http.StatusOK,
-				Body:       invalidService.Name,
+				Body:       validService.Name,
 			}, map[string]string{
 				"Host": "test.foo",
-			}, "service one not routable in allotted time")
+			}, "valid service not routable in allotted time")
 
 			err = resources.Delete(ctx, gw)
 			require.NoError(t, err)
