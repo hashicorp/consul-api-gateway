@@ -6,8 +6,9 @@ import (
 	"sort"
 	"strconv"
 
-	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul/api"
+
+	"github.com/hashicorp/consul-api-gateway/internal/core"
 )
 
 // httpRouteDiscoveryChain will convert a k8s HTTPRoute to a Consul service-router config entry and 0 or
@@ -23,6 +24,7 @@ func httpRouteDiscoveryChain(route core.HTTPRoute) (*api.ServiceRouterConfigEntr
 
 	for idx, rule := range route.Rules {
 		modifier := httpRouteFiltersToServiceRouteHeaderModifier(rule.Filters)
+		prefixRewrite := httpRouteFiltersToDestinationPrefixRewrite(rule.Filters)
 
 		var destination core.ResolvedService
 		if len(rule.Services) == 1 {
@@ -76,25 +78,40 @@ func httpRouteDiscoveryChain(route core.HTTPRoute) (*api.ServiceRouterConfigEntr
 		if len(rule.Matches) == 0 {
 			router.Routes = append(router.Routes, api.ServiceRoute{
 				Destination: &api.ServiceRouteDestination{
-					Service:        destination.Service,
-					RequestHeaders: modifier,
 					Namespace:      destination.ConsulNamespace,
+					PrefixRewrite:  prefixRewrite,
+					RequestHeaders: modifier,
+					Service:        destination.Service,
 				},
 			})
 		}
+
 		for _, match := range rule.Matches {
 			router.Routes = append(router.Routes, api.ServiceRoute{
 				Match: &api.ServiceRouteMatch{HTTP: httpRouteMatchToServiceRouteHTTPMatch(match)},
 				Destination: &api.ServiceRouteDestination{
-					Service:        destination.Service,
-					RequestHeaders: modifier,
 					Namespace:      destination.ConsulNamespace,
+					PrefixRewrite:  prefixRewrite,
+					RequestHeaders: modifier,
+					Service:        destination.Service,
 				},
 			})
 		}
 	}
 
 	return router, splitters
+}
+
+func httpRouteFiltersToDestinationPrefixRewrite(filters []core.HTTPFilter) string {
+	for _, filter := range filters {
+		switch filter.Type {
+		case core.HTTPURLRewriteFilterType:
+			if filter.URLRewrite.Type == core.ReplacePrefixMatchURLRewriteType {
+				return filter.URLRewrite.ReplacePrefixMatch
+			}
+		}
+	}
+	return ""
 }
 
 // httpRouteFiltersToServiceRouteHeaderModifier will consolidate a list of HTTP filters

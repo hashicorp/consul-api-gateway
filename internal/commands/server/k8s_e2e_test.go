@@ -503,6 +503,150 @@ func TestHTTPRouteFlattening(t *testing.T) {
 	testenv.Test(t, feature.Feature())
 }
 
+func TestHTTPRoutePathRewrite(t *testing.T) {
+	feature := features.New("http url path rewrite").
+		Assess("prefix rewrite", func(ctx context.Context, t *testing.T, cfg *envconf.Config) context.Context {
+			invalidService, err := e2e.DeployHTTPMeshService(ctx, cfg)
+			require.NoError(t, err)
+
+			validService, err := e2e.DeployHTTPMeshService(ctx, cfg)
+			require.NoError(t, err)
+
+			namespace := e2e.Namespace(ctx)
+			gatewayName := envconf.RandomName("gw", 16)
+			invalidRouteName := envconf.RandomName("route", 16)
+			validRouteName := envconf.RandomName("route", 16)
+
+			prefixMatch := gwv1alpha2.PathMatchPathPrefix
+
+			resources := cfg.Client().Resources(namespace)
+
+			_, gc := createGatewayClass(ctx, t, resources)
+			require.Eventually(t, gatewayClassStatusCheck(ctx, resources, gc.Name, namespace, conditionAccepted), checkTimeout, checkInterval, "gatewayclass not accepted in the allotted time")
+
+			checkPort := e2e.HTTPFlattenedPort(ctx)
+			httpsListener := createHTTPSListener(ctx, t, gwv1beta1.PortNumber(checkPort))
+			gw := createGateway(ctx, t, resources, gatewayName, namespace, gc, []gwv1beta1.Listener{httpsListener})
+			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionReady), checkTimeout, checkInterval, "no gateway found in the allotted time")
+
+			port := gwv1alpha2.PortNumber(invalidService.Spec.Ports[0].Port)
+			validPath := "/foo"
+			invalidPath := "/bar"
+			invalidPrefixMatch := "/v1/invalid"
+			validPrefixMatch := "/v1/api"
+			invalidRoute := &gwv1alpha2.HTTPRoute{
+				ObjectMeta: meta.ObjectMeta{
+					Name:      invalidRouteName,
+					Namespace: namespace,
+				},
+				Spec: gwv1alpha2.HTTPRouteSpec{
+					CommonRouteSpec: gwv1alpha2.CommonRouteSpec{
+						ParentRefs: []gwv1alpha2.ParentReference{{
+							Name: gwv1alpha2.ObjectName(gatewayName),
+						}},
+					},
+					Hostnames: []gwv1alpha2.Hostname{"test.foo"},
+
+					Rules: []gwv1alpha2.HTTPRouteRule{{
+						Filters: []gwv1alpha2.HTTPRouteFilter{
+							{
+								Type: gwv1alpha2.HTTPRouteFilterURLRewrite,
+								URLRewrite: &gwv1alpha2.HTTPURLRewriteFilter{
+									Path: &gwv1alpha2.HTTPPathModifier{
+										Type:               gwv1alpha2.PrefixMatchHTTPPathModifier,
+										ReplacePrefixMatch: &invalidPrefixMatch,
+									},
+								},
+							},
+						},
+						Matches: []gwv1alpha2.HTTPRouteMatch{{
+							Path: &gwv1alpha2.HTTPPathMatch{
+								Type:  &prefixMatch,
+								Value: &invalidPath,
+							},
+						}},
+						BackendRefs: []gwv1alpha2.HTTPBackendRef{{
+							BackendRef: gwv1alpha2.BackendRef{
+								BackendObjectReference: gwv1alpha2.BackendObjectReference{
+									Name: gwv1alpha2.ObjectName(invalidService.Name),
+									Port: &port,
+								},
+							},
+						}},
+					}},
+				},
+			}
+			err = resources.Create(ctx, invalidRoute)
+			require.NoError(t, err)
+
+			port = gwv1alpha2.PortNumber(validService.Spec.Ports[0].Port)
+			validRoute := &gwv1alpha2.HTTPRoute{
+				ObjectMeta: meta.ObjectMeta{
+					Name:      validRouteName,
+					Namespace: namespace,
+				},
+				Spec: gwv1alpha2.HTTPRouteSpec{
+					CommonRouteSpec: gwv1alpha2.CommonRouteSpec{
+						ParentRefs: []gwv1alpha2.ParentReference{{
+							Name: gwv1alpha2.ObjectName(gatewayName),
+						}},
+					},
+					Hostnames: []gwv1alpha2.Hostname{"test.foo"},
+
+					Rules: []gwv1alpha2.HTTPRouteRule{{
+						Filters: []gwv1alpha2.HTTPRouteFilter{
+							{
+								Type: gwv1alpha2.HTTPRouteFilterURLRewrite,
+								URLRewrite: &gwv1alpha2.HTTPURLRewriteFilter{
+									Path: &gwv1alpha2.HTTPPathModifier{
+										Type:               gwv1alpha2.PrefixMatchHTTPPathModifier,
+										ReplacePrefixMatch: &validPrefixMatch,
+									},
+								},
+							},
+						},
+						Matches: []gwv1alpha2.HTTPRouteMatch{{
+							Path: &gwv1alpha2.HTTPPathMatch{
+								Type:  &prefixMatch,
+								Value: &validPath,
+							},
+						}},
+						BackendRefs: []gwv1alpha2.HTTPBackendRef{{
+							BackendRef: gwv1alpha2.BackendRef{
+								BackendObjectReference: gwv1alpha2.BackendObjectReference{
+									Name: gwv1alpha2.ObjectName(validService.Name),
+									Port: &port,
+								},
+							},
+						}},
+					}},
+				},
+			}
+			err = resources.Create(ctx, validRoute)
+			require.NoError(t, err)
+
+			checkRoute(t, checkPort, invalidPath, httpResponse{
+				StatusCode: http.StatusOK,
+				Body:       invalidService.Name,
+			}, map[string]string{
+				"Host": "test.foo",
+			}, "invalid not routable in allotted time")
+			checkRoute(t, checkPort, validPath, httpResponse{
+				StatusCode: http.StatusOK,
+				Body:       validService.Name,
+			}, map[string]string{
+				"Host": "test.foo",
+			}, "valid service not routable in allotted time")
+
+			err = resources.Delete(ctx, gw)
+			require.NoError(t, err)
+
+			return ctx
+		})
+
+	testenv.Test(t, feature.Feature())
+}
+
 func TestHTTPMeshService(t *testing.T) {
 	feature := features.New("mesh service routing").
 		Assess("basic routing", func(ctx context.Context, t *testing.T, cfg *envconf.Config) context.Context {

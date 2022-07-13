@@ -147,6 +147,10 @@ func TestConvertHTTPRoute(t *testing.T) {
 						"Hostname": "example.com",
 						"Port": 8443,
 						"Status": 302
+					},
+					"URLRewrite": {
+						"Type": 0,
+						"ReplacePrefixMatch": ""
 					}
 				},
 				{
@@ -167,6 +171,10 @@ func TestConvertHTTPRoute(t *testing.T) {
 						"Hostname": "",
 						"Port": 0,
 						"Status": 0
+					},
+					"URLRewrite": {
+						"Type": 0,
+						"ReplacePrefixMatch": ""
 					}
 				}
 			],

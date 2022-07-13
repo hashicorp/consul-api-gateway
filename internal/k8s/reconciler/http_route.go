@@ -1,10 +1,11 @@
 package reconciler
 
 import (
-	"github.com/hashicorp/consul-api-gateway/internal/core"
-	"github.com/hashicorp/consul-api-gateway/internal/k8s/service"
 	"k8s.io/apimachinery/pkg/types"
 	gwv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
+
+	"github.com/hashicorp/consul-api-gateway/internal/core"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/service"
 )
 
 func HTTPRouteID(namespacedName types.NamespacedName) string {
@@ -161,6 +162,21 @@ func convertHTTPRouteFilters(routeFilters []gwv1alpha2.HTTPRouteFilter) []core.H
 					Set:    httpHeadersToMap(filter.RequestHeaderModifier.Set),
 					Add:    httpHeadersToMap(filter.RequestHeaderModifier.Add),
 					Remove: filter.RequestHeaderModifier.Remove,
+				},
+			})
+		case gwv1alpha2.HTTPRouteFilterURLRewrite:
+			// We currently only support prefix match replacement
+			if filter.URLRewrite.Path == nil ||
+				filter.URLRewrite.Path.Type != gwv1alpha2.PrefixMatchHTTPPathModifier ||
+				filter.URLRewrite.Path.ReplacePrefixMatch == nil {
+				continue
+			}
+
+			filters = append(filters, core.HTTPFilter{
+				Type: core.HTTPURLRewriteFilterType,
+				URLRewrite: core.HTTPURLRewriteFilter{
+					Type:               core.ReplacePrefixMatchURLRewriteType,
+					ReplacePrefixMatch: *filter.URLRewrite.Path.ReplacePrefixMatch,
 				},
 			})
 		case gwv1alpha2.HTTPRouteFilterRequestRedirect:

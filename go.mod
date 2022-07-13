@@ -15,7 +15,7 @@ require (
 	github.com/hashicorp/consul/api v1.13.0
 	github.com/hashicorp/consul/sdk v0.9.0
 	github.com/hashicorp/go-hclog v1.2.1
-	github.com/hashicorp/go-multierror v1.1.0
+	github.com/hashicorp/go-multierror v1.1.1
 	github.com/mitchellh/cli v1.1.4
 	github.com/prometheus/client_golang v1.12.2
 	github.com/stretchr/testify v1.8.0
@@ -28,10 +28,10 @@ require (
 	k8s.io/apiextensions-apiserver v0.24.2
 	k8s.io/apimachinery v0.24.2
 	k8s.io/client-go v0.24.2
-	k8s.io/klog/v2 v2.70.0
+	k8s.io/klog/v2 v2.70.1
 	sigs.k8s.io/controller-runtime v0.12.3
 	sigs.k8s.io/e2e-framework v0.0.7
-	sigs.k8s.io/gateway-api v0.5.0-rc1
+	sigs.k8s.io/gateway-api v0.5.0-rc2
 )
 
 require (

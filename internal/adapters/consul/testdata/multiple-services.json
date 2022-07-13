@@ -40,6 +40,13 @@
               "x-add-too": "2"
             }
           }
+        },
+        {
+          "Type": 2,
+          "URLRewrite": {
+            "Type": 0,
+            "ReplacePrefixMatch": "/"
+          }
         }
       ],
       "Services": [
