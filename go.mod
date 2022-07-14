@@ -31,7 +31,7 @@ require (
 	k8s.io/klog/v2 v2.70.1
 	sigs.k8s.io/controller-runtime v0.12.3
 	sigs.k8s.io/e2e-framework v0.0.7
-	sigs.k8s.io/gateway-api v0.5.0-rc2
+	sigs.k8s.io/gateway-api v0.5.0
 )
 
 require (
