@@ -28,6 +28,7 @@ type ServiceResolutionErrorType int
 
 const (
 	K8sServiceResolutionErrorType ServiceResolutionErrorType = iota
+	BackendNotFoundErrorType
 	ConsulServiceResolutionErrorType
 	GenericResolutionErrorType
 	InvalidKindErrorType
@@ -51,6 +52,10 @@ func NewResolutionError(inner string) ResolutionError {
 
 func NewK8sResolutionError(inner string) ResolutionError {
 	return ResolutionError{inner, K8sServiceResolutionErrorType}
+}
+
+func NewBackendNotFoundError(inner string) ResolutionError {
+	return ResolutionError{inner, BackendNotFoundErrorType}
 }
 
 func NewConsulResolutionError(inner string) ResolutionError {
@@ -237,7 +242,7 @@ func (r *backendResolver) consulServiceForK8SService(ctx context.Context, namesp
 	}
 	if service == nil {
 		r.logger.Warn("kubernetes service not found")
-		return nil, NewK8sResolutionError(fmt.Sprintf("service %s not found", namespacedName))
+		return nil, NewBackendNotFoundError(fmt.Sprintf("service %s not found", namespacedName))
 	}
 
 	// we do an inner retry since consul may take some time to sync
@@ -249,7 +254,7 @@ func (r *backendResolver) consulServiceForK8SService(ctx context.Context, namesp
 			return err
 		}
 		if resolved == nil {
-			return NewConsulResolutionError(fmt.Sprintf("consul service %s not found", namespacedName))
+			return NewBackendNotFoundError(fmt.Sprintf("consul service %s not found", namespacedName))
 		}
 		return nil
 	}, backoff.WithContext(backoff.WithMaxRetries(backoff.NewConstantBackOff(1*time.Second), 30), ctx))
@@ -348,10 +353,7 @@ func (r *backendResolver) consulServiceForMeshService(ctx context.Context, names
 		return nil, err
 	}
 	if service == nil {
-		return nil,
-			NewConsulResolutionError(fmt.Sprintf(
-				"kubernetes mesh service object %s not found", namespacedName,
-			))
+		return nil, NewBackendNotFoundError(fmt.Sprintf("kubernetes mesh service object %s not found", namespacedName))
 	}
 
 	// we do an inner retry since consul may take some time to sync
@@ -385,7 +387,7 @@ func (r *backendResolver) findCatalogService(service *apigwv1alpha1.MeshService)
 		return nil, err
 	}
 	if len(services) == 0 {
-		return nil, NewConsulResolutionError(fmt.Sprintf("consul service (%s, %s) not found", consulNamespace, consulName))
+		return nil, NewBackendNotFoundError(fmt.Sprintf("consul service (%s, %s) not found", consulNamespace, consulName))
 	}
 	resolved, err := validateCatalogConsulReference(services, service)
 	if err != nil {

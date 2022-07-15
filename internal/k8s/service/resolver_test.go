@@ -28,6 +28,9 @@ func TestResolutionErrors_Add(t *testing.T) {
 
 	r.Add(NewInvalidKindError("invalidkind error"))
 	assert.Equal(t, getLengthAtErrorType(r, InvalidKindErrorType), 1)
+
+	r.Add(NewBackendNotFoundError("backendnotfound error"))
+	assert.Equal(t, getLengthAtErrorType(r, BackendNotFoundErrorType), 1)
 }
 
 func TestResolutionErrors_Flatten(t *testing.T) {
@@ -65,6 +68,18 @@ func TestResolutionErrors_Flatten(t *testing.T) {
 				errors: map[ServiceResolutionErrorType][]ResolutionError{
 					InvalidKindErrorType: {
 						NewInvalidKindError("expected"),
+					},
+				},
+			},
+		},
+		{
+			name:    "backendnotfound error",
+			want:    BackendNotFoundErrorType,
+			wantErr: true,
+			fields: fields{
+				errors: map[ServiceResolutionErrorType][]ResolutionError{
+					BackendNotFoundErrorType: {
+						NewBackendNotFoundError("expected"),
 					},
 				},
 			},
@@ -155,6 +170,17 @@ func TestResolutionErrors_Empty(t *testing.T) {
 				errors: map[ServiceResolutionErrorType][]ResolutionError{
 					InvalidKindErrorType: {
 						NewInvalidKindError("expected"),
+					},
+				},
+			},
+		},
+		{
+			name: "backendnotfound error",
+			want: false,
+			fields: fields{
+				errors: map[ServiceResolutionErrorType][]ResolutionError{
+					BackendNotFoundErrorType: {
+						NewBackendNotFoundError("expected"),
 					},
 				},
 			},

@@ -157,7 +157,9 @@
         - name: InvalidKind
           description: >
             This reason is used when a Route references a backend with an unsupported group or kind.
-
+        - name: BackendNotFound
+          description: >
+            This reason is used when a Route references a backend with a supported kind but that does not exist.
 
 
 - kind: Listener
