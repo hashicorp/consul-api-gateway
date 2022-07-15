@@ -222,7 +222,7 @@ func (r *backendResolver) Resolve(ctx context.Context, ref gwv1alpha2.BackendObj
 	case group == apigwv1alpha1.GroupVersion.Group && kind == apigwv1alpha1.MeshServiceKind:
 		return r.consulServiceForMeshService(ctx, namespacedName)
 	default:
-		return nil, NewInvalidKindError("unsupported reference type")
+		return nil, NewInvalidKindError(fmt.Sprintf("unsupported reference kind %s", kind))
 	}
 }
 
