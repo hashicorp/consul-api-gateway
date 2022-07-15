@@ -13,9 +13,7 @@ project "consul-api-gateway" {
 
     release_branches = [
       "main",
-      "release/0.1.x",
-      "release/0.2.x",
-      "release/0.3.x",
+      "release/**",
     ]
   }
 }
