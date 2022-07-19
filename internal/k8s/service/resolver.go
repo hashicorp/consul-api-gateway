@@ -30,6 +30,7 @@ const (
 	K8sServiceResolutionErrorType ServiceResolutionErrorType = iota
 	ConsulServiceResolutionErrorType
 	GenericResolutionErrorType
+	InvalidKindErrorType
 	NoResolutionErrorType
 	RefNotPermittedErrorType
 )
@@ -54,6 +55,10 @@ func NewK8sResolutionError(inner string) ResolutionError {
 
 func NewConsulResolutionError(inner string) ResolutionError {
 	return ResolutionError{inner, ConsulServiceResolutionErrorType}
+}
+
+func NewInvalidKindError(inner string) ResolutionError {
+	return ResolutionError{inner, InvalidKindErrorType}
 }
 
 func NewRefNotPermittedError(inner string) ResolutionError {
@@ -217,7 +222,7 @@ func (r *backendResolver) Resolve(ctx context.Context, ref gwv1alpha2.BackendObj
 	case group == apigwv1alpha1.GroupVersion.Group && kind == apigwv1alpha1.MeshServiceKind:
 		return r.consulServiceForMeshService(ctx, namespacedName)
 	default:
-		return nil, NewResolutionError("unsupported reference type")
+		return nil, NewInvalidKindError(fmt.Sprintf("unsupported reference kind %s", kind))
 	}
 }
 

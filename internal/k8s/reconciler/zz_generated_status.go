@@ -609,6 +609,11 @@ type RouteResolvedRefsStatus struct {
 	//
 	// [spec]
 	RefNotPermitted error
+	// This reason is used when a Route references a backend with an unsupported
+	// group or kind.
+	//
+	// [spec]
+	InvalidKind error
 }
 
 const (
@@ -645,6 +650,11 @@ const (
 	//
 	// [spec]
 	RouteConditionReasonRefNotPermitted = "RefNotPermitted"
+	// RouteConditionReasonInvalidKind - This reason is used when a Route references
+	// a backend with an unsupported group or kind.
+	//
+	// [spec]
+	RouteConditionReasonInvalidKind = "InvalidKind"
 )
 
 // Condition returns the status condition of the RouteResolvedRefsStatus based
@@ -694,6 +704,17 @@ func (s RouteResolvedRefsStatus) Condition(generation int64) meta.Condition {
 		}
 	}
 
+	if s.InvalidKind != nil {
+		return meta.Condition{
+			Type:               RouteConditionResolvedRefs,
+			Status:             meta.ConditionFalse,
+			Reason:             RouteConditionReasonInvalidKind,
+			Message:            s.InvalidKind.Error(),
+			ObservedGeneration: generation,
+			LastTransitionTime: meta.Now(),
+		}
+	}
+
 	return meta.Condition{
 		Type:               RouteConditionResolvedRefs,
 		Status:             meta.ConditionTrue,
@@ -706,7 +727,7 @@ func (s RouteResolvedRefsStatus) Condition(generation int64) meta.Condition {
 
 // HasError returns whether any of the RouteResolvedRefsStatus errors are set.
 func (s RouteResolvedRefsStatus) HasError() bool {
-	return s.Errors != nil || s.ServiceNotFound != nil || s.ConsulServiceNotFound != nil || s.RefNotPermitted != nil
+	return s.Errors != nil || s.ServiceNotFound != nil || s.ConsulServiceNotFound != nil || s.RefNotPermitted != nil || s.InvalidKind != nil
 }
 
 // RouteStatus - The status associated with a Route with respect to a given

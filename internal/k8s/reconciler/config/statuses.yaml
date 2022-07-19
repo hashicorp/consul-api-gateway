@@ -154,6 +154,9 @@
             This reason is used with the “ResolvedRefs” condition when one of the Listener’s Routes has a BackendRef
             to an object in another namespace, where the object in the other namespace does not have a ReferenceGrant
             explicitly allowing the reference.
+        - name: InvalidKind
+          description: >
+            This reason is used when a Route references a backend with an unsupported group or kind.
 
 
 

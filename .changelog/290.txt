@@ -1,0 +1,3 @@
+```release-note:feature
+Assign InvalidKind reason to ResolvedRefs condition on routes where the backend reference is an unknown or unsupported kind
+```
