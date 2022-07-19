@@ -168,9 +168,9 @@ func (r *TCPRouteReconciler) getRouteRequestsFromReferenceGrant(refGrant *gwv1al
 	return requests
 }
 
-// getRoutesAffectedByReferencePolicy retrieves all TCPRoutes potentially impacted
-// by the ReferencePolicy being modified. Currently, this is unfiltered and so returns
-// all TCPRoutes in the namespace referenced by the ReferencePolicy.
+// getRoutesAffectedByReferenceGrant retrieves all TCPRoutes potentially impacted
+// by the ReferenceGrant being modified. Currently, this is unfiltered and so returns
+// all TCPRoutes in the namespace referenced by the ReferenceGrant.
 func (r *TCPRouteReconciler) getRoutesAffectedByReferenceGrant(refGrant *gwv1alpha2.ReferenceGrant) []gwv1alpha2.TCPRoute {
 	var matches []gwv1alpha2.TCPRoute
 
