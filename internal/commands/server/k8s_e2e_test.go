@@ -299,7 +299,23 @@ func TestGatewayBasic(t *testing.T) {
 
 			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionReady), checkTimeout, checkInterval, "no gateway found in the allotted time")
 
-			err := resources.Delete(ctx, gw)
+			// check for ingress gateway config entry
+			var entries []api.ConfigEntry
+			var err error
+			require.Eventually(t, func() bool {
+				entries, _, err = client.ConfigEntries().List(api.IngressGateway, &api.QueryOptions{Namespace: e2e.ConsulNamespace(ctx)})
+				return err == nil && len(entries) == 1
+			}, 5*time.Minute, checkInterval, "config entry not created in allotted time")
+
+			// verify background re-sync of config entries after delete
+			_, err = client.ConfigEntries().Delete(api.IngressGateway, entries[0].GetName(), &api.WriteOptions{Namespace: e2e.ConsulNamespace(ctx)})
+			require.NoError(t, err)
+			assert.Eventually(t, func() bool {
+				entries, _, err := client.ConfigEntries().List(api.IngressGateway, &api.QueryOptions{Namespace: e2e.ConsulNamespace(ctx)})
+				return err == nil && len(entries) == 1
+			}, 5*time.Minute, checkInterval, "config entry not recreated after delete in allotted time")
+
+			err = resources.Delete(ctx, gw)
 			require.NoError(t, err)
 			require.Eventually(t, func() bool {
 				services, _, err := client.Catalog().Service(gatewayName, "", &api.QueryOptions{

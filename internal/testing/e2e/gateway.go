@@ -10,12 +10,13 @@ import (
 	"sigs.k8s.io/e2e-framework/pkg/env"
 	"sigs.k8s.io/e2e-framework/pkg/envconf"
 
+	"github.com/hashicorp/go-hclog"
+
 	consulAdapters "github.com/hashicorp/consul-api-gateway/internal/adapters/consul"
 	"github.com/hashicorp/consul-api-gateway/internal/consul"
 	"github.com/hashicorp/consul-api-gateway/internal/envoy"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s"
 	"github.com/hashicorp/consul-api-gateway/internal/store/memory"
-	"github.com/hashicorp/go-hclog"
 )
 
 type gatewayTestContext struct{}
@@ -103,6 +104,10 @@ func (p *gatewayTestEnvironment) run(ctx context.Context, namespace string, cfg 
 	})
 	group.Go(func() error {
 		return controller.Start(groupCtx)
+	})
+	group.Go(func() error {
+		store.SyncAtInterval(groupCtx)
+		return nil
 	})
 	p.cancel = cancel
 	p.group = group
