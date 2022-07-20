@@ -18,6 +18,7 @@ import (
 	"github.com/hashicorp/consul/api"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	apps "k8s.io/api/apps/v1"
 	core "k8s.io/api/core/v1"
@@ -294,7 +295,7 @@ func TestGatewayBasic(t *testing.T) {
 				}
 				service := services[0]
 				status := service.Checks.AggregatedStatus()
-				return status == "passing"
+				return status == api.HealthPassing
 			}, checkTimeout, checkInterval, "no healthy consul service found in the allotted time")
 
 			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionReady), checkTimeout, checkInterval, "no gateway found in the allotted time")
@@ -307,12 +308,15 @@ func TestGatewayBasic(t *testing.T) {
 				return err == nil && len(entries) == 1
 			}, 5*time.Minute, checkInterval, "config entry not created in allotted time")
 
-			// verify background re-sync of config entries after delete
-			_, err = client.ConfigEntries().Delete(api.IngressGateway, entries[0].GetName(), &api.WriteOptions{Namespace: e2e.ConsulNamespace(ctx)})
+			// verify background re-sync of config entries after service delete
+			services, err := client.Agent().Services()
 			require.NoError(t, err)
+			require.Len(t, services, 1)
+			require.NoError(t, client.Agent().ServiceDeregister(maps.Values(services)[0].ID))
+
 			assert.Eventually(t, func() bool {
-				entries, _, err := client.ConfigEntries().List(api.IngressGateway, &api.QueryOptions{Namespace: e2e.ConsulNamespace(ctx)})
-				return err == nil && len(entries) == 1
+				services, err := client.Agent().Services()
+				return err == nil && len(services) == 1 && maps.Values(services)[0].Service == gatewayName
 			}, 5*time.Minute, checkInterval, "config entry not recreated after delete in allotted time")
 
 			err = resources.Delete(ctx, gw)
