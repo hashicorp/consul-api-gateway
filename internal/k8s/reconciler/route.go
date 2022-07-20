@@ -210,6 +210,8 @@ func (r *K8sRoute) OnBindFailed(err error, gateway store.Gateway) {
 				status.ResolvedRefs.RefNotPermitted = err
 			case service.InvalidKindErrorType:
 				status.ResolvedRefs.InvalidKind = err
+			case service.BackendNotFoundErrorType:
+				status.ResolvedRefs.BackendNotFound = err
 			}
 
 			r.parentStatuses[id] = status

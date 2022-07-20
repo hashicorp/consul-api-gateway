@@ -1,0 +1,3 @@
+```release-note:feature
+Assign BackendNotFound reason to ResolvedRefs condition on routes where the backend reference is a supported kind but does not exist
+```

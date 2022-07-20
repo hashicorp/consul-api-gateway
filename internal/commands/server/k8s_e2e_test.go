@@ -930,7 +930,7 @@ func TestHTTPMeshService(t *testing.T) {
 
 			// Verify HTTPRoute has updated its status
 			check := createConditionsCheck([]meta.Condition{{
-				Type: reconciler.RouteConditionResolvedRefs, Status: "False", Reason: reconciler.RouteConditionReasonServiceNotFound},
+				Type: reconciler.RouteConditionResolvedRefs, Status: "False", Reason: reconciler.RouteConditionReasonBackendNotFound},
 			})
 			require.Eventually(t, httpRouteStatusCheck(ctx, resources, gatewayName, routeName, namespace, check), checkTimeout, checkInterval, "route status not set in allotted time")
 
