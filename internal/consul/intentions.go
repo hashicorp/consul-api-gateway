@@ -9,10 +9,11 @@ import (
 
 	"github.com/cenkalti/backoff"
 
-	"github.com/hashicorp/consul-api-gateway/internal/common"
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-multierror"
+
+	"github.com/hashicorp/consul-api-gateway/internal/common"
 )
 
 //go:generate mockgen -source ./intentions.go -destination ./mocks/intentions.go -package mocks consulDiscoveryChains,consulConfigEntries
@@ -152,7 +153,7 @@ func (r *IntentionsReconciler) sourceIntention() *api.SourceIntention {
 //      reconciler is stopped.
 //   2. A discoChainWatcher sends a discoChainWatchResult which will compute and added or removed discovery chain
 //      targets and synchronize intentions.
-//   3. The intentionSyncInterval is met, triggering the a ticker to fire and synchronize intentions.
+//   3. The intentionSyncInterval is met, triggering the ticker to fire and synchronize intentions.
 //
 // The loop stops and returns if the struct context is cancelled.
 func (r *IntentionsReconciler) reconcileLoop() {

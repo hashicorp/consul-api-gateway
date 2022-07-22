@@ -294,7 +294,7 @@ func TestGatewayBasic(t *testing.T) {
 				}
 				service := services[0]
 				status := service.Checks.AggregatedStatus()
-				return status == "passing"
+				return status == api.HealthPassing
 			}, checkTimeout, checkInterval, "no healthy consul service found in the allotted time")
 
 			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionReady), checkTimeout, checkInterval, "no gateway found in the allotted time")
@@ -310,6 +310,89 @@ func TestGatewayBasic(t *testing.T) {
 				}
 				return len(services) == 0
 			}, checkTimeout, checkInterval, "consul service not deregistered in the allotted time")
+
+			return ctx
+		}).
+		Assess("background sync into consul", func(ctx context.Context, t *testing.T, cfg *envconf.Config) context.Context {
+			namespace := e2e.Namespace(ctx)
+			resources := cfg.Client().Resources(namespace)
+			gatewayName := envconf.RandomName("gw", 16)
+
+			useHostPorts := false
+			gcc, gc := createGatewayClassWithParams(ctx, t, resources, GatewayClassConfigParams{
+				UseHostPorts: &useHostPorts,
+			})
+			require.Eventually(t, gatewayClassStatusCheck(ctx, resources, gc.Name, namespace, conditionAccepted), checkTimeout, checkInterval, "gatewayclass not accepted in the allotted time")
+
+			httpsListener := createHTTPSListener(ctx, t, 443)
+			gw := createGateway(ctx, t, resources, gatewayName, namespace, gc, []gwv1beta1.Listener{httpsListener})
+
+			require.Eventually(t, func() bool {
+				err := resources.Get(ctx, gatewayName, namespace, &apps.Deployment{})
+				return err == nil
+			}, checkTimeout, checkInterval, "no deployment found in the allotted time")
+
+			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionReady), checkTimeout, checkInterval, "no gateway found in the allotted time")
+
+			checkGatewayConfigAnnotation(ctx, t, resources, gatewayName, namespace, gcc)
+
+			client := e2e.ConsulClient(ctx)
+			queryNamespace := &api.QueryOptions{Namespace: e2e.ConsulNamespace(ctx)}
+
+			// Verify gateway is healthy
+			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionReady), checkTimeout, checkInterval, "no gateway found in the allotted time")
+
+			// Check for service and config entries in Consul
+			var service *api.CatalogService
+			require.Eventually(t, func() bool {
+				services, _, err := client.Catalog().Service(gatewayName, "", queryNamespace)
+				if err == nil && len(services) == 1 && services[0].Checks.AggregatedStatus() == api.HealthPassing {
+					service = services[0]
+					return true
+				}
+				return false
+			}, checkTimeout, checkInterval, "no healthy consul service found in the allotted time")
+			require.Eventually(t, func() bool {
+				entries, _, err := client.ConfigEntries().List(api.IngressGateway, queryNamespace)
+				return err == nil && len(entries) == 1 && entries[0].GetName() == gatewayName
+			}, 5*time.Minute, checkInterval, "ingress-gateway config-entry not created in allotted time")
+
+			// De-register Consul service
+			_, err := client.Catalog().Deregister(&api.CatalogDeregistration{
+				Node:      service.Node,
+				ServiceID: service.ServiceID,
+				Namespace: service.Namespace,
+			}, &api.WriteOptions{Namespace: service.Namespace})
+			require.NoError(t, err)
+			require.Eventually(t, func() bool {
+				services, _, err := client.Catalog().Service(gatewayName, "", queryNamespace)
+				return err == nil && len(services) == 0
+			}, 5*time.Minute, checkInterval, "service still returned after de-registering")
+
+			// Delete ingress-gateway config-entry
+			_, err = client.ConfigEntries().Delete(api.IngressGateway, gatewayName, &api.WriteOptions{Namespace: e2e.ConsulNamespace(ctx)})
+			require.NoError(t, err)
+			require.Eventually(t, func() bool {
+				entries, _, err := client.ConfigEntries().List(api.IngressGateway, queryNamespace)
+				return err == nil && len(entries) == 0
+			}, 5*time.Minute, checkInterval, "ingress-gateway config entry still returned after deleting")
+
+			// Check to make sure the controller recreates the service and config-entry in the background.
+			assert.Eventually(t, func() bool {
+				services, _, err := client.Catalog().Service(gatewayName, "", queryNamespace)
+				return err == nil && len(services) == 1
+			}, 5*time.Minute, checkInterval, "service not recreated after delete in allotted time")
+			assert.Eventually(t, func() bool {
+				entry, _, err := client.ConfigEntries().Get(api.IngressGateway, gatewayName, queryNamespace)
+				return err == nil && entry != nil
+			}, 5*time.Minute, checkInterval, "ingress-gateway config-entry not recreated after delete in allotted time")
+
+			// Clean up
+			require.NoError(t, resources.Delete(ctx, gw))
+			assert.Eventually(t, func() bool {
+				services, _, err := client.Catalog().Service(gatewayName, "", queryNamespace)
+				return err == nil && len(services) == 0
+			}, checkTimeout, checkInterval, "gateway not deleted in the allotted time")
 
 			return ctx
 		})

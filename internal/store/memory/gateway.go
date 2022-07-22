@@ -3,10 +3,11 @@ package memory
 import (
 	"context"
 
-	"github.com/hashicorp/consul-api-gateway/internal/core"
-	"github.com/hashicorp/consul-api-gateway/internal/store"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-multierror"
+
+	"github.com/hashicorp/consul-api-gateway/internal/core"
+	"github.com/hashicorp/consul-api-gateway/internal/store"
 )
 
 type gatewayState struct {
@@ -16,6 +17,7 @@ type gatewayState struct {
 	adapter   core.SyncAdapter
 	listeners map[string]*listenerState
 	secrets   map[string]struct{}
+	needsSync bool
 }
 
 // newGatewayState creates a bound gateway
@@ -38,6 +40,7 @@ func newGatewayState(logger hclog.Logger, gateway store.Gateway, adapter core.Sy
 		adapter:   adapter,
 		listeners: listeners,
 		secrets:   secrets,
+		needsSync: false,
 	}
 }
 
@@ -94,19 +97,36 @@ func (g *gatewayState) ShouldUpdate(other store.Gateway) bool {
 	return g.Gateway.ShouldUpdate(other)
 }
 
-func (g *gatewayState) Sync(ctx context.Context) (bool, error) {
-	didSync := false
+func (g *gatewayState) ShouldSync(ctx context.Context) bool {
+	if g.needsSync {
+		return true
+	}
+
 	for _, listener := range g.listeners {
 		if listener.ShouldSync() {
-			g.logger.Trace("syncing gateway")
-			if err := g.sync(ctx); err != nil {
-				return false, err
-			}
-			didSync = true
-			break
+			return true
 		}
 	}
 
+	return false
+}
+
+func (g *gatewayState) MarkSynced() {
+	g.needsSync = false
+}
+
+func (g *gatewayState) Sync(ctx context.Context) (bool, error) {
+	didSync := false
+
+	if g.ShouldSync(ctx) {
+		g.logger.Trace("syncing gateway")
+		if err := g.sync(ctx); err != nil {
+			return false, err
+		}
+		didSync = true
+	}
+
+	g.MarkSynced()
 	for _, listener := range g.listeners {
 		listener.MarkSynced()
 	}

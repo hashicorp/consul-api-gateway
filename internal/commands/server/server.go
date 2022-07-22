@@ -9,6 +9,9 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
+	"github.com/hashicorp/consul/api"
+	"github.com/hashicorp/go-hclog"
+
 	consulAdapters "github.com/hashicorp/consul-api-gateway/internal/adapters/consul"
 	"github.com/hashicorp/consul-api-gateway/internal/consul"
 	"github.com/hashicorp/consul-api-gateway/internal/envoy"
@@ -16,8 +19,6 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/metrics"
 	"github.com/hashicorp/consul-api-gateway/internal/profiling"
 	"github.com/hashicorp/consul-api-gateway/internal/store/memory"
-	"github.com/hashicorp/consul/api"
-	"github.com/hashicorp/go-hclog"
 )
 
 type ServerConfig struct {
@@ -34,21 +35,10 @@ type ServerConfig struct {
 
 func RunServer(config ServerConfig) int {
 	// Set up signal handlers and global context
-	ctx, cancel := context.WithCancel(config.Context)
-	interrupt := make(chan os.Signal, 1)
-	signal.Notify(interrupt, os.Interrupt, syscall.SIGTERM)
-	defer func() {
-		signal.Stop(interrupt)
-		cancel()
-	}()
-	go func() {
-		select {
-		case <-interrupt:
-			config.Logger.Debug("received shutdown signal")
-			cancel()
-		case <-ctx.Done():
-		}
-	}()
+	ctx, cancel := signal.NotifyContext(config.Context, os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+
+	group, groupCtx := errgroup.WithContext(ctx)
 
 	secretClient := envoy.NewMultiSecretClient()
 	k8sSecretClient, err := k8s.NewK8sSecretClient(config.Logger.Named("cert-fetcher"), config.K8sConfig.RestConfig)
@@ -74,6 +64,10 @@ func RunServer(config ServerConfig) int {
 		Adapter: consulAdapters.NewSyncAdapter(config.Logger.Named("consul-adapter"), consulClient),
 		Logger:  config.Logger.Named("state"),
 	})
+	group.Go(func() error {
+		store.SyncAtInterval(groupCtx)
+		return nil
+	})
 
 	controller.SetConsul(consulClient)
 	controller.SetStore(store)
@@ -85,7 +79,6 @@ func RunServer(config ServerConfig) int {
 		"consul-api-gateway-controller",
 		options,
 	)
-	group, groupCtx := errgroup.WithContext(ctx)
 	group.Go(func() error {
 		return certManager.Manage(groupCtx)
 	})
@@ -100,26 +93,32 @@ func RunServer(config ServerConfig) int {
 	}
 	config.Logger.Trace("initial certificates written")
 
+	// Run SDS server
 	server := envoy.NewSDSServer(config.Logger.Named("sds-server"), certManager, secretClient, store)
 	group.Go(func() error {
 		return server.Run(groupCtx)
 	})
+
+	// Run controller
 	group.Go(func() error {
 		return controller.Start(groupCtx)
 	})
 
+	// Run metrics server if configured
 	if config.MetricsPort != 0 {
 		group.Go(func() error {
 			return metrics.RunServer(groupCtx, config.Logger.Named("metrics"), fmt.Sprintf("127.0.0.1:%d", config.MetricsPort))
 		})
 	}
 
+	// Run profiling server if configured
 	if config.ProfilingPort != 0 {
 		group.Go(func() error {
 			return profiling.RunServer(groupCtx, config.Logger.Named("pprof"), fmt.Sprintf("127.0.0.1:%d", config.ProfilingPort))
 		})
 	}
 
+	// Wait for any of the above to exit
 	if err := group.Wait(); err != nil {
 		config.Logger.Error("unexpected error", "error", err)
 		return 1

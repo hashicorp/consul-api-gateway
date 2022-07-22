@@ -2,20 +2,22 @@ package memory
 
 import (
 	"context"
-	"errors"
 	"reflect"
 	"sync"
 	"sync/atomic"
+	"time"
+
+	"github.com/hashicorp/go-hclog"
+	"github.com/hashicorp/go-multierror"
 
 	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul-api-gateway/internal/metrics"
 	"github.com/hashicorp/consul-api-gateway/internal/store"
-	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/go-multierror"
 )
 
 var (
-	ErrCannotBindListener = errors.New("cannot bind listener")
+	consulSyncInterval = 60 * time.Second
+	startSyncLoopOnce  sync.Once
 )
 
 type Store struct {
@@ -25,14 +27,10 @@ type Store struct {
 	gateways map[core.GatewayID]*gatewayState
 	routes   map[string]store.Route
 
-	// This mutex acts as a stop-the-world type
-	// global mutex, as the store is a singleton
-	// what this means is that once a lock on the
-	// mutex is acquired, any mutable operations
-	// on the gateway interfaces wrapped by our
-	// state-building structures can happen
-	// concerns of thread-safety (unless they)
-	// spin up additional goroutines.
+	// This mutex acts as a stop-the-world type global mutex, as the store is a singleton.
+	// What this means is that once a lock on the mutex is acquired, any mutable operations
+	// on the gateway interfaces wrapped by our state-building structures can happen without
+	// concerns of thread-safety (unless they) spin up additional goroutines.
 	mutex sync.RWMutex
 
 	activeGateways int64
@@ -160,6 +158,38 @@ func (s *Store) sync(ctx context.Context, gateways ...*gatewayState) error {
 
 func (s *Store) Sync(ctx context.Context) error {
 	return s.sync(ctx)
+}
+
+// SyncAtInterval syncs the objects in the store w/ Consul at a constant interval
+// until the provided context is cancelled. Calling SyncAtInterval multiple times
+// will only result in a single sync loop as it should only be called during startup.
+func (s *Store) SyncAtInterval(ctx context.Context) {
+	startSyncLoopOnce.Do(func() {
+		ticker := time.NewTicker(consulSyncInterval)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				s.mutex.Lock()
+
+				// Force each gateway to sync its state even though listeners
+				// on the gateway may not be marked as needing a sync right now
+				for _, gateway := range s.gateways {
+					gateway.needsSync = true
+				}
+
+				if err := s.sync(ctx); err != nil {
+					s.logger.Warn("An error occurred during memory store sync, some changes may be out of sync", "error", err)
+				} else {
+					s.logger.Trace("Synced memory store in background")
+				}
+				s.mutex.Unlock()
+			}
+		}
+	})
 }
 
 func (s *Store) DeleteRoute(ctx context.Context, id string) error {
