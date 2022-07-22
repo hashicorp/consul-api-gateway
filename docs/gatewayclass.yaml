@@ -1,0 +1,33 @@
+kind: GatewayClass
+version: gateway.networking.k8s.io/v1alpha2
+scope: Cluster
+description: |
+  A `GatewayClass` acts as a template for an individual Gateway deployment. In order
+  for the Consul API Gateway controller to know how to provision a Gateway, it must
+  reference a `GatewayClass` that has a controllerName value of `hashicorp.com/consul-api-gateway-controller`
+  and a parametersRef that references a valid `GatewayClassConfig` object.
+fields:
+  - name: controllerName
+    type: string
+    description: This must be set to `hashicorp.com/consul-api-gateway-controller`.
+  - name: description
+    type: string
+    description: Description helps describe a `GatewayClass` with more details.
+  - name: parametersRef
+    type: object
+    description: |
+      ParametersRef is a reference to a resource that contains
+      the configuration parameters corresponding to the `GatewayClass`.
+      This reference must correspond to a valid `GatewayClassConfig` object.
+    fields:
+      - name: group
+        type: string
+        description: Group is the group of the parameter reference. Must be set to `api-gateway.consul.hashicorp.com`.
+      - name: kind
+        type: string
+        description: Kind is kind of the parameter reference. Must be set to `GatewayClassConfig`.
+      - name: name
+        type: string
+        description: Name is the name of the parameter reference.
+      - name: namespace
+        supported: false

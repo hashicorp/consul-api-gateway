@@ -1,0 +1,571 @@
+kind: HTTPRoute
+description: HTTPRoute provides a way to route HTTP requests. This includes
+  the capability to match requests by hostname, path, header, or query param.
+  Filters can be used to specify additional processing steps. Backends specify
+  where matching requests should be routed.
+version: gateway.networking.k8s.io/v1alpha2
+scope: Namespaced
+fields:
+  - name: hostnames
+    type: array<string>
+    description: "Hostnames defines a set of hostname that should match
+      against the HTTP Host header to select a HTTPRoute to process the
+      request. This matches the RFC 1123 definition of a hostname with
+      2 notable exceptions: \n 1. IPs are not allowed. 2. A hostname may
+      be prefixed with a wildcard label (`*.`). The wildcard    label
+      must appear by itself as the first label. \n If a hostname is specified
+      by both the Listener and HTTPRoute, there must be at least one intersecting
+      hostname for the HTTPRoute to be attached to the Listener. For example:
+      \n * A Listener with `test.example.com` as the hostname matches
+      HTTPRoutes   that have either not specified any hostnames, or have
+      specified at   least one of `test.example.com` or `*.example.com`.
+      * A Listener with `*.example.com` as the hostname matches HTTPRoutes
+      \  that have either not specified any hostnames or have specified
+      at least   one hostname that matches the Listener hostname. For
+      example,   `test.example.com` and `*.example.com` would both match.
+      On the other   hand, `example.com` and `test.example.net` would
+      not match. \n If both the Listener and HTTPRoute have specified
+      hostnames, any HTTPRoute hostnames that do not match the Listener
+      hostname MUST be ignored. For example, if a Listener specified `*.example.com`,
+      and the HTTPRoute specified `test.example.com` and `test.example.net`,
+      `test.example.net` must not be considered for a match. \n If both
+      the Listener and HTTPRoute have specified hostnames, and none match
+      with the criteria above, then the HTTPRoute is not accepted. The
+      implementation must raise an 'Accepted' Condition with a status
+      of `False` in the corresponding RouteParentStatus. \n Support: Core"
+  - name: parentRefs
+    type: array<object>
+    description: "ParentRefs references the resources (usually Gateways)
+      that a Route wants to be attached to. Note that the referenced parent
+      resource needs to allow this for the attachment to be complete.
+      For Gateways, that means the Gateway needs to allow attachment from
+      Routes of this kind and namespace. \n The only kind of parent resource
+      with \"Core\" support is Gateway. This API may be extended in the
+      future to support additional kinds of parent resources such as one
+      of the route kinds. \n It is invalid to reference an identical parent
+      more than once. It is valid to reference multiple distinct sections
+      within the same parent resource, such as 2 Listeners within a Gateway.
+      \n It is possible to separately reference multiple distinct objects
+      that may be collapsed by an implementation. For example, some implementations
+      may choose to merge compatible Gateway Listeners together. If that
+      is the case, the list of routes attached to those resources should
+      also be merged."
+    items:
+      description: "ParentReference identifies an API object (usually
+        a Gateway) that can be considered a parent of this resource (usually
+        a route). The only kind of parent resource with \"Core\" support
+        is Gateway. This API may be extended in the future to support
+        additional kinds of parent resources, such as HTTPRoute. \n The
+        API object must be valid in the cluster; the Group and Kind must
+        be registered in the cluster for this reference to be valid."
+      fields:
+        - name: group
+          supported: false
+        - name: kind
+          supported: false
+        - name: name
+          type: string
+          description: "Name is the name of the referent. \n Support: Core"
+        - name: namespace
+          type: string
+          description: "Namespace is the namespace of the referent. When
+          unspecified (or empty string), this refers to the local namespace
+          of the Route. \n Support: Core"
+        - name: sectionName
+          type: string
+          description: "SectionName is the name of a section within the
+            target resource. In the following resources, SectionName is
+            interpreted as the following: \n * Gateway: Listener Name.
+            When both Port (experimental) and SectionName are specified,
+            the name and port of the selected listener must match both
+            specified values. \n Implementations MAY choose to support
+            attaching Routes to other resources. If that is the case,
+            they MUST clearly document how SectionName is interpreted.
+            \n When unspecified (empty string), this will reference the
+            entire resource. For the purpose of status, an attachment
+            is considered successful if at least one section in the parent
+            resource accepts it. For example, Gateway listeners can restrict
+            which Routes can attach to them by Route kind, namespace,
+            or hostname. If 1 of 2 Gateway listeners accept attachment
+            from the referencing Route, the Route MUST be considered successfully
+            attached. If no Gateway listeners accept attachment from this
+            Route, the Route MUST be considered detached from the Gateway.
+            \n Support: Core"
+  - name: rules
+    type: array<object>
+    description: Rules are a list of HTTP matchers, filters and actions.
+    items:
+      description: |
+        HTTPRouteRule defines semantics for matching an HTTP
+        request based on conditions (matches), processing it (filters),
+        and forwarding the request to an API object (backendRefs).
+      fields:
+        - name: backendRefs
+          type: array<object>
+          description: "If unspecified or invalid (refers to a non-existent
+          resource or a Service with no endpoints), the rule performs
+          no forwarding. If there are also no filters specified that
+          would result in a response being sent, a HTTP 503 status code
+          is returned. 503 responses must be sent so that the overall
+          weight is respected; if an invalid backend is requested to
+          have 80% of requests, then 80% of requests must get a 503
+          instead. \n Support: Core for Kubernetes Service Support:
+          Custom for any other resource \n Support for weight: Core"
+          items:
+            description: HTTPBackendRef defines how a HTTPRoute should
+              forward an HTTP request.
+            fields:
+              - name: filters
+                type: array<object>
+                description: "Filters defined at this level should be
+                executed if and only if the request is being forwarded
+                to the backend defined here. \n Support: Custom (For
+                broader support of filters, use the Filters field in
+                HTTPRouteRule.)"
+                items:
+                  description: HTTPRouteFilter defines processing steps
+                    that must be completed during the request or response
+                    lifecycle. HTTPRouteFilters are meant as an extension
+                    point to express processing that may be done in Gateway
+                    implementations. Some examples include request or
+                    response modification, implementing authentication
+                    strategies, rate-limiting, and traffic shaping. API
+                    guarantee/conformance is defined based on the type
+                    of the filter.
+                  fields:
+                    - name: extensionRef
+                      supported: false
+                    - name: requestHeaderModifier
+                      type: object
+                      description: "RequestHeaderModifier defines a schema
+                      for a filter that modifies request headers. \n
+                      Support: Core"
+                      fields:
+                        - name: add
+                          type: array<object>
+                          description: "Add adds the given header(s) (name,
+                          value) to the request before the action. It
+                          appends to any existing values associated
+                          with the header name. \n Input:   GET /foo
+                          HTTP/1.1   my-header: foo \n Config:   add:
+                          \  - name: \"my-header\"     value: \"bar\"
+                          \n Output:   GET /foo HTTP/1.1   my-header:
+                          foo   my-header: bar"
+                          items:
+                            description: HTTPHeader represents an HTTP
+                              Header name and value as defined by RFC
+                              7230.
+                            fields:
+                              - name: name
+                                type: string
+                                description: "Name is the name of the
+                                HTTP Header to be matched. Name matching
+                                MUST be case insensitive. (See https://tools.ietf.org/html/rfc7230#section-3.2).
+                                \n If multiple entries specify equivalent
+                                header names, the first entry with an
+                                equivalent name MUST be considered for
+                                a match. Subsequent entries with an
+                                equivalent header name MUST be ignored.
+                                Due to the case-insensitivity of header
+                                names, \"foo\" and \"Foo\" are considered
+                                equivalent."
+                              - name: value
+                                type: string
+                                description: Value is the value of HTTP
+                                  Header to be matched.
+                        - name: remove
+                          type: array<string>
+                          description: "Remove the given header(s) from
+                          the HTTP request before the action. The value
+                          of Remove is a list of HTTP header names.
+                          Note that the header names are case-insensitive
+                          (see https://datatracker.ietf.org/doc/html/rfc2616#section-4.2).
+                          \n Input:   GET /foo HTTP/1.1   my-header1:
+                          foo   my-header2: bar   my-header3: baz \n
+                          Config:   remove: [\"my-header1\", \"my-header3\"]
+                          \n Output:   GET /foo HTTP/1.1   my-header2:
+                          bar"
+                        - name: set
+                          type: array<object>
+                          description: "Set overwrites the request with
+                          the given header (name, value) before the
+                          action. \n Input:   GET /foo HTTP/1.1   my-header:
+                          foo \n Config:   set:   - name: \"my-header\"
+                          \    value: \"bar\" \n Output:   GET /foo
+                          HTTP/1.1   my-header: bar"
+                          items:
+                            description: HTTPHeader represents an HTTP
+                              Header name and value as defined by RFC
+                              7230.
+                            fields:
+                              - name: name
+                                type: string
+                                description: "Name is the name of the
+                                HTTP Header to be matched. Name matching
+                                MUST be case insensitive. (See https://tools.ietf.org/html/rfc7230#section-3.2).
+                                \n If multiple entries specify equivalent
+                                header names, the first entry with an
+                                equivalent name MUST be considered for
+                                a match. Subsequent entries with an
+                                equivalent header name MUST be ignored.
+                                Due to the case-insensitivity of header
+                                names, \"foo\" and \"Foo\" are considered
+                                equivalent."
+                              - name: value
+                                type: string
+                                description: Value is the value of HTTP
+                                  Header to be matched.
+                    - name: requestMirror
+                      supported: false
+                    - name: requestRedirect
+                      supported: false
+                    - name: type
+                      type: string
+                      description: "Type identifies the type of filter
+                      to apply. As with other API fields, types are
+                      classified into three conformance levels: \n -
+                      Core: Filter types and their corresponding configuration
+                      defined by   \"Support: Core\" in this package,
+                      e.g. \"RequestHeaderModifier\". All   implementations
+                      must support core filters. \n - Extended: Filter
+                      types and their corresponding configuration defined
+                      by   \"Support: Extended\" in this package, e.g.
+                      \"RequestMirror\". Implementers   are encouraged
+                      to support extended filters. \n - Custom: Filters
+                      that are defined and supported by specific vendors.
+                      \  In the future, filters showing convergence
+                      in behavior across multiple   implementations
+                      will be considered for inclusion in extended or
+                      core   conformance levels. Filter-specific configuration
+                      for such filters   is specified using the ExtensionRef
+                      field. `Type` should be set to   \"ExtensionRef\"
+                      for custom filters. \n Implementers are encouraged
+                      to define custom implementation types to extend
+                      the core API with implementation-specific behavior.
+                      \n If a reference to a custom filter type cannot
+                      be resolved, the filter MUST NOT be skipped. Instead,
+                      requests that would have been processed by that
+                      filter MUST receive a HTTP error response. \n "
+                      enum: ["RequestHeaderModifier"]
+              - name: group
+                type: string
+                default: ""
+                description: Group is the group of the referent. For example,
+                  "networking.k8s.io". When unspecified (empty string),
+                  core API group is inferred.
+              - name: kind
+                type: string
+                default: Service
+                description: Kind is kind of the referent. For example
+                  "HTTPRoute" or "Service". Defaults to "Service" when
+                  not specified.
+              - name: name
+                type: string
+                description: Name is the name of the referent.
+              - name: namespace
+                type: string
+                description: "Namespace is the namespace of the backend.
+                When unspecified, the local namespace is inferred. \n
+                Note that when a namespace is specified, a ReferencePolicy
+                object is required in the referent namespace to allow
+                that namespace's owner to accept the reference. See
+                the ReferencePolicy documentation for details. \n Support:
+                Core"
+              - name: port
+                type: integer
+                description: Port specifies the destination port number
+                  to use for this resource. Port is required when the
+                  referent is a Kubernetes Service. For other resources,
+                  destination port might be derived from the referent
+                  resource or this field.
+              - name: weight
+                type: integer
+                default: 1
+                description: "Weight specifies the proportion of requests
+                forwarded to the referenced backend. This is computed
+                as weight/(sum of all weights in this BackendRefs list).
+                For non-zero values, there may be some epsilon from
+                the exact proportion defined here depending on the precision
+                an implementation supports. Weight is not a percentage
+                and the sum of weights does not need to equal 100. \n
+                If only one backend is specified and it has a weight
+                greater than 0, 100% of the traffic is forwarded to
+                that backend. If weight is set to 0, no traffic should
+                be forwarded for this entry. If unspecified, weight
+                defaults to 1. \n Support for this field varies based
+                on the context where used."
+        - name: filters
+          type: array<object>
+          description: "Filters defined at this level should be
+            executed if and only if the request is being forwarded
+            to the backend defined here. \n Support: Custom (For
+            broader support of filters, use the Filters field in
+            HTTPRouteRule.)"
+          items:
+            description: |
+              HTTPRouteFilter defines processing steps
+              that must be completed during the request or response
+              lifecycle. HTTPRouteFilters are meant as an extension
+              point to express processing that may be done in Gateway
+              implementations. Some examples include request or
+              response modification, implementing authentication
+              strategies, rate-limiting, and traffic shaping. API
+              guarantee/conformance is defined based on the type
+              of the filter.
+            fields:
+              - name: extensionRef
+                supported: false
+              - name: requestHeaderModifier
+                type: object
+                description: "RequestHeaderModifier defines a schema
+                for a filter that modifies request headers. \n
+                Support: Core"
+                fields:
+                  - name: add
+                    type: array<object>
+                    description: "Add adds the given header(s) (name,
+                      value) to the request before the action. It
+                      appends to any existing values associated
+                      with the header name. \n Input:   GET /foo
+                      HTTP/1.1   my-header: foo \n Config:   add:
+                      \  - name: \"my-header\"     value: \"bar\"
+                      \n Output:   GET /foo HTTP/1.1   my-header:
+                      foo   my-header: bar"
+                    items:
+                      description: |
+                        HTTPHeader represents an HTTP
+                        Header name and value as defined by RFC
+                        7230.
+                      fields:
+                        - name: name
+                          type: string
+                          description: "Name is the name of the
+                            HTTP Header to be matched. Name matching
+                            MUST be case insensitive. (See https://tools.ietf.org/html/rfc7230#section-3.2).
+                            \n If multiple entries specify equivalent
+                            header names, the first entry with an
+                            equivalent name MUST be considered for
+                            a match. Subsequent entries with an
+                            equivalent header name MUST be ignored.
+                            Due to the case-insensitivity of header
+                            names, \"foo\" and \"Foo\" are considered
+                            equivalent."
+                        - name: value
+                          type: string
+                          description: |
+                            Value is the value of HTTP Header to be matched.
+                  - name: remove
+                    type: array<string>
+                    description: "Remove the given header(s) from
+                      the HTTP request before the action. The value
+                      of Remove is a list of HTTP header names.
+                      Note that the header names are case-insensitive
+                      (see https://datatracker.ietf.org/doc/html/rfc2616#section-4.2).
+                      \n Input:   GET /foo HTTP/1.1   my-header1:
+                      foo   my-header2: bar   my-header3: baz \n
+                      Config:   remove: [\"my-header1\", \"my-header3\"]
+                      \n Output:   GET /foo HTTP/1.1   my-header2:
+                      bar"
+                  - name: set
+                    type: array<object>
+                    description: "Set overwrites the request with
+                      the given header (name, value) before the
+                      action. \n Input:   GET /foo HTTP/1.1   my-header:
+                      foo \n Config:   set:   - name: \"my-header\"
+                      \    value: \"bar\" \n Output:   GET /foo
+                      HTTP/1.1   my-header: bar"
+                    items:
+                      description: |
+                        HTTPHeader represents an HTTP
+                        Header name and value as defined by RFC
+                        7230.
+                      fields:
+                        - name: name
+                          type: string
+                          description: "Name is the name of the
+                            HTTP Header to be matched. Name matching
+                            MUST be case insensitive. (See https://tools.ietf.org/html/rfc7230#section-3.2).
+                            \n If multiple entries specify equivalent
+                            header names, the first entry with an
+                            equivalent name MUST be considered for
+                            a match. Subsequent entries with an
+                            equivalent header name MUST be ignored.
+                            Due to the case-insensitivity of header
+                            names, \"foo\" and \"Foo\" are considered
+                            equivalent."
+                        - name: value
+                          type: string
+                          description: Value is the value of HTTP Header to be matched.
+              - name: requestMirror
+                supported: false
+              - name: requestRedirect
+                supported: false
+              - name: type
+                type: string
+                description: "Type identifies the type of filter
+                  to apply. As with other API fields, types are
+                  classified into three conformance levels: \n -
+                  Core: Filter types and their corresponding configuration
+                  defined by   \"Support: Core\" in this package,
+                  e.g. \"RequestHeaderModifier\". All   implementations
+                  must support core filters. \n - Extended: Filter
+                  types and their corresponding configuration defined
+                  by   \"Support: Extended\" in this package, e.g.
+                  \"RequestMirror\". Implementers   are encouraged
+                  to support extended filters. \n - Custom: Filters
+                  that are defined and supported by specific vendors.
+                  \  In the future, filters showing convergence
+                  in behavior across multiple   implementations
+                  will be considered for inclusion in extended or
+                  core   conformance levels. Filter-specific configuration
+                  for such filters   is specified using the ExtensionRef
+                  field. `Type` should be set to   \"ExtensionRef\"
+                  for custom filters. \n Implementers are encouraged
+                  to define custom implementation types to extend
+                  the core API with implementation-specific behavior.
+                  \n If a reference to a custom filter type cannot
+                  be resolved, the filter MUST NOT be skipped. Instead,
+                  requests that would have been processed by that
+                  filter MUST receive a HTTP error response. \n "
+                enum: ["RequestHeaderModifier", "RequestMirror", "RequestRedirect", "ExtensionRef"]
+        - name: matches
+          type: array<object>
+          description: "Matches define conditions used for matching the
+            rule against incoming HTTP requests. Each match is independent,
+            i.e. this rule will be matched if **any** one of the matches
+            is satisfied. \n For example, take the following matches configuration:
+            \n ``` matches: - path:     value: \"/foo\"   headers:   -
+            name: \"version\"     value: \"v2\" - path:     value: \"/v2/foo\"
+            ``` \n For a request to match against this rule, a request
+            must satisfy EITHER of the two conditions: \n - path prefixed
+            with `/foo` AND contains the header `version: v2` - path prefix
+            of `/v2/foo` \n See the documentation for HTTPRouteMatch on
+            how to specify multiple match conditions that should be ANDed
+            together. \n If no matches are specified, the default is a
+            prefix path match on \"/\", which has the effect of matching
+            every HTTP request. \n Proxy or Load Balancer routing configuration
+            generated from HTTPRoutes MUST prioritize rules based on the
+            following criteria, continuing on ties. Precedence must be
+            given to the the Rule with the largest number of: \n * Characters
+            in a matching non-wildcard hostname. * Characters in a matching
+            hostname. * Characters in a matching path. * Header matches.
+            * Query param matches. \n If ties still exist across multiple
+            Routes, matching precedence MUST be determined in order of
+            the following criteria, continuing on ties: \n * The oldest
+            Route based on creation timestamp. * The Route appearing first
+            in alphabetical order by   \"{namespace}/{name}\". \n If ties
+            still exist within the Route that has been given precedence,
+            matching precedence MUST be granted to the first matching
+            rule meeting the above criteria."
+          items:
+            description: "HTTPRouteMatch defines the predicate used to
+              match requests to a given action. Multiple match types are
+              ANDed together, i.e. the match will evaluate to true only
+              if all conditions are satisfied. \n For example, the match
+              below will match a HTTP request only if its path starts
+              with `/foo` AND it contains the `version: v1` header: \n
+              ``` match:   path:     value: \"/foo\"   headers:   - name:
+              \"version\"     value \"v1\" ```"
+            fields:
+              - name: headers
+                type: array<object>
+                description: |
+                  Headers specifies HTTP request header matchers.
+                  Multiple match values are ANDed together, meaning, a
+                  request must match all the specified headers to select
+                  the route.
+                items:
+                  description: |
+                    HTTPHeaderMatch describes how to select
+                    a HTTP route by matching HTTP request headers.
+                  fields:
+                    - name: name
+                      type: string
+                      description: "Name is the name of the HTTP Header
+                        to be matched. Name matching MUST be case insensitive.
+                        (See https://tools.ietf.org/html/rfc7230#section-3.2).
+                        \n If multiple entries specify equivalent header
+                        names, only the first entry with an equivalent
+                        name MUST be considered for a match. Subsequent
+                        entries with an equivalent header name MUST be
+                        ignored. Due to the case-insensitivity of header
+                        names, \"foo\" and \"Foo\" are considered equivalent.
+                        \n When a header is repeated in an HTTP request,
+                        it is implementation-specific behavior as to how
+                        this is represented. Generally, proxies should
+                        follow the guidance from the RFC: https://www.rfc-editor.org/rfc/rfc7230.html#section-3.2.2
+                        regarding processing a repeated header, with special
+                        handling for \"Set-Cookie\"."
+                    - name: type
+                      type: string
+                      default: Exact
+                      description: "Type specifies how to match against
+                        the value of the header. \n Support: Core (Exact)
+                        \n Support: Custom (RegularExpression) \n Since
+                        RegularExpression HeaderMatchType has custom conformance,
+                        implementations can support POSIX, PCRE or any
+                        other dialects of regular expressions. Please
+                        read the implementation's documentation to determine
+                        the supported dialect."
+                      enum: ["Exact", "RegularExpression"]
+                    - name: value
+                      type: string
+                      description: |
+                        Value is the value of HTTP Header to be matched.
+              - name: method
+                type: string
+                description: "Method specifies HTTP method matcher. When
+                  specified, this route will be matched only if the request
+                  has the specified method. \n Support: Extended"
+                enum: ["GET", "HEAD", "POST", "PUT", "DELETE", "CONNECT", "OPTIONS", "TRACE", "PATCH"]
+              - name: path
+                type: object
+                description: |
+                  Path specifies a HTTP request path matcher.
+                  If this field is not specified, a default prefix match
+                  on the "/" path is provided.
+                fields:
+                  - name: type
+                    type: string
+                    default: PathPrefix
+                    description: "Type specifies how to match against
+                      the path Value. \n Support: Core (Exact, PathPrefix)
+                      \n Support: Custom (RegularExpression)"
+                    enum: ["Exact", "PathPrefix", "RegularExpression"]
+                  - name: value
+                    type: string
+                    default: /
+                    description: Value of the HTTP path to match against.
+              - name: queryParams
+                type: array<object>
+                description: |
+                  QueryParams specifies HTTP query parameter
+                  matchers. Multiple match values are ANDed together,
+                  meaning, a request must match all the specified query
+                  parameters to select the route.
+                items:
+                  description: |
+                    HTTPQueryParamMatch describes how to select
+                    a HTTP route by matching HTTP query parameters.
+                  fields:
+                    - name: name
+                      type: string
+                      description: |
+                        Name is the name of the HTTP query
+                        param to be matched. This must be an exact string
+                        match. (See https://tools.ietf.org/html/rfc7230#section-2.7.3).
+                    - name: type
+                      type: string
+                      default: Exact
+                      description: "Type specifies how to match against
+                        the value of the query parameter. \n Support:
+                        Extended (Exact) \n Support: Custom (RegularExpression)
+                        \n Since RegularExpression QueryParamMatchType
+                        has custom conformance, implementations can support
+                        POSIX, PCRE or any other dialects of regular expressions.
+                        Please read the implementation's documentation
+                        to determine the supported dialect."
+                      enum: ["Exact", "RegularExpression"]
+                    - name: value
+                      type: string
+                      description: Value is the value of HTTP query param to be matched.
