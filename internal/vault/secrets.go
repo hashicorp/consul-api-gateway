@@ -27,6 +27,9 @@ func NewSecret(issuer, issue string) Secret {
 	}
 }
 
+// ParseSecret accepts an opaque string reference and returns a Secret.
+// The expected format is vault:///<issuer>/<issue> where "issuer" and
+// "issue" correlate with values accepted by Vault's PKI API.
 func ParseSecret(ref string) (Secret, error) {
 	parsed, err := url.Parse(ref)
 	if err != nil {
@@ -50,6 +53,8 @@ func ParseSecret(ref string) (Secret, error) {
 	return NewSecret(tokens[0], tokens[1]), nil
 }
 
+// String serializes a Secret into an opaque string that can later
+// be parsed and restored to an equivalent Secret.
 func (s Secret) String() string {
 	return (&url.URL{
 		Scheme: SecretScheme,

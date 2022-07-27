@@ -35,6 +35,9 @@ func NewSecretClient(logger hclog.Logger, config *api.Config) (*SecretClient, er
 	}, nil
 }
 
+// FetchSecret accepts an opaque string containing necessary values for retrieving
+// a certificate and private key from Vault. It retrieves the certificate and private
+// key, stores them in memory, and returns a tls.Secret acceptable for Envoy SDS.
 func (c *SecretClient) FetchSecret(ctx context.Context, fullName string) (*tls.Secret, time.Time, error) {
 	parsedSecret, err := ParseSecret(fullName)
 	if err != nil {
@@ -46,10 +49,10 @@ func (c *SecretClient) FetchSecret(ctx context.Context, fullName string) (*tls.S
 		{Name: "fetcher", Value: "vault"},
 		{Name: "name", Value: parsedSecret.String()}}) // TODO Use fullName instead of serializing again
 
-	// Retrieve certificate + key from Vault
+	// TODO Retrieve certificate + key from Vault
 
-	// Convert to *tls.Secret
+	// TODO Convert to *tls.Secret
 
-	// Return *tls.Secret, x509.Certificate.NotAfter
+	// TODO Return *tls.Secret, x509.Certificate.NotAfter
 	return &tls.Secret{}, time.Now(), nil
 }
