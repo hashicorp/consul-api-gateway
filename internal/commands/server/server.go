@@ -18,6 +18,7 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/consul"
 	"github.com/hashicorp/consul-api-gateway/internal/envoy"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	"github.com/hashicorp/consul-api-gateway/internal/metrics"
 	"github.com/hashicorp/consul-api-gateway/internal/profiling"
 	"github.com/hashicorp/consul-api-gateway/internal/store/memory"
@@ -137,7 +138,7 @@ func registerSecretClients(config ServerConfig) (*envoy.MultiSecretClient, error
 		config.Logger.Error("error initializing the kubernetes secret fetcher", "error", err)
 		return nil, err
 	}
-	k8sSecretClient.AddToMultiClient(secretClient) // TODO Switch to secretClient.Register
+	secretClient.Register(utils.K8sSecretScheme, k8sSecretClient)
 
 	vaultSecretClient, err := vault.NewSecretClient(config.Logger.Named("vault-cert-fetcher"), config.VaultConfig, "pki", "TODO")
 	if err != nil {
