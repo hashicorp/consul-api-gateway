@@ -104,7 +104,7 @@ func (c *SecretClient) generateCertBundle(ctx context.Context, name string) (*ce
 		{Name: "name", Value: name}})
 
 	// Generate certificate + key using Vault API
-	path := fmt.Sprintf("/v1/%s/issuer/%s/issue/%s", c.pkiPath, c.issuer, c.issue)
+	path := fmt.Sprintf("/%s/issuer/%s/issue/%s", c.pkiPath, c.issuer, c.issue)
 
 	body := make(map[string]interface{})
 	if err = mapstructure.Decode(
