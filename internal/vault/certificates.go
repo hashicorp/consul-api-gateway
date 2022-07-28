@@ -114,7 +114,7 @@ func (c *SecretClient) generateCertBundle(ctx context.Context, name string) (*ce
 			IPSANs:     secret.IPSANs,
 			OtherSANs:  secret.OtherSANs,
 			TTL:        secret.TTL,
-		}, body); err != nil {
+		}, &body); err != nil {
 		return nil, err
 	}
 
