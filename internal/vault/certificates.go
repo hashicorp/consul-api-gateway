@@ -40,9 +40,10 @@ type SecretClient struct {
 }
 
 // NewSecretClient relies on having standard VAULT_x envars set
-// such as VAULT_TOKEN, VAULT_ADDR, etc.
-func NewSecretClient(logger hclog.Logger, config *api.Config, pkiPath, issue string) (*SecretClient, error) {
-	client, err := api.NewClient(config)
+// such as VAULT_TOKEN, VAULT_ADDR, etc. In the future, we may need
+// to construct the config externally to allow for custom flags, etc.
+func NewSecretClient(logger hclog.Logger, pkiPath, issue string) (*SecretClient, error) {
+	client, err := api.NewClient(api.DefaultConfig())
 	if err != nil {
 		return nil, err
 	}

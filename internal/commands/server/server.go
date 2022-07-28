@@ -12,8 +12,6 @@ import (
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
 
-	vaultapi "github.com/hashicorp/vault/api"
-
 	consulAdapters "github.com/hashicorp/consul-api-gateway/internal/adapters/consul"
 	"github.com/hashicorp/consul-api-gateway/internal/consul"
 	"github.com/hashicorp/consul-api-gateway/internal/envoy"
@@ -30,7 +28,6 @@ type ServerConfig struct {
 	Logger        hclog.Logger
 	ConsulConfig  *api.Config
 	K8sConfig     *k8s.Config
-	VaultConfig   *vaultapi.Config
 	ProfilingPort int
 	MetricsPort   int
 
@@ -140,7 +137,7 @@ func registerSecretClients(config ServerConfig) (*envoy.MultiSecretClient, error
 	}
 	secretClient.Register(utils.K8sSecretScheme, k8sSecretClient)
 
-	vaultSecretClient, err := vault.NewSecretClient(config.Logger.Named("vault-cert-fetcher"), config.VaultConfig, "pki", "TODO")
+	vaultSecretClient, err := vault.NewSecretClient(config.Logger.Named("vault-cert-fetcher"), "pki", "TODO")
 	if err != nil {
 		config.Logger.Error("error initializing the vault secret fetcher", "error", err)
 		return nil, err

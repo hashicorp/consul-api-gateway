@@ -10,12 +10,10 @@ import (
 	"time"
 
 	"github.com/mitchellh/cli"
-	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
-	vaultapi "github.com/hashicorp/vault/api"
 
 	"github.com/hashicorp/consul-api-gateway/internal/k8s"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
@@ -122,16 +120,41 @@ func (c *Command) Run(args []string) int {
 	cfg.SDSServerPort = c.flagSDSServerPort
 	cfg.Namespace = c.flagK8sNamespace
 
-	consulCfg, consulCA, err := c.buildConsulConfig(logger, restConfig)
-	if err != nil {
-		return 1
+	consulCfg := api.DefaultConfig()
+	if c.flagCAFile != "" {
+		consulCfg.TLSConfig.CAFile = c.flagCAFile
 	}
-	cfg.CACert = consulCA
 
-	// TODO Handle case where Vault integration isn't required
-	vaultCfg, err := c.buildVaultConfig()
-	if err != nil {
-		return 1
+	if c.flagCASecret != "" {
+		// if we're pulling the cert from a secret, then we override the location
+		// where we store it
+		file, err := ioutil.TempFile("", "consul-api-gateway")
+		if err != nil {
+			logger.Error("error creating the kubernetes controller", "error", err)
+			return 1
+		}
+		defer os.Remove(file.Name())
+		consulCfg.TLSConfig.CAFile = file.Name()
+
+		if err := utils.WriteSecretCertFile(restConfig, c.flagCASecret, file.Name(), c.flagCASecretNamespace); err != nil {
+			logger.Error("error creating the kubernetes controller", "error", err)
+			return 1
+		}
+	}
+	// CA file can be set by cli flag or 'CONSUL_CACERT' env var
+	if consulCfg.TLSConfig.CAFile != "" {
+		consulCfg.Scheme = "https"
+		consulCA, err := ioutil.ReadFile(consulCfg.TLSConfig.CAFile)
+		if err != nil {
+			logger.Error("error creating the kubernetes controller", "error", err)
+			return 1
+		}
+
+		cfg.CACert = string(consulCA)
+	}
+
+	if c.flagConsulAddress != "" {
+		consulCfg.Address = c.flagConsulAddress
 	}
 
 	cfg.ConsulNamespaceConfig = k8s.ConsulNamespaceConfig{
@@ -145,60 +168,10 @@ func (c *Command) Run(args []string) int {
 		Logger:        logger,
 		ConsulConfig:  consulCfg,
 		K8sConfig:     cfg,
-		VaultConfig:   vaultCfg,
 		ProfilingPort: c.flagPprofPort,
 		MetricsPort:   c.flagMetricsPort,
 		isTest:        c.isTest,
 	})
-}
-
-func (c *Command) buildConsulConfig(logger hclog.Logger, restConfig *rest.Config) (*api.Config, string, error) {
-	cfg := api.DefaultConfig()
-	if c.flagCAFile != "" {
-		cfg.TLSConfig.CAFile = c.flagCAFile
-	}
-
-	if c.flagCASecret != "" {
-		// if we're pulling the cert from a secret, then we override the location
-		// where we store it
-		file, err := ioutil.TempFile("", "consul-api-gateway")
-		if err != nil {
-			logger.Error("error creating the kubernetes controller", "error", err)
-			return nil, "", err
-		}
-		defer os.Remove(file.Name())
-		cfg.TLSConfig.CAFile = file.Name()
-
-		err = utils.WriteSecretCertFile(restConfig, c.flagCASecret, file.Name(), c.flagCASecretNamespace)
-		if err != nil {
-			logger.Error("error creating the kubernetes controller", "error", err)
-			return nil, "", err
-		}
-	}
-
-	// CA file can be set by cli flag or 'CONSUL_CACERT' env var
-	var consulCA string
-	if cfg.TLSConfig.CAFile != "" {
-		cfg.Scheme = "https"
-
-		ca, err := ioutil.ReadFile(cfg.TLSConfig.CAFile)
-		if err != nil {
-			logger.Error("error creating the kubernetes controller", "error", err)
-			return nil, "", err
-		}
-
-		consulCA = string(ca)
-	}
-
-	if c.flagConsulAddress != "" {
-		cfg.Address = c.flagConsulAddress
-	}
-
-	return cfg, consulCA, nil
-}
-
-func (c *Command) buildVaultConfig() (*vaultapi.Config, error) {
-	return vaultapi.DefaultConfig(), nil
 }
 
 func (c *Command) Synopsis() string {
