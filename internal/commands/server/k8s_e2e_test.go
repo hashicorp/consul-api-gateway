@@ -1448,8 +1448,89 @@ func TestReferenceGrantLifecycle(t *testing.T) {
 			err = resources.Create(ctx, tcpRoute)
 			require.NoError(t, err)
 
-			// create ReferenceGrant allowing HTTPRoute BackendRef
 			serviceOneObjectName := gwv1alpha2.ObjectName(serviceOne.Name)
+
+			tcpRouteStatusCheckRefNotPermitted := tcpRouteStatusCheck(
+				ctx,
+				resources,
+				gatewayName,
+				tcpRouteName,
+				tcpRouteNamespace,
+				createConditionsCheck([]meta.Condition{
+					{Type: "Accepted", Status: "False"},
+					{Type: "ResolvedRefs", Status: "False", Reason: "RefNotPermitted"},
+				}),
+			)
+
+			// create ReferencePolicy allowing HTTPRoute BackendRef
+			httpRouteReferencePolicy := &gwv1alpha2.ReferencePolicy{
+				ObjectMeta: meta.ObjectMeta{
+					Name:      httpRouteRefGrantName,
+					Namespace: namespace,
+				},
+				Spec: gwv1alpha2.ReferenceGrantSpec{
+					From: []gwv1alpha2.ReferenceGrantFrom{{
+						Group:     "gateway.networking.k8s.io",
+						Kind:      "HTTPRoute",
+						Namespace: gwv1alpha2.Namespace(httpRouteNamespace),
+					}},
+					To: []gwv1alpha2.ReferenceGrantTo{{
+						Group: "",
+						Kind:  "Service",
+						Name:  &serviceOneObjectName,
+					}},
+				},
+			}
+			err = resources.Create(ctx, httpRouteReferencePolicy)
+			require.NoError(t, err)
+
+			// Expect that HTTPRoute sets
+			// ResolvedRefs{ status: True, reason: ResolvedRefs }
+			// now that ReferencePolicy allows BackendRef in other namespace
+			require.Eventually(t, httpRouteStatusCheck(
+				ctx,
+				resources,
+				gatewayName,
+				httpRouteName,
+				httpRouteNamespace,
+				createConditionsCheck([]meta.Condition{
+					{Type: "Accepted", Status: "True"},
+					{Type: "ResolvedRefs", Status: "True", Reason: "ResolvedRefs"},
+				}),
+			), checkTimeout, checkInterval, "HTTPRoute status not set in allotted time")
+
+			// Check that HTTPRoute is successfully resolved and routing traffic
+			checkRoute(t, httpCheckPort, "/", httpResponse{
+				StatusCode: http.StatusOK,
+				Body:       serviceOne.Name,
+			}, map[string]string{
+				"Host": "test.foo",
+			}, "service one not routable in allotted time")
+
+			// Expect that TCPRoute still sets
+			// ResolvedRefs{ status: False, reason: RefNotPermitted }
+			// due to missing ReferenceGrant for BackendRef in other namespace
+			require.Eventually(t, tcpRouteStatusCheckRefNotPermitted, checkTimeout, checkInterval, "TCPRoute status not set in allotted time")
+
+			// Delete HTTPRoute ReferencePolicy, check for RefNotPermitted again
+			// Check that Gateway has cleaned up stale route and is no longer routing traffic
+			err = resources.Delete(ctx, httpRouteReferencePolicy)
+			require.NoError(t, err)
+			require.Eventually(t, httpRouteStatusCheckRefNotPermitted, checkTimeout, checkInterval, "HTTPRoute status not set in allotted time")
+			require.Eventually(t, listenerStatusCheck(
+				ctx,
+				resources,
+				gatewayName,
+				namespace,
+				listenerAttachedRoutes(0, "https"),
+			), checkTimeout, checkInterval, "listeners not ready in the allotted time")
+			// TODO: when implementation is updated, this should be refactored to check for a 404 status code
+			// instead of a connection error
+			checkRouteError(t, httpCheckPort, "/", map[string]string{
+				"Host": "test.foo",
+			}, "service one still routable in allotted time")
+
+			// create ReferenceGrant allowing HTTPRoute BackendRef
 			httpRouteReferenceGrant := &gwv1alpha2.ReferenceGrant{
 				ObjectMeta: meta.ObjectMeta{
 					Name:      httpRouteRefGrantName,
@@ -1497,21 +1578,67 @@ func TestReferenceGrantLifecycle(t *testing.T) {
 			// Expect that TCPRoute still sets
 			// ResolvedRefs{ status: False, reason: RefNotPermitted }
 			// due to missing ReferenceGrant for BackendRef in other namespace
-			tcpRouteStatusCheckRefNotPermitted := tcpRouteStatusCheck(
+			require.Eventually(t, tcpRouteStatusCheckRefNotPermitted, checkTimeout, checkInterval, "TCPRoute status not set in allotted time")
+
+			serviceTwoObjectName := gwv1alpha2.ObjectName(serviceTwo.Name)
+
+			// create ReferencePolicy allowing TCPRoute BackendRef
+			tcpRouteReferencePolicy := &gwv1alpha2.ReferencePolicy{
+				ObjectMeta: meta.ObjectMeta{
+					Name:      tcpRouteRefGrantName,
+					Namespace: namespace,
+				},
+				Spec: gwv1alpha2.ReferenceGrantSpec{
+					From: []gwv1alpha2.ReferenceGrantFrom{{
+						Group:     "gateway.networking.k8s.io",
+						Kind:      "TCPRoute",
+						Namespace: gwv1alpha2.Namespace(tcpRouteNamespace),
+					}},
+					To: []gwv1alpha2.ReferenceGrantTo{{
+						Group: "",
+						Kind:  "Service",
+						Name:  &serviceTwoObjectName,
+					}},
+				},
+			}
+			err = resources.Create(ctx, tcpRouteReferencePolicy)
+			require.NoError(t, err)
+
+			// Expect that TCPRoute sets
+			// ResolvedRefs{ status: True, reason: ResolvedRefs }
+			// now that ReferencePolicy allows BackendRef in other namespace
+			require.Eventually(t, tcpRouteStatusCheck(
 				ctx,
 				resources,
 				gatewayName,
 				tcpRouteName,
 				tcpRouteNamespace,
 				createConditionsCheck([]meta.Condition{
-					{Type: "Accepted", Status: "False"},
-					{Type: "ResolvedRefs", Status: "False", Reason: "RefNotPermitted"},
+					{Type: "Accepted", Status: "True"},
+					{Type: "ResolvedRefs", Status: "True", Reason: "ResolvedRefs"},
 				}),
-			)
+			), checkTimeout, checkInterval, "TCPRoute status not set in allotted time")
+
+			// Check that TCPRoute is successfully resolved and routing traffic
+			checkTCPRoute(t, tcpCheckPort, serviceTwo.Name, false, "service two not routable in allotted time")
+
+			// Delete TCPRoute ReferencePolicy, check for RefNotPermitted again
+			// Check that Gateway has cleaned up stale route and is no longer routing traffic
+			err = resources.Delete(ctx, tcpRouteReferencePolicy)
+			require.NoError(t, err)
 			require.Eventually(t, tcpRouteStatusCheckRefNotPermitted, checkTimeout, checkInterval, "TCPRoute status not set in allotted time")
+			require.Eventually(t, listenerStatusCheck(
+				ctx,
+				resources,
+				gatewayName,
+				namespace,
+				listenerAttachedRoutes(0, "tcp"),
+			), checkTimeout, checkInterval, "listeners not ready in the allotted time")
+			// The following error is logged but doesn't seem to get propagated up to be able to check it properly
+			// [WARN]  [core]grpc: Server.Serve failed to complete security handshake: remote error: tls: unknown certificate authority
+			checkTCPRoute(t, tcpCheckPort, "", true, "service two still routable in allotted time")
 
 			// create ReferenceGrant allowing TCPRoute BackendRef
-			serviceTwoObjectName := gwv1alpha2.ObjectName(serviceTwo.Name)
 			tcpRouteReferenceGrant := &gwv1alpha2.ReferenceGrant{
 				ObjectMeta: meta.ObjectMeta{
 					Name:      tcpRouteRefGrantName,
