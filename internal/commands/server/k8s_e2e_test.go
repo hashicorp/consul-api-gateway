@@ -1647,6 +1647,48 @@ func TestReferenceGrantLifecycle(t *testing.T) {
 			listenerCheck := listenerStatusCheck(ctx, resources, gatewayName, gatewayNamespace, listenerConditionCheck)
 			require.Eventually(t, listenerCheck, checkTimeout, checkInterval, "Gateway listener status not set in allotted time")
 
+			// Create ReferencePolicy allowing Gateway CertificateRef
+			certReferencePolicy := &gwv1alpha2.ReferencePolicy{
+				ObjectMeta: meta.ObjectMeta{
+					Name:      gatewayRefGrantName,
+					Namespace: string(certNamespace),
+				},
+				Spec: gwv1alpha2.ReferenceGrantSpec{
+					From: []gwv1alpha2.ReferenceGrantFrom{{
+						Group:     "gateway.networking.k8s.io",
+						Kind:      "Gateway",
+						Namespace: gwv1alpha2.Namespace(gatewayNamespace),
+					}},
+					To: []gwv1alpha2.ReferenceGrantTo{{
+						Group: "",
+						Kind:  "Secret",
+						Name:  nil,
+					}},
+				},
+			}
+			require.NoError(t, resources.Create(ctx, certReferencePolicy))
+
+			// Expect that Gateway has expected success condition
+			gatewayCheck = gatewayStatusCheck(ctx, resources, gatewayName, gatewayNamespace, conditionReady)
+			require.Eventually(t, gatewayCheck, checkTimeout, checkInterval, "Gateway status not set in allotted time")
+
+			// Expect that Gateway listener has expected success condition
+			listenerConditionCheck = createListenerStatusConditionsCheck([]meta.Condition{{Type: "ResolvedRefs", Status: "True", Reason: "ResolvedRefs"}})
+			listenerCheck = listenerStatusCheck(ctx, resources, gatewayName, gatewayNamespace, listenerConditionCheck)
+			require.Eventually(t, listenerCheck, checkTimeout, checkInterval, "Gateway listener status not set in allotted time")
+
+			// Delete Gateway ReferencePolicy
+			require.NoError(t, resources.Delete(ctx, certReferencePolicy))
+
+			// Check for error status conditions again
+			gatewayConditionCheck = createConditionsCheck([]meta.Condition{{Type: "Ready", Status: "False", Reason: "ListenersNotValid"}})
+			gatewayCheck = gatewayStatusCheck(ctx, resources, gatewayName, gatewayNamespace, gatewayConditionCheck)
+			require.Eventually(t, gatewayCheck, checkTimeout, checkInterval, "Gateway status not set in allotted time")
+
+			listenerConditionCheck = createListenerStatusConditionsCheck([]meta.Condition{{Type: "ResolvedRefs", Status: "False", Reason: "InvalidCertificateRef"}})
+			listenerCheck = listenerStatusCheck(ctx, resources, gatewayName, gatewayNamespace, listenerConditionCheck)
+			require.Eventually(t, listenerCheck, checkTimeout, checkInterval, "Gateway listener status not set in allotted time")
+
 			// Create ReferenceGrant allowing Gateway CertificateRef
 			certReferenceGrant := &gwv1alpha2.ReferenceGrant{
 				ObjectMeta: meta.ObjectMeta{
