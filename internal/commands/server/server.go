@@ -139,7 +139,7 @@ func registerSecretClients(config ServerConfig) (*envoy.MultiSecretClient, error
 	}
 	k8sSecretClient.AddToMultiClient(secretClient) // TODO Switch to secretClient.Register
 
-	vaultSecretClient, err := vault.NewSecretClient(config.Logger.Named("vault-cert-fetcher"), config.VaultConfig)
+	vaultSecretClient, err := vault.NewSecretClient(config.Logger.Named("vault-cert-fetcher"), config.VaultConfig, "pki", "TODO")
 	if err != nil {
 		config.Logger.Error("error initializing the vault secret fetcher", "error", err)
 		return nil, err

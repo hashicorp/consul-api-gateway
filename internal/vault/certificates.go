@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/armon/go-metrics"
@@ -16,7 +15,7 @@ import (
 	"github.com/mitchellh/mapstructure"
 
 	"github.com/hashicorp/consul-api-gateway/internal/envoy"
-	gwMetrics "github.com/hashicorp/consul-api-gateway/internal/metrics"
+	gwmetrics "github.com/hashicorp/consul-api-gateway/internal/metrics"
 )
 
 var _ envoy.SecretClient = (*SecretClient)(nil)
@@ -38,9 +37,6 @@ type SecretClient struct {
 	pkiPath string
 	issuer  string
 	issue   string
-
-	cache     map[string]certutil.ParsedCertBundle
-	cacheLock sync.RWMutex
 }
 
 // NewSecretClient relies on having standard VAULT_x envars set
@@ -60,25 +56,16 @@ func NewSecretClient(logger hclog.Logger, config *api.Config, pkiPath, issue str
 		pkiPath: pkiPath,
 		issuer:  defaultIssuer,
 		issue:   issue,
-		cache:   make(map[string]certutil.ParsedCertBundle),
 	}, nil
 }
 
 // FetchSecret accepts an opaque string containing necessary values for retrieving
 // a certificate and private key from Vault. It retrieves the certificate and private
 // key, stores them in memory, and returns a tls.Secret acceptable for Envoy SDS.
-func (c *SecretClient) FetchSecret(ctx context.Context, fullName string) (*tls.Secret, time.Time, error) {
-	c.cacheLock.RLock()
-	cert, cached := c.cache[fullName]
-	c.cacheLock.RUnlock()
-	if !cached {
-		generatedCert, err := c.generateCertBundle(ctx, fullName)
-		if err != nil {
-			return nil, time.Time{}, err
-		}
-		c.cacheLock.Lock()
-		c.cache[fullName] = *generatedCert
-		c.cacheLock.Unlock()
+func (c *SecretClient) FetchSecret(ctx context.Context, name string) (*tls.Secret, time.Time, error) {
+	cert, err := c.generateCertBundle(ctx, name)
+	if err != nil {
+		return nil, time.Time{}, err
 	}
 
 	return &tls.Secret{
@@ -96,31 +83,36 @@ func (c *SecretClient) FetchSecret(ctx context.Context, fullName string) (*tls.S
 				},
 			},
 		},
-		Name: fullName,
+		Name: name,
 	}, cert.Certificate.NotAfter, nil
 }
 
-func (c *SecretClient) generateCertBundle(ctx context.Context, fullName string) (*certutil.ParsedCertBundle, error) {
-	secret, err := ParseSecret(fullName)
+// generateCertBundle calls the Vault endpoint for generating a certificate + key
+// and returns the parsed bundle.
+//
+// https://www.vaultproject.io/api-docs/secret/pki#generate-certificate-and-key
+func (c *SecretClient) generateCertBundle(ctx context.Context, name string) (*certutil.ParsedCertBundle, error) {
+	secret, err := ParseSecret(name)
 	if err != nil {
 		return nil, err
 	}
 
-	c.logger.Trace("fetching SDS secret", "name", fullName)
-	gwMetrics.Registry.IncrCounterWithLabels(gwMetrics.SDSCertificateFetches, 1, []metrics.Label{
+	c.logger.Trace("fetching SDS secret", "name", name)
+	gwmetrics.Registry.IncrCounterWithLabels(gwmetrics.SDSCertificateFetches, 1, []metrics.Label{
 		{Name: "fetcher", Value: "vault"},
-		{Name: "name", Value: fullName}})
+		{Name: "name", Value: name}})
 
 	// Generate certificate + key using Vault API
-	// https://www.vaultproject.io/api-docs/secret/pki#generate-certificate-and-key
 	path := fmt.Sprintf("/v1/%s/issuer/%s/issue/%s", c.pkiPath, c.issuer, c.issue)
 
-	// TODO Add any additional fields decoded above to the body
 	body := make(map[string]interface{})
 	if err = mapstructure.Decode(
 		certutil.IssueData{
-			TTL:        secret.TTL,
+			AltNames:   secret.AltNames,
 			CommonName: secret.CommonName,
+			IPSANs:     secret.IPSANs,
+			OtherSANs:  secret.OtherSANs,
+			TTL:        secret.TTL,
 		}, body); err != nil {
 		return nil, err
 	}

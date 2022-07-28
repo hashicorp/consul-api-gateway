@@ -34,6 +34,8 @@ type SecretClient interface {
 	FetchSecret(ctx context.Context, name string) (*tls.Secret, time.Time, error)
 }
 
+var _ SecretClient = (*MultiSecretClient)(nil)
+
 // MultiSecretClient implements a registry of secret clients that handle fetching secrets
 // based off of the protocol they're given in the secret name.
 type MultiSecretClient struct {
@@ -62,14 +64,17 @@ func (m *MultiSecretClient) FetchSecret(ctx context.Context, name string) (*tls.
 	if err != nil {
 		return nil, time.Time{}, err
 	}
+
 	fetcher, found := m.fetchers[parsed.Scheme]
 	if !found {
 		return nil, time.Time{}, ErrInvalidSecretProtocol
 	}
+
 	return fetcher.FetchSecret(ctx, name)
 }
 
 // SecretManager handles the lifecycle of watched TLS secrets.
+// TODO Trim down this interface - Watch() and Unwatch() are never used
 type SecretManager interface {
 	// SetResourcesForNode sets a list of TLS certificates being tracked by the node
 	SetResourcesForNode(ctx context.Context, names []string, node string) error
