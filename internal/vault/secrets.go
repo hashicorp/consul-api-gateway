@@ -16,20 +16,20 @@ var (
 // This Vault-specific implementation corresponds with the K8s-specific
 // implementation, utils.K8sSecret.
 type Secret struct {
-	Issuer string
-	Issue  string
+	CommonName string
+	TTL        string
 }
 
-func NewSecret(issuer, issue string) Secret {
+func NewSecret(commonName, ttl string) Secret {
 	return Secret{
-		Issuer: issuer,
-		Issue:  issue,
+		CommonName: commonName,
+		TTL:        ttl,
 	}
 }
 
 // ParseSecret accepts an opaque string reference and returns a Secret.
-// The expected format is vault:///<issuer>/<issue> where "issuer" and
-// "issue" correlate with values accepted by Vault's PKI API.
+// The expected format is vault:///<common_name>?ttl=<ttl> where "common_name"
+// and "ttl" correlate with values accepted by Vault's PKI API.
 func ParseSecret(ref string) (Secret, error) {
 	parsed, err := url.Parse(ref)
 	if err != nil {
@@ -58,6 +58,9 @@ func ParseSecret(ref string) (Secret, error) {
 func (s Secret) String() string {
 	return (&url.URL{
 		Scheme: SecretScheme,
-		Path:   fmt.Sprintf("/%s/%s", s.Issuer, s.Issue),
+		Path:   fmt.Sprintf("/%s", s.CommonName),
+		RawQuery: url.Values{
+			"ttl": []string{s.TTL},
+		}.Encode(),
 	}).String()
 }

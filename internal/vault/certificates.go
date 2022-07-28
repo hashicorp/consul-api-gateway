@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/vault/api"
 	"github.com/hashicorp/vault/sdk/helper/certutil"
+	"github.com/mitchellh/mapstructure"
 
 	"github.com/hashicorp/consul-api-gateway/internal/envoy"
 	gwMetrics "github.com/hashicorp/consul-api-gateway/internal/metrics"
@@ -100,8 +101,7 @@ func (c *SecretClient) FetchSecret(ctx context.Context, fullName string) (*tls.S
 }
 
 func (c *SecretClient) generateCertBundle(ctx context.Context, fullName string) (*certutil.ParsedCertBundle, error) {
-	// TODO Determine proper format, necessary values for body below
-	_, err := ParseSecret(fullName)
+	secret, err := ParseSecret(fullName)
 	if err != nil {
 		return nil, err
 	}
@@ -115,20 +115,27 @@ func (c *SecretClient) generateCertBundle(ctx context.Context, fullName string) 
 	// https://www.vaultproject.io/api-docs/secret/pki#generate-certificate-and-key
 	path := fmt.Sprintf("/v1/%s/issuer/%s/issue/%s", c.pkiPath, c.issuer, c.issue)
 
-	body := map[string]interface{}{
-		// TODO Pass along values from parsed fullName above
+	// TODO Add any additional fields decoded above to the body
+	body := make(map[string]interface{})
+	if err = mapstructure.Decode(
+		certutil.IssueData{
+			TTL:        secret.TTL,
+			CommonName: secret.CommonName,
+		}, body); err != nil {
+		return nil, err
 	}
 
-	secret, err := c.client.Logical().WriteWithContext(ctx, path, body)
+	result, err := c.client.Logical().WriteWithContext(ctx, path, body)
 	if err != nil {
 		return nil, err
 	}
 
-	certBundle, err := certutil.ParsePKIMap(secret.Data)
+	certBundle, err := certutil.ParsePKIMap(result.Data)
 	if err != nil {
 		return nil, err
 	}
 
-	// TODO Determine whether making invalid assumptions about encoding
+	// TODO Determine whether making invalid assumptions about encoding.
+	//   Defaults to PEM format based on endpoint docs.
 	return certBundle, nil
 }
