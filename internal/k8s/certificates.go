@@ -99,7 +99,3 @@ func (c *K8sSecretClient) FetchSecret(ctx context.Context, fullName string) (*tl
 		Name: fullName,
 	}, cert.NotAfter, nil
 }
-
-func (c *K8sSecretClient) AddToMultiClient(m *envoy.MultiSecretClient) {
-	m.Register(utils.K8sSecretScheme, c)
-}
