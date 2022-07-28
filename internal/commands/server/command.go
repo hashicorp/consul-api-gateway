@@ -40,7 +40,6 @@ type Command struct {
 	flagCASecretNamespace string // CA Secret namespace for Consul server
 
 	flagConsulAddress string // Consul server address
-	flagVaultAddress  string // Vault address
 
 	flagSDSServerHost string // SDS server host
 	flagSDSServerPort int    // SDS server port
@@ -73,7 +72,6 @@ func (c *Command) init() {
 	c.flagSet.StringVar(&c.flagCASecret, "ca-secret", "", "CA Secret for Consul server.")
 	c.flagSet.StringVar(&c.flagCASecretNamespace, "ca-secret-namespace", "default", "CA Secret namespace for Consul server.")
 	c.flagSet.StringVar(&c.flagConsulAddress, "consul-address", "", "Consul Address.")
-	c.flagSet.StringVar(&c.flagVaultAddress, "vault-address", "", "Vault address.")
 	c.flagSet.StringVar(&c.flagSDSServerHost, "sds-server-host", defaultSDSServerHost, "SDS Server Host.")
 	c.flagSet.StringVar(&c.flagK8sContext, "k8s-context", "", "Kubernetes context to use.")
 	c.flagSet.StringVar(&c.flagK8sNamespace, "k8s-namespace", "", "Kubernetes namespace to use.")
@@ -131,7 +129,7 @@ func (c *Command) Run(args []string) int {
 	cfg.CACert = consulCA
 
 	// TODO Handle case where Vault integration isn't required
-	vaultCfg, err := c.buildVaultConfig(logger)
+	vaultCfg, err := c.buildVaultConfig()
 	if err != nil {
 		return 1
 	}
@@ -199,14 +197,8 @@ func (c *Command) buildConsulConfig(logger hclog.Logger, restConfig *rest.Config
 	return cfg, consulCA, nil
 }
 
-func (c *Command) buildVaultConfig(logger hclog.Logger) (*vaultapi.Config, error) {
-	cfg := vaultapi.DefaultConfig()
-
-	if c.flagVaultAddress != "" {
-		cfg.Address = c.flagVaultAddress
-	}
-
-	return cfg, nil
+func (c *Command) buildVaultConfig() (*vaultapi.Config, error) {
+	return vaultapi.DefaultConfig(), nil
 }
 
 func (c *Command) Synopsis() string {
