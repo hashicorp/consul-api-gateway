@@ -69,12 +69,21 @@ func (c *SecretClient) FetchSecret(ctx context.Context, name string) (*tls.Secre
 		return nil, time.Time{}, err
 	}
 
+	bundle, err := cert.ToCertBundle()
+	if err != nil {
+		return nil, time.Time{}, err
+	}
+
+	if len(bundle.CAChain) == 0 {
+		bundle.CAChain = []string{bundle.IssuingCA}
+	}
+
 	return &tls.Secret{
 		Type: &tls.Secret_TlsCertificate{
 			TlsCertificate: &tls.TlsCertificate{
 				CertificateChain: &core.DataSource{
-					Specifier: &core.DataSource_InlineBytes{
-						InlineBytes: cert.CertificateBytes,
+					Specifier: &core.DataSource_InlineString{
+						InlineString: strings.Join(bundle.CAChain, "\n"),
 					},
 				},
 				PrivateKey: &core.DataSource{
