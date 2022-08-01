@@ -2,7 +2,6 @@ package vault
 
 import (
 	"errors"
-	"fmt"
 	"net/url"
 )
 
@@ -73,14 +72,23 @@ func ParseSecret(ref string) (Secret, error) {
 // String serializes a Secret into an opaque string that can later
 // be parsed and restored to an equivalent Secret.
 func (s Secret) String() string {
+	v := url.Values{}
+	if s.AltNames != "" {
+		v.Add(queryKeyAltNames, s.AltNames)
+	}
+	if s.IPSANs != "" {
+		v.Add(queryKeyIPSANs, s.IPSANs)
+	}
+	if s.OtherSANs != "" {
+		v.Add(queryKeyOtherSANs, s.OtherSANs)
+	}
+	if s.TTL != "" {
+		v.Add(queryKeyTTL, s.TTL)
+	}
+
 	return (&url.URL{
-		Scheme: SecretScheme,
-		Path:   fmt.Sprintf("/%s", s.CommonName),
-		RawQuery: url.Values{
-			queryKeyAltNames:  []string{s.AltNames},
-			queryKeyIPSANs:    []string{s.IPSANs},
-			queryKeyOtherSANs: []string{s.OtherSANs},
-			queryKeyTTL:       []string{s.TTL},
-		}.Encode(),
+		Scheme:   SecretScheme,
+		Host:     s.CommonName,
+		RawQuery: v.Encode(),
 	}).String()
 }
