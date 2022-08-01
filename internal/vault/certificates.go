@@ -26,13 +26,18 @@ const (
 	defaultIssuer = "default"
 )
 
+//go:generate mockgen -source ./certificates.go -destination ./mocks/certificates.go -package mocks LogicalClient
+type LogicalClient interface {
+	WriteWithContext(context.Context, string, map[string]interface{}) (*api.Secret, error)
+}
+
 // SecretClient acts as a secret fetcher for Vault.
 //
 // This Vault-specific implementation corresponds with the K8s-specific
 // implementation, k8s.K8sSecretClient.
 type SecretClient struct {
 	logger hclog.Logger
-	client *api.Client
+	client LogicalClient
 
 	pkiPath string
 	issuer  string
@@ -53,7 +58,7 @@ func NewSecretClient(logger hclog.Logger, pkiPath, issue string) (*SecretClient,
 
 	return &SecretClient{
 		logger:  logger,
-		client:  client,
+		client:  client.Logical(),
 		pkiPath: pkiPath,
 		issuer:  defaultIssuer,
 		issue:   issue,
@@ -127,7 +132,7 @@ func (c *SecretClient) generateCertBundle(ctx context.Context, name string) (*ce
 		return nil, err
 	}
 
-	result, err := c.client.Logical().WriteWithContext(ctx, path, body)
+	result, err := c.client.WriteWithContext(ctx, path, body)
 	if err != nil {
 		return nil, err
 	}
