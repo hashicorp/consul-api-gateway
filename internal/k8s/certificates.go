@@ -23,6 +23,8 @@ import (
 	gwMetrics "github.com/hashicorp/consul-api-gateway/internal/metrics"
 )
 
+var _ envoy.SecretClient = (*K8sSecretClient)(nil)
+
 // K8sSecretClient acts as a secret fetcher for kubernetes secrets
 type K8sSecretClient struct {
 	logger hclog.Logger
@@ -96,8 +98,4 @@ func (c *K8sSecretClient) FetchSecret(ctx context.Context, fullName string) (*tl
 		},
 		Name: fullName,
 	}, cert.NotAfter, nil
-}
-
-func (c *K8sSecretClient) AddToMultiClient(m *envoy.MultiSecretClient) {
-	m.Register(utils.K8sSecretScheme, c)
 }

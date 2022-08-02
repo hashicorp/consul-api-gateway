@@ -16,9 +16,11 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/consul"
 	"github.com/hashicorp/consul-api-gateway/internal/envoy"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	"github.com/hashicorp/consul-api-gateway/internal/metrics"
 	"github.com/hashicorp/consul-api-gateway/internal/profiling"
 	"github.com/hashicorp/consul-api-gateway/internal/store/memory"
+	"github.com/hashicorp/consul-api-gateway/internal/vault"
 )
 
 type ServerConfig struct {
@@ -40,13 +42,10 @@ func RunServer(config ServerConfig) int {
 
 	group, groupCtx := errgroup.WithContext(ctx)
 
-	secretClient := envoy.NewMultiSecretClient()
-	k8sSecretClient, err := k8s.NewK8sSecretClient(config.Logger.Named("cert-fetcher"), config.K8sConfig.RestConfig)
+	secretClient, err := registerSecretClients(config)
 	if err != nil {
-		config.Logger.Error("error initializing the kubernetes secret fetcher", "error", err)
 		return 1
 	}
-	k8sSecretClient.AddToMultiClient(secretClient)
 
 	controller, err := k8s.New(config.Logger, config.K8sConfig)
 	if err != nil {
@@ -126,4 +125,24 @@ func RunServer(config ServerConfig) int {
 
 	config.Logger.Info("shutting down")
 	return 0
+}
+
+func registerSecretClients(config ServerConfig) (*envoy.MultiSecretClient, error) {
+	secretClient := envoy.NewMultiSecretClient()
+
+	k8sSecretClient, err := k8s.NewK8sSecretClient(config.Logger.Named("k8s-cert-fetcher"), config.K8sConfig.RestConfig)
+	if err != nil {
+		config.Logger.Error("error initializing the kubernetes secret fetcher", "error", err)
+		return nil, err
+	}
+	secretClient.Register(utils.K8sSecretScheme, k8sSecretClient)
+
+	vaultSecretClient, err := vault.NewSecretClient(config.Logger.Named("vault-cert-fetcher"), "pki", "TODO")
+	if err != nil {
+		config.Logger.Error("error initializing the vault secret fetcher", "error", err)
+		return nil, err
+	}
+	secretClient.Register(vault.SecretScheme, vaultSecretClient)
+
+	return secretClient, nil
 }

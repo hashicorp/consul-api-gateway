@@ -16,7 +16,7 @@ const (
 	K8sSecretScheme = "k8s"
 )
 
-// KK8sSecret is a wrapper to a Kubernetes certificate secret
+// K8sSecret is a wrapper to a Kubernetes certificate secret
 type K8sSecret struct {
 	Namespace string
 	Name      string

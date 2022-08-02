@@ -16,6 +16,7 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/consul"
 	"github.com/hashicorp/consul-api-gateway/internal/envoy"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	"github.com/hashicorp/consul-api-gateway/internal/store/memory"
 )
 
@@ -50,7 +51,8 @@ func (p *gatewayTestEnvironment) run(ctx context.Context, namespace string, cfg 
 	if err != nil {
 		return err
 	}
-	k8sSecretClient.AddToMultiClient(secretClient)
+
+	secretClient.Register(utils.K8sSecretScheme, k8sSecretClient)
 
 	controller, err := k8s.New(nullLogger, &k8s.Config{
 		SDSServerHost: HostRoute(ctx),

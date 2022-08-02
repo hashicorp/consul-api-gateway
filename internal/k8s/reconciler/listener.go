@@ -143,9 +143,9 @@ func (l *K8sListener) validateTLS(ctx context.Context) error {
 		}
 		l.status.ResolvedRefs.InvalidCertificateRef = certificateErr
 		return nil
-	} else {
-		l.tls.Certificates = []string{resource}
 	}
+
+	l.tls.Certificates = []string{resource}
 
 	if l.listener.TLS.Options != nil {
 		tlsMinVersion := l.listener.TLS.Options[tlsMinVersionAnnotationKey]
