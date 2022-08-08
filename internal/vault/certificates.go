@@ -19,9 +19,11 @@ import (
 )
 
 var _ envoy.SecretClient = (*PKISecretClient)(nil)
+var _ envoy.SecretClient = (*StaticSecretClient)(nil)
 
 const (
-	PKISecretScheme = "vault+pki"
+	PKISecretScheme    = "vault+pki"
+	StaticSecretScheme = "vault"
 
 	defaultIssuer = "default"
 )
@@ -29,6 +31,40 @@ const (
 //go:generate mockgen -source ./certificates.go -destination ./mocks/certificates.go -package mocks LogicalClient
 type LogicalClient interface {
 	WriteWithContext(context.Context, string, map[string]interface{}) (*api.Secret, error)
+}
+
+type StaticSecretClient struct {
+	logger hclog.Logger
+	client LogicalClient
+}
+
+func NewStaticSecretClient(logger hclog.Logger) (*StaticSecretClient, error) {
+	client, err := api.NewClient(api.DefaultConfig())
+	if err != nil {
+		return nil, err
+	}
+
+	return &StaticSecretClient{
+		logger: logger,
+		client: client.Logical(),
+	}, nil
+}
+
+func (c *StaticSecretClient) FetchSecret(ctx context.Context, name string) (*tls.Secret, time.Time, error) {
+	_, err := ParseStaticSecret(name)
+	if err != nil {
+		return nil, time.Time{}, err
+	}
+
+	c.logger.Trace("fetching SDS secret", "name", name)
+	gwmetrics.Registry.IncrCounterWithLabels(gwmetrics.SDSCertificateFetches, 1, []metrics.Label{
+		{Name: "fetcher", Value: StaticSecretScheme},
+		{Name: "name", Value: name}})
+
+	// TODO Fetch certificate + key using Vault API
+
+	// TODO Convert to *tls.Secret
+	return nil, time.Time{}, nil
 }
 
 // PKISecretClient acts as a certificate generator using Vault's PKI engine.
@@ -114,7 +150,7 @@ func (c *PKISecretClient) generateCertBundle(ctx context.Context, name string) (
 
 	c.logger.Trace("fetching SDS secret", "name", name)
 	gwmetrics.Registry.IncrCounterWithLabels(gwmetrics.SDSCertificateFetches, 1, []metrics.Label{
-		{Name: "fetcher", Value: "vault"},
+		{Name: "fetcher", Value: PKISecretScheme},
 		{Name: "name", Value: name}})
 
 	// Generate certificate + key using Vault API
