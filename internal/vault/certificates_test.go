@@ -26,7 +26,7 @@ import (
 )
 
 func TestNewSecretClient(t *testing.T) {
-	client, err := NewSecretClient(hclog.NewNullLogger(), "/pki/", t.Name())
+	client, err := NewPKISecretClient(hclog.NewNullLogger(), "/pki/", t.Name())
 	require.NoError(t, err)
 	assert.NotNil(t, client.client)
 	assert.Equal(t, "pki", client.pkiPath)
@@ -38,11 +38,11 @@ func TestSecretClient_FetchSecret(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	client, err := NewSecretClient(hclog.NewNullLogger(), "pki", t.Name())
+	client, err := NewPKISecretClient(hclog.NewNullLogger(), "pki", t.Name())
 	require.NoError(t, err)
 
 	ttl := 12 * time.Hour
-	vaultSecret := NewSecret("example.com", "", "", "", ttl.String())
+	vaultSecret := NewPKISecret("example.com", "", "", "", ttl.String())
 
 	cert, key := generateCertAndKey(t, "example.com", ttl)
 

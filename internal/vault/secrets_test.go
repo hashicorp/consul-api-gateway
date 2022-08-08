@@ -7,17 +7,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestParseSecret(t *testing.T) {
+func TestParsePKISecret(t *testing.T) {
 	// Test empty name
-	_, err := ParseSecret("")
+	_, err := ParsePKISecret("")
 	assert.EqualError(t, ErrInvalidSecret, err.Error())
 
 	// Test invalid scheme
-	_, err = ParseSecret("invalid://")
+	_, err = ParsePKISecret("invalid://")
 	assert.EqualError(t, ErrInvalidSecret, err.Error())
 
 	// Test partial set of serialized values
-	secret, err := ParseSecret("vault://example.com?altNames=www.example.com&ttl=12h")
+	secret, err := ParsePKISecret("vault+pki://example.com?altNames=www.example.com&ttl=12h")
 	require.NoError(t, err)
 	assert.Equal(t, "www.example.com", secret.AltNames)
 	assert.Equal(t, "example.com", secret.CommonName)
@@ -26,7 +26,7 @@ func TestParseSecret(t *testing.T) {
 	assert.Equal(t, "12h", secret.TTL)
 
 	// Test full set of serialized values
-	secret, err = ParseSecret("vault://example.com?altNames=www.example.com&ipSans=127.0.0.1&otherSans=helloworld.com&ttl=12h")
+	secret, err = ParsePKISecret("vault+pki://example.com?altNames=www.example.com&ipSans=127.0.0.1&otherSans=helloworld.com&ttl=12h")
 	require.NoError(t, err)
 	assert.Equal(t, "www.example.com", secret.AltNames)
 	assert.Equal(t, "example.com", secret.CommonName)
@@ -35,32 +35,32 @@ func TestParseSecret(t *testing.T) {
 	assert.Equal(t, "12h", secret.TTL)
 
 	// Test round trip
-	secret2, err := ParseSecret(secret.String())
+	secret2, err := ParsePKISecret(secret.String())
 	require.NoError(t, err)
 	assert.Equal(t, secret, secret2)
 }
 
-func TestSecret_String(t *testing.T) {
-	secret := NewSecret("", "", "", "", "")
+func TestPKISecret_String(t *testing.T) {
+	secret := NewPKISecret("", "", "", "", "")
 
 	// Test empty
-	assert.Equal(t, "vault:", secret.String())
+	assert.Equal(t, "vault+pki:", secret.String())
 
 	// Test w/ common name
 	secret.CommonName = "example.com"
-	assert.Equal(t, "vault://example.com", secret.String())
+	assert.Equal(t, "vault+pki://example.com", secret.String())
 
 	// Test with partial set of values
 	secret.AltNames = "www.example.com"
 	secret.TTL = "12h"
-	assert.Equal(t, "vault://example.com?altNames=www.example.com&ttl=12h", secret.String())
+	assert.Equal(t, "vault+pki://example.com?altNames=www.example.com&ttl=12h", secret.String())
 
 	// Test with full set of values
 	secret.IPSANs = "127.0.0.1"
 	secret.OtherSANs = "helloworld.com"
-	assert.Equal(t, "vault://example.com?altNames=www.example.com&ipSans=127.0.0.1&otherSans=helloworld.com&ttl=12h", secret.String())
+	assert.Equal(t, "vault+pki://example.com?altNames=www.example.com&ipSans=127.0.0.1&otherSans=helloworld.com&ttl=12h", secret.String())
 
 	// Test round trip
-	secret2 := NewSecret("example.com", "www.example.com", "127.0.0.1", "helloworld.com", "12h")
+	secret2 := NewPKISecret("example.com", "www.example.com", "127.0.0.1", "helloworld.com", "12h")
 	assert.Equal(t, secret.String(), secret2.String())
 }

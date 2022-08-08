@@ -18,10 +18,10 @@ import (
 	gwmetrics "github.com/hashicorp/consul-api-gateway/internal/metrics"
 )
 
-var _ envoy.SecretClient = (*SecretClient)(nil)
+var _ envoy.SecretClient = (*PKISecretClient)(nil)
 
 const (
-	SecretScheme = "vault"
+	PKISecretScheme = "vault+pki"
 
 	defaultIssuer = "default"
 )
@@ -31,11 +31,11 @@ type LogicalClient interface {
 	WriteWithContext(context.Context, string, map[string]interface{}) (*api.Secret, error)
 }
 
-// SecretClient acts as a secret fetcher for Vault.
+// PKISecretClient acts as a certificate generator using Vault's PKI engine.
 //
 // This Vault-specific implementation corresponds with the K8s-specific
 // implementation, k8s.K8sSecretClient.
-type SecretClient struct {
+type PKISecretClient struct {
 	logger hclog.Logger
 	client LogicalClient
 
@@ -44,10 +44,10 @@ type SecretClient struct {
 	issue   string
 }
 
-// NewSecretClient relies on having standard VAULT_x envars set
+// NewPKISecretClient relies on having standard VAULT_x envars set
 // such as VAULT_TOKEN, VAULT_ADDR, etc. In the future, we may need
 // to construct the config externally to allow for custom flags, etc.
-func NewSecretClient(logger hclog.Logger, pkiPath, issue string) (*SecretClient, error) {
+func NewPKISecretClient(logger hclog.Logger, pkiPath, issue string) (*PKISecretClient, error) {
 	client, err := api.NewClient(api.DefaultConfig())
 	if err != nil {
 		return nil, err
@@ -56,7 +56,7 @@ func NewSecretClient(logger hclog.Logger, pkiPath, issue string) (*SecretClient,
 	// Ensure no leading or trailing / for path interpolation later
 	pkiPath = strings.Trim(pkiPath, "/")
 
-	return &SecretClient{
+	return &PKISecretClient{
 		logger:  logger,
 		client:  client.Logical(),
 		pkiPath: pkiPath,
@@ -67,8 +67,8 @@ func NewSecretClient(logger hclog.Logger, pkiPath, issue string) (*SecretClient,
 
 // FetchSecret accepts an opaque string containing necessary values for retrieving
 // a certificate and private key from Vault. It retrieves the certificate and private
-// key, stores them in memory, and returns a tls.Secret acceptable for Envoy SDS.
-func (c *SecretClient) FetchSecret(ctx context.Context, name string) (*tls.Secret, time.Time, error) {
+// key, stores them in memory, and returns a tls.PKISecret acceptable for Envoy SDS.
+func (c *PKISecretClient) FetchSecret(ctx context.Context, name string) (*tls.Secret, time.Time, error) {
 	cert, err := c.generateCertBundle(ctx, name)
 	if err != nil {
 		return nil, time.Time{}, err
@@ -106,8 +106,8 @@ func (c *SecretClient) FetchSecret(ctx context.Context, name string) (*tls.Secre
 // and returns the parsed bundle.
 //
 // https://www.vaultproject.io/api-docs/secret/pki#generate-certificate-and-key
-func (c *SecretClient) generateCertBundle(ctx context.Context, name string) (*certutil.ParsedCertBundle, error) {
-	secret, err := ParseSecret(name)
+func (c *PKISecretClient) generateCertBundle(ctx context.Context, name string) (*certutil.ParsedCertBundle, error) {
+	secret, err := ParsePKISecret(name)
 	if err != nil {
 		return nil, err
 	}
