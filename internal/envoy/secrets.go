@@ -311,7 +311,7 @@ func (s *secretManager) Manage(ctx context.Context, forceInterval time.Duration)
 		case <-time.After(s.loopTimeout):
 			force := false
 			now := time.Now()
-			if now.Sub(lastForce) > forceInterval {
+			if now.Sub(lastForce) >= forceInterval {
 				force = true
 				lastForce = now
 			}
