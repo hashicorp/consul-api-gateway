@@ -66,37 +66,37 @@ func TestPKISecret_String(t *testing.T) {
 	assert.Equal(t, secret, secret2)
 }
 
-func TestParseStaticSecret(t *testing.T) {
+func TestParseKVSecret(t *testing.T) {
 	// Test empty name
-	_, err := ParseStaticSecret("")
+	_, err := ParseKVSecret("")
 	assert.EqualError(t, ErrInvalidSecret, err.Error())
 
 	// Test invalid scheme
-	_, err = ParseStaticSecret("invalid://")
+	_, err = ParseKVSecret("invalid://")
 	assert.EqualError(t, ErrInvalidSecret, err.Error())
 
 	// Test partial set of serialized values
-	secret, err := ParseStaticSecret("vault+kv:///kv/api-gateway-tls-cert?tlsCertKey=tls.cert")
+	secret, err := ParseKVSecret("vault+kv:///kv/api-gateway-tls-cert?tlsCertKey=tls.cert")
 	require.NoError(t, err)
 	assert.Equal(t, "/kv/api-gateway-tls-cert", secret.Path)
 	assert.Equal(t, "tls.cert", secret.CertKey)
 	assert.Empty(t, secret.PrivateKeyKey)
 
 	// Test full set of serialized values
-	secret, err = ParseStaticSecret("vault+kv:///kv/api-gateway-tls-cert?tlsCertKey=tls.cert&tlsPrivateKeyKey=tls.key")
+	secret, err = ParseKVSecret("vault+kv:///kv/api-gateway-tls-cert?tlsCertKey=tls.cert&tlsPrivateKeyKey=tls.key")
 	require.NoError(t, err)
 	assert.Equal(t, "/kv/api-gateway-tls-cert", secret.Path)
 	assert.Equal(t, "tls.cert", secret.CertKey)
 	assert.Equal(t, "tls.key", secret.PrivateKeyKey)
 
 	// Test round trip
-	secret2, err := ParseStaticSecret(secret.String())
+	secret2, err := ParseKVSecret(secret.String())
 	require.NoError(t, err)
 	assert.Equal(t, secret, secret2)
 }
 
-func TestStaticSecret_String(t *testing.T) {
-	secret := NewStaticSecret("", "", "")
+func TestKVSecret_String(t *testing.T) {
+	secret := NewKVSecret("", "", "")
 
 	// Test empty
 	assert.Equal(t, "vault+kv:", secret.String())
@@ -114,7 +114,7 @@ func TestStaticSecret_String(t *testing.T) {
 	assert.Equal(t, "vault+kv:///kv/api-gateway-tls-cert?tlsCertKey=tls.cert&tlsPrivateKeyKey=tls.key", secret.String())
 
 	// Test round trip
-	secret2, err := ParseStaticSecret(secret.String())
+	secret2, err := ParseKVSecret(secret.String())
 	require.NoError(t, err)
 	assert.Equal(t, secret, secret2)
 }

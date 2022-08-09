@@ -23,7 +23,7 @@ import (
 )
 
 var _ envoy.SecretClient = (*PKISecretClient)(nil)
-var _ envoy.SecretClient = (*StaticSecretClient)(nil)
+var _ envoy.SecretClient = (*KVSecretClient)(nil)
 
 const (
 	PKISecretScheme    = "vault+pki"
@@ -42,19 +42,19 @@ type KVClient interface {
 	Get(context.Context, string) (*api.KVSecret, error)
 }
 
-// StaticSecretClient acts as a certificate retriever using Vault's KV store.
+// KVSecretClient acts as a certificate retriever using Vault's KV store.
 //
 // This Vault-specific implementation corresponds with the K8s-specific
 // implementation, k8s.K8sSecretClient.
-type StaticSecretClient struct {
+type KVSecretClient struct {
 	logger hclog.Logger
 	client KVClient
 }
 
-// NewStaticSecretClient relies on having standard VAULT_x envars set
+// NewKVSecretClient relies on having standard VAULT_x envars set
 // such as VAULT_TOKEN, VAULT_ADDR, etc. In the future, we may need
 // to construct the config externally to allow for custom flags, etc.
-func NewStaticSecretClient(logger hclog.Logger, kvPath string) (*StaticSecretClient, error) {
+func NewKVSecretClient(logger hclog.Logger, kvPath string) (*KVSecretClient, error) {
 	client, err := api.NewClient(api.DefaultConfig())
 	if err != nil {
 		return nil, err
@@ -63,7 +63,7 @@ func NewStaticSecretClient(logger hclog.Logger, kvPath string) (*StaticSecretCli
 	// Ensure no leading or trailing / for path interpolation later
 	kvPath = strings.Trim(kvPath, "/")
 
-	return &StaticSecretClient{
+	return &KVSecretClient{
 		logger: logger,
 		client: client.KVv2(kvPath),
 	}, nil
@@ -72,8 +72,8 @@ func NewStaticSecretClient(logger hclog.Logger, kvPath string) (*StaticSecretCli
 // FetchSecret accepts an opaque string containing necessary values for retrieving
 // a certificate and private key from Vault KV. It retrieves the certificate and private
 // key, stores them in memory, and returns a tls.Secret acceptable for Envoy SDS.
-func (c *StaticSecretClient) FetchSecret(ctx context.Context, name string) (*tls.Secret, time.Time, error) {
-	secret, err := ParseStaticSecret(name)
+func (c *KVSecretClient) FetchSecret(ctx context.Context, name string) (*tls.Secret, time.Time, error) {
+	secret, err := ParseKVSecret(name)
 	if err != nil {
 		return nil, time.Time{}, err
 	}

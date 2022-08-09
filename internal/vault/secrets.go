@@ -22,32 +22,32 @@ const (
 	queryKeyPrivateKeyKey = "tlsPrivateKeyKey"
 )
 
-type StaticSecret struct {
+type KVSecret struct {
 	Path          string
 	CertKey       string
 	PrivateKeyKey string
 }
 
-func NewStaticSecret(path, certKey, privateKeyKey string) StaticSecret {
-	return StaticSecret{
+func NewKVSecret(path, certKey, privateKeyKey string) KVSecret {
+	return KVSecret{
 		Path:          path,
 		CertKey:       certKey,
 		PrivateKeyKey: privateKeyKey,
 	}
 }
 
-func ParseStaticSecret(ref string) (StaticSecret, error) {
+func ParseKVSecret(ref string) (KVSecret, error) {
 	parsed, err := url.Parse(ref)
 	if err != nil {
-		return StaticSecret{}, err
+		return KVSecret{}, err
 	}
 
 	if parsed.Scheme != StaticSecretScheme {
-		return StaticSecret{}, ErrInvalidSecret
+		return KVSecret{}, ErrInvalidSecret
 	}
 
 	if !strings.HasPrefix(parsed.Path, "/") {
-		return StaticSecret{}, ErrInvalidSecret
+		return KVSecret{}, ErrInvalidSecret
 	}
 
 	// TODO Error on certKey or privateKeyKey not included since
@@ -56,10 +56,10 @@ func ParseStaticSecret(ref string) (StaticSecret, error) {
 	certKey := parsed.Query().Get(queryKeyCertKey)
 	privateKeyKey := parsed.Query().Get(queryKeyPrivateKeyKey)
 
-	return NewStaticSecret(path, certKey, privateKeyKey), nil
+	return NewKVSecret(path, certKey, privateKeyKey), nil
 }
 
-func (s StaticSecret) String() string {
+func (s KVSecret) String() string {
 	v := url.Values{}
 
 	if s.CertKey != "" {
