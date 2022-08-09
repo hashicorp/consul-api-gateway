@@ -31,7 +31,8 @@ const (
 	defaultGRPCBindAddress = ":9090"
 	defaultShutdownTimeout = 10 * time.Second
 
-	cachedMetricsTimeout = 10 * time.Second
+	cachedMetricsTimeout                = 10 * time.Second
+	defaultCertificateForcePullInterval = 30 * time.Minute
 )
 
 var logOnce sync.Once
@@ -45,24 +46,26 @@ type CertificateFetcher interface {
 
 // SDSServer wraps a gRPC-based SDS Delta server
 type SDSServer struct {
-	logger          hclog.Logger
-	fetcher         CertificateFetcher
-	server          *grpc.Server
-	client          SecretClient
-	bindAddress     string
-	protocol        string
-	gatewayRegistry GatewaySecretRegistry
+	logger                       hclog.Logger
+	fetcher                      CertificateFetcher
+	server                       *grpc.Server
+	client                       SecretClient
+	bindAddress                  string
+	protocol                     string
+	gatewayRegistry              GatewaySecretRegistry
+	certificateForcePullInterval time.Duration
 }
 
 // NEWSDSServer initializes an SDSServer instance
 func NewSDSServer(logger hclog.Logger, fetcher CertificateFetcher, client SecretClient, registry GatewaySecretRegistry) *SDSServer {
 	return &SDSServer{
-		logger:          logger,
-		fetcher:         fetcher,
-		client:          client,
-		bindAddress:     defaultGRPCBindAddress,
-		protocol:        "tcp",
-		gatewayRegistry: registry,
+		logger:                       logger,
+		fetcher:                      fetcher,
+		client:                       client,
+		bindAddress:                  defaultGRPCBindAddress,
+		protocol:                     "tcp",
+		gatewayRegistry:              registry,
+		certificateForcePullInterval: defaultCertificateForcePullInterval,
 	}
 }
 
@@ -109,7 +112,7 @@ func (s *SDSServer) Run(ctx context.Context) error {
 		return err
 	}
 
-	go secretManager.Manage(childCtx)
+	go secretManager.Manage(childCtx, s.certificateForcePullInterval)
 	errs := make(chan error, 1)
 	go func() {
 		errs <- s.server.Serve(listener)

@@ -86,7 +86,7 @@ type SecretManager interface {
 	// UnwatchAll is used to completely unwatch all a node's secrets
 	UnwatchAll(ctx context.Context, node string) error
 	// Manage is used for re-fetching expiring TLS certificates and updating them
-	Manage(ctx context.Context)
+	Manage(ctx context.Context, forceInterval time.Duration)
 }
 
 // reference counted certificates
@@ -301,13 +301,21 @@ func (s *secretManager) unwatch(names []string, node string) error {
 }
 
 // Manage is used for re-fetching expiring TLS certificates and updating them
-func (s *secretManager) Manage(ctx context.Context) {
+func (s *secretManager) Manage(ctx context.Context, forceInterval time.Duration) {
 	s.logger.Trace("running secrets manager")
+
+	lastForce := time.Now()
 
 	for {
 		select {
 		case <-time.After(s.loopTimeout):
-			s.manage(ctx)
+			force := false
+			now := time.Now()
+			if now.Sub(lastForce) > forceInterval {
+				force = true
+				lastForce = now
+			}
+			s.manage(ctx, force)
 		case <-ctx.Done():
 			// we finished the context, just return
 			return
@@ -315,7 +323,8 @@ func (s *secretManager) Manage(ctx context.Context) {
 	}
 }
 
-func (s *secretManager) manage(ctx context.Context) {
+func (s *secretManager) manage(ctx context.Context, force bool) {
+	//boolean force
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
@@ -323,7 +332,7 @@ func (s *secretManager) manage(ctx context.Context) {
 		// check the certificate to see if we're within a window close to its
 		// expiration, when we want to start re-fetching it because of it
 		// potentially getting re-issued
-		if time.Now().After(secret.expiration.Add(-s.expirationDelta)) {
+		if force || time.Now().After(secret.expiration.Add(-s.expirationDelta)) {
 			// fetch the certificate and add it to the cache
 			certificate, expires, err := s.client.FetchSecret(ctx, secretName)
 			if err != nil {
