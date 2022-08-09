@@ -144,7 +144,7 @@ func registerSecretClients(config ServerConfig) (*envoy.MultiSecretClient, error
 	}
 	secretClient.Register(vault.PKISecretScheme, vaultPKIClient)
 
-	vaultStaticClient, err := vault.NewStaticSecretClient(config.Logger.Named("vault-static-cert-fetcher"))
+	vaultStaticClient, err := vault.NewStaticSecretClient(config.Logger.Named("vault-static-cert-fetcher"), "secret")
 	if err != nil {
 		config.Logger.Error("error initializing the vault static cert fetcher", "error", err)
 		return nil, err

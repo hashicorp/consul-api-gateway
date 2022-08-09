@@ -49,3 +49,41 @@ func (mr *MockLogicalClientMockRecorder) WriteWithContext(arg0, arg1, arg2 inter
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteWithContext", reflect.TypeOf((*MockLogicalClient)(nil).WriteWithContext), arg0, arg1, arg2)
 }
+
+// MockKVClient is a mock of KVClient interface.
+type MockKVClient struct {
+	ctrl     *gomock.Controller
+	recorder *MockKVClientMockRecorder
+}
+
+// MockKVClientMockRecorder is the mock recorder for MockKVClient.
+type MockKVClientMockRecorder struct {
+	mock *MockKVClient
+}
+
+// NewMockKVClient creates a new mock instance.
+func NewMockKVClient(ctrl *gomock.Controller) *MockKVClient {
+	mock := &MockKVClient{ctrl: ctrl}
+	mock.recorder = &MockKVClientMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockKVClient) EXPECT() *MockKVClientMockRecorder {
+	return m.recorder
+}
+
+// Get mocks base method.
+func (m *MockKVClient) Get(arg0 context.Context, arg1 string) (*api.KVSecret, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Get", arg0, arg1)
+	ret0, _ := ret[0].(*api.KVSecret)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Get indicates an expected call of Get.
+func (mr *MockKVClientMockRecorder) Get(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockKVClient)(nil).Get), arg0, arg1)
+}

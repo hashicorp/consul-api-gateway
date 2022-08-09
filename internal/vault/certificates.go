@@ -2,6 +2,10 @@ package vault
 
 import (
 	"context"
+	"crypto/x509"
+	"encoding/base64"
+	"encoding/pem"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -23,7 +27,7 @@ var _ envoy.SecretClient = (*StaticSecretClient)(nil)
 
 const (
 	PKISecretScheme    = "vault+pki"
-	StaticSecretScheme = "vault"
+	StaticSecretScheme = "vault+kv"
 
 	defaultIssuer = "default"
 )
@@ -33,25 +37,43 @@ type LogicalClient interface {
 	WriteWithContext(context.Context, string, map[string]interface{}) (*api.Secret, error)
 }
 
-type StaticSecretClient struct {
-	logger hclog.Logger
-	client LogicalClient
+//go:generate mockgen -source ./certificates.go -destination ./mocks/certificates.go -package mocks KVClient
+type KVClient interface {
+	Get(context.Context, string) (*api.KVSecret, error)
 }
 
-func NewStaticSecretClient(logger hclog.Logger) (*StaticSecretClient, error) {
+// StaticSecretClient acts as a certificate retriever using Vault's KV store.
+//
+// This Vault-specific implementation corresponds with the K8s-specific
+// implementation, k8s.K8sSecretClient.
+type StaticSecretClient struct {
+	logger hclog.Logger
+	client KVClient
+}
+
+// NewStaticSecretClient relies on having standard VAULT_x envars set
+// such as VAULT_TOKEN, VAULT_ADDR, etc. In the future, we may need
+// to construct the config externally to allow for custom flags, etc.
+func NewStaticSecretClient(logger hclog.Logger, kvPath string) (*StaticSecretClient, error) {
 	client, err := api.NewClient(api.DefaultConfig())
 	if err != nil {
 		return nil, err
 	}
 
+	// Ensure no leading or trailing / for path interpolation later
+	kvPath = strings.Trim(kvPath, "/")
+
 	return &StaticSecretClient{
 		logger: logger,
-		client: client.Logical(),
+		client: client.KVv2(kvPath),
 	}, nil
 }
 
+// FetchSecret accepts an opaque string containing necessary values for retrieving
+// a certificate and private key from Vault KV. It retrieves the certificate and private
+// key, stores them in memory, and returns a tls.Secret acceptable for Envoy SDS.
 func (c *StaticSecretClient) FetchSecret(ctx context.Context, name string) (*tls.Secret, time.Time, error) {
-	_, err := ParseStaticSecret(name)
+	secret, err := ParseStaticSecret(name)
 	if err != nil {
 		return nil, time.Time{}, err
 	}
@@ -61,10 +83,64 @@ func (c *StaticSecretClient) FetchSecret(ctx context.Context, name string) (*tls
 		{Name: "fetcher", Value: StaticSecretScheme},
 		{Name: "name", Value: name}})
 
-	// TODO Fetch certificate + key using Vault API
+	path := strings.TrimPrefix(secret.Path, "/")
 
-	// TODO Convert to *tls.Secret
-	return nil, time.Time{}, nil
+	// Fetch
+	result, err := c.client.Get(ctx, path)
+	if err != nil {
+		return nil, time.Time{}, err
+	}
+
+	certValue, certExists := result.Data[secret.CertKey]
+	privateKeyValue, privateKeyExists := result.Data[secret.PrivateKeyKey]
+	if !certExists || !privateKeyExists {
+		return nil, time.Time{}, errors.New("cert or private key not included in Vault secret")
+	}
+
+	// Decode and parse certificate to extract expiration
+	b64Cert, ok := certValue.(string)
+	if !ok || b64Cert == "" {
+		return nil, time.Time{}, errors.New("cert value from Vault not string")
+	}
+	certBytes, err := base64.StdEncoding.DecodeString(b64Cert)
+	if err != nil {
+		return nil, time.Time{}, errors.New("cert value from Vault not base64-decodable")
+	}
+	block, _ := pem.Decode(certBytes)
+	if block == nil {
+		return nil, time.Time{}, errors.New("failed to parse PEM cert value from Vault")
+	}
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return nil, time.Time{}, fmt.Errorf("failed to parse cert: %w", err)
+	}
+
+	// Decode private key
+	b64PrivateKey, ok := privateKeyValue.(string)
+	if !ok || b64PrivateKey == "" {
+		return nil, time.Time{}, errors.New("private key value from Vault not string")
+	}
+	privateKeyBytes, err := base64.StdEncoding.DecodeString(b64PrivateKey)
+	if err != nil {
+		return nil, time.Time{}, errors.New("private key value from Vault not base64-decodable")
+	}
+
+	return &tls.Secret{
+		Type: &tls.Secret_TlsCertificate{
+			TlsCertificate: &tls.TlsCertificate{
+				CertificateChain: &core.DataSource{
+					Specifier: &core.DataSource_InlineBytes{
+						InlineBytes: certBytes,
+					},
+				},
+				PrivateKey: &core.DataSource{
+					Specifier: &core.DataSource_InlineBytes{
+						InlineBytes: privateKeyBytes,
+					},
+				},
+			},
+		},
+	}, cert.NotAfter, nil
 }
 
 // PKISecretClient acts as a certificate generator using Vault's PKI engine.
@@ -101,9 +177,9 @@ func NewPKISecretClient(logger hclog.Logger, pkiPath, issue string) (*PKISecretC
 	}, nil
 }
 
-// FetchSecret accepts an opaque string containing necessary values for retrieving
-// a certificate and private key from Vault. It retrieves the certificate and private
-// key, stores them in memory, and returns a tls.PKISecret acceptable for Envoy SDS.
+// FetchSecret accepts an opaque string containing necessary values for generating a
+// certificate and private key with Vault's PKI engine. It generates the certificate
+// and private key, stores them in memory, and returns a tls.Secret acceptable for Envoy SDS.
 func (c *PKISecretClient) FetchSecret(ctx context.Context, name string) (*tls.Secret, time.Time, error) {
 	cert, err := c.generateCertBundle(ctx, name)
 	if err != nil {

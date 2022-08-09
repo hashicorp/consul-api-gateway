@@ -3,6 +3,7 @@ package vault
 import (
 	"errors"
 	"net/url"
+	"strings"
 )
 
 var (
@@ -45,6 +46,12 @@ func ParseStaticSecret(ref string) (StaticSecret, error) {
 		return StaticSecret{}, ErrInvalidSecret
 	}
 
+	if !strings.HasPrefix(parsed.Path, "/") {
+		return StaticSecret{}, ErrInvalidSecret
+	}
+
+	// TODO Error on certKey or privateKeyKey not included since
+	//   the Secret can't fully indicate a cert+key pair without them
 	path := parsed.Path
 	certKey := parsed.Query().Get(queryKeyCertKey)
 	privateKeyKey := parsed.Query().Get(queryKeyPrivateKeyKey)
