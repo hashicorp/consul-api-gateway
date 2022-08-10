@@ -307,7 +307,7 @@ func (s *secretManager) Manage(ctx context.Context, forceInterval time.Duration)
 	for {
 		select {
 		case <-time.After(s.loopTimeout):
-			s.manage(ctx, force)
+			s.manage(ctx, false)
 		case <-time.After(forceInterval):
 			s.manage(ctx, true)
 		case <-ctx.Done():
