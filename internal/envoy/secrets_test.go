@@ -192,24 +192,29 @@ func TestManage(t *testing.T) {
 	// check fetch for expired certs
 	secretClient.EXPECT().FetchSecret(gomock.Any(), secret.Name).Return(secret, time.Now().Add(-20*time.Minute), nil)
 	cache.EXPECT().UpdateResource(secret.Name, secret).Return(nil)
-	manager.manage(context.Background())
+	manager.manage(context.Background(), false)
 
 	// error on fetch gets swallowed
 	secretClient.EXPECT().FetchSecret(gomock.Any(), secret.Name).Return(secret, time.Now().Add(20*time.Minute), errors.New("fetch error"))
-	manager.manage(context.Background())
+	manager.manage(context.Background(), false)
 
 	// error on update gets swallowed
 	secretClient.EXPECT().FetchSecret(gomock.Any(), secret.Name).Return(secret, time.Now().Add(20*time.Minute), nil)
 	cache.EXPECT().UpdateResource(secret.Name, secret).Return(errors.New("update error"))
-	manager.manage(context.Background())
+	manager.manage(context.Background(), false)
 
 	// check cert still expired
 	secretClient.EXPECT().FetchSecret(gomock.Any(), secret.Name).Return(secret, time.Now().Add(20*time.Minute), nil)
 	cache.EXPECT().UpdateResource(secret.Name, secret).Return(nil)
-	manager.manage(context.Background())
+	manager.manage(context.Background(), false)
 
 	// check that cert is now valid (i.e. no fetch calls)
-	manager.manage(context.Background())
+	manager.manage(context.Background(), false)
+
+	// check valid cert is still repulled when force is set to true
+	secretClient.EXPECT().FetchSecret(gomock.Any(), secret.Name).Return(secret, time.Now().Add(20*time.Minute), nil)
+	cache.EXPECT().UpdateResource(secret.Name, secret).Return(nil)
+	manager.manage(context.Background(), true)
 }
 
 func TestManageLoop(t *testing.T) {
@@ -226,7 +231,7 @@ func TestManageLoop(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
 	defer cancel()
 	// make sure we don't block
-	manager.Manage(ctx)
+	manager.Manage(ctx, time.Second*1)
 }
 
 type testSecretClient struct {

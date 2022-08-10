@@ -128,15 +128,15 @@ func (m *MockSecretManager) EXPECT() *MockSecretManagerMockRecorder {
 }
 
 // Manage mocks base method.
-func (m *MockSecretManager) Manage(ctx context.Context) {
+func (m *MockSecretManager) Manage(ctx context.Context, forceInterval time.Duration) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Manage", ctx)
+	m.ctrl.Call(m, "Manage", ctx, forceInterval)
 }
 
 // Manage indicates an expected call of Manage.
-func (mr *MockSecretManagerMockRecorder) Manage(ctx interface{}) *gomock.Call {
+func (mr *MockSecretManagerMockRecorder) Manage(ctx, forceInterval interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Manage", reflect.TypeOf((*MockSecretManager)(nil).Manage), ctx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Manage", reflect.TypeOf((*MockSecretManager)(nil).Manage), ctx, forceInterval)
 }
 
 // SetResourcesForNode mocks base method.
