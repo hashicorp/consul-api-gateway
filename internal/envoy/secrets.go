@@ -300,7 +300,7 @@ func (s *secretManager) unwatch(names []string, node string) error {
 	return nil
 }
 
-// Manage is used for re-fetching expiring TLS certificates and updating them, additionally will force re-fetch all certificates every force intercal
+// Manage is used for re-fetching expiring TLS certificates and updating them, additionally will force re-fetch all certificates every force interval
 func (s *secretManager) Manage(ctx context.Context, forceInterval time.Duration) {
 	s.logger.Trace("running secrets manager")
 
