@@ -40,6 +40,8 @@ jobs:
         - 1.11.8+ent
         - 1.12.4
         - 1.12.4+ent
+        - 1.13.1
+        - 1.13.1+ent
     runs-on: ubuntu-latest
     env:
       TEST_RESULTS_DIR: /tmp/test-results/consul@${{ matrix.consul-version }}
@@ -96,6 +98,8 @@ jobs:
         - 'hashicorp/consul-enterprise:1.11.8-ent'
         - 'hashicorp/consul:1.12.4'
         - 'hashicorp/consul-enterprise:1.12.4-ent'
+        - 'hashicorp/consul:1.13.1'
+        - 'hashicorp/consul-enterprise:1.13.1-ent'
     runs-on: ubuntu-latest
     env:
       TEST_RESULTS_DIR: /tmp/test-results/e2e@${{ matrix.consul-image }}
