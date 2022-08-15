@@ -14,7 +14,7 @@ import (
 func TestIntentionsReconciler_watchDiscoveryChain(t *testing.T) {
 	require := require.New(t)
 	consulSrv, err := testutil.NewTestServerConfigT(t, func(c *testutil.TestServerConfig) {
-
+		c.Peering = nil
 	})
 	require.NoError(err)
 	consulSrv.WaitForServiceIntentions(t)
