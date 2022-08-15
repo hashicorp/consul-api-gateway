@@ -1,0 +1,3 @@
+```release-note:bug
+Fix intentions syncing for multiple gateways bound to a single route.
+```
