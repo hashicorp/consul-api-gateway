@@ -1,0 +1,3 @@
+```release-note:note
+When attempting to bind an HTTPRoute to multiple Consul API Gateway deployments (functionality that is not currently supported), a deployment with Consul v1.13+ may return a 403 response instead of the prior 503.
+```
