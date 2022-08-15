@@ -2000,12 +2000,9 @@ func TestRouteParentRefChange(t *testing.T) {
 				Body:       serviceOne.Name,
 			}, nil, "service one not routable from first gateway in allotted time")
 
-			// TODO: Routing from multiple gateways is not yet supported.
-			// When implemented, this check should be updated to wait for
-			// http.StatusOK and serviceOne.Name as the body content prefix.
 			checkRoute(t, secondGatewayCheckPort, "/", httpResponse{
-				StatusCode: http.StatusServiceUnavailable,
-				Body:       "no healthy upstream",
+				StatusCode: http.StatusOK,
+				Body:       serviceOne.Name,
 			}, nil, "service one not returning expected error from second gateway in allotted time")
 
 			// Update httpRoute from remote, then remove first gateway ParentRef
