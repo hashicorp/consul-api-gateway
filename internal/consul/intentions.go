@@ -331,10 +331,10 @@ func (r *IntentionsReconciler) updateIntentionSources(name api.CompoundServiceNa
 }
 
 func (r *IntentionsReconciler) getOrInitIntention(name api.CompoundServiceName) (intention *api.ServiceIntentionsConfigEntry, idx uint64, err error) {
-	entry, meta, err := r.consulConfig.Get(api.ServiceIntentions, name.Name, &api.QueryOptions{Namespace: name.Namespace})
+	entry, _, err := r.consulConfig.Get(api.ServiceIntentions, name.Name, &api.QueryOptions{Namespace: name.Namespace})
 	if err == nil {
 		intention = entry.(*api.ServiceIntentionsConfigEntry)
-		return intention, meta.LastIndex, nil
+		return intention, entry.GetModifyIndex(), nil
 	}
 
 	if strings.Contains(err.Error(), "Unexpected response code: 404") {
