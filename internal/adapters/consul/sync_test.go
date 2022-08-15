@@ -161,6 +161,7 @@ func TestConsulSyncAdapter_Sync(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	consulSrv, err := testutil.NewTestServerConfigT(t, func(c *testutil.TestServerConfig) {
 		c.Connect = map[string]interface{}{"enabled": true}
+		c.Peering = nil
 	})
 	require.NoError(t, err)
 

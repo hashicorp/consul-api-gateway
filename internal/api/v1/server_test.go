@@ -19,6 +19,7 @@ func testConsul(t *testing.T, aclEnabled bool) *api.Client {
 	consulSrv, err := testutil.NewTestServerConfigT(t, func(c *testutil.TestServerConfig) {
 		c.ACL.Enabled = aclEnabled
 		c.ACL.Tokens.InitialManagement = testToken
+		c.Peering = nil
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {

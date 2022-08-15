@@ -211,6 +211,7 @@ func TestIntentionsReconciler_Reconcile(t *testing.T) {
 	require := require.New(t)
 	consulSrv, err := testutil.NewTestServerConfigT(t, func(c *testutil.TestServerConfig) {
 		c.Connect = map[string]interface{}{"enabled": true}
+		c.Peering = nil
 	})
 	require.NoError(err)
 	t.Cleanup(func() {
