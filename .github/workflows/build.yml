@@ -68,7 +68,7 @@ jobs:
       matrix:
         goos: ["linux"]
         goarch: ["arm", "arm64", "386", "amd64"]
-        go: ["1.18.3"]
+        go: ["1.18.5"]
       fail-fast: true
 
     name: Go ${{ matrix.go }} ${{ matrix.goos }} ${{ matrix.goarch }} build
@@ -110,7 +110,7 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       # we currently have the +ent as part of the verion string so removing it here
-      # we should separate this from the version going forward 
+      # we should separate this from the version going forward
       - name: Remove + from version
         run: |
           echo "version=$(echo $version | sed 's/+ent//g')" >> $GITHUB_ENV
