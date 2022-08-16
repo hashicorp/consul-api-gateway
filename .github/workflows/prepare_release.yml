@@ -47,6 +47,13 @@ jobs:
           find: 'ref=v[0-9\.]+'
           replace: 'ref=v${{ env.NEW_API_GATEWAY_VERSION }}'
 
+      - name: Update supported-features.md
+        uses: jacobtomlinson/gha-find-replace@f485fdc3f67a6d87ae6e3d11e41f648c26d7aee3
+        with:
+          include: 'dev/docs/supported-features.md'
+          find: 'Consul API Gateway version: \*\*v[0-9\.]+\*\*'
+          replace: 'Consul API Gateway version: **v${{ env.NEW_API_GATEWAY_VERSION }}**'
+
       - name: Update README.md (Consul version)
         uses: jacobtomlinson/gha-find-replace@f485fdc3f67a6d87ae6e3d11e41f648c26d7aee3
         with:
