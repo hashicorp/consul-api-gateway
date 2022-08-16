@@ -1,5 +1,25 @@
 ## UNRELEASED
 
+## 0.4.0 (August 16, 2022)
+DEPRECATIONS:
+
+* gateway-api: ReferencePolicy is deprecated and will be removed in a future release. The functionally identical ReferenceGrant should be used instead. [[GH-224](https://github.com/hashicorp/consul-api-gateway/issues/224)]
+
+FEATURES:
+
+* Assign BackendNotFound reason to ResolvedRefs condition on routes where the backend reference is a supported kind but does not exist [[GH-291](https://github.com/hashicorp/consul-api-gateway/issues/291)]
+* Assign InvalidKind reason to ResolvedRefs condition on routes where the backend reference is an unknown or unsupported kind [[GH-290](https://github.com/hashicorp/consul-api-gateway/issues/290)]
+* Support prefix replacement URLRewrite filter ([docs](https://gateway-api.sigs.k8s.io/references/spec/#gateway.networking.k8s.io/v1alpha2.HTTPPathModifier)) [[GH-282](https://github.com/hashicorp/consul-api-gateway/issues/282)]
+* gateway-api: update to the [v0.5.0-rc1](https://github.com/kubernetes-sigs/gateway-api/releases/tag/v0.5.0-rc1) release with v1beta1 resource support [[GH-224](https://github.com/hashicorp/consul-api-gateway/issues/224)]
+* gateway-api: update to the [v0.5.0-rc2](https://github.com/kubernetes-sigs/gateway-api/releases/tag/v0.5.0-rc2) release with v1beta1 resource support [[GH-279](https://github.com/hashicorp/consul-api-gateway/issues/279)]
+* gateway-api: update to the [v0.5.0](https://github.com/kubernetes-sigs/gateway-api/releases/tag/v0.5.0) release with v1beta1 resource support [[GH-283](https://github.com/hashicorp/consul-api-gateway/issues/283)]
+
+BUG FIXES:
+
+* Fix intentions syncing for multiple gateways bound to a single route. [[GH-308](https://github.com/hashicorp/consul-api-gateway/issues/308)]
+* Revalidate HTTPRoutes and TCPRoutes and update status when the Kubernetes Service(s) that they reference are modified [[GH-247](https://github.com/hashicorp/consul-api-gateway/issues/247)]
+* Sync in-memory store to Consul at a regular interval in the background [[GH-278](https://github.com/hashicorp/consul-api-gateway/issues/278)]
+
 ## 0.3.0 (June 21, 2022)
 BREAKING CHANGES:
 
