@@ -36,13 +36,7 @@ func TestRouteID(t *testing.T) {
 	require.Equal(t, "http-namespace/name", NewK8sRoute(&gwv1alpha2.HTTPRoute{
 		ObjectMeta: meta,
 	}, config).ID())
-	require.Equal(t, "udp-namespace/name", NewK8sRoute(&gwv1alpha2.UDPRoute{
-		ObjectMeta: meta,
-	}, config).ID())
 	require.Equal(t, "tcp-namespace/name", NewK8sRoute(&gwv1alpha2.TCPRoute{
-		ObjectMeta: meta,
-	}, config).ID())
-	require.Equal(t, "tls-namespace/name", NewK8sRoute(&gwv1alpha2.TLSRoute{
 		ObjectMeta: meta,
 	}, config).ID())
 	require.Equal(t, "", NewK8sRoute(&core.Pod{
@@ -68,18 +62,8 @@ func TestRouteCommonRouteSpec(t *testing.T) {
 			CommonRouteSpec: expected,
 		},
 	}, config).CommonRouteSpec())
-	require.Equal(t, expected, NewK8sRoute(&gwv1alpha2.UDPRoute{
-		Spec: gwv1alpha2.UDPRouteSpec{
-			CommonRouteSpec: expected,
-		},
-	}, config).CommonRouteSpec())
 	require.Equal(t, expected, NewK8sRoute(&gwv1alpha2.TCPRoute{
 		Spec: gwv1alpha2.TCPRouteSpec{
-			CommonRouteSpec: expected,
-		},
-	}, config).CommonRouteSpec())
-	require.Equal(t, expected, NewK8sRoute(&gwv1alpha2.TLSRoute{
-		Spec: gwv1alpha2.TLSRouteSpec{
 			CommonRouteSpec: expected,
 		},
 	}, config).CommonRouteSpec())
@@ -150,8 +134,8 @@ func TestRouteMergedStatusAndBinding(t *testing.T) {
 	}, K8sGatewayConfig{
 		Logger: hclog.NewNullLogger(),
 	})
-	inner := &gwv1alpha2.TLSRoute{
-		Spec: gwv1alpha2.TLSRouteSpec{
+	inner := &gwv1alpha2.HTTPRoute{
+		Spec: gwv1alpha2.HTTPRouteSpec{
 			CommonRouteSpec: gwv1alpha2.CommonRouteSpec{
 				ParentRefs: []gwv1alpha2.ParentReference{{
 					Name: "expected",
@@ -160,7 +144,7 @@ func TestRouteMergedStatusAndBinding(t *testing.T) {
 				}},
 			},
 		},
-		Status: gwv1alpha2.TLSRouteStatus{
+		Status: gwv1alpha2.HTTPRouteStatus{
 			RouteStatus: gwv1alpha2.RouteStatus{
 				Parents: []gwv1alpha2.RouteParentStatus{{
 					ParentRef: gwv1alpha2.ParentReference{
@@ -382,18 +366,6 @@ func TestRouteSetStatus(t *testing.T) {
 	require.Equal(t, expected, tcpRoute.Status.RouteStatus)
 	require.Equal(t, expected, route.routeStatus())
 
-	tlsRoute := &gwv1alpha2.TLSRoute{}
-	route = NewK8sRoute(tlsRoute, config)
-	route.SetStatus(expected)
-	require.Equal(t, expected, tlsRoute.Status.RouteStatus)
-	require.Equal(t, expected, route.routeStatus())
-
-	udpRoute := &gwv1alpha2.UDPRoute{}
-	route = NewK8sRoute(udpRoute, config)
-	route.SetStatus(expected)
-	require.Equal(t, expected, udpRoute.Status.RouteStatus)
-	require.Equal(t, expected, route.routeStatus())
-
 	route = NewK8sRoute(&core.Pod{}, config)
 	route.SetStatus(expected)
 	require.Equal(t, gwv1alpha2.RouteStatus{}, route.routeStatus())
@@ -416,12 +388,6 @@ func TestRouteParents(t *testing.T) {
 	require.Equal(t, expected.ParentRefs, parents)
 
 	parents = NewK8sRoute(&gwv1alpha2.TCPRoute{Spec: gwv1alpha2.TCPRouteSpec{CommonRouteSpec: expected}}, config).Parents()
-	require.Equal(t, expected.ParentRefs, parents)
-
-	parents = NewK8sRoute(&gwv1alpha2.TLSRoute{Spec: gwv1alpha2.TLSRouteSpec{CommonRouteSpec: expected}}, config).Parents()
-	require.Equal(t, expected.ParentRefs, parents)
-
-	parents = NewK8sRoute(&gwv1alpha2.UDPRoute{Spec: gwv1alpha2.UDPRouteSpec{CommonRouteSpec: expected}}, config).Parents()
 	require.Equal(t, expected.ParentRefs, parents)
 
 	require.Nil(t, NewK8sRoute(&core.Pod{}, config).Parents())
@@ -699,32 +665,6 @@ func TestRouteCompare(t *testing.T) {
 	})
 	require.Equal(t, store.CompareResultNotEqual, route.Compare(other))
 
-	// tls route comparison
-	route = NewK8sRoute(&gwv1alpha2.TLSRoute{}, K8sRouteConfig{
-		Logger: hclog.NewNullLogger(),
-	})
-	other = NewK8sRoute(&gwv1alpha2.TLSRoute{}, K8sRouteConfig{
-		Logger: hclog.NewNullLogger(),
-	})
-	require.Equal(t, store.CompareResultEqual, route.Compare(other))
-	other = NewK8sRoute(&gwv1alpha2.HTTPRoute{}, K8sRouteConfig{
-		Logger: hclog.NewNullLogger(),
-	})
-	require.Equal(t, store.CompareResultNotEqual, route.Compare(other))
-
-	// udp route comparison
-	route = NewK8sRoute(&gwv1alpha2.UDPRoute{}, K8sRouteConfig{
-		Logger: hclog.NewNullLogger(),
-	})
-	other = NewK8sRoute(&gwv1alpha2.UDPRoute{}, K8sRouteConfig{
-		Logger: hclog.NewNullLogger(),
-	})
-	require.Equal(t, store.CompareResultEqual, route.Compare(other))
-	other = NewK8sRoute(&gwv1alpha2.HTTPRoute{}, K8sRouteConfig{
-		Logger: hclog.NewNullLogger(),
-	})
-	require.Equal(t, store.CompareResultNotEqual, route.Compare(other))
-
 	// mismatched types
 	require.Equal(t, store.CompareResultInvalid, route.Compare(storeMocks.NewMockRoute(nil)))
 }
@@ -739,8 +679,8 @@ func TestRouteSyncStatus(t *testing.T) {
 	}, K8sGatewayConfig{
 		Logger: hclog.NewNullLogger(),
 	})
-	inner := &gwv1alpha2.TLSRoute{
-		Spec: gwv1alpha2.TLSRouteSpec{
+	inner := &gwv1alpha2.HTTPRoute{
+		Spec: gwv1alpha2.HTTPRouteSpec{
 			CommonRouteSpec: gwv1alpha2.CommonRouteSpec{
 				ParentRefs: []gwv1alpha2.ParentReference{{
 					Name: "expected",
@@ -749,7 +689,7 @@ func TestRouteSyncStatus(t *testing.T) {
 				}},
 			},
 		},
-		Status: gwv1alpha2.TLSRouteStatus{
+		Status: gwv1alpha2.HTTPRouteStatus{
 			RouteStatus: gwv1alpha2.RouteStatus{
 				Parents: []gwv1alpha2.RouteParentStatus{{
 					ParentRef: gwv1alpha2.ParentReference{

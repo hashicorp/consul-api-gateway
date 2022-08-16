@@ -32,12 +32,10 @@ type ReconcileManager interface {
 	UpsertGateway(ctx context.Context, g *gwv1beta1.Gateway) error
 	UpsertHTTPRoute(ctx context.Context, r Route) error
 	UpsertTCPRoute(ctx context.Context, r Route) error
-	UpsertTLSRoute(ctx context.Context, r Route) error
 	DeleteGatewayClass(ctx context.Context, name string) error
 	DeleteGateway(ctx context.Context, name types.NamespacedName) error
 	DeleteHTTPRoute(ctx context.Context, name types.NamespacedName) error
 	DeleteTCPRoute(ctx context.Context, name types.NamespacedName) error
-	DeleteTLSRoute(ctx context.Context, name types.NamespacedName) error
 }
 
 // GatewayReconcileManager manages a GatewayReconciler for each Gateway and is the interface by which Consul operations
@@ -192,10 +190,6 @@ func (m *GatewayReconcileManager) UpsertTCPRoute(ctx context.Context, r Route) e
 	return m.upsertRoute(ctx, r, TCPRouteID(utils.NamespacedName(r)))
 }
 
-func (m *GatewayReconcileManager) UpsertTLSRoute(ctx context.Context, r Route) error {
-	return m.upsertRoute(ctx, r, TLSRouteID(utils.NamespacedName(r)))
-}
-
 func (m *GatewayReconcileManager) upsertRoute(ctx context.Context, r Route, id string) error {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
@@ -248,10 +242,6 @@ func (m *GatewayReconcileManager) DeleteGateway(ctx context.Context, name types.
 
 func (m *GatewayReconcileManager) DeleteHTTPRoute(ctx context.Context, name types.NamespacedName) error {
 	return m.store.DeleteRoute(ctx, HTTPRouteID(name))
-}
-
-func (m *GatewayReconcileManager) DeleteTLSRoute(ctx context.Context, name types.NamespacedName) error {
-	return m.store.DeleteRoute(ctx, TLSRouteID(name))
 }
 
 func (m *GatewayReconcileManager) DeleteTCPRoute(ctx context.Context, name types.NamespacedName) error {

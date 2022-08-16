@@ -79,10 +79,6 @@ func (r *K8sRoute) ID() string {
 		return HTTPRouteID(utils.NamespacedName(r.Route))
 	case *gwv1alpha2.TCPRoute:
 		return TCPRouteID(utils.NamespacedName(r.Route))
-	case *gwv1alpha2.UDPRoute:
-		return UDPRouteID(utils.NamespacedName(r.Route))
-	case *gwv1alpha2.TLSRoute:
-		return TLSRouteID(utils.NamespacedName(r.Route))
 	}
 	return ""
 }
@@ -102,10 +98,6 @@ func (r *K8sRoute) CommonRouteSpec() gwv1alpha2.CommonRouteSpec {
 		return route.Spec.CommonRouteSpec
 	case *gwv1alpha2.TCPRoute:
 		return route.Spec.CommonRouteSpec
-	case *gwv1alpha2.UDPRoute:
-		return route.Spec.CommonRouteSpec
-	case *gwv1alpha2.TLSRoute:
-		return route.Spec.CommonRouteSpec
 	}
 	return gwv1alpha2.CommonRouteSpec{}
 }
@@ -116,10 +108,6 @@ func (r *K8sRoute) routeStatus() gwv1alpha2.RouteStatus {
 		return route.Status.RouteStatus
 	case *gwv1alpha2.TCPRoute:
 		return route.Status.RouteStatus
-	case *gwv1alpha2.UDPRoute:
-		return route.Status.RouteStatus
-	case *gwv1alpha2.TLSRoute:
-		return route.Status.RouteStatus
 	}
 	return gwv1alpha2.RouteStatus{}
 }
@@ -129,10 +117,6 @@ func (r *K8sRoute) SetStatus(updated gwv1alpha2.RouteStatus) {
 	case *gwv1alpha2.HTTPRoute:
 		route.Status.RouteStatus = updated
 	case *gwv1alpha2.TCPRoute:
-		route.Status.RouteStatus = updated
-	case *gwv1alpha2.UDPRoute:
-		route.Status.RouteStatus = updated
-	case *gwv1alpha2.TLSRoute:
 		route.Status.RouteStatus = updated
 	}
 }
@@ -303,16 +287,6 @@ func (r *K8sRoute) isEqual(k8sRoute *K8sRoute) bool {
 			return reflect.DeepEqual(route.Spec, otherRoute.Spec)
 		}
 		return false
-	case *gwv1alpha2.UDPRoute:
-		if otherRoute, ok := k8sRoute.Route.(*gwv1alpha2.UDPRoute); ok {
-			return reflect.DeepEqual(route.Spec, otherRoute.Spec)
-		}
-		return false
-	case *gwv1alpha2.TLSRoute:
-		if otherRoute, ok := k8sRoute.Route.(*gwv1alpha2.TLSRoute); ok {
-			return reflect.DeepEqual(route.Spec, otherRoute.Spec)
-		}
-		return false
 	}
 	return false
 }
@@ -355,10 +329,6 @@ func (r *K8sRoute) Parents() []gwv1alpha2.ParentReference {
 	case *gwv1alpha2.HTTPRoute:
 		return route.Spec.ParentRefs
 	case *gwv1alpha2.TCPRoute:
-		return route.Spec.ParentRefs
-	case *gwv1alpha2.UDPRoute:
-		return route.Spec.ParentRefs
-	case *gwv1alpha2.TLSRoute:
 		return route.Spec.ParentRefs
 	}
 	return nil

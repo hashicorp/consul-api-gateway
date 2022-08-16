@@ -537,7 +537,7 @@ func TestListenerCanBind_RouteKind(t *testing.T) {
 	routeMeta.SetGroupVersionKind(schema.GroupVersionKind{
 		Group:   gwv1alpha2.GroupVersion.Group,
 		Version: gwv1alpha2.GroupVersion.Version,
-		Kind:    "UDPRoute",
+		Kind:    "TCPRoute",
 	})
 	listenerName := gwv1beta1.SectionName("listener")
 	routeSectionName := gwv1alpha2.SectionName("listener")
@@ -552,6 +552,7 @@ func TestListenerCanBind_RouteKind(t *testing.T) {
 		Logger: hclog.NewNullLogger(),
 	})
 	require.NoError(t, listener.Validate(context.Background()))
+
 	canBind, err := listener.CanBind(context.Background(), NewK8sRoute(&gwv1alpha2.UDPRoute{
 		TypeMeta: routeMeta,
 		Spec: gwv1alpha2.UDPRouteSpec{
@@ -578,9 +579,9 @@ func TestListenerCanBind_RouteKind(t *testing.T) {
 		Logger: hclog.NewNullLogger(),
 	})
 	listener.supportedKinds = supportedProtocols[gwv1beta1.HTTPProtocolType]
-	_, err = listener.CanBind(context.Background(), NewK8sRoute(&gwv1alpha2.UDPRoute{
+	_, err = listener.CanBind(context.Background(), NewK8sRoute(&gwv1alpha2.TCPRoute{
 		TypeMeta: routeMeta,
-		Spec: gwv1alpha2.UDPRouteSpec{
+		Spec: gwv1alpha2.TCPRouteSpec{
 			CommonRouteSpec: gwv1alpha2.CommonRouteSpec{
 				ParentRefs: []gwv1alpha2.ParentReference{{
 					Name:        "gateway",
