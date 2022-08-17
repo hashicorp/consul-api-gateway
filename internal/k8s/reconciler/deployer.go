@@ -58,12 +58,12 @@ func (d *GatewayDeployer) Deploy(ctx context.Context, namespace string, config a
 
 func (d *GatewayDeployer) ensureServiceAccount(ctx context.Context, config apigwv1alpha1.GatewayClassConfig, gateway *gwv1beta1.Gateway) error {
 	// Create service account for the gateway
-	if serviceAccount := config.ServiceAccountFor(gateway); serviceAccount != nil {
-		if err := d.client.EnsureServiceAccount(ctx, gateway, serviceAccount); err != nil {
-			return err
-		}
+	serviceAccount := config.ServiceAccountFor(gateway)
+	if serviceAccount == nil {
+		return nil
 	}
-	return nil
+
+	return d.client.EnsureServiceAccount(ctx, gateway, serviceAccount)
 }
 
 func (d *GatewayDeployer) ensureDeployment(ctx context.Context, namespace string, config apigwv1alpha1.GatewayClassConfig, gateway *gwv1beta1.Gateway) error {

@@ -131,7 +131,7 @@ type GatewayClassConfigList struct {
 	Items []GatewayClassConfig `json:"items"`
 }
 
-// ServicesAccountFor returns the service account to be created for the given gateway.
+// ServiceAccountFor returns the service account to be created for the given gateway.
 func (c *GatewayClassConfig) ServiceAccountFor(gw *gwv1beta1.Gateway) *corev1.ServiceAccount {
 	if !c.Spec.ConsulSpec.AuthSpec.Managed {
 		return nil
