@@ -30,7 +30,7 @@ import (
 	gwv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/hashicorp/consul-api-gateway/internal/k8s"
-	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler"
+	rstatus "github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/status"
 	"github.com/hashicorp/consul-api-gateway/internal/testing/e2e"
 	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 )
@@ -1013,7 +1013,7 @@ func TestHTTPMeshService(t *testing.T) {
 
 			// Verify HTTPRoute has updated its status
 			check := createConditionsCheck([]meta.Condition{{
-				Type: reconciler.RouteConditionResolvedRefs, Status: "False", Reason: reconciler.RouteConditionReasonBackendNotFound},
+				Type: rstatus.RouteConditionResolvedRefs, Status: "False", Reason: rstatus.RouteConditionReasonBackendNotFound},
 			})
 			require.Eventually(t, httpRouteStatusCheck(ctx, resources, gatewayName, routeName, namespace, check), checkTimeout, checkInterval, "route status not set in allotted time")
 
@@ -1023,7 +1023,7 @@ func TestHTTPMeshService(t *testing.T) {
 
 			// Verify HTTPRoute has updated its status
 			check = createConditionsCheck([]meta.Condition{{
-				Type: reconciler.RouteConditionResolvedRefs, Status: "True", Reason: reconciler.RouteConditionReasonResolvedRefs},
+				Type: rstatus.RouteConditionResolvedRefs, Status: "True", Reason: rstatus.RouteConditionReasonResolvedRefs},
 			})
 			require.Eventually(t, httpRouteStatusCheck(ctx, resources, gatewayName, routeName, namespace, check), checkTimeout, checkInterval, "route status not set in allotted time")
 
