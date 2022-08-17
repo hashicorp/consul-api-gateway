@@ -16,6 +16,8 @@ import (
 
 	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
+	rerrors "github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/errors"
+	rstatus "github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/status"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/service"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	"github.com/hashicorp/consul-api-gateway/internal/store"
@@ -38,7 +40,7 @@ type K8sRoute struct {
 	references       service.RouteRuleReferenceMap
 	resolutionErrors *service.ResolutionErrors
 
-	parentStatuses map[string]*RouteStatus
+	parentStatuses map[string]*rstatus.RouteStatus
 }
 
 var _ store.StatusTrackingRoute = &K8sRoute{}
@@ -59,7 +61,7 @@ func NewK8sRoute(route Route, config K8sRouteConfig) *K8sRoute {
 		resolver:         config.Resolver,
 		references:       service.RouteRuleReferenceMap{},
 		resolutionErrors: service.NewResolutionErrors(),
-		parentStatuses:   make(map[string]*RouteStatus),
+		parentStatuses:   make(map[string]*rstatus.RouteStatus),
 	}
 }
 
@@ -163,18 +165,18 @@ func (r *K8sRoute) OnBindFailed(err error, gateway store.Gateway) {
 		if found {
 			status, statusFound := r.parentStatuses[id]
 			if !statusFound {
-				status = &RouteStatus{}
+				status = &rstatus.RouteStatus{}
 			}
-			var bindError BindError
+			var bindError rerrors.BindError
 			if errors.As(err, &bindError) {
 				switch bindError.Kind() {
-				case BindErrorTypeHostnameMismatch:
+				case rerrors.BindErrorTypeHostnameMismatch:
 					status.Accepted.ListenerHostnameMismatch = err
-				case BindErrorTypeListenerNamespacePolicy:
+				case rerrors.BindErrorTypeListenerNamespacePolicy:
 					status.Accepted.ListenerNamespacePolicy = err
-				case BindErrorTypeRouteKind:
+				case rerrors.BindErrorTypeRouteKind:
 					status.Accepted.InvalidRouteKind = err
-				case BindErrorTypeRouteInvalid:
+				case rerrors.BindErrorTypeRouteInvalid:
 					status.Accepted.BindError = err
 				}
 			} else {
@@ -210,10 +212,10 @@ func (r *K8sRoute) OnBound(gateway store.Gateway) {
 		if found {
 			// clear out any existing errors on our statuses
 			if status, statusFound := r.parentStatuses[id]; statusFound {
-				status.Accepted = RouteAcceptedStatus{}
-				status.ResolvedRefs = RouteResolvedRefsStatus{}
+				status.Accepted = rstatus.RouteAcceptedStatus{}
+				status.ResolvedRefs = rstatus.RouteResolvedRefsStatus{}
 			} else {
-				r.parentStatuses[id] = &RouteStatus{}
+				r.parentStatuses[id] = &rstatus.RouteStatus{}
 			}
 		}
 	}

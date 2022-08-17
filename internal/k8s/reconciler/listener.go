@@ -17,6 +17,8 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/common"
 	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
+	rerrors "github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/errors"
+	rstatus "github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/status"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	"github.com/hashicorp/consul-api-gateway/internal/store"
 )
@@ -53,7 +55,7 @@ type K8sListener struct {
 	listener        gwv1beta1.Listener
 	client          gatewayclient.Client
 
-	status         ListenerStatus
+	status         rstatus.ListenerStatus
 	tls            core.TLSParams
 	routeCount     int32
 	supportedKinds []gwv1beta1.RouteGroupKind
@@ -130,14 +132,14 @@ func (l *K8sListener) validateTLS(ctx context.Context) error {
 	} else if !allowed {
 		nsName := getNamespacedName(ref.Name, ref.Namespace, l.gateway.Namespace)
 		l.logger.Warn("Cross-namespace listener certificate not allowed without matching ReferenceGrant", "refName", nsName.Name, "refNamespace", nsName.Namespace)
-		l.status.ResolvedRefs.InvalidCertificateRef = NewCertificateResolutionErrorNotPermitted(
+		l.status.ResolvedRefs.InvalidCertificateRef = rerrors.NewCertificateResolutionErrorNotPermitted(
 			fmt.Sprintf("Cross-namespace listener certificate not allowed without matching ReferenceGrant for Secret %q", nsName))
 		return nil
 	}
 
 	resource, err := l.resolveCertificateReference(ctx, ref)
 	if err != nil {
-		var certificateErr CertificateResolutionError
+		var certificateErr rerrors.CertificateResolutionError
 		if !errors.As(err, &certificateErr) {
 			return err
 		}
@@ -289,12 +291,12 @@ func (l *K8sListener) resolveCertificateReference(ctx context.Context, ref gwv1b
 			return "", fmt.Errorf("error fetching secret: %w", err)
 		}
 		if cert == nil {
-			return "", NewCertificateResolutionErrorNotFound("certificate not found")
+			return "", rerrors.NewCertificateResolutionErrorNotFound("certificate not found")
 		}
 		return utils.NewK8sSecret(namespace, string(ref.Name)).String(), nil
 	// add more supported types here
 	default:
-		return "", NewCertificateResolutionErrorUnsupported(fmt.Sprintf("unsupported certificate type - group: %s, kind: %s", group, kind))
+		return "", rerrors.NewCertificateResolutionErrorUnsupported(fmt.Sprintf("unsupported certificate type - group: %s, kind: %s", group, kind))
 	}
 }
 
@@ -367,7 +369,7 @@ func (l *K8sListener) canBind(ctx context.Context, ref gwv1alpha2.ParentReferenc
 		if !routeKindIsAllowedForListener(l.supportedKinds, route) {
 			l.logger.Trace("route kind not allowed for listener", "route", route.ID())
 			if must {
-				return false, NewBindErrorRouteKind("route kind not allowed for listener")
+				return false, rerrors.NewBindErrorRouteKind("route kind not allowed for listener")
 			}
 			return false, nil
 		}
@@ -379,7 +381,7 @@ func (l *K8sListener) canBind(ctx context.Context, ref gwv1alpha2.ParentReferenc
 		if !allowed {
 			l.logger.Trace("route not allowed because of listener namespace policy", "route", route.ID())
 			if must {
-				return false, NewBindErrorListenerNamespacePolicy("route not allowed because of listener namespace policy")
+				return false, rerrors.NewBindErrorListenerNamespacePolicy("route not allowed because of listener namespace policy")
 			}
 			return false, nil
 		}
@@ -387,14 +389,14 @@ func (l *K8sListener) canBind(ctx context.Context, ref gwv1alpha2.ParentReferenc
 		if !route.MatchesHostname(l.listener.Hostname) {
 			l.logger.Trace("route does not match listener hostname", "route", route.ID())
 			if must {
-				return false, NewBindErrorHostnameMismatch("route does not match listener hostname")
+				return false, rerrors.NewBindErrorHostnameMismatch("route does not match listener hostname")
 			}
 			return false, nil
 		}
 
 		// check if the route is valid, if not, then return a status about it being rejected
 		if !route.IsValid() {
-			return false, NewBindErrorRouteInvalid("route is in an invalid state and cannot bind")
+			return false, rerrors.NewBindErrorRouteInvalid("route is in an invalid state and cannot bind")
 		}
 		return true, nil
 	}
