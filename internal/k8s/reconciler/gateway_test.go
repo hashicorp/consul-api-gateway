@@ -479,6 +479,10 @@ func TestGatewayTrackSync(t *testing.T) {
 			Level:  hclog.Trace,
 		}),
 		Client: client,
+		Deployer: NewDeployer(DeployerConfig{
+			Logger: hclog.NewNullLogger(),
+			Client: client,
+		}),
 	})
 	gateway.gateway.Status = gateway.Status()
 	client.EXPECT().GetDeployment(gomock.Any(), gomock.Any()).Return(nil, nil)
@@ -501,6 +505,10 @@ func TestGatewayTrackSync(t *testing.T) {
 				},
 			},
 		},
+		Deployer: NewDeployer(DeployerConfig{
+			Logger: hclog.NewNullLogger(),
+			Client: client,
+		}),
 	})
 
 	client.EXPECT().GetDeployment(gomock.Any(), gomock.Any()).Return(nil, nil)
@@ -518,6 +526,10 @@ func TestGatewayTrackSync(t *testing.T) {
 			Level:  hclog.Trace,
 		}),
 		Client: client,
+		Deployer: NewDeployer(DeployerConfig{
+			Logger: hclog.NewNullLogger(),
+			Client: client,
+		}),
 	})
 	client.EXPECT().GetDeployment(gomock.Any(), gomock.Any()).Return(nil, nil)
 	client.EXPECT().CreateOrUpdateDeployment(gomock.Any(), gomock.Any(), gomock.Any()).Return(false, expected)
@@ -531,6 +543,10 @@ func TestGatewayTrackSync(t *testing.T) {
 			Level:  hclog.Trace,
 		}),
 		Client: client,
+		Deployer: NewDeployer(DeployerConfig{
+			Logger: hclog.NewNullLogger(),
+			Client: client,
+		}),
 	})
 	client.EXPECT().GetDeployment(gomock.Any(), gomock.Any()).Return(nil, nil)
 	client.EXPECT().CreateOrUpdateDeployment(gomock.Any(), gomock.Any(), gomock.Any()).Return(false, nil)
@@ -545,6 +561,10 @@ func TestGatewayTrackSync(t *testing.T) {
 			Level:  hclog.Trace,
 		}),
 		Client: client,
+		Deployer: NewDeployer(DeployerConfig{
+			Logger: hclog.NewNullLogger(),
+			Client: client,
+		}),
 	})
 
 	client.EXPECT().GetDeployment(gomock.Any(), gomock.Any()).Return(nil, nil)
@@ -560,6 +580,10 @@ func TestGatewayTrackSync(t *testing.T) {
 			Level:  hclog.Trace,
 		}),
 		Client: client,
+		Deployer: NewDeployer(DeployerConfig{
+			Logger: hclog.NewNullLogger(),
+			Client: client,
+		}),
 	})
 	client.EXPECT().GetDeployment(gomock.Any(), gomock.Any()).Return(nil, nil)
 	client.EXPECT().CreateOrUpdateDeployment(gomock.Any(), gomock.Any(), gomock.Any()).Return(false, nil)

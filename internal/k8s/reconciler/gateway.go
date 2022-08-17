@@ -15,7 +15,6 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/hashicorp/consul-api-gateway/internal/core"
-	"github.com/hashicorp/consul-api-gateway/internal/k8s/builder"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	rstatus "github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/status"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
@@ -24,13 +23,12 @@ import (
 )
 
 type K8sGateway struct {
-	consulNamespace   string
-	logger            hclog.Logger
-	client            gatewayclient.Client
-	gateway           *gwv1beta1.Gateway
-	config            apigwv1alpha1.GatewayClassConfig
-	deploymentBuilder builder.DeploymentBuilder
-	serviceBuilder    builder.ServiceBuilder
+	consulNamespace string
+	logger          hclog.Logger
+	client          gatewayclient.Client
+	gateway         *gwv1beta1.Gateway
+	config          apigwv1alpha1.GatewayClassConfig
+	deployer        *GatewayDeployer
 
 	status       rstatus.GatewayStatus
 	podReady     bool
@@ -47,6 +45,7 @@ type K8sGatewayConfig struct {
 	SDSHost         string
 	SDSPort         int
 	Config          apigwv1alpha1.GatewayClassConfig
+	Deployer        *GatewayDeployer
 	Logger          hclog.Logger
 	Client          gatewayclient.Client
 }
@@ -63,23 +62,14 @@ func NewK8sGateway(gateway *gwv1beta1.Gateway, config K8sGatewayConfig) *K8sGate
 		listeners[k8sListener.ID()] = k8sListener
 	}
 
-	deployment := builder.NewGatewayDeployment(gateway)
-	deployment.WithSDS(config.SDSHost, config.SDSPort)
-	deployment.WithClassConfig(config.Config)
-	deployment.WithConsulCA(config.ConsulCA)
-	deployment.WithConsulGatewayNamespace(config.ConsulNamespace)
-	service := builder.NewGatewayService(gateway)
-	service.WithClassConfig(config.Config)
-
 	return &K8sGateway{
-		config:            config.Config,
-		deploymentBuilder: deployment,
-		serviceBuilder:    service,
-		consulNamespace:   config.ConsulNamespace,
-		logger:            gatewayLogger,
-		client:            config.Client,
-		gateway:           gateway,
-		listeners:         listeners,
+		config:          config.Config,
+		deployer:        config.Deployer,
+		consulNamespace: config.ConsulNamespace,
+		logger:          gatewayLogger,
+		client:          config.Client,
+		gateway:         gateway,
+		listeners:       listeners,
 	}
 }
 
@@ -152,7 +142,7 @@ func (g *K8sGateway) validateListenerConflicts() {
 // validateGatewayIP ensures that the appropriate IP addresses are assigned to the
 // Gateway.
 func (g *K8sGateway) validateGatewayIP(ctx context.Context) error {
-	service := g.serviceBuilder.Build()
+	service := g.deployer.Service(g.config, g.gateway)
 	if service == nil {
 		return g.assignGatewayIPFromPods(ctx)
 	}
@@ -445,7 +435,7 @@ func (g *K8sGateway) Status() gwv1beta1.GatewayStatus {
 
 func (g *K8sGateway) TrackSync(ctx context.Context, sync func() (bool, error)) error {
 	// we've done all but synced our state, so ensure our deployments are up-to-date
-	if err := g.ensureDeploymentExists(ctx); err != nil {
+	if err := g.deployer.Deploy(ctx, g.consulNamespace, g.config, g.gateway); err != nil {
 		return err
 	}
 
@@ -471,62 +461,6 @@ func (g *K8sGateway) TrackSync(ctx context.Context, sync func() (bool, error)) e
 			return err
 		}
 	}
-	return nil
-}
-
-func (g *K8sGateway) ensureDeploymentExists(ctx context.Context) error {
-	// Create service account for the gateway
-	if serviceAccount := g.config.ServiceAccountFor(g.gateway); serviceAccount != nil {
-		if err := g.client.EnsureServiceAccount(ctx, g.gateway, serviceAccount); err != nil {
-			return err
-		}
-	}
-
-	// get current deployment so user set replica count isn't overridden by default values
-	currentDeployment, err := g.client.GetDeployment(ctx, types.NamespacedName{Namespace: g.gateway.Namespace, Name: g.gateway.Name})
-	if err != nil {
-		return err
-	}
-	var currentReplicas *int32
-	if currentDeployment != nil {
-		currentReplicas = currentDeployment.Spec.Replicas
-	}
-
-	deployment := g.deploymentBuilder.Build(currentReplicas)
-	mutated := deployment.DeepCopy()
-
-	if updated, err := g.client.CreateOrUpdateDeployment(ctx, mutated, func() error {
-		mutated = apigwv1alpha1.MergeDeployment(deployment, mutated)
-		return g.client.SetControllerOwnership(g.gateway, mutated)
-	}); err != nil {
-		return fmt.Errorf("failed to create or update gateway deployment: %w", err)
-	} else if updated {
-		if g.logger.IsTrace() {
-			data, err := json.MarshalIndent(mutated, "", "  ")
-			if err == nil {
-				g.logger.Trace("created or updated gateway deployment", "deployment", string(data))
-			}
-		}
-	}
-
-	// Create service for the gateway
-	if service := g.serviceBuilder.Build(); service != nil {
-		mutated := service.DeepCopy()
-		if updated, err := g.client.CreateOrUpdateService(ctx, mutated, func() error {
-			mutated = apigwv1alpha1.MergeService(service, mutated)
-			return g.client.SetControllerOwnership(g.gateway, mutated)
-		}); err != nil {
-			return fmt.Errorf("failed to create or update gateway service: %w", err)
-		} else if updated {
-			if g.logger.IsTrace() {
-				data, err := json.MarshalIndent(mutated, "", "  ")
-				if err == nil {
-					g.logger.Trace("created or updated gateway service", "service", string(data))
-				}
-			}
-		}
-	}
-
 	return nil
 }
 

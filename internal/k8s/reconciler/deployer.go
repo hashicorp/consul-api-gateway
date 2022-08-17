@@ -8,6 +8,7 @@ import (
 	"github.com/hashicorp/go-hclog"
 	apps "k8s.io/api/apps/v1"
 	core "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/types"
 	gwv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/builder"
@@ -66,7 +67,17 @@ func (d *GatewayDeployer) ensureServiceAccount(ctx context.Context, config apigw
 }
 
 func (d *GatewayDeployer) ensureDeployment(ctx context.Context, namespace string, config apigwv1alpha1.GatewayClassConfig, gateway *gwv1beta1.Gateway) error {
-	deployment := d.Deployment(namespace, config, gateway)
+	// get current deployment so user set replica count isn't overridden by default values
+	currentDeployment, err := d.client.GetDeployment(ctx, types.NamespacedName{Namespace: gateway.Namespace, Name: gateway.Name})
+	if err != nil {
+		return err
+	}
+	var currentReplicas *int32
+	if currentDeployment != nil {
+		currentReplicas = currentDeployment.Spec.Replicas
+	}
+
+	deployment := d.Deployment(namespace, config, gateway, currentReplicas)
 	mutated := deployment.DeepCopy()
 
 	updated, err := d.client.CreateOrUpdateDeployment(ctx, mutated, func() error {
@@ -112,13 +123,13 @@ func (d *GatewayDeployer) ensureService(ctx context.Context, config apigwv1alpha
 	return nil
 }
 
-func (d *GatewayDeployer) Deployment(namespace string, config apigwv1alpha1.GatewayClassConfig, gateway *gwv1beta1.Gateway) *apps.Deployment {
+func (d *GatewayDeployer) Deployment(namespace string, config apigwv1alpha1.GatewayClassConfig, gateway *gwv1beta1.Gateway, currentReplicas *int32) *apps.Deployment {
 	deploymentBuilder := builder.NewGatewayDeployment(gateway)
 	deploymentBuilder.WithSDS(d.sdsHost, d.sdsPort)
 	deploymentBuilder.WithClassConfig(config)
 	deploymentBuilder.WithConsulCA(d.consulCA)
 	deploymentBuilder.WithConsulGatewayNamespace(namespace)
-	return deploymentBuilder.Build(nil) // TODO?
+	return deploymentBuilder.Build(currentReplicas)
 }
 
 func (d *GatewayDeployer) Service(config apigwv1alpha1.GatewayClassConfig, gateway *gwv1beta1.Gateway) *core.Service {
