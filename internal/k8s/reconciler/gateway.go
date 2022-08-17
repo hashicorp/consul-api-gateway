@@ -496,7 +496,7 @@ func (g *K8sGateway) ensureDeploymentExists(ctx context.Context) error {
 	mutated := deployment.DeepCopy()
 
 	if updated, err := g.client.CreateOrUpdateDeployment(ctx, mutated, func() error {
-		mutated = apigwv1alpha1.MergeDeployment(deployment, mutated, currentReplicas)
+		mutated = apigwv1alpha1.MergeDeployment(deployment, mutated)
 		return g.client.SetControllerOwnership(g.gateway, mutated)
 	}); err != nil {
 		return fmt.Errorf("failed to create or update gateway deployment: %w", err)
