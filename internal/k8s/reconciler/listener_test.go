@@ -18,6 +18,7 @@ import (
 
 	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient/mocks"
+	rstatus "github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/status"
 	"github.com/hashicorp/consul-api-gateway/internal/store"
 	storeMocks "github.com/hashicorp/consul-api-gateway/internal/store/mocks"
 )
@@ -49,9 +50,9 @@ func TestListenerValidate(t *testing.T) {
 		})
 		require.NoError(t, listener.Validate(context.Background()))
 		condition := listener.status.Ready.Condition(0)
-		require.Equal(t, ListenerConditionReasonInvalid, condition.Reason)
+		require.Equal(t, rstatus.ListenerConditionReasonInvalid, condition.Reason)
 		condition = listener.status.Detached.Condition(0)
-		require.Equal(t, ListenerConditionReasonUnsupportedProtocol, condition.Reason)
+		require.Equal(t, rstatus.ListenerConditionReasonUnsupportedProtocol, condition.Reason)
 	})
 
 	t.Run("Invalid route kinds", func(t *testing.T) {
@@ -67,7 +68,7 @@ func TestListenerValidate(t *testing.T) {
 		})
 		require.NoError(t, listener.Validate(context.Background()))
 		condition := listener.status.ResolvedRefs.Condition(0)
-		require.Equal(t, ListenerConditionReasonInvalidRouteKinds, condition.Reason)
+		require.Equal(t, rstatus.ListenerConditionReasonInvalidRouteKinds, condition.Reason)
 	})
 
 	t.Run("Unsupported address", func(t *testing.T) {
@@ -82,7 +83,7 @@ func TestListenerValidate(t *testing.T) {
 		})
 		require.NoError(t, listener.Validate(context.Background()))
 		condition := listener.status.Detached.Condition(0)
-		require.Equal(t, ListenerConditionReasonUnsupportedAddress, condition.Reason)
+		require.Equal(t, rstatus.ListenerConditionReasonUnsupportedAddress, condition.Reason)
 	})
 
 	t.Run("Invalid TLS config", func(t *testing.T) {
@@ -93,7 +94,7 @@ func TestListenerValidate(t *testing.T) {
 		})
 		require.NoError(t, listener.Validate(context.Background()))
 		condition := listener.status.Ready.Condition(0)
-		require.Equal(t, ListenerConditionReasonInvalid, condition.Reason)
+		require.Equal(t, rstatus.ListenerConditionReasonInvalid, condition.Reason)
 	})
 
 	t.Run("Invalid TLS passthrough", func(t *testing.T) {
@@ -108,7 +109,7 @@ func TestListenerValidate(t *testing.T) {
 		})
 		require.NoError(t, listener.Validate(context.Background()))
 		condition := listener.status.Ready.Condition(0)
-		require.Equal(t, ListenerConditionReasonInvalid, condition.Reason)
+		require.Equal(t, rstatus.ListenerConditionReasonInvalid, condition.Reason)
 	})
 
 	t.Run("Invalid certificate ref", func(t *testing.T) {
@@ -120,7 +121,7 @@ func TestListenerValidate(t *testing.T) {
 		})
 		require.NoError(t, listener.Validate(context.Background()))
 		condition := listener.status.ResolvedRefs.Condition(0)
-		require.Equal(t, ListenerConditionReasonInvalidCertificateRef, condition.Reason)
+		require.Equal(t, rstatus.ListenerConditionReasonInvalidCertificateRef, condition.Reason)
 	})
 
 	t.Run("Fail to retrieve secret", func(t *testing.T) {
@@ -154,7 +155,7 @@ func TestListenerValidate(t *testing.T) {
 		client.EXPECT().GetSecret(gomock.Any(), gomock.Any()).Return(nil, nil)
 		require.NoError(t, listener.Validate(context.Background()))
 		condition := listener.status.ResolvedRefs.Condition(0)
-		require.Equal(t, ListenerConditionReasonInvalidCertificateRef, condition.Reason)
+		require.Equal(t, rstatus.ListenerConditionReasonInvalidCertificateRef, condition.Reason)
 	})
 
 	t.Run("Invalid cross-namespace secret ref with no ReferenceGrant", func(t *testing.T) {
@@ -174,7 +175,7 @@ func TestListenerValidate(t *testing.T) {
 		client.EXPECT().GetReferenceGrantsInNamespace(gomock.Any(), string(otherNamespace)).Return([]gwv1alpha2.ReferenceGrant{}, nil)
 		require.NoError(t, listener.Validate(context.Background()))
 		condition := listener.status.ResolvedRefs.Condition(0)
-		assert.Equal(t, ListenerConditionReasonInvalidCertificateRef, condition.Reason)
+		assert.Equal(t, rstatus.ListenerConditionReasonInvalidCertificateRef, condition.Reason)
 	})
 
 	t.Run("Valid cross-namespace secret ref with ReferenceGrant", func(t *testing.T) {
@@ -260,7 +261,7 @@ func TestListenerValidate(t *testing.T) {
 		})
 		require.NoError(t, listener.Validate(context.Background()))
 		condition := listener.status.ResolvedRefs.Condition(0)
-		assert.Equal(t, ListenerConditionReasonInvalidCertificateRef, condition.Reason)
+		assert.Equal(t, rstatus.ListenerConditionReasonInvalidCertificateRef, condition.Reason)
 	})
 
 	t.Run("Valid minimum TLS version", func(t *testing.T) {
@@ -285,7 +286,7 @@ func TestListenerValidate(t *testing.T) {
 		}, nil)
 		require.NoError(t, listener.Validate(context.Background()))
 		condition := listener.status.Ready.Condition(0)
-		require.Equal(t, ListenerConditionReasonReady, condition.Reason)
+		require.Equal(t, rstatus.ListenerConditionReasonReady, condition.Reason)
 		require.Equal(t, "TLSv1_2", listener.tls.MinVersion)
 	})
 
@@ -311,7 +312,7 @@ func TestListenerValidate(t *testing.T) {
 		}, nil)
 		require.NoError(t, listener.Validate(context.Background()))
 		condition := listener.status.Ready.Condition(0)
-		require.Equal(t, ListenerConditionReasonInvalid, condition.Reason)
+		require.Equal(t, rstatus.ListenerConditionReasonInvalid, condition.Reason)
 		require.Equal(t, "unrecognized TLS min version", condition.Message)
 	})
 
@@ -337,7 +338,7 @@ func TestListenerValidate(t *testing.T) {
 		}, nil)
 		require.NoError(t, listener.Validate(context.Background()))
 		condition := listener.status.Ready.Condition(0)
-		require.Equal(t, ListenerConditionReasonReady, condition.Reason)
+		require.Equal(t, rstatus.ListenerConditionReasonReady, condition.Reason)
 		require.Equal(t, []string{"TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256"}, listener.tls.CipherSuites)
 	})
 
@@ -364,7 +365,7 @@ func TestListenerValidate(t *testing.T) {
 		}, nil)
 		require.NoError(t, listener.Validate(context.Background()))
 		condition := listener.status.Ready.Condition(0)
-		require.Equal(t, ListenerConditionReasonInvalid, condition.Reason)
+		require.Equal(t, rstatus.ListenerConditionReasonInvalid, condition.Reason)
 		require.Equal(t, "configuring TLS cipher suites is only supported for TLS 1.2 and earlier", condition.Message)
 	})
 
@@ -390,7 +391,7 @@ func TestListenerValidate(t *testing.T) {
 		}, nil)
 		require.NoError(t, listener.Validate(context.Background()))
 		condition := listener.status.Ready.Condition(0)
-		require.Equal(t, ListenerConditionReasonInvalid, condition.Reason)
+		require.Equal(t, rstatus.ListenerConditionReasonInvalid, condition.Reason)
 		require.Equal(t, "unrecognized or unsupported TLS cipher suite: foo", condition.Message)
 	})
 }
