@@ -17,6 +17,7 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/builder"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
+	rstatus "github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/status"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	"github.com/hashicorp/consul-api-gateway/internal/store"
 	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
@@ -31,7 +32,7 @@ type K8sGateway struct {
 	deploymentBuilder builder.DeploymentBuilder
 	serviceBuilder    builder.ServiceBuilder
 
-	status       GatewayStatus
+	status       rstatus.GatewayStatus
 	podReady     bool
 	serviceReady bool
 	addresses    []string
@@ -83,7 +84,7 @@ func NewK8sGateway(gateway *gwv1beta1.Gateway, config K8sGatewayConfig) *K8sGate
 }
 
 func (g *K8sGateway) Validate(ctx context.Context) error {
-	g.status = GatewayStatus{}
+	g.status = rstatus.GatewayStatus{}
 	g.validateListenerConflicts()
 
 	if err := g.validatePods(ctx); err != nil {
@@ -453,7 +454,7 @@ func (g *K8sGateway) TrackSync(ctx context.Context, sync func() (bool, error)) e
 		g.status.InSync.SyncError = err
 	} else if didSync {
 		// clear out any old synchronization error statuses
-		g.status.InSync = GatewayInSyncStatus{}
+		g.status.InSync = rstatus.GatewayInSyncStatus{}
 	}
 
 	status := g.Status()

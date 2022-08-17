@@ -5,12 +5,14 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
-	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
-	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 	"github.com/hashicorp/go-hclog"
 	"k8s.io/apimachinery/pkg/types"
 	gwv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
+
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
+	rstatus "github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/status"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
+	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 )
 
 type K8sGatewayClasses struct {
@@ -72,7 +74,7 @@ type K8sGatewayClass struct {
 	logger hclog.Logger
 	client gatewayclient.Client
 
-	status GatewayClassStatus
+	status rstatus.GatewayClassStatus
 	class  *gwv1beta1.GatewayClass
 	config apigwv1alpha1.GatewayClassConfig
 }
@@ -115,7 +117,7 @@ func (c *K8sGatewayClass) Validate(ctx context.Context) error {
 		}
 		c.config = *found
 		// clear out any accepted errors
-		c.status.Accepted = GatewayClassAcceptedStatus{}
+		c.status.Accepted = rstatus.GatewayClassAcceptedStatus{}
 	}
 
 	return nil

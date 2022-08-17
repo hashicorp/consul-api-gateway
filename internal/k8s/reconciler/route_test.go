@@ -15,6 +15,8 @@ import (
 	gwv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	clientMocks "github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient/mocks"
+	rerrors "github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/errors"
+	rstatus "github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/status"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/service"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/service/mocks"
 	"github.com/hashicorp/consul-api-gateway/internal/store"
@@ -190,34 +192,34 @@ func TestRouteMergedStatusAndBinding(t *testing.T) {
 	require.Equal(t, "expected", string(statuses[0].ParentRef.Name))
 	require.Equal(t, "expected", string(statuses[0].ControllerName))
 	require.Equal(t, "expected", statuses[0].Conditions[0].Message)
-	require.Equal(t, RouteConditionReasonBindError, statuses[0].Conditions[0].Reason)
+	require.Equal(t, rstatus.RouteConditionReasonBindError, statuses[0].Conditions[0].Reason)
 
-	route.OnBindFailed(NewBindErrorHostnameMismatch("expected"), gateway)
-
-	statuses = route.MergedStatus().Parents
-	require.Len(t, statuses, 3)
-	require.Equal(t, "expected", string(statuses[0].ParentRef.Name))
-	require.Equal(t, "expected", string(statuses[0].ControllerName))
-	require.Equal(t, "expected", statuses[0].Conditions[0].Message)
-	require.Equal(t, RouteConditionReasonListenerHostnameMismatch, statuses[0].Conditions[0].Reason)
-
-	route.OnBindFailed(NewBindErrorListenerNamespacePolicy("expected"), gateway)
+	route.OnBindFailed(rerrors.NewBindErrorHostnameMismatch("expected"), gateway)
 
 	statuses = route.MergedStatus().Parents
 	require.Len(t, statuses, 3)
 	require.Equal(t, "expected", string(statuses[0].ParentRef.Name))
 	require.Equal(t, "expected", string(statuses[0].ControllerName))
 	require.Equal(t, "expected", statuses[0].Conditions[0].Message)
-	require.Equal(t, RouteConditionReasonListenerNamespacePolicy, statuses[0].Conditions[0].Reason)
+	require.Equal(t, rstatus.RouteConditionReasonListenerHostnameMismatch, statuses[0].Conditions[0].Reason)
 
-	route.OnBindFailed(NewBindErrorRouteKind("expected"), gateway)
+	route.OnBindFailed(rerrors.NewBindErrorListenerNamespacePolicy("expected"), gateway)
 
 	statuses = route.MergedStatus().Parents
 	require.Len(t, statuses, 3)
 	require.Equal(t, "expected", string(statuses[0].ParentRef.Name))
 	require.Equal(t, "expected", string(statuses[0].ControllerName))
 	require.Equal(t, "expected", statuses[0].Conditions[0].Message)
-	require.Equal(t, RouteConditionReasonInvalidRouteKind, statuses[0].Conditions[0].Reason)
+	require.Equal(t, rstatus.RouteConditionReasonListenerNamespacePolicy, statuses[0].Conditions[0].Reason)
+
+	route.OnBindFailed(rerrors.NewBindErrorRouteKind("expected"), gateway)
+
+	statuses = route.MergedStatus().Parents
+	require.Len(t, statuses, 3)
+	require.Equal(t, "expected", string(statuses[0].ParentRef.Name))
+	require.Equal(t, "expected", string(statuses[0].ControllerName))
+	require.Equal(t, "expected", statuses[0].Conditions[0].Message)
+	require.Equal(t, rstatus.RouteConditionReasonInvalidRouteKind, statuses[0].Conditions[0].Reason)
 
 	route.OnBound(gateway)
 
@@ -249,7 +251,7 @@ func TestRouteMergedStatusAndBinding(t *testing.T) {
 	require.Equal(t, "expected", string(statuses[0].ParentRef.Name))
 	require.Equal(t, "expected", string(statuses[0].ControllerName))
 	require.Equal(t, "expected", statuses[0].Conditions[0].Message)
-	require.Equal(t, RouteConditionReasonBindError, statuses[0].Conditions[0].Reason)
+	require.Equal(t, rstatus.RouteConditionReasonBindError, statuses[0].Conditions[0].Reason)
 
 	// check route ref
 	route = NewK8sRoute(inner, K8sRouteConfig{
@@ -263,7 +265,7 @@ func TestRouteMergedStatusAndBinding(t *testing.T) {
 	require.Equal(t, "expected", string(statuses[0].ParentRef.Name))
 	require.Equal(t, "expected", string(statuses[0].ControllerName))
 	require.Equal(t, "not found", statuses[0].Conditions[1].Message)
-	require.Equal(t, RouteConditionReasonRefNotPermitted, statuses[0].Conditions[1].Reason)
+	require.Equal(t, rstatus.RouteConditionReasonRefNotPermitted, statuses[0].Conditions[1].Reason)
 
 	// check binding for non-existent route
 	gateway = NewK8sGateway(&gwv1beta1.Gateway{
