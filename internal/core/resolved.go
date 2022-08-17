@@ -10,8 +10,6 @@ type ResolvedRouteType int
 const (
 	ResolvedHTTPRouteType ResolvedRouteType = iota
 	ResolvedTCPRouteType
-	ResolvedTLSRouteType
-	ResolvedUDPRouteType
 )
 
 type ResolvedRoute interface {

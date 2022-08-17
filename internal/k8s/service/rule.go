@@ -7,8 +7,6 @@ import (
 type RouteRule struct {
 	HTTPRule *gwv1alpha2.HTTPRouteRule
 	TCPRule  *gwv1alpha2.TCPRouteRule
-	TLSRule  *gwv1alpha2.TLSRouteRule
-	UDPRule  *gwv1alpha2.UDPRouteRule
 }
 
 func NewRouteRule(rule interface{}) RouteRule {
@@ -18,10 +16,6 @@ func NewRouteRule(rule interface{}) RouteRule {
 		r.HTTPRule = routeRule
 	case *gwv1alpha2.TCPRouteRule:
 		r.TCPRule = routeRule
-	case *gwv1alpha2.UDPRouteRule:
-		r.UDPRule = routeRule
-	case *gwv1alpha2.TLSRouteRule:
-		r.TLSRule = routeRule
 	}
 	return r
 }
