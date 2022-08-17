@@ -1,10 +1,11 @@
 package reconciler
 
 import (
-	"github.com/hashicorp/consul-api-gateway/internal/core"
-	"github.com/hashicorp/consul-api-gateway/internal/k8s/service"
 	"k8s.io/apimachinery/pkg/types"
 	gwv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
+
+	"github.com/hashicorp/consul-api-gateway/internal/core"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/service"
 )
 
 func TCPRouteID(namespacedName types.NamespacedName) string {
@@ -21,7 +22,7 @@ func convertTCPRoute(namespace, prefix string, meta map[string]string, route *gw
 		// be in different namespaces
 		WithNamespace(namespace).
 		WithMeta(meta).
-		WithService(tcpReferencesToService(k8sRoute.references)).
+		WithService(tcpReferencesToService(k8sRoute.RouteState.References)).
 		Build()
 	return &resolved
 }

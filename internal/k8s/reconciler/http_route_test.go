@@ -8,6 +8,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	gwv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/state"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/service"
 )
 
@@ -213,7 +214,7 @@ func TestConvertHTTPRoute(t *testing.T) {
 `,
 	}} {
 		t.Run(test.name, func(t *testing.T) {
-			resolved := convertHTTPRoute(test.namespace, test.hostname, test.name, test.meta, test.route, &K8sRoute{references: test.references})
+			resolved := convertHTTPRoute(test.namespace, test.hostname, test.name, test.meta, test.route, &K8sRoute{RouteState: &state.RouteState{References: test.references}})
 
 			data, err := json.MarshalIndent(resolved, "", "  ")
 			require.NoError(t, err)
