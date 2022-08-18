@@ -16,6 +16,7 @@ import (
 
 	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/state"
 	rstatus "github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/status"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	"github.com/hashicorp/consul-api-gateway/internal/store"
@@ -24,18 +25,14 @@ import (
 
 type K8sGateway struct {
 	*gwv1beta1.Gateway
+	GatewayState *state.GatewayState
 
-	consulNamespace string
-	logger          hclog.Logger
-	client          gatewayclient.Client
-	config          apigwv1alpha1.GatewayClassConfig
-	deployer        *GatewayDeployer
+	logger   hclog.Logger
+	client   gatewayclient.Client
+	config   apigwv1alpha1.GatewayClassConfig
+	deployer *GatewayDeployer
 
-	status       rstatus.GatewayStatus
-	podReady     bool
-	serviceReady bool
-	addresses    []string
-	listeners    map[string]*K8sListener
+	listeners []*K8sListener
 }
 
 var _ store.StatusTrackingGateway = &K8sGateway{}
@@ -53,29 +50,33 @@ type K8sGatewayConfig struct {
 
 func NewK8sGateway(gateway *gwv1beta1.Gateway, config K8sGatewayConfig) *K8sGateway {
 	gatewayLogger := config.Logger.Named("gateway").With("name", gateway.Name, "namespace", gateway.Namespace)
-	listeners := make(map[string]*K8sListener)
+	listeners := make([]*K8sListener, 0, len(gateway.Spec.Listeners))
 	for _, listener := range gateway.Spec.Listeners {
 		k8sListener := NewK8sListener(gateway, listener, K8sListenerConfig{
 			ConsulNamespace: config.ConsulNamespace,
 			Logger:          gatewayLogger,
 			Client:          config.Client,
 		})
-		listeners[k8sListener.ID()] = k8sListener
+		listeners = append(listeners, k8sListener)
 	}
 
+	// TODO
+	gwState := state.InitialGatewayState(gateway)
+	gwState.ConsulNamespace = config.ConsulNamespace
+
 	return &K8sGateway{
-		Gateway:         gateway,
-		config:          config.Config,
-		deployer:        config.Deployer,
-		consulNamespace: config.ConsulNamespace,
-		logger:          gatewayLogger,
-		client:          config.Client,
-		listeners:       listeners,
+		Gateway:      gateway,
+		GatewayState: gwState,
+		config:       config.Config,
+		deployer:     config.Deployer,
+		logger:       gatewayLogger,
+		client:       config.Client,
+		listeners:    listeners,
 	}
 }
 
 func (g *K8sGateway) Validate(ctx context.Context) error {
-	g.status = rstatus.GatewayStatus{}
+	g.GatewayState.Status = rstatus.GatewayStatus{}
 	g.validateListenerConflicts()
 
 	if err := g.validatePods(ctx); err != nil {
@@ -176,18 +177,18 @@ func (g *K8sGateway) assignGatewayIPFromServiceIngress(ctx context.Context, serv
 	}
 
 	if updated == nil {
-		g.status.Scheduled.NotReconciled = errors.New("service not found")
+		g.GatewayState.Status.Scheduled.NotReconciled = errors.New("service not found")
 		return nil
 	}
 
 	for _, ingress := range updated.Status.LoadBalancer.Ingress {
 		if ingress.IP != "" {
-			g.serviceReady = true
-			g.addresses = append(g.addresses, ingress.IP)
+			g.GatewayState.ServiceReady = true
+			g.GatewayState.Addresses = append(g.GatewayState.Addresses, ingress.IP)
 		}
 		if ingress.Hostname != "" {
-			g.serviceReady = true
-			g.addresses = append(g.addresses, ingress.Hostname)
+			g.GatewayState.ServiceReady = true
+			g.GatewayState.Addresses = append(g.GatewayState.Addresses, ingress.Hostname)
 		}
 	}
 
@@ -203,13 +204,13 @@ func (g *K8sGateway) assignGatewayIPFromService(ctx context.Context, service *co
 	}
 
 	if updated == nil {
-		g.status.Scheduled.NotReconciled = errors.New("service not found")
+		g.GatewayState.Status.Scheduled.NotReconciled = errors.New("service not found")
 		return nil
 	}
 
 	if updated.Spec.ClusterIP != "" {
-		g.serviceReady = true
-		g.addresses = append(g.addresses, updated.Spec.ClusterIP)
+		g.GatewayState.ServiceReady = true
+		g.GatewayState.Addresses = append(g.GatewayState.Addresses, updated.Spec.ClusterIP)
 	}
 
 	return nil
@@ -224,15 +225,15 @@ func (g *K8sGateway) assignGatewayIPFromPods(ctx context.Context) error {
 	}
 
 	if len(pods) == 0 {
-		g.status.Scheduled.NotReconciled = errors.New("pods not found")
+		g.GatewayState.Status.Scheduled.NotReconciled = errors.New("pods not found")
 		return nil
 	}
 
 	for _, pod := range pods {
 		if pod.Status.PodIP != "" {
-			g.serviceReady = true
-			if !slices.Contains(g.addresses, pod.Status.PodIP) {
-				g.addresses = append(g.addresses, pod.Status.PodIP)
+			g.GatewayState.ServiceReady = true
+			if !slices.Contains(g.GatewayState.Addresses, pod.Status.PodIP) {
+				g.GatewayState.Addresses = append(g.GatewayState.Addresses, pod.Status.PodIP)
 			}
 		}
 	}
@@ -252,16 +253,16 @@ func (g *K8sGateway) assignGatewayIPFromPodHost(ctx context.Context) error {
 	}
 
 	if len(pods) == 0 {
-		g.status.Scheduled.NotReconciled = errors.New("pods not found")
+		g.GatewayState.Status.Scheduled.NotReconciled = errors.New("pods not found")
 		return nil
 	}
 
 	for _, pod := range pods {
 		if pod.Status.HostIP != "" {
-			g.serviceReady = true
+			g.GatewayState.ServiceReady = true
 
-			if !slices.Contains(g.addresses, pod.Status.HostIP) {
-				g.addresses = append(g.addresses, pod.Status.HostIP)
+			if !slices.Contains(g.GatewayState.Addresses, pod.Status.HostIP) {
+				g.GatewayState.Addresses = append(g.GatewayState.Addresses, pod.Status.HostIP)
 			}
 		}
 	}
@@ -284,7 +285,7 @@ func (g *K8sGateway) validatePods(ctx context.Context) error {
 
 func (g *K8sGateway) validatePodConditions(pod *corev1.Pod) {
 	if pod == nil {
-		g.status.Scheduled.NotReconciled = errors.New("pod not found")
+		g.GatewayState.Status.Scheduled.NotReconciled = errors.New("pod not found")
 		return
 	}
 
@@ -300,10 +301,10 @@ func (g *K8sGateway) validatePodConditions(pod *corev1.Pod) {
 	case corev1.PodFailed:
 		// we have a failed deployment, set the status accordingly
 		// for now we just consider the pods unschedulable.
-		g.status.Scheduled.PodFailed = errors.New("pod not running")
+		g.GatewayState.Status.Scheduled.PodFailed = errors.New("pod not running")
 	default: // Unknown pod status
 		// we don't have a known pod status, just consider this unreconciled
-		g.status.Scheduled.Unknown = errors.New("pod status unknown")
+		g.GatewayState.Status.Scheduled.Unknown = errors.New("pod status unknown")
 	}
 }
 
@@ -311,19 +312,19 @@ func (g *K8sGateway) validatePodStatusPending(pod *corev1.Pod) {
 	for _, condition := range pod.Status.Conditions {
 		if condition.Type == corev1.PodScheduled && condition.Status == corev1.ConditionFalse &&
 			strings.Contains(condition.Reason, "Unschedulable") {
-			g.status.Scheduled.NoResources = errors.New(condition.Message)
+			g.GatewayState.Status.Scheduled.NoResources = errors.New(condition.Message)
 			return
 		}
 	}
 	// if no conditions exist, or we haven't found a specific above condition, just default
 	// to not reconciled
-	g.status.Scheduled.NotReconciled = errors.New("pod conditions not found")
+	g.GatewayState.Status.Scheduled.NotReconciled = errors.New("pod conditions not found")
 }
 
 func (g *K8sGateway) validatePodStatusRunning(pod *corev1.Pod) {
 	for _, condition := range pod.Status.Conditions {
 		if condition.Type == corev1.PodReady && condition.Status == corev1.ConditionTrue {
-			g.podReady = true
+			g.GatewayState.PodReady = true
 			return
 		}
 	}
@@ -332,7 +333,7 @@ func (g *K8sGateway) validatePodStatusRunning(pod *corev1.Pod) {
 func (g *K8sGateway) ID() core.GatewayID {
 	return core.GatewayID{
 		Service:         g.Gateway.Name,
-		ConsulNamespace: g.consulNamespace,
+		ConsulNamespace: g.GatewayState.ConsulNamespace,
 	}
 }
 
@@ -402,13 +403,13 @@ func (g *K8sGateway) Status() gwv1beta1.GatewayStatus {
 	}
 
 	if listenersInvalid {
-		g.status.Ready.ListenersNotValid = errors.New("gateway listeners not valid")
-	} else if !g.podReady || !g.serviceReady || !listenersReady {
-		g.status.Ready.ListenersNotReady = errors.New("gateway listeners not ready")
+		g.GatewayState.Status.Ready.ListenersNotValid = errors.New("gateway listeners not valid")
+	} else if !g.GatewayState.PodReady || !g.GatewayState.ServiceReady || !listenersReady {
+		g.GatewayState.Status.Ready.ListenersNotReady = errors.New("gateway listeners not ready")
 	} else if len(g.Gateway.Spec.Addresses) != 0 {
-		g.status.Ready.AddressNotAssigned = errors.New("gateway does not support requesting addresses")
+		g.GatewayState.Status.Ready.AddressNotAssigned = errors.New("gateway does not support requesting addresses")
 	}
-	conditions := g.status.Conditions(g.Gateway.Generation)
+	conditions := g.GatewayState.Status.Conditions(g.Gateway.Generation)
 
 	// prefer to not update to not mess up timestamps
 	if listenerStatusesEqual(listenerStatuses, g.Gateway.Status.Listeners) {
@@ -419,8 +420,8 @@ func (g *K8sGateway) Status() gwv1beta1.GatewayStatus {
 	}
 
 	ipType := gwv1beta1.IPAddressType
-	addresses := make([]gwv1beta1.GatewayAddress, 0, len(g.addresses))
-	for _, address := range g.addresses {
+	addresses := make([]gwv1beta1.GatewayAddress, 0, len(g.GatewayState.Addresses))
+	for _, address := range g.GatewayState.Addresses {
 		addresses = append(addresses, gwv1beta1.GatewayAddress{
 			Type:  &ipType,
 			Value: address,
@@ -436,16 +437,16 @@ func (g *K8sGateway) Status() gwv1beta1.GatewayStatus {
 
 func (g *K8sGateway) TrackSync(ctx context.Context, sync func() (bool, error)) error {
 	// we've done all but synced our state, so ensure our deployments are up-to-date
-	if err := g.deployer.Deploy(ctx, g.consulNamespace, g.config, g.Gateway); err != nil {
+	if err := g.deployer.Deploy(ctx, g.GatewayState.ConsulNamespace, g.config, g.Gateway); err != nil {
 		return err
 	}
 
 	didSync, err := sync()
 	if err != nil {
-		g.status.InSync.SyncError = err
+		g.GatewayState.Status.InSync.SyncError = err
 	} else if didSync {
 		// clear out any old synchronization error statuses
-		g.status.InSync = rstatus.GatewayInSyncStatus{}
+		g.GatewayState.Status.InSync = rstatus.GatewayInSyncStatus{}
 	}
 
 	status := g.Status()
