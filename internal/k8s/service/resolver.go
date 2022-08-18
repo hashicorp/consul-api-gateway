@@ -182,31 +182,28 @@ func (r *ResolvedReference) Item() client.Object {
 }
 
 type BackendResolver interface {
-	Resolve(ctx context.Context, ref gwv1alpha2.BackendObjectReference) (*ResolvedReference, error)
+	Resolve(ctx context.Context, namespace string, ref gwv1alpha2.BackendObjectReference) (*ResolvedReference, error)
 }
 
 type backendResolver struct {
-	namespace string
-	client    gatewayclient.Client
-	consul    *api.Client
-	logger    hclog.Logger
-	mapper    common.ConsulNamespaceMapper
+	client gatewayclient.Client
+	consul *api.Client
+	logger hclog.Logger
+	mapper common.ConsulNamespaceMapper
 }
 
-func NewBackendResolver(logger hclog.Logger, namespace string, mapper common.ConsulNamespaceMapper, client gatewayclient.Client, consul *api.Client) BackendResolver {
+func NewBackendResolver(logger hclog.Logger, mapper common.ConsulNamespaceMapper, client gatewayclient.Client, consul *api.Client) *backendResolver {
 	return &backendResolver{
-		namespace: namespace,
-		client:    client,
-		consul:    consul,
-		mapper:    mapper,
-		logger:    logger,
+		client: client,
+		consul: consul,
+		mapper: mapper,
+		logger: logger,
 	}
 }
 
-func (r *backendResolver) Resolve(ctx context.Context, ref gwv1alpha2.BackendObjectReference) (*ResolvedReference, error) {
+func (r *backendResolver) Resolve(ctx context.Context, namespace string, ref gwv1alpha2.BackendObjectReference) (*ResolvedReference, error) {
 	group := corev1.GroupName
 	kind := "Service"
-	namespace := r.namespace
 	if ref.Group != nil {
 		group = string(*ref.Group)
 	}

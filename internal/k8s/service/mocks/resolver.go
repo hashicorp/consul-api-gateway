@@ -37,16 +37,16 @@ func (m *MockBackendResolver) EXPECT() *MockBackendResolverMockRecorder {
 }
 
 // Resolve mocks base method.
-func (m *MockBackendResolver) Resolve(ctx context.Context, ref v1alpha2.BackendObjectReference) (*service.ResolvedReference, error) {
+func (m *MockBackendResolver) Resolve(ctx context.Context, namespace string, ref v1alpha2.BackendObjectReference) (*service.ResolvedReference, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Resolve", ctx, ref)
+	ret := m.ctrl.Call(m, "Resolve", ctx, namespace, ref)
 	ret0, _ := ret[0].(*service.ResolvedReference)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Resolve indicates an expected call of Resolve.
-func (mr *MockBackendResolverMockRecorder) Resolve(ctx, ref interface{}) *gomock.Call {
+func (mr *MockBackendResolverMockRecorder) Resolve(ctx, namespace, ref interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Resolve", reflect.TypeOf((*MockBackendResolver)(nil).Resolve), ctx, ref)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Resolve", reflect.TypeOf((*MockBackendResolver)(nil).Resolve), ctx, namespace, ref)
 }

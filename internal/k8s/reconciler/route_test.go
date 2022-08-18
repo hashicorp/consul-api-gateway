@@ -173,8 +173,6 @@ func TestRouteValidate(t *testing.T) {
 		Reference: &service.BackendReference{},
 	}
 
-	resolver.EXPECT().Resolve(gomock.Any(), reference).Return(resolved, nil)
-
 	route := NewK8sRoute(&gwv1alpha2.HTTPRoute{
 		Spec: gwv1alpha2.HTTPRouteSpec{
 			Rules: []gwv1alpha2.HTTPRouteRule{{
@@ -189,14 +187,16 @@ func TestRouteValidate(t *testing.T) {
 		Logger:   hclog.NewNullLogger(),
 		Resolver: resolver,
 	})
+
+	resolver.EXPECT().Resolve(gomock.Any(), route.GetNamespace(), reference).Return(resolved, nil)
 	require.NoError(t, route.Validate(context.Background()))
 	require.True(t, route.IsValid())
 
 	expected := errors.New("expected")
-	resolver.EXPECT().Resolve(gomock.Any(), reference).Return(nil, expected)
+	resolver.EXPECT().Resolve(gomock.Any(), route.GetNamespace(), reference).Return(nil, expected)
 	require.Equal(t, expected, route.Validate(context.Background()))
 
-	resolver.EXPECT().Resolve(gomock.Any(), reference).Return(nil, service.NewK8sResolutionError("error"))
+	resolver.EXPECT().Resolve(gomock.Any(), route.GetNamespace(), reference).Return(nil, service.NewK8sResolutionError("error"))
 	require.NoError(t, route.Validate(context.Background()))
 	require.False(t, route.IsValid())
 }
@@ -305,7 +305,7 @@ func TestRouteValidateAllowCrossNamespaceWithReferenceGrant(t *testing.T) {
 		Return([]gwv1alpha2.ReferenceGrant{refGrant}, nil)
 
 	resolver.EXPECT().
-		Resolve(gomock.Any(), gomock.Any()).
+		Resolve(gomock.Any(), route.GetNamespace(), gomock.Any()).
 		Return(&service.ResolvedReference{Type: service.ConsulServiceReference, Reference: &service.BackendReference{}}, nil)
 
 	require.NoError(t, route.Validate(context.Background()))

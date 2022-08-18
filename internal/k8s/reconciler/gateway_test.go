@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"testing"
 
 	"github.com/golang/mock/gomock"
@@ -12,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 	core "k8s.io/api/core/v1"
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/pointer"
 	gwv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 	gwv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
@@ -19,6 +19,7 @@ import (
 
 	internalCore "github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient/mocks"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/state"
 	rstatus "github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/status"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/service"
 	storeMocks "github.com/hashicorp/consul-api-gateway/internal/store/mocks"
@@ -32,8 +33,13 @@ func TestGatewayValidate(t *testing.T) {
 	defer ctrl.Finish()
 	client := mocks.NewMockClient(ctrl)
 
+	factory := NewFactory(FactoryConfig{
+		Logger: hclog.NewNullLogger(),
+		Client: client,
+	})
+
 	hostname := gwv1beta1.Hostname("*")
-	gateway := NewK8sGateway(&gwv1beta1.Gateway{
+	g := &gwv1beta1.Gateway{
 		Spec: gwv1beta1.GatewaySpec{
 			Listeners: []gwv1beta1.Listener{{
 				Hostname: &hostname,
@@ -43,12 +49,11 @@ func TestGatewayValidate(t *testing.T) {
 				},
 			}},
 		},
-	}, K8sGatewayConfig{
-		Logger: hclog.New(&hclog.LoggerOptions{
-			Output: io.Discard,
-			Level:  hclog.Trace,
-		}),
-		Client: client,
+	}
+
+	gateway := factory.NewGateway(NewGatewayConfig{
+		Gateway: g,
+		State:   state.InitialGatewayState(g),
 		Config: apigwv1alpha1.GatewayClassConfig{
 			Spec: apigwv1alpha1.GatewayClassConfigSpec{
 
@@ -75,6 +80,11 @@ func TestGatewayValidateGatewayIP(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	client := mocks.NewMockClient(ctrl)
+
+	factory := NewFactory(FactoryConfig{
+		Logger: hclog.NewNullLogger(),
+		Client: client,
+	})
 
 	hostname := gwv1beta1.Hostname("*")
 
@@ -153,9 +163,9 @@ func TestGatewayValidateGatewayIP(t *testing.T) {
 		}
 
 		t.Run(name, func(t *testing.T) {
-			gateway := NewK8sGateway(gwDef, K8sGatewayConfig{
-				Logger: hclog.NewNullLogger(),
-				Client: client,
+			gateway := factory.NewGateway(NewGatewayConfig{
+				Gateway: gwDef,
+				State:   state.InitialGatewayState(gwDef),
 				Config: apigwv1alpha1.GatewayClassConfig{
 					Spec: apigwv1alpha1.GatewayClassConfigSpec{
 						ServiceType: tc.serviceType,
@@ -185,7 +195,12 @@ func TestGatewayValidate_ListenerProtocolConflicts(t *testing.T) {
 	defer ctrl.Finish()
 	client := mocks.NewMockClient(ctrl)
 
-	gateway := NewK8sGateway(&gwv1beta1.Gateway{
+	factory := NewFactory(FactoryConfig{
+		Logger: hclog.NewNullLogger(),
+		Client: client,
+	})
+
+	gw := &gwv1beta1.Gateway{
 		Spec: gwv1beta1.GatewaySpec{
 			Listeners: []gwv1beta1.Listener{{
 				Name:     gwv1beta1.SectionName("1"),
@@ -197,17 +212,16 @@ func TestGatewayValidate_ListenerProtocolConflicts(t *testing.T) {
 				Port:     gwv1beta1.PortNumber(1),
 			}},
 		},
-	}, K8sGatewayConfig{
-		Logger: hclog.New(&hclog.LoggerOptions{
-			Output: io.Discard,
-			Level:  hclog.Trace,
-		}),
+	}
+
+	gateway := factory.NewGateway(NewGatewayConfig{
+		Gateway: gw,
+		State:   state.InitialGatewayState(gw),
 		Config: apigwv1alpha1.GatewayClassConfig{
 			Spec: apigwv1alpha1.GatewayClassConfigSpec{
 				ServiceType: serviceType(core.ServiceTypeNodePort),
 			},
 		},
-		Client: client,
 	})
 	client.EXPECT().PodsWithLabels(gomock.Any(), gomock.Any()).Return(nil, nil).Times(2)
 	require.NoError(t, gateway.Validate(context.Background()))
@@ -222,9 +236,14 @@ func TestGatewayValidate_ListenerHostnameConflicts(t *testing.T) {
 	defer ctrl.Finish()
 	client := mocks.NewMockClient(ctrl)
 
+	factory := NewFactory(FactoryConfig{
+		Logger: hclog.NewNullLogger(),
+		Client: client,
+	})
+
 	hostname := gwv1beta1.Hostname("1")
 	other := gwv1beta1.Hostname("2")
-	gateway := NewK8sGateway(&gwv1beta1.Gateway{
+	gw := &gwv1beta1.Gateway{
 		Spec: gwv1beta1.GatewaySpec{
 			Listeners: []gwv1beta1.Listener{{
 				Name:     gwv1beta1.SectionName("1"),
@@ -238,17 +257,16 @@ func TestGatewayValidate_ListenerHostnameConflicts(t *testing.T) {
 				Port:     gwv1beta1.PortNumber(1),
 			}},
 		},
-	}, K8sGatewayConfig{
-		Logger: hclog.New(&hclog.LoggerOptions{
-			Output: io.Discard,
-			Level:  hclog.Trace,
-		}),
+	}
+
+	gateway := factory.NewGateway(NewGatewayConfig{
+		Gateway: gw,
+		State:   state.InitialGatewayState(gw),
 		Config: apigwv1alpha1.GatewayClassConfig{
 			Spec: apigwv1alpha1.GatewayClassConfigSpec{
 				ServiceType: serviceType(core.ServiceTypeNodePort),
 			},
 		},
-		Client: client,
 	})
 	client.EXPECT().PodsWithLabels(gomock.Any(), gomock.Any()).Return(nil, nil).Times(2)
 	require.NoError(t, gateway.Validate(context.Background()))
@@ -263,21 +281,25 @@ func TestGatewayValidate_Pods(t *testing.T) {
 	defer ctrl.Finish()
 	client := mocks.NewMockClient(ctrl)
 
-	gateway := NewK8sGateway(&gwv1beta1.Gateway{
+	factory := NewFactory(FactoryConfig{
+		Logger: hclog.NewNullLogger(),
+		Client: client,
+	})
+
+	gw := &gwv1beta1.Gateway{
 		Spec: gwv1beta1.GatewaySpec{
 			Listeners: []gwv1beta1.Listener{{}},
 		},
-	}, K8sGatewayConfig{
-		Logger: hclog.New(&hclog.LoggerOptions{
-			Output: io.Discard,
-			Level:  hclog.Trace,
-		}),
+	}
+
+	gateway := factory.NewGateway(NewGatewayConfig{
+		Gateway: gw,
+		State:   state.InitialGatewayState(gw),
 		Config: apigwv1alpha1.GatewayClassConfig{
 			Spec: apigwv1alpha1.GatewayClassConfigSpec{
 				ServiceType: serviceType(core.ServiceTypeNodePort),
 			},
 		},
-		Client: client,
 	})
 
 	// Pod has no/unknown status
@@ -346,13 +368,20 @@ func TestGatewayValidate_Pods(t *testing.T) {
 func TestGatewayID(t *testing.T) {
 	t.Parallel()
 
-	gateway := NewK8sGateway(&gwv1beta1.Gateway{
+	factory := NewFactory(FactoryConfig{
+		Logger: hclog.NewNullLogger(),
+	})
+
+	gw := &gwv1beta1.Gateway{
 		ObjectMeta: meta.ObjectMeta{
 			Name:      "name",
 			Namespace: "namespace",
 		},
-	}, K8sGatewayConfig{
-		Logger:          hclog.NewNullLogger(),
+	}
+
+	gateway := factory.NewGateway(NewGatewayConfig{
+		Gateway:         gw,
+		State:           state.InitialGatewayState(gw),
 		ConsulNamespace: "consul",
 	})
 	require.Equal(t, internalCore.GatewayID{Service: "name", ConsulNamespace: "consul"}, gateway.ID())
@@ -361,13 +390,19 @@ func TestGatewayID(t *testing.T) {
 func TestGatewayMeta(t *testing.T) {
 	t.Parallel()
 
-	gateway := NewK8sGateway(&gwv1beta1.Gateway{
+	factory := NewFactory(FactoryConfig{
+		Logger: hclog.NewNullLogger(),
+	})
+
+	gw := &gwv1beta1.Gateway{
 		ObjectMeta: meta.ObjectMeta{
 			Name:      "name",
 			Namespace: "namespace",
 		},
-	}, K8sGatewayConfig{
-		Logger:          hclog.NewNullLogger(),
+	}
+	gateway := factory.NewGateway(NewGatewayConfig{
+		Gateway:         gw,
+		State:           state.InitialGatewayState(gw),
 		ConsulNamespace: "consul",
 	})
 	require.NotNil(t, gateway.Meta())
@@ -376,12 +411,19 @@ func TestGatewayMeta(t *testing.T) {
 func TestGatewayListeners(t *testing.T) {
 	t.Parallel()
 
-	gateway := NewK8sGateway(&gwv1beta1.Gateway{
+	factory := NewFactory(FactoryConfig{
+		Logger: hclog.NewNullLogger(),
+	})
+
+	gw := &gwv1beta1.Gateway{
 		Spec: gwv1beta1.GatewaySpec{
 			Listeners: []gwv1beta1.Listener{{}},
 		},
-	}, K8sGatewayConfig{
-		Logger: hclog.NewNullLogger(),
+	}
+	gateway := factory.NewGateway(NewGatewayConfig{
+		Gateway:         gw,
+		State:           state.InitialGatewayState(gw),
+		ConsulNamespace: "consul",
 	})
 	require.Len(t, gateway.Listeners(), 1)
 }
@@ -389,15 +431,23 @@ func TestGatewayListeners(t *testing.T) {
 func TestGatewayOutputStatus(t *testing.T) {
 	t.Parallel()
 
+	factory := NewFactory(FactoryConfig{
+		Logger: hclog.NewNullLogger(),
+	})
+
 	// Pending listener
-	gateway := NewK8sGateway(&gwv1beta1.Gateway{
+	gw := &gwv1beta1.Gateway{
 		Spec: gwv1beta1.GatewaySpec{
 			Listeners: []gwv1beta1.Listener{{
 				Name: gwv1beta1.SectionName("1"),
 			}},
 		},
-	}, K8sGatewayConfig{
-		Logger: hclog.NewNullLogger(),
+	}
+
+	gateway := factory.NewGateway(NewGatewayConfig{
+		Gateway:         gw,
+		State:           state.InitialGatewayState(gw),
+		ConsulNamespace: "consul",
 	})
 	gateway.GatewayState.Addresses = []string{"127.0.0.1"}
 	gateway.listeners[0].status.Ready.Pending = errors.New("pending")
@@ -405,14 +455,18 @@ func TestGatewayOutputStatus(t *testing.T) {
 	assert.Equal(t, rstatus.GatewayConditionReasonListenersNotReady, gateway.GatewayState.Status.Ready.Condition(0).Reason)
 
 	// Service ready, pods not
-	gateway = NewK8sGateway(&gwv1beta1.Gateway{
+	gw = &gwv1beta1.Gateway{
 		Spec: gwv1beta1.GatewaySpec{
 			Listeners: []gwv1beta1.Listener{{
 				Name: gwv1beta1.SectionName("1"),
 			}},
 		},
-	}, K8sGatewayConfig{
-		Logger: hclog.NewNullLogger(),
+	}
+
+	gateway = factory.NewGateway(NewGatewayConfig{
+		Gateway:         gw,
+		State:           state.InitialGatewayState(gw),
+		ConsulNamespace: "consul",
 	})
 	gateway.GatewayState.PodReady = false
 	gateway.GatewayState.ServiceReady = true
@@ -421,14 +475,18 @@ func TestGatewayOutputStatus(t *testing.T) {
 	assert.Equal(t, rstatus.GatewayConditionReasonListenersNotValid, gateway.GatewayState.Status.Ready.Condition(0).Reason)
 
 	// Pods ready, service not
-	gateway = NewK8sGateway(&gwv1beta1.Gateway{
+	gw = &gwv1beta1.Gateway{
 		Spec: gwv1beta1.GatewaySpec{
 			Listeners: []gwv1beta1.Listener{{
 				Name: gwv1beta1.SectionName("1"),
 			}},
 		},
-	}, K8sGatewayConfig{
-		Logger: hclog.NewNullLogger(),
+	}
+
+	gateway = factory.NewGateway(NewGatewayConfig{
+		Gateway:         gw,
+		State:           state.InitialGatewayState(gw),
+		ConsulNamespace: "consul",
 	})
 	gateway.GatewayState.PodReady = true
 	gateway.GatewayState.ServiceReady = false
@@ -437,30 +495,38 @@ func TestGatewayOutputStatus(t *testing.T) {
 	assert.Equal(t, rstatus.GatewayConditionReasonListenersNotValid, gateway.GatewayState.Status.Ready.Condition(0).Reason)
 
 	// Pods + service ready
-	gateway = NewK8sGateway(&gwv1beta1.Gateway{
+	gw = &gwv1beta1.Gateway{
 		Spec: gwv1beta1.GatewaySpec{
 			Listeners: []gwv1beta1.Listener{{
 				Name: gwv1beta1.SectionName("1"),
 			}},
 			Addresses: []gwv1beta1.GatewayAddress{{}},
 		},
-	}, K8sGatewayConfig{
-		Logger: hclog.NewNullLogger(),
+	}
+
+	gateway = factory.NewGateway(NewGatewayConfig{
+		Gateway:         gw,
+		State:           state.InitialGatewayState(gw),
+		ConsulNamespace: "consul",
 	})
 	gateway.GatewayState.PodReady = true
 	gateway.GatewayState.ServiceReady = true
 	require.Len(t, gateway.Status().Listeners, 1)
 	assert.Equal(t, rstatus.GatewayConditionReasonAddressNotAssigned, gateway.GatewayState.Status.Ready.Condition(0).Reason)
 
-	gateway = NewK8sGateway(&gwv1beta1.Gateway{
+	gw = &gwv1beta1.Gateway{
 		Spec: gwv1beta1.GatewaySpec{
 			Listeners: []gwv1beta1.Listener{{
 				Name: gwv1beta1.SectionName("1"),
 			}},
 			Addresses: []gwv1beta1.GatewayAddress{{}},
 		},
-	}, K8sGatewayConfig{
-		Logger: hclog.NewNullLogger(),
+	}
+
+	gateway = factory.NewGateway(NewGatewayConfig{
+		Gateway:         gw,
+		State:           state.InitialGatewayState(gw),
+		ConsulNamespace: "consul",
 	})
 	gateway.Gateway.Status = gateway.Status()
 	gateway.Status()
@@ -473,16 +539,21 @@ func TestGatewayTrackSync(t *testing.T) {
 	defer ctrl.Finish()
 	client := mocks.NewMockClient(ctrl)
 
-	gateway := NewK8sGateway(&gwv1beta1.Gateway{}, K8sGatewayConfig{
-		Logger: hclog.New(&hclog.LoggerOptions{
-			Output: io.Discard,
-			Level:  hclog.Trace,
-		}),
+	factory := NewFactory(FactoryConfig{
+		Logger: hclog.NewNullLogger(),
 		Client: client,
 		Deployer: NewDeployer(DeployerConfig{
 			Logger: hclog.NewNullLogger(),
 			Client: client,
 		}),
+	})
+
+	gw := &gwv1beta1.Gateway{}
+
+	gateway := factory.NewGateway(NewGatewayConfig{
+		Gateway:         gw,
+		State:           state.InitialGatewayState(gw),
+		ConsulNamespace: "consul",
 	})
 	gateway.Gateway.Status = gateway.Status()
 	client.EXPECT().GetDeployment(gomock.Any(), gomock.Any()).Return(nil, nil)
@@ -491,24 +562,19 @@ func TestGatewayTrackSync(t *testing.T) {
 		return false, nil
 	}))
 
-	var instances int32 = 2
-	gateway = NewK8sGateway(&gwv1beta1.Gateway{}, K8sGatewayConfig{
-		Logger: hclog.New(&hclog.LoggerOptions{
-			Output: io.Discard,
-			Level:  hclog.Trace,
-		}),
-		Client: client,
+	gw = &gwv1beta1.Gateway{}
+
+	gateway = factory.NewGateway(NewGatewayConfig{
 		Config: apigwv1alpha1.GatewayClassConfig{
 			Spec: apigwv1alpha1.GatewayClassConfigSpec{
 				DeploymentSpec: apigwv1alpha1.DeploymentSpec{
-					DefaultInstances: &instances,
+					DefaultInstances: pointer.Int32(2),
 				},
 			},
 		},
-		Deployer: NewDeployer(DeployerConfig{
-			Logger: hclog.NewNullLogger(),
-			Client: client,
-		}),
+		Gateway:         gw,
+		State:           state.InitialGatewayState(gw),
+		ConsulNamespace: "consul",
 	})
 
 	client.EXPECT().GetDeployment(gomock.Any(), gomock.Any()).Return(nil, nil)
@@ -520,16 +586,11 @@ func TestGatewayTrackSync(t *testing.T) {
 
 	expected := errors.New("expected")
 
-	gateway = NewK8sGateway(&gwv1beta1.Gateway{}, K8sGatewayConfig{
-		Logger: hclog.New(&hclog.LoggerOptions{
-			Output: io.Discard,
-			Level:  hclog.Trace,
-		}),
-		Client: client,
-		Deployer: NewDeployer(DeployerConfig{
-			Logger: hclog.NewNullLogger(),
-			Client: client,
-		}),
+	gw = &gwv1beta1.Gateway{}
+	gateway = factory.NewGateway(NewGatewayConfig{
+		Gateway:         gw,
+		State:           state.InitialGatewayState(gw),
+		ConsulNamespace: "consul",
 	})
 	client.EXPECT().GetDeployment(gomock.Any(), gomock.Any()).Return(nil, nil)
 	client.EXPECT().CreateOrUpdateDeployment(gomock.Any(), gomock.Any(), gomock.Any()).Return(false, expected)
@@ -537,16 +598,11 @@ func TestGatewayTrackSync(t *testing.T) {
 		return false, nil
 	}), expected))
 
-	gateway = NewK8sGateway(&gwv1beta1.Gateway{}, K8sGatewayConfig{
-		Logger: hclog.New(&hclog.LoggerOptions{
-			Output: io.Discard,
-			Level:  hclog.Trace,
-		}),
-		Client: client,
-		Deployer: NewDeployer(DeployerConfig{
-			Logger: hclog.NewNullLogger(),
-			Client: client,
-		}),
+	gw = &gwv1beta1.Gateway{}
+	gateway = factory.NewGateway(NewGatewayConfig{
+		Gateway:         gw,
+		State:           state.InitialGatewayState(gw),
+		ConsulNamespace: "consul",
 	})
 	client.EXPECT().GetDeployment(gomock.Any(), gomock.Any()).Return(nil, nil)
 	client.EXPECT().CreateOrUpdateDeployment(gomock.Any(), gomock.Any(), gomock.Any()).Return(false, nil)
@@ -555,18 +611,12 @@ func TestGatewayTrackSync(t *testing.T) {
 		return false, nil
 	}))
 
-	gateway = NewK8sGateway(&gwv1beta1.Gateway{}, K8sGatewayConfig{
-		Logger: hclog.New(&hclog.LoggerOptions{
-			Output: io.Discard,
-			Level:  hclog.Trace,
-		}),
-		Client: client,
-		Deployer: NewDeployer(DeployerConfig{
-			Logger: hclog.NewNullLogger(),
-			Client: client,
-		}),
+	gw = &gwv1beta1.Gateway{}
+	gateway = factory.NewGateway(NewGatewayConfig{
+		Gateway:         gw,
+		State:           state.InitialGatewayState(gw),
+		ConsulNamespace: "consul",
 	})
-
 	client.EXPECT().GetDeployment(gomock.Any(), gomock.Any()).Return(nil, nil)
 	client.EXPECT().CreateOrUpdateDeployment(gomock.Any(), gomock.Any(), gomock.Any()).Return(false, nil)
 	client.EXPECT().UpdateStatus(gomock.Any(), gateway.Gateway).Return(nil)
@@ -574,16 +624,11 @@ func TestGatewayTrackSync(t *testing.T) {
 		return true, nil
 	}))
 
-	gateway = NewK8sGateway(&gwv1beta1.Gateway{}, K8sGatewayConfig{
-		Logger: hclog.New(&hclog.LoggerOptions{
-			Output: io.Discard,
-			Level:  hclog.Trace,
-		}),
-		Client: client,
-		Deployer: NewDeployer(DeployerConfig{
-			Logger: hclog.NewNullLogger(),
-			Client: client,
-		}),
+	gw = &gwv1beta1.Gateway{}
+	gateway = factory.NewGateway(NewGatewayConfig{
+		Gateway:         gw,
+		State:           state.InitialGatewayState(gw),
+		ConsulNamespace: "consul",
 	})
 	client.EXPECT().GetDeployment(gomock.Any(), gomock.Any()).Return(nil, nil)
 	client.EXPECT().CreateOrUpdateDeployment(gomock.Any(), gomock.Any(), gomock.Any()).Return(false, nil)
@@ -596,12 +641,22 @@ func TestGatewayTrackSync(t *testing.T) {
 func TestGatewayShouldUpdate(t *testing.T) {
 	t.Parallel()
 
-	gateway := NewK8sGateway(&gwv1beta1.Gateway{}, K8sGatewayConfig{
+	factory := NewFactory(FactoryConfig{
 		Logger: hclog.NewNullLogger(),
 	})
 
-	other := NewK8sGateway(&gwv1beta1.Gateway{}, K8sGatewayConfig{
-		Logger: hclog.NewNullLogger(),
+	gw := &gwv1beta1.Gateway{}
+	gateway := factory.NewGateway(NewGatewayConfig{
+		Gateway:         gw,
+		State:           state.InitialGatewayState(gw),
+		ConsulNamespace: "consul",
+	})
+
+	otherGW := &gwv1beta1.Gateway{}
+	other := factory.NewGateway(NewGatewayConfig{
+		Gateway:         otherGW,
+		State:           state.InitialGatewayState(otherGW),
+		ConsulNamespace: "consul",
 	})
 
 	// Have equal resource version
@@ -640,8 +695,15 @@ func TestGatewayShouldUpdate(t *testing.T) {
 func TestGatewayShouldBind(t *testing.T) {
 	t.Parallel()
 
-	gateway := NewK8sGateway(&gwv1beta1.Gateway{}, K8sGatewayConfig{
+	factory := NewFactory(FactoryConfig{
 		Logger: hclog.NewNullLogger(),
+	})
+
+	gw := &gwv1beta1.Gateway{}
+	gateway := factory.NewGateway(NewGatewayConfig{
+		Gateway:         gw,
+		State:           state.InitialGatewayState(gw),
+		ConsulNamespace: "consul",
 	})
 	gateway.Gateway.Name = "name"
 

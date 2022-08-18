@@ -15,6 +15,7 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/common"
 	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/state"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/service"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	"github.com/hashicorp/consul-api-gateway/internal/store"
@@ -52,6 +53,7 @@ type GatewayReconcileManager struct {
 	deployer       *GatewayDeployer
 	store          store.Store
 	gatewayClasses *K8sGatewayClasses
+	factory        *Factory
 
 	consulNamespaceMapper common.ConsulNamespaceMapper
 
@@ -75,6 +77,7 @@ type ManagerConfig struct {
 }
 
 func NewReconcileManager(config ManagerConfig) *GatewayReconcileManager {
+	resolver := service.NewBackendResolver(config.Logger, config.ConsulNamespaceMapper, config.Client, config.Consul)
 	deployer := NewDeployer(DeployerConfig{
 		ConsulCA: config.ConsulCA,
 		SDSHost:  config.SDSHost,
@@ -96,6 +99,13 @@ func NewReconcileManager(config ManagerConfig) *GatewayReconcileManager {
 		consulNamespaceMapper: config.ConsulNamespaceMapper,
 		deployer:              deployer,
 		store:                 config.Store,
+		factory: NewFactory(FactoryConfig{
+			ControllerName: config.ControllerName,
+			Logger:         config.Logger,
+			Client:         config.Client,
+			Deployer:       deployer,
+			Resolver:       resolver,
+		}),
 	}
 }
 
@@ -171,15 +181,11 @@ func (m *GatewayReconcileManager) UpsertGateway(ctx context.Context, g *gwv1beta
 	consulNamespace := m.consulNamespaceMapper(g.GetNamespace())
 
 	m.namespaceMap[utils.NamespacedName(g)] = consulNamespace
-	gateway := NewK8sGateway(g, K8sGatewayConfig{
-		ConsulNamespace: consulNamespace,
-		ConsulCA:        m.consulCA,
-		Logger:          m.logger,
-		Client:          m.client,
-		SDSHost:         m.sdsHost,
-		SDSPort:         m.sdsPort,
+	gateway := m.factory.NewGateway(NewGatewayConfig{
+		Gateway:         g,
 		Config:          config,
-		Deployer:        m.deployer,
+		State:           state.InitialGatewayState(g),
+		ConsulNamespace: consulNamespace,
 	})
 
 	// Calling validate outside of the upsert process allows us to re-resolve any
@@ -210,12 +216,7 @@ func (m *GatewayReconcileManager) upsertRoute(ctx context.Context, r Route, id s
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 
-	route := NewK8sRoute(r, K8sRouteConfig{
-		ControllerName: m.controllerName,
-		Logger:         m.logger,
-		Client:         m.client,
-		Resolver:       service.NewBackendResolver(m.logger, r.GetNamespace(), m.consulNamespaceMapper, m.client, m.consul),
-	})
+	route := m.factory.NewRoute(r)
 
 	managed, err := m.deleteUnmanagedRoute(ctx, route, id)
 	if err != nil {

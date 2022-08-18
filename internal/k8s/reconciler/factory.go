@@ -72,12 +72,11 @@ func (f *Factory) NewRoute(route Route) *K8sRoute {
 }
 
 func (f *Factory) NewRouteWithState(route Route, state *state.RouteState) *K8sRoute {
-	return &K8sRoute{
-		Route:          route,
-		RouteState:     state,
-		logger:         f.logger.Named("route").With("name", route.GetName()),
-		client:         f.client,
-		controllerName: f.controllerName,
-		resolver:       f.resolver,
-	}
+	return NewK8sRoute(route, K8sRouteConfig{
+		State:          state,
+		Logger:         f.logger.Named("route").With("name", route.GetName()),
+		Client:         f.client,
+		ControllerName: f.controllerName,
+		Resolver:       f.resolver,
+	})
 }
