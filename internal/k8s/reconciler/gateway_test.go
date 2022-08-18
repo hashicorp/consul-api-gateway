@@ -462,7 +462,7 @@ func TestGatewayOutputStatus(t *testing.T) {
 	}, K8sGatewayConfig{
 		Logger: hclog.NewNullLogger(),
 	})
-	gateway.gateway.Status = gateway.Status()
+	gateway.Gateway.Status = gateway.Status()
 	gateway.Status()
 }
 
@@ -484,7 +484,7 @@ func TestGatewayTrackSync(t *testing.T) {
 			Client: client,
 		}),
 	})
-	gateway.gateway.Status = gateway.Status()
+	gateway.Gateway.Status = gateway.Status()
 	client.EXPECT().GetDeployment(gomock.Any(), gomock.Any()).Return(nil, nil)
 	client.EXPECT().CreateOrUpdateDeployment(gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil)
 	require.NoError(t, gateway.TrackSync(context.Background(), func() (bool, error) {
@@ -513,7 +513,7 @@ func TestGatewayTrackSync(t *testing.T) {
 
 	client.EXPECT().GetDeployment(gomock.Any(), gomock.Any()).Return(nil, nil)
 	client.EXPECT().CreateOrUpdateDeployment(gomock.Any(), gomock.Any(), gomock.Any()).Return(false, nil)
-	client.EXPECT().UpdateStatus(gomock.Any(), gateway.gateway).Return(nil)
+	client.EXPECT().UpdateStatus(gomock.Any(), gateway.Gateway).Return(nil)
 	require.NoError(t, gateway.TrackSync(context.Background(), func() (bool, error) {
 		return false, nil
 	}))
@@ -550,7 +550,7 @@ func TestGatewayTrackSync(t *testing.T) {
 	})
 	client.EXPECT().GetDeployment(gomock.Any(), gomock.Any()).Return(nil, nil)
 	client.EXPECT().CreateOrUpdateDeployment(gomock.Any(), gomock.Any(), gomock.Any()).Return(false, nil)
-	client.EXPECT().UpdateStatus(gomock.Any(), gateway.gateway).Return(expected)
+	client.EXPECT().UpdateStatus(gomock.Any(), gateway.Gateway).Return(expected)
 	require.Equal(t, expected, gateway.TrackSync(context.Background(), func() (bool, error) {
 		return false, nil
 	}))
@@ -569,7 +569,7 @@ func TestGatewayTrackSync(t *testing.T) {
 
 	client.EXPECT().GetDeployment(gomock.Any(), gomock.Any()).Return(nil, nil)
 	client.EXPECT().CreateOrUpdateDeployment(gomock.Any(), gomock.Any(), gomock.Any()).Return(false, nil)
-	client.EXPECT().UpdateStatus(gomock.Any(), gateway.gateway).Return(nil)
+	client.EXPECT().UpdateStatus(gomock.Any(), gateway.Gateway).Return(nil)
 	require.NoError(t, gateway.TrackSync(context.Background(), func() (bool, error) {
 		return true, nil
 	}))
@@ -587,7 +587,7 @@ func TestGatewayTrackSync(t *testing.T) {
 	})
 	client.EXPECT().GetDeployment(gomock.Any(), gomock.Any()).Return(nil, nil)
 	client.EXPECT().CreateOrUpdateDeployment(gomock.Any(), gomock.Any(), gomock.Any()).Return(false, nil)
-	client.EXPECT().UpdateStatus(gomock.Any(), gateway.gateway).Return(nil)
+	client.EXPECT().UpdateStatus(gomock.Any(), gateway.Gateway).Return(nil)
 	require.NoError(t, gateway.TrackSync(context.Background(), func() (bool, error) {
 		return false, expected
 	}))
@@ -605,28 +605,28 @@ func TestGatewayShouldUpdate(t *testing.T) {
 	})
 
 	// Have equal resource version
-	gateway.gateway.ObjectMeta.ResourceVersion = `0`
-	other.gateway.ObjectMeta.ResourceVersion = `0`
+	gateway.Gateway.ObjectMeta.ResourceVersion = `0`
+	other.Gateway.ObjectMeta.ResourceVersion = `0`
 	assert.True(t, gateway.ShouldUpdate(other))
 
 	// Have greater resource version
-	gateway.gateway.ObjectMeta.ResourceVersion = `1`
-	other.gateway.ObjectMeta.ResourceVersion = `0`
+	gateway.Gateway.ObjectMeta.ResourceVersion = `1`
+	other.Gateway.ObjectMeta.ResourceVersion = `0`
 	assert.False(t, gateway.ShouldUpdate(other))
 
 	// Have lesser resource version
-	gateway.gateway.ObjectMeta.ResourceVersion = `0`
-	other.gateway.ObjectMeta.ResourceVersion = `1`
+	gateway.Gateway.ObjectMeta.ResourceVersion = `0`
+	other.Gateway.ObjectMeta.ResourceVersion = `1`
 	assert.True(t, gateway.ShouldUpdate(other))
 
 	// Have non-numeric resource version
-	gateway.gateway.ObjectMeta.ResourceVersion = `a`
-	other.gateway.ObjectMeta.ResourceVersion = `0`
+	gateway.Gateway.ObjectMeta.ResourceVersion = `a`
+	other.Gateway.ObjectMeta.ResourceVersion = `0`
 	assert.True(t, gateway.ShouldUpdate(other))
 
 	// Other gateway non-numeric resource version
-	gateway.gateway.ObjectMeta.ResourceVersion = `0`
-	other.gateway.ObjectMeta.ResourceVersion = `a`
+	gateway.Gateway.ObjectMeta.ResourceVersion = `0`
+	other.Gateway.ObjectMeta.ResourceVersion = `a`
 	assert.False(t, gateway.ShouldUpdate(other))
 
 	// Other gateway nil
@@ -643,7 +643,7 @@ func TestGatewayShouldBind(t *testing.T) {
 	gateway := NewK8sGateway(&gwv1beta1.Gateway{}, K8sGatewayConfig{
 		Logger: hclog.NewNullLogger(),
 	})
-	gateway.gateway.Name = "name"
+	gateway.Gateway.Name = "name"
 
 	require.False(t, gateway.ShouldBind(storeMocks.NewMockRoute(nil)))
 

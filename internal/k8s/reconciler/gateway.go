@@ -23,10 +23,11 @@ import (
 )
 
 type K8sGateway struct {
+	*gwv1beta1.Gateway
+
 	consulNamespace string
 	logger          hclog.Logger
 	client          gatewayclient.Client
-	gateway         *gwv1beta1.Gateway
 	config          apigwv1alpha1.GatewayClassConfig
 	deployer        *GatewayDeployer
 
@@ -63,12 +64,12 @@ func NewK8sGateway(gateway *gwv1beta1.Gateway, config K8sGatewayConfig) *K8sGate
 	}
 
 	return &K8sGateway{
+		Gateway:         gateway,
 		config:          config.Config,
 		deployer:        config.Deployer,
 		consulNamespace: config.ConsulNamespace,
 		logger:          gatewayLogger,
 		client:          config.Client,
-		gateway:         gateway,
 		listeners:       listeners,
 	}
 }
@@ -142,7 +143,7 @@ func (g *K8sGateway) validateListenerConflicts() {
 // validateGatewayIP ensures that the appropriate IP addresses are assigned to the
 // Gateway.
 func (g *K8sGateway) validateGatewayIP(ctx context.Context) error {
-	service := g.deployer.Service(g.config, g.gateway)
+	service := g.deployer.Service(g.config, g.Gateway)
 	if service == nil {
 		return g.assignGatewayIPFromPods(ctx)
 	}
@@ -217,7 +218,7 @@ func (g *K8sGateway) assignGatewayIPFromService(ctx context.Context, service *co
 // assignGatewayIPFromPods retrieves the internal IP for the Pods and assigns
 // it to the Gateway.
 func (g *K8sGateway) assignGatewayIPFromPods(ctx context.Context) error {
-	pods, err := g.client.PodsWithLabels(ctx, utils.LabelsForGateway(g.gateway))
+	pods, err := g.client.PodsWithLabels(ctx, utils.LabelsForGateway(g.Gateway))
 	if err != nil {
 		return err
 	}
@@ -245,7 +246,7 @@ func (g *K8sGateway) assignGatewayIPFromPods(ctx context.Context) error {
 // work by the practitioner such as port-forwarding or opening firewall rules to make
 // it externally accessible.
 func (g *K8sGateway) assignGatewayIPFromPodHost(ctx context.Context) error {
-	pods, err := g.client.PodsWithLabels(ctx, utils.LabelsForGateway(g.gateway))
+	pods, err := g.client.PodsWithLabels(ctx, utils.LabelsForGateway(g.Gateway))
 	if err != nil {
 		return err
 	}
@@ -269,7 +270,7 @@ func (g *K8sGateway) assignGatewayIPFromPodHost(ctx context.Context) error {
 }
 
 func (g *K8sGateway) validatePods(ctx context.Context) error {
-	pods, err := g.client.PodsWithLabels(ctx, utils.LabelsForGateway(g.gateway))
+	pods, err := g.client.PodsWithLabels(ctx, utils.LabelsForGateway(g.Gateway))
 	if err != nil {
 		return err
 	}
@@ -330,7 +331,7 @@ func (g *K8sGateway) validatePodStatusRunning(pod *corev1.Pod) {
 
 func (g *K8sGateway) ID() core.GatewayID {
 	return core.GatewayID{
-		Service:         g.gateway.Name,
+		Service:         g.Gateway.Name,
 		ConsulNamespace: g.consulNamespace,
 	}
 }
@@ -338,8 +339,8 @@ func (g *K8sGateway) ID() core.GatewayID {
 func (g *K8sGateway) Meta() map[string]string {
 	return map[string]string{
 		"external-source":                          "consul-api-gateway",
-		"consul-api-gateway/k8s/Gateway.Name":      g.gateway.Name,
-		"consul-api-gateway/k8s/Gateway.Namespace": g.gateway.Namespace,
+		"consul-api-gateway/k8s/Gateway.Name":      g.Gateway.Name,
+		"consul-api-gateway/k8s/Gateway.Namespace": g.Gateway.Namespace,
 	}
 }
 
@@ -367,7 +368,7 @@ func (g *K8sGateway) ShouldUpdate(other store.Gateway) bool {
 		return false
 	}
 
-	return !utils.ResourceVersionGreater(g.gateway.ResourceVersion, otherGateway.gateway.ResourceVersion)
+	return !utils.ResourceVersionGreater(g.Gateway.ResourceVersion, otherGateway.Gateway.ResourceVersion)
 }
 
 func (g *K8sGateway) ShouldBind(route store.Route) bool {
@@ -378,7 +379,7 @@ func (g *K8sGateway) ShouldBind(route store.Route) bool {
 
 	for _, ref := range k8sRoute.CommonRouteSpec().ParentRefs {
 		if namespacedName, isGateway := utils.ReferencesGateway(k8sRoute.GetNamespace(), ref); isGateway {
-			if utils.NamespacedName(g.gateway) == namespacedName {
+			if utils.NamespacedName(g.Gateway) == namespacedName {
 				return true
 			}
 		}
@@ -404,17 +405,17 @@ func (g *K8sGateway) Status() gwv1beta1.GatewayStatus {
 		g.status.Ready.ListenersNotValid = errors.New("gateway listeners not valid")
 	} else if !g.podReady || !g.serviceReady || !listenersReady {
 		g.status.Ready.ListenersNotReady = errors.New("gateway listeners not ready")
-	} else if len(g.gateway.Spec.Addresses) != 0 {
+	} else if len(g.Gateway.Spec.Addresses) != 0 {
 		g.status.Ready.AddressNotAssigned = errors.New("gateway does not support requesting addresses")
 	}
-	conditions := g.status.Conditions(g.gateway.Generation)
+	conditions := g.status.Conditions(g.Gateway.Generation)
 
 	// prefer to not update to not mess up timestamps
-	if listenerStatusesEqual(listenerStatuses, g.gateway.Status.Listeners) {
-		listenerStatuses = g.gateway.Status.Listeners
+	if listenerStatusesEqual(listenerStatuses, g.Gateway.Status.Listeners) {
+		listenerStatuses = g.Gateway.Status.Listeners
 	}
-	if conditionsEqual(conditions, g.gateway.Status.Conditions) {
-		conditions = g.gateway.Status.Conditions
+	if conditionsEqual(conditions, g.Gateway.Status.Conditions) {
+		conditions = g.Gateway.Status.Conditions
 	}
 
 	ipType := gwv1beta1.IPAddressType
@@ -435,7 +436,7 @@ func (g *K8sGateway) Status() gwv1beta1.GatewayStatus {
 
 func (g *K8sGateway) TrackSync(ctx context.Context, sync func() (bool, error)) error {
 	// we've done all but synced our state, so ensure our deployments are up-to-date
-	if err := g.deployer.Deploy(ctx, g.consulNamespace, g.config, g.gateway); err != nil {
+	if err := g.deployer.Deploy(ctx, g.consulNamespace, g.config, g.Gateway); err != nil {
 		return err
 	}
 
@@ -448,15 +449,15 @@ func (g *K8sGateway) TrackSync(ctx context.Context, sync func() (bool, error)) e
 	}
 
 	status := g.Status()
-	if !gatewayStatusEqual(status, g.gateway.Status) {
-		g.gateway.Status = status
+	if !gatewayStatusEqual(status, g.Gateway.Status) {
+		g.Gateway.Status = status
 		if g.logger.IsTrace() {
 			data, err := json.MarshalIndent(status, "", "  ")
 			if err == nil {
 				g.logger.Trace("setting gateway status", "status", string(data))
 			}
 		}
-		if err := g.client.UpdateStatus(ctx, g.gateway); err != nil {
+		if err := g.client.UpdateStatus(ctx, g.Gateway); err != nil {
 			// make sure we return an error immediately that's unwrapped
 			return err
 		}
