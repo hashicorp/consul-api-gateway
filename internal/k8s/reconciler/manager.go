@@ -49,6 +49,7 @@ type GatewayReconcileManager struct {
 	sdsHost        string
 	sdsPort        int
 
+	deployer       *GatewayDeployer
 	store          store.Store
 	gatewayClasses *K8sGatewayClasses
 
@@ -74,6 +75,14 @@ type ManagerConfig struct {
 }
 
 func NewReconcileManager(config ManagerConfig) *GatewayReconcileManager {
+	deployer := NewDeployer(DeployerConfig{
+		ConsulCA: config.ConsulCA,
+		SDSHost:  config.SDSHost,
+		SDSPort:  config.SDSPort,
+		Logger:   config.Logger,
+		Client:   config.Client,
+	})
+
 	return &GatewayReconcileManager{
 		controllerName:        config.ControllerName,
 		logger:                config.Logger,
@@ -85,6 +94,7 @@ func NewReconcileManager(config ManagerConfig) *GatewayReconcileManager {
 		gatewayClasses:        NewK8sGatewayClasses(config.Logger.Named("gatewayclasses"), config.Client),
 		namespaceMap:          make(map[types.NamespacedName]string),
 		consulNamespaceMapper: config.ConsulNamespaceMapper,
+		deployer:              deployer,
 		store:                 config.Store,
 	}
 }
@@ -169,6 +179,7 @@ func (m *GatewayReconcileManager) UpsertGateway(ctx context.Context, g *gwv1beta
 		SDSHost:         m.sdsHost,
 		SDSPort:         m.sdsPort,
 		Config:          config,
+		Deployer:        m.deployer,
 	})
 
 	// Calling validate outside of the upsert process allows us to re-resolve any

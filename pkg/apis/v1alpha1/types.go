@@ -131,7 +131,7 @@ type GatewayClassConfigList struct {
 	Items []GatewayClassConfig `json:"items"`
 }
 
-// ServicesAccountFor returns the service account to be created for the given gateway.
+// ServiceAccountFor returns the service account to be created for the given gateway.
 func (c *GatewayClassConfig) ServiceAccountFor(gw *gwv1beta1.Gateway) *corev1.ServiceAccount {
 	if !c.Spec.ConsulSpec.AuthSpec.Managed {
 		return nil
@@ -215,7 +215,7 @@ func compareServices(a, b *corev1.Service) bool {
 // MergeDeployment merges a gateway deployment a onto b and returns b, overriding all of
 // the fields that we'd normally set for a service deployment. It does not attempt
 // to change the service type
-func MergeDeployment(a, b *appsv1.Deployment, currentReplicas *int32) *appsv1.Deployment {
+func MergeDeployment(a, b *appsv1.Deployment) *appsv1.Deployment {
 	if !compareDeployments(a, b) {
 		b.Spec.Template = a.Spec.Template
 		b.Spec.Replicas = a.Spec.Replicas
