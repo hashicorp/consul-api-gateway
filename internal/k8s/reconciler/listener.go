@@ -17,27 +17,11 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/common"
 	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
+	rcommon "github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/common"
 	rerrors "github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/errors"
 	rstatus "github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/status"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	"github.com/hashicorp/consul-api-gateway/internal/store"
-)
-
-var (
-	supportedProtocols = map[gwv1beta1.ProtocolType][]gwv1beta1.RouteGroupKind{
-		gwv1beta1.HTTPProtocolType: {{
-			Group: (*gwv1beta1.Group)(&gwv1beta1.GroupVersion.Group),
-			Kind:  "HTTPRoute",
-		}},
-		gwv1beta1.HTTPSProtocolType: {{
-			Group: (*gwv1beta1.Group)(&gwv1beta1.GroupVersion.Group),
-			Kind:  "HTTPRoute",
-		}},
-		gwv1beta1.TCPProtocolType: {{
-			Group: (*gwv1beta1.Group)(&gwv1alpha2.GroupVersion.Group),
-			Kind:  "TCPRoute",
-		}},
-	}
 )
 
 const (
@@ -231,8 +215,8 @@ func (l *K8sListener) validateUnsupported() {
 }
 
 func (l *K8sListener) validateProtocols() {
-	supportedKinds, found := supportedProtocols[l.listener.Protocol]
-	if !found {
+	supportedKinds := rcommon.SupportedKindsFor(l.listener.Protocol)
+	if supportedKinds == nil {
 		l.status.Detached.UnsupportedProtocol = fmt.Errorf("unsupported protocol: %s", l.listener.Protocol)
 	}
 	l.supportedKinds = supportedKinds
