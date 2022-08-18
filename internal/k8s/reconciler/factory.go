@@ -67,7 +67,11 @@ func (f *Factory) NewGateway(config NewGatewayConfig) *K8sGateway {
 	return gateway
 }
 
-func (f *Factory) NewRoute(route Route, state *state.RouteState) *K8sRoute {
+func (f *Factory) NewRoute(route Route) *K8sRoute {
+	return f.NewRouteWithState(route, state.NewRouteState())
+}
+
+func (f *Factory) NewRouteWithState(route Route, state *state.RouteState) *K8sRoute {
 	return &K8sRoute{
 		Route:          route,
 		RouteState:     state,
