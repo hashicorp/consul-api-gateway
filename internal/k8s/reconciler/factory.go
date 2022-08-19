@@ -5,7 +5,6 @@ import (
 	gwv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
-	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/state"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/service"
 	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 )
@@ -61,12 +60,7 @@ func (f *Factory) NewGateway(config NewGatewayConfig) *K8sGateway {
 }
 
 func (f *Factory) NewRoute(route Route) *K8sRoute {
-	return f.NewRouteWithState(route, state.NewRouteState())
-}
-
-func (f *Factory) NewRouteWithState(route Route, state *state.RouteState) *K8sRoute {
 	return NewK8sRoute(route, K8sRouteConfig{
-		State:          state,
 		Logger:         f.logger.Named("route").With("name", route.GetName()),
 		Client:         f.client,
 		ControllerName: f.controllerName,
