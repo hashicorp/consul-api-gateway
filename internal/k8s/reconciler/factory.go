@@ -62,6 +62,7 @@ func (f *Factory) NewGateway(config NewGatewayConfig) *K8sGateway {
 	gateway.GatewayState = config.State
 	if config.State == nil {
 		gateway.GatewayState = state.InitialGatewayState(config.Gateway)
+		gateway.GatewayState.ConsulNamespace = config.ConsulNamespace
 	}
 
 	return gateway

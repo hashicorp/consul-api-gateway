@@ -381,7 +381,6 @@ func TestGatewayID(t *testing.T) {
 
 	gateway := factory.NewGateway(NewGatewayConfig{
 		Gateway:         gw,
-		State:           state.InitialGatewayState(gw),
 		ConsulNamespace: "consul",
 	})
 	require.Equal(t, internalCore.GatewayID{Service: "name", ConsulNamespace: "consul"}, gateway.ID())
