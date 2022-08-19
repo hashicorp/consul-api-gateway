@@ -25,11 +25,7 @@ import (
 )
 
 const (
-	defaultListenerName          = "default"
-	annotationKeyPrefix          = "api-gateway.consul.hashicorp.com/"
-	tlsMinVersionAnnotationKey   = annotationKeyPrefix + "tls_min_version"
-	tlsMaxVersionAnnotationKey   = annotationKeyPrefix + "tls_max_version"
-	tlsCipherSuitesAnnotationKey = annotationKeyPrefix + "tls_cipher_suites"
+	defaultListenerName = "default"
 )
 
 type K8sListener struct {
@@ -39,7 +35,7 @@ type K8sListener struct {
 	listener        gwv1beta1.Listener
 	client          gatewayclient.Client
 
-	status         rstatus.ListenerStatus
+	status         *rstatus.ListenerStatus
 	tls            core.TLSParams
 	routeCount     int32
 	supportedKinds []gwv1beta1.RouteGroupKind
@@ -62,6 +58,7 @@ func NewK8sListener(gateway *gwv1beta1.Gateway, listener gwv1beta1.Listener, con
 		client:          config.Client,
 		gateway:         gateway,
 		listener:        listener,
+		status:          &rstatus.ListenerStatus{},
 	}
 }
 
@@ -185,24 +182,6 @@ func (l *K8sListener) validateTLS(ctx context.Context) error {
 	}
 
 	return nil
-}
-
-var supportedTlsVersions = map[string]struct{}{
-	"TLS_AUTO": {},
-	"TLSv1_0":  {},
-	"TLSv1_1":  {},
-	"TLSv1_2":  {},
-	"TLSv1_3":  {},
-}
-
-var tlsVersionsWithConfigurableCipherSuites = map[string]struct{}{
-	// Remove these two if Envoy ever sets TLS 1.3 as default minimum
-	"":         {},
-	"TLS_AUTO": {},
-
-	"TLSv1_0": {},
-	"TLSv1_1": {},
-	"TLSv1_2": {},
 }
 
 func (l *K8sListener) validateUnsupported() {
