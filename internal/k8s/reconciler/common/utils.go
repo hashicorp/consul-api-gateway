@@ -24,12 +24,13 @@ var (
 	}
 )
 
-// SupportedKindsFor --
+// SupportedKindsFor returns the list of xRoute Kinds that support a given protocol
 func SupportedKindsFor(protocol gwv1beta1.ProtocolType) []gwv1beta1.RouteGroupKind {
 	return supportedKindsForProtocol[protocol]
 }
 
-// AsJSON --
+// AsJSON serializes a given item into a JSON string. The item is assumed to be
+// JSON-serializable as this function will panic otherwise.
 func AsJSON(item interface{}) string {
 	data, err := json.Marshal(item)
 	if err != nil {
@@ -42,7 +43,8 @@ func AsJSON(item interface{}) string {
 	return string(data)
 }
 
-// ParseParent --
+// ParseParent deserializes a JSON string into a gwv1alpha2.ParentReference. The string
+// is assumed to be a valid JSON representation as this function will panic otherwise.
 func ParseParent(stringified string) gwv1alpha2.ParentReference {
 	var ref gwv1alpha2.ParentReference
 	if err := json.Unmarshal([]byte(stringified), &ref); err != nil {
