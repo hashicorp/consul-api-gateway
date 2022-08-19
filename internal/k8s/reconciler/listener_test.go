@@ -18,6 +18,7 @@ import (
 
 	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient/mocks"
+	rcommon "github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/common"
 	rstatus "github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/status"
 	"github.com/hashicorp/consul-api-gateway/internal/store"
 	storeMocks "github.com/hashicorp/consul-api-gateway/internal/store/mocks"
@@ -579,7 +580,7 @@ func TestListenerCanBind_RouteKind(t *testing.T) {
 	}, K8sListenerConfig{
 		Logger: hclog.NewNullLogger(),
 	})
-	listener.supportedKinds = supportedProtocols[gwv1beta1.HTTPProtocolType]
+	listener.supportedKinds = rcommon.SupportedKindsFor(gwv1beta1.HTTPProtocolType)
 	_, err = listener.CanBind(context.Background(), NewK8sRoute(&gwv1alpha2.TCPRoute{
 		TypeMeta: routeMeta,
 		Spec: gwv1alpha2.TCPRouteSpec{
@@ -627,7 +628,7 @@ func TestListenerCanBind_AllowedNamespaces(t *testing.T) {
 	}, K8sListenerConfig{
 		Logger: hclog.NewNullLogger(),
 	})
-	listener.supportedKinds = supportedProtocols[gwv1beta1.HTTPProtocolType]
+	listener.supportedKinds = rcommon.SupportedKindsFor(gwv1beta1.HTTPProtocolType)
 	_, err := listener.CanBind(context.Background(), NewK8sRoute(&gwv1alpha2.HTTPRoute{
 		TypeMeta: routeMeta,
 		Spec: gwv1alpha2.HTTPRouteSpec{
@@ -681,7 +682,7 @@ func TestListenerCanBind_AllowedNamespaces(t *testing.T) {
 	}, K8sListenerConfig{
 		Logger: hclog.NewNullLogger(),
 	})
-	listener.supportedKinds = supportedProtocols[gwv1beta1.HTTPProtocolType]
+	listener.supportedKinds = rcommon.SupportedKindsFor(gwv1beta1.HTTPProtocolType)
 	_, err = listener.CanBind(context.Background(), NewK8sRoute(&gwv1alpha2.HTTPRoute{
 		TypeMeta: routeMeta,
 		Spec: gwv1alpha2.HTTPRouteSpec{
@@ -736,7 +737,7 @@ func TestListenerCanBind_HostnameMatch(t *testing.T) {
 	}, K8sListenerConfig{
 		Logger: hclog.NewNullLogger(),
 	})
-	listener.supportedKinds = supportedProtocols[gwv1beta1.HTTPProtocolType]
+	listener.supportedKinds = rcommon.SupportedKindsFor(gwv1beta1.HTTPProtocolType)
 	_, err := listener.CanBind(context.Background(), NewK8sRoute(&gwv1alpha2.HTTPRoute{
 		TypeMeta: routeMeta,
 		Spec: gwv1alpha2.HTTPRouteSpec{

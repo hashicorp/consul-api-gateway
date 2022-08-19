@@ -17,35 +17,15 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/common"
 	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
+	rcommon "github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/common"
 	rerrors "github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/errors"
 	rstatus "github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/status"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	"github.com/hashicorp/consul-api-gateway/internal/store"
 )
 
-var (
-	supportedProtocols = map[gwv1beta1.ProtocolType][]gwv1beta1.RouteGroupKind{
-		gwv1beta1.HTTPProtocolType: {{
-			Group: (*gwv1beta1.Group)(&gwv1beta1.GroupVersion.Group),
-			Kind:  "HTTPRoute",
-		}},
-		gwv1beta1.HTTPSProtocolType: {{
-			Group: (*gwv1beta1.Group)(&gwv1beta1.GroupVersion.Group),
-			Kind:  "HTTPRoute",
-		}},
-		gwv1beta1.TCPProtocolType: {{
-			Group: (*gwv1beta1.Group)(&gwv1alpha2.GroupVersion.Group),
-			Kind:  "TCPRoute",
-		}},
-	}
-)
-
 const (
-	defaultListenerName          = "default"
-	annotationKeyPrefix          = "api-gateway.consul.hashicorp.com/"
-	tlsMinVersionAnnotationKey   = annotationKeyPrefix + "tls_min_version"
-	tlsMaxVersionAnnotationKey   = annotationKeyPrefix + "tls_max_version"
-	tlsCipherSuitesAnnotationKey = annotationKeyPrefix + "tls_cipher_suites"
+	defaultListenerName = "default"
 )
 
 type K8sListener struct {
@@ -55,7 +35,7 @@ type K8sListener struct {
 	listener        gwv1beta1.Listener
 	client          gatewayclient.Client
 
-	status         rstatus.ListenerStatus
+	status         *rstatus.ListenerStatus
 	tls            core.TLSParams
 	routeCount     int32
 	supportedKinds []gwv1beta1.RouteGroupKind
@@ -78,6 +58,7 @@ func NewK8sListener(gateway *gwv1beta1.Gateway, listener gwv1beta1.Listener, con
 		client:          config.Client,
 		gateway:         gateway,
 		listener:        listener,
+		status:          &rstatus.ListenerStatus{},
 	}
 }
 
@@ -203,24 +184,6 @@ func (l *K8sListener) validateTLS(ctx context.Context) error {
 	return nil
 }
 
-var supportedTlsVersions = map[string]struct{}{
-	"TLS_AUTO": {},
-	"TLSv1_0":  {},
-	"TLSv1_1":  {},
-	"TLSv1_2":  {},
-	"TLSv1_3":  {},
-}
-
-var tlsVersionsWithConfigurableCipherSuites = map[string]struct{}{
-	// Remove these two if Envoy ever sets TLS 1.3 as default minimum
-	"":         {},
-	"TLS_AUTO": {},
-
-	"TLSv1_0": {},
-	"TLSv1_1": {},
-	"TLSv1_2": {},
-}
-
 func (l *K8sListener) validateUnsupported() {
 	// seems weird that we're looking at gateway fields for listener status
 	// but that's the weirdness of the spec
@@ -231,8 +194,8 @@ func (l *K8sListener) validateUnsupported() {
 }
 
 func (l *K8sListener) validateProtocols() {
-	supportedKinds, found := supportedProtocols[l.listener.Protocol]
-	if !found {
+	supportedKinds := rcommon.SupportedKindsFor(l.listener.Protocol)
+	if supportedKinds == nil {
 		l.status.Detached.UnsupportedProtocol = fmt.Errorf("unsupported protocol: %s", l.listener.Protocol)
 	}
 	l.supportedKinds = supportedKinds
