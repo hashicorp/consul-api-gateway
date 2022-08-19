@@ -93,7 +93,7 @@ func TestUpsertGateway(t *testing.T) {
 	require.Equal(t, expected, manager.UpsertGateway(context.Background(), inner))
 
 	client.EXPECT().PodsWithLabels(gomock.Any(), gomock.Any()).Return(nil, nil).Times(2)
-	store.EXPECT().UpsertGateway(gomock.Any(), gomock.Any())
+	store.EXPECT().UpsertGateway(gomock.Any(), gomock.Any(), gomock.Any())
 	require.NoError(t, manager.UpsertGateway(context.Background(), inner))
 }
 
@@ -126,7 +126,7 @@ func TestUpsertHTTPRoute(t *testing.T) {
 	require.NoError(t, manager.UpsertHTTPRoute(context.Background(), &gwv1alpha2.HTTPRoute{}))
 
 	manager.namespaceMap[types.NamespacedName{Name: "gateway"}] = ""
-	store.EXPECT().UpsertRoute(gomock.Any(), gomock.Any()).Return(nil)
+	store.EXPECT().UpsertRoute(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 	require.NoError(t, manager.UpsertHTTPRoute(context.Background(), &gwv1alpha2.HTTPRoute{
 		Spec: gwv1alpha2.HTTPRouteSpec{
 			CommonRouteSpec: gwv1alpha2.CommonRouteSpec{
@@ -138,7 +138,7 @@ func TestUpsertHTTPRoute(t *testing.T) {
 	}))
 
 	client.EXPECT().IsManagedRoute(gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil)
-	store.EXPECT().UpsertRoute(gomock.Any(), gomock.Any()).Return(nil)
+	store.EXPECT().UpsertRoute(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 	require.NoError(t, manager.UpsertHTTPRoute(context.Background(), &gwv1alpha2.HTTPRoute{}))
 
 	client.EXPECT().IsManagedRoute(gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil)
@@ -176,7 +176,7 @@ func TestUpsertTCPRoute(t *testing.T) {
 	})
 
 	client.EXPECT().IsManagedRoute(gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil)
-	store.EXPECT().UpsertRoute(gomock.Any(), gomock.Any()).Return(nil)
+	store.EXPECT().UpsertRoute(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 	require.NoError(t, manager.UpsertTCPRoute(context.Background(), &gwv1alpha2.TCPRoute{}))
 }
 

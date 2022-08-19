@@ -650,7 +650,7 @@ func TestGatewayShouldBind(t *testing.T) {
 	route := NewK8sRoute(&gwv1alpha2.HTTPRoute{}, K8sRouteConfig{
 		Logger: hclog.NewNullLogger(),
 	})
-	route.resolutionErrors.Add(service.NewConsulResolutionError("test"))
+	route.RouteState.ResolutionErrors.Add(service.NewConsulResolutionError("test"))
 	require.False(t, gateway.ShouldBind(route))
 
 	require.True(t, gateway.ShouldBind(NewK8sRoute(&gwv1alpha2.HTTPRoute{
