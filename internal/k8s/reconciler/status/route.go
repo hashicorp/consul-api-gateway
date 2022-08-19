@@ -92,6 +92,10 @@ func (r RouteStatuses) BindFailed(resolutionErrors *service.ResolutionErrors, er
 		routeStatus.ResolvedRefs.ServiceNotFound = err
 	case service.RefNotPermittedErrorType:
 		routeStatus.ResolvedRefs.RefNotPermitted = err
+	case service.InvalidKindErrorType:
+		routeStatus.ResolvedRefs.InvalidKind = err
+	case service.BackendNotFoundErrorType:
+		routeStatus.ResolvedRefs.BackendNotFound = err
 	}
 
 	r[id] = routeStatus
