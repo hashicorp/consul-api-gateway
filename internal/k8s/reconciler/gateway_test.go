@@ -19,7 +19,6 @@ import (
 
 	internalCore "github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient/mocks"
-	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/state"
 	rstatus "github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/status"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/service"
 	storeMocks "github.com/hashicorp/consul-api-gateway/internal/store/mocks"
@@ -53,7 +52,6 @@ func TestGatewayValidate(t *testing.T) {
 
 	gateway := factory.NewGateway(NewGatewayConfig{
 		Gateway: g,
-		State:   state.InitialGatewayState(g),
 		Config: apigwv1alpha1.GatewayClassConfig{
 			Spec: apigwv1alpha1.GatewayClassConfigSpec{
 
@@ -165,7 +163,6 @@ func TestGatewayValidateGatewayIP(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			gateway := factory.NewGateway(NewGatewayConfig{
 				Gateway: gwDef,
-				State:   state.InitialGatewayState(gwDef),
 				Config: apigwv1alpha1.GatewayClassConfig{
 					Spec: apigwv1alpha1.GatewayClassConfigSpec{
 						ServiceType: tc.serviceType,
@@ -216,7 +213,6 @@ func TestGatewayValidate_ListenerProtocolConflicts(t *testing.T) {
 
 	gateway := factory.NewGateway(NewGatewayConfig{
 		Gateway: gw,
-		State:   state.InitialGatewayState(gw),
 		Config: apigwv1alpha1.GatewayClassConfig{
 			Spec: apigwv1alpha1.GatewayClassConfigSpec{
 				ServiceType: serviceType(core.ServiceTypeNodePort),
@@ -261,7 +257,6 @@ func TestGatewayValidate_ListenerHostnameConflicts(t *testing.T) {
 
 	gateway := factory.NewGateway(NewGatewayConfig{
 		Gateway: gw,
-		State:   state.InitialGatewayState(gw),
 		Config: apigwv1alpha1.GatewayClassConfig{
 			Spec: apigwv1alpha1.GatewayClassConfigSpec{
 				ServiceType: serviceType(core.ServiceTypeNodePort),
@@ -294,7 +289,6 @@ func TestGatewayValidate_Pods(t *testing.T) {
 
 	gateway := factory.NewGateway(NewGatewayConfig{
 		Gateway: gw,
-		State:   state.InitialGatewayState(gw),
 		Config: apigwv1alpha1.GatewayClassConfig{
 			Spec: apigwv1alpha1.GatewayClassConfigSpec{
 				ServiceType: serviceType(core.ServiceTypeNodePort),
@@ -401,7 +395,6 @@ func TestGatewayMeta(t *testing.T) {
 	}
 	gateway := factory.NewGateway(NewGatewayConfig{
 		Gateway:         gw,
-		State:           state.InitialGatewayState(gw),
 		ConsulNamespace: "consul",
 	})
 	require.NotNil(t, gateway.Meta())
@@ -421,7 +414,6 @@ func TestGatewayListeners(t *testing.T) {
 	}
 	gateway := factory.NewGateway(NewGatewayConfig{
 		Gateway:         gw,
-		State:           state.InitialGatewayState(gw),
 		ConsulNamespace: "consul",
 	})
 	require.Len(t, gateway.Listeners(), 1)
@@ -445,7 +437,6 @@ func TestGatewayOutputStatus(t *testing.T) {
 
 	gateway := factory.NewGateway(NewGatewayConfig{
 		Gateway:         gw,
-		State:           state.InitialGatewayState(gw),
 		ConsulNamespace: "consul",
 	})
 	gateway.GatewayState.Addresses = []string{"127.0.0.1"}
@@ -464,7 +455,6 @@ func TestGatewayOutputStatus(t *testing.T) {
 
 	gateway = factory.NewGateway(NewGatewayConfig{
 		Gateway:         gw,
-		State:           state.InitialGatewayState(gw),
 		ConsulNamespace: "consul",
 	})
 	gateway.GatewayState.PodReady = false
@@ -484,7 +474,6 @@ func TestGatewayOutputStatus(t *testing.T) {
 
 	gateway = factory.NewGateway(NewGatewayConfig{
 		Gateway:         gw,
-		State:           state.InitialGatewayState(gw),
 		ConsulNamespace: "consul",
 	})
 	gateway.GatewayState.PodReady = true
@@ -505,7 +494,6 @@ func TestGatewayOutputStatus(t *testing.T) {
 
 	gateway = factory.NewGateway(NewGatewayConfig{
 		Gateway:         gw,
-		State:           state.InitialGatewayState(gw),
 		ConsulNamespace: "consul",
 	})
 	gateway.GatewayState.PodReady = true
@@ -524,7 +512,6 @@ func TestGatewayOutputStatus(t *testing.T) {
 
 	gateway = factory.NewGateway(NewGatewayConfig{
 		Gateway:         gw,
-		State:           state.InitialGatewayState(gw),
 		ConsulNamespace: "consul",
 	})
 	gateway.Gateway.Status = gateway.Status()
@@ -551,7 +538,6 @@ func TestGatewayTrackSync(t *testing.T) {
 
 	gateway := factory.NewGateway(NewGatewayConfig{
 		Gateway:         gw,
-		State:           state.InitialGatewayState(gw),
 		ConsulNamespace: "consul",
 	})
 	gateway.Gateway.Status = gateway.Status()
@@ -572,7 +558,6 @@ func TestGatewayTrackSync(t *testing.T) {
 			},
 		},
 		Gateway:         gw,
-		State:           state.InitialGatewayState(gw),
 		ConsulNamespace: "consul",
 	})
 
@@ -588,7 +573,6 @@ func TestGatewayTrackSync(t *testing.T) {
 	gw = &gwv1beta1.Gateway{}
 	gateway = factory.NewGateway(NewGatewayConfig{
 		Gateway:         gw,
-		State:           state.InitialGatewayState(gw),
 		ConsulNamespace: "consul",
 	})
 	client.EXPECT().GetDeployment(gomock.Any(), gomock.Any()).Return(nil, nil)
@@ -600,7 +584,6 @@ func TestGatewayTrackSync(t *testing.T) {
 	gw = &gwv1beta1.Gateway{}
 	gateway = factory.NewGateway(NewGatewayConfig{
 		Gateway:         gw,
-		State:           state.InitialGatewayState(gw),
 		ConsulNamespace: "consul",
 	})
 	client.EXPECT().GetDeployment(gomock.Any(), gomock.Any()).Return(nil, nil)
@@ -613,7 +596,6 @@ func TestGatewayTrackSync(t *testing.T) {
 	gw = &gwv1beta1.Gateway{}
 	gateway = factory.NewGateway(NewGatewayConfig{
 		Gateway:         gw,
-		State:           state.InitialGatewayState(gw),
 		ConsulNamespace: "consul",
 	})
 	client.EXPECT().GetDeployment(gomock.Any(), gomock.Any()).Return(nil, nil)
@@ -626,7 +608,6 @@ func TestGatewayTrackSync(t *testing.T) {
 	gw = &gwv1beta1.Gateway{}
 	gateway = factory.NewGateway(NewGatewayConfig{
 		Gateway:         gw,
-		State:           state.InitialGatewayState(gw),
 		ConsulNamespace: "consul",
 	})
 	client.EXPECT().GetDeployment(gomock.Any(), gomock.Any()).Return(nil, nil)
@@ -647,14 +628,12 @@ func TestGatewayShouldUpdate(t *testing.T) {
 	gw := &gwv1beta1.Gateway{}
 	gateway := factory.NewGateway(NewGatewayConfig{
 		Gateway:         gw,
-		State:           state.InitialGatewayState(gw),
 		ConsulNamespace: "consul",
 	})
 
 	otherGW := &gwv1beta1.Gateway{}
 	other := factory.NewGateway(NewGatewayConfig{
 		Gateway:         otherGW,
-		State:           state.InitialGatewayState(otherGW),
 		ConsulNamespace: "consul",
 	})
 
@@ -701,7 +680,6 @@ func TestGatewayShouldBind(t *testing.T) {
 	gw := &gwv1beta1.Gateway{}
 	gateway := factory.NewGateway(NewGatewayConfig{
 		Gateway:         gw,
-		State:           state.InitialGatewayState(gw),
 		ConsulNamespace: "consul",
 	})
 	gateway.Gateway.Name = "name"

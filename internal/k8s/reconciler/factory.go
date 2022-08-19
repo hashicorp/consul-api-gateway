@@ -42,7 +42,6 @@ func NewFactory(config FactoryConfig) *Factory {
 type NewGatewayConfig struct {
 	Gateway         *gwv1beta1.Gateway
 	Config          apigwv1alpha1.GatewayClassConfig
-	State           *state.GatewayState
 	ConsulNamespace string
 }
 
@@ -57,13 +56,6 @@ func (f *Factory) NewGateway(config NewGatewayConfig) *K8sGateway {
 		Logger:          f.logger.Named("gateway").With("name", config.Gateway.Name, "namespace", config.Gateway.Namespace),
 		Client:          f.client,
 	})
-
-	// TODO Consider moving into K8sGatewayConfig
-	gateway.GatewayState = config.State
-	if config.State == nil {
-		gateway.GatewayState = state.InitialGatewayState(config.Gateway)
-		gateway.GatewayState.ConsulNamespace = config.ConsulNamespace
-	}
 
 	return gateway
 }
