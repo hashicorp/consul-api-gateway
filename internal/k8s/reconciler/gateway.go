@@ -49,20 +49,21 @@ type K8sGatewayConfig struct {
 }
 
 func NewK8sGateway(gateway *gwv1beta1.Gateway, config K8sGatewayConfig) *K8sGateway {
+	// FUTURE (nathancoleman) See if we can avoid setting ConsulNamespace out of band
+	gwState := state.InitialGatewayState(gateway)
+	gwState.ConsulNamespace = config.ConsulNamespace
+
 	gatewayLogger := config.Logger.Named("gateway").With("name", gateway.Name, "namespace", gateway.Namespace)
 	listeners := make([]*K8sListener, 0, len(gateway.Spec.Listeners))
-	for _, listener := range gateway.Spec.Listeners {
+	for index, listener := range gateway.Spec.Listeners {
 		k8sListener := NewK8sListener(gateway, listener, K8sListenerConfig{
 			ConsulNamespace: config.ConsulNamespace,
 			Logger:          gatewayLogger,
 			Client:          config.Client,
 		})
+		k8sListener.status = &(gwState.Listeners[index].Status)
 		listeners = append(listeners, k8sListener)
 	}
-
-	// TODO
-	gwState := state.InitialGatewayState(gateway)
-	gwState.ConsulNamespace = config.ConsulNamespace
 
 	return &K8sGateway{
 		Gateway:      gateway,
