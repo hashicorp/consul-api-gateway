@@ -686,13 +686,13 @@ func TestGatewayShouldBind(t *testing.T) {
 
 	require.False(t, gateway.ShouldBind(storeMocks.NewMockRoute(nil)))
 
-	route := NewK8sRoute(&gwv1alpha2.HTTPRoute{}, K8sRouteConfig{
+	route := newK8sRoute(&gwv1alpha2.HTTPRoute{}, K8sRouteConfig{
 		Logger: hclog.NewNullLogger(),
 	})
 	route.RouteState.ResolutionErrors.Add(service.NewConsulResolutionError("test"))
 	require.False(t, gateway.ShouldBind(route))
 
-	require.True(t, gateway.ShouldBind(NewK8sRoute(&gwv1alpha2.HTTPRoute{
+	require.True(t, gateway.ShouldBind(newK8sRoute(&gwv1alpha2.HTTPRoute{
 		Spec: gwv1alpha2.HTTPRouteSpec{
 			CommonRouteSpec: gwv1alpha2.CommonRouteSpec{
 				ParentRefs: []gwv1alpha2.ParentReference{{
@@ -704,7 +704,7 @@ func TestGatewayShouldBind(t *testing.T) {
 		Logger: hclog.NewNullLogger(),
 	})))
 
-	require.False(t, gateway.ShouldBind(NewK8sRoute(&gwv1alpha2.HTTPRoute{}, K8sRouteConfig{
+	require.False(t, gateway.ShouldBind(newK8sRoute(&gwv1alpha2.HTTPRoute{}, K8sRouteConfig{
 		Logger: hclog.NewNullLogger(),
 	})))
 }

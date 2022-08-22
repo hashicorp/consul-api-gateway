@@ -31,13 +31,13 @@ func TestRouteID(t *testing.T) {
 		Namespace: "namespace",
 	}
 
-	require.Equal(t, "http-namespace/name", NewK8sRoute(&gwv1alpha2.HTTPRoute{
+	require.Equal(t, "http-namespace/name", newK8sRoute(&gwv1alpha2.HTTPRoute{
 		ObjectMeta: meta,
 	}, config).ID())
-	require.Equal(t, "tcp-namespace/name", NewK8sRoute(&gwv1alpha2.TCPRoute{
+	require.Equal(t, "tcp-namespace/name", newK8sRoute(&gwv1alpha2.TCPRoute{
 		ObjectMeta: meta,
 	}, config).ID())
-	require.Equal(t, "", NewK8sRoute(&core.Pod{
+	require.Equal(t, "", newK8sRoute(&core.Pod{
 		ObjectMeta: meta,
 	}, config).ID())
 }
@@ -55,17 +55,17 @@ func TestRouteCommonRouteSpec(t *testing.T) {
 		}},
 	}
 
-	require.Equal(t, expected, NewK8sRoute(&gwv1alpha2.HTTPRoute{
+	require.Equal(t, expected, newK8sRoute(&gwv1alpha2.HTTPRoute{
 		Spec: gwv1alpha2.HTTPRouteSpec{
 			CommonRouteSpec: expected,
 		},
 	}, config).CommonRouteSpec())
-	require.Equal(t, expected, NewK8sRoute(&gwv1alpha2.TCPRoute{
+	require.Equal(t, expected, newK8sRoute(&gwv1alpha2.TCPRoute{
 		Spec: gwv1alpha2.TCPRouteSpec{
 			CommonRouteSpec: expected,
 		},
 	}, config).CommonRouteSpec())
-	require.Equal(t, gwv1alpha2.CommonRouteSpec{}, NewK8sRoute(&core.Pod{}, config).CommonRouteSpec())
+	require.Equal(t, gwv1alpha2.CommonRouteSpec{}, newK8sRoute(&core.Pod{}, config).CommonRouteSpec())
 }
 
 func TestRouteSetStatus(t *testing.T) {
@@ -84,18 +84,18 @@ func TestRouteSetStatus(t *testing.T) {
 	}
 
 	httpRoute := &gwv1alpha2.HTTPRoute{}
-	route := NewK8sRoute(httpRoute, config)
+	route := newK8sRoute(httpRoute, config)
 	route.SetStatus(expected)
 	require.Equal(t, expected, httpRoute.Status.RouteStatus)
 	require.Equal(t, expected, route.routeStatus())
 
 	tcpRoute := &gwv1alpha2.TCPRoute{}
-	route = NewK8sRoute(tcpRoute, config)
+	route = newK8sRoute(tcpRoute, config)
 	route.SetStatus(expected)
 	require.Equal(t, expected, tcpRoute.Status.RouteStatus)
 	require.Equal(t, expected, route.routeStatus())
 
-	route = NewK8sRoute(&core.Pod{}, config)
+	route = newK8sRoute(&core.Pod{}, config)
 	route.SetStatus(expected)
 	require.Equal(t, gwv1alpha2.RouteStatus{}, route.routeStatus())
 }
@@ -113,13 +113,13 @@ func TestRouteParents(t *testing.T) {
 		}},
 	}
 
-	parents := NewK8sRoute(&gwv1alpha2.HTTPRoute{Spec: gwv1alpha2.HTTPRouteSpec{CommonRouteSpec: expected}}, config).Parents()
+	parents := newK8sRoute(&gwv1alpha2.HTTPRoute{Spec: gwv1alpha2.HTTPRouteSpec{CommonRouteSpec: expected}}, config).Parents()
 	require.Equal(t, expected.ParentRefs, parents)
 
-	parents = NewK8sRoute(&gwv1alpha2.TCPRoute{Spec: gwv1alpha2.TCPRouteSpec{CommonRouteSpec: expected}}, config).Parents()
+	parents = newK8sRoute(&gwv1alpha2.TCPRoute{Spec: gwv1alpha2.TCPRouteSpec{CommonRouteSpec: expected}}, config).Parents()
 	require.Equal(t, expected.ParentRefs, parents)
 
-	require.Nil(t, NewK8sRoute(&core.Pod{}, config).Parents())
+	require.Nil(t, newK8sRoute(&core.Pod{}, config).Parents())
 }
 
 func TestRouteMatchesHostname(t *testing.T) {
@@ -127,7 +127,7 @@ func TestRouteMatchesHostname(t *testing.T) {
 
 	hostname := gwv1beta1.Hostname("domain.test")
 
-	require.True(t, NewK8sRoute(&gwv1alpha2.HTTPRoute{
+	require.True(t, newK8sRoute(&gwv1alpha2.HTTPRoute{
 		Spec: gwv1alpha2.HTTPRouteSpec{
 			Hostnames: []gwv1alpha2.Hostname{"*"},
 		},
@@ -135,7 +135,7 @@ func TestRouteMatchesHostname(t *testing.T) {
 		Logger: hclog.NewNullLogger(),
 	}).MatchesHostname(&hostname))
 
-	require.False(t, NewK8sRoute(&gwv1alpha2.HTTPRoute{
+	require.False(t, newK8sRoute(&gwv1alpha2.HTTPRoute{
 		Spec: gwv1alpha2.HTTPRouteSpec{
 			Hostnames: []gwv1alpha2.Hostname{"other.text"},
 		},
@@ -145,7 +145,7 @@ func TestRouteMatchesHostname(t *testing.T) {
 
 	// check where the underlying route doesn't implement
 	// a matching routine
-	require.True(t, NewK8sRoute(&gwv1alpha2.TCPRoute{}, K8sRouteConfig{
+	require.True(t, newK8sRoute(&gwv1alpha2.TCPRoute{}, K8sRouteConfig{
 		Logger: hclog.NewNullLogger(),
 	}).MatchesHostname(&hostname))
 }
@@ -153,11 +153,11 @@ func TestRouteMatchesHostname(t *testing.T) {
 func TestRouteValidate(t *testing.T) {
 	t.Parallel()
 
-	require.NoError(t, NewK8sRoute(&core.Pod{}, K8sRouteConfig{
+	require.NoError(t, newK8sRoute(&core.Pod{}, K8sRouteConfig{
 		Logger: hclog.NewNullLogger(),
 	}).Validate(context.Background()))
 
-	require.True(t, NewK8sRoute(&gwv1alpha2.HTTPRoute{}, K8sRouteConfig{
+	require.True(t, newK8sRoute(&gwv1alpha2.HTTPRoute{}, K8sRouteConfig{
 		Logger: hclog.NewNullLogger(),
 	}).IsValid())
 
@@ -173,7 +173,7 @@ func TestRouteValidate(t *testing.T) {
 		Reference: &service.BackendReference{},
 	}
 
-	route := NewK8sRoute(&gwv1alpha2.HTTPRoute{
+	route := newK8sRoute(&gwv1alpha2.HTTPRoute{
 		Spec: gwv1alpha2.HTTPRouteSpec{
 			Rules: []gwv1alpha2.HTTPRouteRule{{
 				BackendRefs: []gwv1alpha2.HTTPBackendRef{{
@@ -211,7 +211,7 @@ func TestRouteValidateDontAllowCrossNamespace(t *testing.T) {
 
 	//set up backend ref with a different namespace
 	namespace := gwv1alpha2.Namespace("test")
-	route := NewK8sRoute(&gwv1alpha2.HTTPRoute{
+	route := newK8sRoute(&gwv1alpha2.HTTPRoute{
 		Spec: gwv1alpha2.HTTPRouteSpec{
 			Rules: []gwv1alpha2.HTTPRouteRule{{
 				BackendRefs: []gwv1alpha2.HTTPBackendRef{{
@@ -260,7 +260,7 @@ func TestRouteValidateAllowCrossNamespaceWithReferenceGrant(t *testing.T) {
 	backendKind := gwv1alpha2.Kind("Service")
 	backendNamespace := gwv1alpha2.Namespace("namespace2")
 	backendName := gwv1alpha2.ObjectName("backend2")
-	route := NewK8sRoute(&gwv1alpha2.HTTPRoute{
+	route := newK8sRoute(&gwv1alpha2.HTTPRoute{
 		ObjectMeta: meta.ObjectMeta{Namespace: "namespace1"},
 		TypeMeta:   meta.TypeMeta{APIVersion: "gateway.networking.k8s.io/v1alpha2", Kind: "HTTPRoute"},
 		Spec: gwv1alpha2.HTTPRouteSpec{
@@ -321,17 +321,17 @@ func TestRouteResolve(t *testing.T) {
 	}
 	listener := gwv1beta1.Listener{}
 
-	require.Nil(t, NewK8sRoute(&gwv1alpha2.HTTPRoute{}, K8sRouteConfig{
+	require.Nil(t, newK8sRoute(&gwv1alpha2.HTTPRoute{}, K8sRouteConfig{
 		Logger: hclog.NewNullLogger(),
 	}).Resolve(nil))
 
-	require.Nil(t, NewK8sRoute(&core.Pod{}, K8sRouteConfig{
+	require.Nil(t, newK8sRoute(&core.Pod{}, K8sRouteConfig{
 		Logger: hclog.NewNullLogger(),
 	}).Resolve(NewK8sListener(gateway, listener, K8sListenerConfig{
 		Logger: hclog.NewNullLogger(),
 	})))
 
-	require.NotNil(t, NewK8sRoute(&gwv1alpha2.HTTPRoute{}, K8sRouteConfig{
+	require.NotNil(t, newK8sRoute(&gwv1alpha2.HTTPRoute{}, K8sRouteConfig{
 		Logger: hclog.NewNullLogger(),
 	}).Resolve(NewK8sListener(gateway, listener, K8sListenerConfig{
 		Logger: hclog.NewNullLogger(),
@@ -341,7 +341,7 @@ func TestRouteResolve(t *testing.T) {
 func TestRouteSyncStatus(t *testing.T) {
 	t.Parallel()
 
-	gateway := NewK8sGateway(&gwv1beta1.Gateway{
+	gateway := newK8sGateway(&gwv1beta1.Gateway{
 		ObjectMeta: meta.ObjectMeta{
 			Name: "expected",
 		},
@@ -387,7 +387,7 @@ func TestRouteSyncStatus(t *testing.T) {
 		Output: io.Discard,
 	})
 	logger.SetLevel(hclog.Trace)
-	route := NewK8sRoute(inner, K8sRouteConfig{
+	route := newK8sRoute(inner, K8sRouteConfig{
 		ControllerName: "expected",
 		Logger:         logger,
 		Client:         client,

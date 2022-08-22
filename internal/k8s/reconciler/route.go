@@ -46,7 +46,7 @@ type K8sRouteConfig struct {
 	Resolver       service.BackendResolver
 }
 
-func NewK8sRoute(route Route, config K8sRouteConfig) *K8sRoute {
+func newK8sRoute(route Route, config K8sRouteConfig) *K8sRoute {
 	return &K8sRoute{
 		Route:          route,
 		RouteState:     state.NewRouteState(),

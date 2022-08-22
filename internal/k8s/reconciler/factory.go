@@ -45,7 +45,7 @@ type NewGatewayConfig struct {
 }
 
 func (f *Factory) NewGateway(config NewGatewayConfig) *K8sGateway {
-	gateway := NewK8sGateway(config.Gateway, K8sGatewayConfig{
+	gateway := newK8sGateway(config.Gateway, K8sGatewayConfig{
 		ConsulNamespace: config.ConsulNamespace,
 		ConsulCA:        "",
 		SDSHost:         "",
@@ -60,7 +60,7 @@ func (f *Factory) NewGateway(config NewGatewayConfig) *K8sGateway {
 }
 
 func (f *Factory) NewRoute(route Route) *K8sRoute {
-	return NewK8sRoute(route, K8sRouteConfig{
+	return newK8sRoute(route, K8sRouteConfig{
 		Logger:         f.logger.Named("route").With("name", route.GetName()),
 		Client:         f.client,
 		ControllerName: f.controllerName,
