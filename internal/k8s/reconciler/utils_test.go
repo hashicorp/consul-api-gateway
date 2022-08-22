@@ -69,32 +69,38 @@ func TestHostnamesMatch(t *testing.T) {
 func TestRouteKindIsAllowedForListener(t *testing.T) {
 	t.Parallel()
 
+	factory := NewFactory(FactoryConfig{
+		Logger: hclog.NewNullLogger(),
+	})
+
 	routeMeta := meta.TypeMeta{}
 	routeMeta.SetGroupVersionKind(schema.GroupVersionKind{
 		Group:   gwv1alpha2.GroupVersion.Group,
 		Version: gwv1alpha2.GroupVersion.Version,
 		Kind:    "HTTPRoute",
 	})
-	require.True(t, routeKindIsAllowedForListener([]gwv1beta1.RouteGroupKind{{
-		Group: (*gwv1beta1.Group)(&gwv1alpha2.GroupVersion.Group),
-		Kind:  "HTTPRoute",
-	}}, NewK8sRoute(&gwv1alpha2.HTTPRoute{
-		TypeMeta: routeMeta,
-	}, K8sRouteConfig{
-		Logger: hclog.NewNullLogger(),
-	})))
-	require.False(t, routeKindIsAllowedForListener([]gwv1beta1.RouteGroupKind{{
-		Group: (*gwv1beta1.Group)(&gwv1alpha2.GroupVersion.Group),
-		Kind:  "TCPRoute",
-	}}, NewK8sRoute(&gwv1alpha2.HTTPRoute{
-		TypeMeta: routeMeta,
-	}, K8sRouteConfig{
-		Logger: hclog.NewNullLogger(),
-	})))
+
+	require.True(t, routeKindIsAllowedForListener(
+		[]gwv1beta1.RouteGroupKind{{
+			Group: (*gwv1beta1.Group)(&gwv1alpha2.GroupVersion.Group),
+			Kind:  "HTTPRoute",
+		}},
+		factory.NewRoute(&gwv1alpha2.HTTPRoute{TypeMeta: routeMeta})))
+
+	require.False(t, routeKindIsAllowedForListener(
+		[]gwv1beta1.RouteGroupKind{{
+			Group: (*gwv1beta1.Group)(&gwv1alpha2.GroupVersion.Group),
+			Kind:  "TCPRoute",
+		}},
+		factory.NewRoute(&gwv1alpha2.HTTPRoute{TypeMeta: routeMeta})))
 }
 
 func TestRouteAllowedForListenerNamespaces(t *testing.T) {
 	t.Parallel()
+
+	factory := NewFactory(FactoryConfig{
+		Logger: hclog.NewNullLogger(),
+	})
 
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -107,12 +113,10 @@ func TestRouteAllowedForListenerNamespaces(t *testing.T) {
 		Namespaces: &gwv1beta1.RouteNamespaces{
 			From: &same,
 		},
-	}, NewK8sRoute(&gwv1alpha2.HTTPRoute{
+	}, factory.NewRoute(&gwv1alpha2.HTTPRoute{
 		ObjectMeta: meta.ObjectMeta{
 			Namespace: "expected",
 		},
-	}, K8sRouteConfig{
-		Logger: hclog.NewNullLogger(),
 	}), client)
 	require.NoError(t, err)
 	require.True(t, allowed)
@@ -121,12 +125,10 @@ func TestRouteAllowedForListenerNamespaces(t *testing.T) {
 		Namespaces: &gwv1beta1.RouteNamespaces{
 			From: &same,
 		},
-	}, NewK8sRoute(&gwv1alpha2.HTTPRoute{
+	}, factory.NewRoute(&gwv1alpha2.HTTPRoute{
 		ObjectMeta: meta.ObjectMeta{
 			Namespace: "other",
 		},
-	}, K8sRouteConfig{
-		Logger: hclog.NewNullLogger(),
 	}), client)
 	require.NoError(t, err)
 	require.False(t, allowed)
@@ -137,12 +139,10 @@ func TestRouteAllowedForListenerNamespaces(t *testing.T) {
 		Namespaces: &gwv1beta1.RouteNamespaces{
 			From: &all,
 		},
-	}, NewK8sRoute(&gwv1alpha2.HTTPRoute{
+	}, factory.NewRoute(&gwv1alpha2.HTTPRoute{
 		ObjectMeta: meta.ObjectMeta{
 			Namespace: "other",
 		},
-	}, K8sRouteConfig{
-		Logger: hclog.NewNullLogger(),
 	}), client)
 	require.NoError(t, err)
 	require.True(t, allowed)
@@ -168,12 +168,10 @@ func TestRouteAllowedForListenerNamespaces(t *testing.T) {
 				},
 			},
 		},
-	}, NewK8sRoute(&gwv1alpha2.HTTPRoute{
+	}, factory.NewRoute(&gwv1alpha2.HTTPRoute{
 		ObjectMeta: meta.ObjectMeta{
 			Namespace: "expected",
 		},
-	}, K8sRouteConfig{
-		Logger: hclog.NewNullLogger(),
 	}), client)
 	require.NoError(t, err)
 	require.False(t, allowed)
@@ -188,12 +186,10 @@ func TestRouteAllowedForListenerNamespaces(t *testing.T) {
 				},
 			},
 		},
-	}, NewK8sRoute(&gwv1alpha2.HTTPRoute{
+	}, factory.NewRoute(&gwv1alpha2.HTTPRoute{
 		ObjectMeta: meta.ObjectMeta{
 			Namespace: "expected",
 		},
-	}, K8sRouteConfig{
-		Logger: hclog.NewNullLogger(),
 	}), client)
 	require.NoError(t, err)
 	require.True(t, allowed)
@@ -208,12 +204,10 @@ func TestRouteAllowedForListenerNamespaces(t *testing.T) {
 				}},
 			},
 		},
-	}, NewK8sRoute(&gwv1alpha2.HTTPRoute{
+	}, factory.NewRoute(&gwv1alpha2.HTTPRoute{
 		ObjectMeta: meta.ObjectMeta{
 			Namespace: "expected",
 		},
-	}, K8sRouteConfig{
-		Logger: hclog.NewNullLogger(),
 	}), client)
 	require.Error(t, err)
 
@@ -223,12 +217,10 @@ func TestRouteAllowedForListenerNamespaces(t *testing.T) {
 		Namespaces: &gwv1beta1.RouteNamespaces{
 			From: &unknown,
 		},
-	}, NewK8sRoute(&gwv1alpha2.HTTPRoute{
+	}, factory.NewRoute(&gwv1alpha2.HTTPRoute{
 		ObjectMeta: meta.ObjectMeta{
 			Namespace: "expected",
 		},
-	}, K8sRouteConfig{
-		Logger: hclog.NewNullLogger(),
 	}), client)
 	require.NoError(t, err)
 	require.False(t, allowed)

@@ -480,7 +480,7 @@ func TestListenerCanBind(t *testing.T) {
 	listener = NewK8sListener(&gwv1beta1.Gateway{}, gwv1beta1.Listener{}, K8sListenerConfig{
 		Logger: hclog.NewNullLogger(),
 	})
-	canBind, err = listener.CanBind(context.Background(), NewK8sRoute(&gwv1alpha2.HTTPRoute{}, K8sRouteConfig{
+	canBind, err = listener.CanBind(context.Background(), newK8sRoute(&gwv1alpha2.HTTPRoute{}, K8sRouteConfig{
 		Logger: hclog.NewNullLogger(),
 	}))
 	require.NoError(t, err)
@@ -494,7 +494,7 @@ func TestListenerCanBind(t *testing.T) {
 	}, gwv1beta1.Listener{}, K8sListenerConfig{
 		Logger: hclog.NewNullLogger(),
 	})
-	canBind, err = listener.CanBind(context.Background(), NewK8sRoute(&gwv1alpha2.HTTPRoute{
+	canBind, err = listener.CanBind(context.Background(), newK8sRoute(&gwv1alpha2.HTTPRoute{
 		Spec: gwv1alpha2.HTTPRouteSpec{
 			CommonRouteSpec: gwv1alpha2.CommonRouteSpec{
 				ParentRefs: []gwv1alpha2.ParentReference{{
@@ -517,7 +517,7 @@ func TestListenerCanBind(t *testing.T) {
 		Logger: hclog.NewNullLogger(),
 	})
 	listener.status.Ready.Invalid = errors.New("invalid")
-	canBind, err = listener.CanBind(context.Background(), NewK8sRoute(&gwv1alpha2.HTTPRoute{
+	canBind, err = listener.CanBind(context.Background(), newK8sRoute(&gwv1alpha2.HTTPRoute{
 		Spec: gwv1alpha2.HTTPRouteSpec{
 			CommonRouteSpec: gwv1alpha2.CommonRouteSpec{
 				ParentRefs: []gwv1alpha2.ParentReference{{
@@ -555,7 +555,7 @@ func TestListenerCanBind_RouteKind(t *testing.T) {
 	})
 	require.NoError(t, listener.Validate(context.Background()))
 
-	canBind, err := listener.CanBind(context.Background(), NewK8sRoute(&gwv1alpha2.UDPRoute{
+	canBind, err := listener.CanBind(context.Background(), newK8sRoute(&gwv1alpha2.UDPRoute{
 		TypeMeta: routeMeta,
 		Spec: gwv1alpha2.UDPRouteSpec{
 			CommonRouteSpec: gwv1alpha2.CommonRouteSpec{
@@ -581,7 +581,7 @@ func TestListenerCanBind_RouteKind(t *testing.T) {
 		Logger: hclog.NewNullLogger(),
 	})
 	listener.supportedKinds = rcommon.SupportedKindsFor(gwv1beta1.HTTPProtocolType)
-	_, err = listener.CanBind(context.Background(), NewK8sRoute(&gwv1alpha2.TCPRoute{
+	_, err = listener.CanBind(context.Background(), newK8sRoute(&gwv1alpha2.TCPRoute{
 		TypeMeta: routeMeta,
 		Spec: gwv1alpha2.TCPRouteSpec{
 			CommonRouteSpec: gwv1alpha2.CommonRouteSpec{
@@ -629,7 +629,7 @@ func TestListenerCanBind_AllowedNamespaces(t *testing.T) {
 		Logger: hclog.NewNullLogger(),
 	})
 	listener.supportedKinds = rcommon.SupportedKindsFor(gwv1beta1.HTTPProtocolType)
-	_, err := listener.CanBind(context.Background(), NewK8sRoute(&gwv1alpha2.HTTPRoute{
+	_, err := listener.CanBind(context.Background(), newK8sRoute(&gwv1alpha2.HTTPRoute{
 		TypeMeta: routeMeta,
 		Spec: gwv1alpha2.HTTPRouteSpec{
 			CommonRouteSpec: gwv1alpha2.CommonRouteSpec{
@@ -644,7 +644,7 @@ func TestListenerCanBind_AllowedNamespaces(t *testing.T) {
 		Logger: hclog.NewNullLogger(),
 	}))
 	require.Error(t, err)
-	canBind, err := listener.CanBind(context.Background(), NewK8sRoute(&gwv1alpha2.HTTPRoute{
+	canBind, err := listener.CanBind(context.Background(), newK8sRoute(&gwv1alpha2.HTTPRoute{
 		TypeMeta: routeMeta,
 		Spec: gwv1alpha2.HTTPRouteSpec{
 			CommonRouteSpec: gwv1alpha2.CommonRouteSpec{
@@ -683,7 +683,7 @@ func TestListenerCanBind_AllowedNamespaces(t *testing.T) {
 		Logger: hclog.NewNullLogger(),
 	})
 	listener.supportedKinds = rcommon.SupportedKindsFor(gwv1beta1.HTTPProtocolType)
-	_, err = listener.CanBind(context.Background(), NewK8sRoute(&gwv1alpha2.HTTPRoute{
+	_, err = listener.CanBind(context.Background(), newK8sRoute(&gwv1alpha2.HTTPRoute{
 		TypeMeta: routeMeta,
 		Spec: gwv1alpha2.HTTPRouteSpec{
 			CommonRouteSpec: gwv1alpha2.CommonRouteSpec{
@@ -698,7 +698,7 @@ func TestListenerCanBind_AllowedNamespaces(t *testing.T) {
 		Logger: hclog.NewNullLogger(),
 	}))
 	require.Error(t, err)
-	_, err = listener.CanBind(context.Background(), NewK8sRoute(&gwv1alpha2.HTTPRoute{
+	_, err = listener.CanBind(context.Background(), newK8sRoute(&gwv1alpha2.HTTPRoute{
 		TypeMeta: routeMeta,
 		Spec: gwv1alpha2.HTTPRouteSpec{
 			CommonRouteSpec: gwv1alpha2.CommonRouteSpec{
@@ -738,7 +738,7 @@ func TestListenerCanBind_HostnameMatch(t *testing.T) {
 		Logger: hclog.NewNullLogger(),
 	})
 	listener.supportedKinds = rcommon.SupportedKindsFor(gwv1beta1.HTTPProtocolType)
-	_, err := listener.CanBind(context.Background(), NewK8sRoute(&gwv1alpha2.HTTPRoute{
+	_, err := listener.CanBind(context.Background(), newK8sRoute(&gwv1alpha2.HTTPRoute{
 		TypeMeta: routeMeta,
 		Spec: gwv1alpha2.HTTPRouteSpec{
 			CommonRouteSpec: gwv1alpha2.CommonRouteSpec{
@@ -754,7 +754,7 @@ func TestListenerCanBind_HostnameMatch(t *testing.T) {
 	}))
 	require.Error(t, err)
 
-	canBind, err := listener.CanBind(context.Background(), NewK8sRoute(&gwv1alpha2.HTTPRoute{
+	canBind, err := listener.CanBind(context.Background(), newK8sRoute(&gwv1alpha2.HTTPRoute{
 		TypeMeta: routeMeta,
 		Spec: gwv1alpha2.HTTPRouteSpec{
 			CommonRouteSpec: gwv1alpha2.CommonRouteSpec{
@@ -786,7 +786,7 @@ func TestListenerCanBind_NameMatch(t *testing.T) {
 	}, K8sListenerConfig{
 		Logger: hclog.NewNullLogger(),
 	})
-	canBind, err := listener.CanBind(context.Background(), NewK8sRoute(&gwv1alpha2.HTTPRoute{
+	canBind, err := listener.CanBind(context.Background(), newK8sRoute(&gwv1alpha2.HTTPRoute{
 		Spec: gwv1alpha2.HTTPRouteSpec{
 			CommonRouteSpec: gwv1alpha2.CommonRouteSpec{
 				ParentRefs: []gwv1alpha2.ParentReference{{

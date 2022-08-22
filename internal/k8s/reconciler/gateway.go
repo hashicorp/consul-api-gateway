@@ -48,7 +48,7 @@ type K8sGatewayConfig struct {
 	Client          gatewayclient.Client
 }
 
-func NewK8sGateway(gateway *gwv1beta1.Gateway, config K8sGatewayConfig) *K8sGateway {
+func newK8sGateway(gateway *gwv1beta1.Gateway, config K8sGatewayConfig) *K8sGateway {
 	// FUTURE (nathancoleman) See if we can avoid setting ConsulNamespace out of band
 	gwState := state.InitialGatewayState(gateway)
 	gwState.ConsulNamespace = config.ConsulNamespace
