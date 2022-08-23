@@ -5,6 +5,7 @@ import (
 	gwv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/state"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/service"
 	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 )
@@ -40,16 +41,24 @@ func NewFactory(config FactoryConfig) *Factory {
 
 type NewGatewayConfig struct {
 	Gateway         *gwv1beta1.Gateway
+	State           *state.GatewayState
 	Config          apigwv1alpha1.GatewayClassConfig
 	ConsulNamespace string
 }
 
 func (f *Factory) NewGateway(config NewGatewayConfig) *K8sGateway {
+	gwState := config.State
+	if gwState == nil {
+		gwState = state.InitialGatewayState(config.Gateway)
+		gwState.ConsulNamespace = config.ConsulNamespace
+	}
+
 	gateway := newK8sGateway(config.Gateway, K8sGatewayConfig{
 		ConsulNamespace: config.ConsulNamespace,
 		ConsulCA:        "",
 		SDSHost:         "",
 		SDSPort:         0,
+		State:           gwState,
 		Config:          config.Config,
 		Deployer:        f.deployer,
 		Logger:          f.logger.Named("gateway").With("name", config.Gateway.Name, "namespace", config.Gateway.Namespace),
