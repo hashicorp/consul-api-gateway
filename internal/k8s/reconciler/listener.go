@@ -17,6 +17,7 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/common"
 	rerrors "github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/errors"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/state"
 	rstatus "github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/status"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	"github.com/hashicorp/consul-api-gateway/internal/store"
@@ -27,6 +28,8 @@ const (
 )
 
 type K8sListener struct {
+	ListenerState *state.ListenerState
+
 	consulNamespace string
 	logger          hclog.Logger
 	gateway         *gwv1beta1.Gateway
@@ -45,12 +48,14 @@ type K8sListenerConfig struct {
 	ConsulNamespace string
 	Logger          hclog.Logger
 	Client          gatewayclient.Client
+	State           *state.ListenerState
 }
 
 func NewK8sListener(gateway *gwv1beta1.Gateway, listener gwv1beta1.Listener, config K8sListenerConfig) *K8sListener {
 	listenerLogger := config.Logger.Named("listener").With("listener", string(listener.Name))
 
 	return &K8sListener{
+		ListenerState:   config.State,
 		consulNamespace: config.ConsulNamespace,
 		logger:          listenerLogger,
 		client:          config.Client,
@@ -104,17 +109,17 @@ func (l *K8sListener) Config() store.ListenerConfig {
 	if l.listener.Hostname != nil {
 		hostname = string(*l.listener.Hostname)
 	}
-	protocol, tls := utils.ProtocolToConsul(l.listener.Protocol)
 
 	// Update listener TLS config to specify whether TLS is required by the protocol
-	l.tls.Enabled = tls
+	protocol, tls := utils.ProtocolToConsul(l.ListenerState.Protocol)
+	l.ListenerState.TLS.Enabled = tls
 
 	return store.ListenerConfig{
 		Name:     name,
 		Hostname: hostname,
 		Port:     int(l.listener.Port),
 		Protocol: protocol,
-		TLS:      l.tls,
+		TLS:      l.ListenerState.TLS,
 	}
 }
 

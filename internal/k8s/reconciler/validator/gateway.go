@@ -344,8 +344,8 @@ func (g *GatewayValidator) validateProtocols(state *state.ListenerState, listene
 }
 
 func (g *GatewayValidator) validateTLS(ctx context.Context, state *state.ListenerState, gateway *gwv1beta1.Gateway, listener gwv1beta1.Listener) error {
-	_, tlsRequired := utils.ProtocolToConsul(listener.Protocol)
 	if listener.TLS == nil {
+		_, tlsRequired := utils.ProtocolToConsul(listener.Protocol)
 		if tlsRequired {
 			// we are using a protocol that requires TLS but has no TLS configured
 			state.Status.Ready.Invalid = errors.New("tls configuration required for the given protocol")

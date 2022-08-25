@@ -51,6 +51,7 @@ func newK8sGateway(gateway *gwv1beta1.Gateway, config K8sGatewayConfig) *K8sGate
 			ConsulNamespace: config.ConsulNamespace,
 			Logger:          gatewayLogger,
 			Client:          config.Client,
+			State:           config.State.Listeners[index],
 		})
 		k8sListener.status = &(config.State.Listeners[index].Status)
 		listeners = append(listeners, k8sListener)
