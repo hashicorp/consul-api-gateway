@@ -205,12 +205,14 @@ func (l *K8sListener) canBind(ctx context.Context, ref gwv1alpha2.ParentReferenc
 	return false, nil
 }
 
-func (l *K8sListener) OnRouteAdded(_ store.Route) {
+func (l *K8sListener) OnRouteAdded(route store.Route) {
 	atomic.AddInt32(&l.routeCount, 1)
+	l.ListenerState.Routes[route.ID()] = *route.Resolve(l)
 }
 
-func (l *K8sListener) OnRouteRemoved(_ string) {
+func (l *K8sListener) OnRouteRemoved(routeID string) {
 	atomic.AddInt32(&l.routeCount, -1)
+	delete(l.ListenerState.Routes, routeID)
 }
 
 func (l *K8sListener) Status() gwv1beta1.ListenerStatus {
