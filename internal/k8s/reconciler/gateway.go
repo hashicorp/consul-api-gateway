@@ -390,50 +390,7 @@ func (g *K8sGateway) ShouldBind(route store.Route) bool {
 }
 
 func (g *K8sGateway) Status() gwv1beta1.GatewayStatus {
-	listenerStatuses := []gwv1beta1.ListenerStatus{}
-	listenersReady := true
-	listenersInvalid := false
-	for _, listener := range g.listeners {
-		if listener.status.Ready.Pending != nil {
-			listenersReady = false
-		}
-		if listener.status.Ready.Invalid != nil {
-			listenersInvalid = true
-		}
-		listenerStatuses = append(listenerStatuses, listener.Status())
-	}
-
-	if listenersInvalid {
-		g.GatewayState.Status.Ready.ListenersNotValid = errors.New("gateway listeners not valid")
-	} else if !g.GatewayState.PodReady || !g.GatewayState.ServiceReady || !listenersReady {
-		g.GatewayState.Status.Ready.ListenersNotReady = errors.New("gateway listeners not ready")
-	} else if len(g.Gateway.Spec.Addresses) != 0 {
-		g.GatewayState.Status.Ready.AddressNotAssigned = errors.New("gateway does not support requesting addresses")
-	}
-	conditions := g.GatewayState.Status.Conditions(g.Gateway.Generation)
-
-	// prefer to not update to not mess up timestamps
-	if listenerStatusesEqual(listenerStatuses, g.Gateway.Status.Listeners) {
-		listenerStatuses = g.Gateway.Status.Listeners
-	}
-	if conditionsEqual(conditions, g.Gateway.Status.Conditions) {
-		conditions = g.Gateway.Status.Conditions
-	}
-
-	ipType := gwv1beta1.IPAddressType
-	addresses := make([]gwv1beta1.GatewayAddress, 0, len(g.GatewayState.Addresses))
-	for _, address := range g.GatewayState.Addresses {
-		addresses = append(addresses, gwv1beta1.GatewayAddress{
-			Type:  &ipType,
-			Value: address,
-		})
-	}
-
-	return gwv1beta1.GatewayStatus{
-		Addresses:  addresses,
-		Conditions: conditions,
-		Listeners:  listenerStatuses,
-	}
+	return g.GatewayState.GetStatus(g.Gateway)
 }
 
 func (g *K8sGateway) TrackSync(ctx context.Context, sync func() (bool, error)) error {
