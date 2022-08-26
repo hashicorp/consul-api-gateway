@@ -54,8 +54,17 @@ type K8sListenerConfig struct {
 func NewK8sListener(gateway *gwv1beta1.Gateway, listener gwv1beta1.Listener, config K8sListenerConfig) *K8sListener {
 	listenerLogger := config.Logger.Named("listener").With("listener", string(listener.Name))
 
+	lState := config.State
+	if lState == nil {
+		lState = &state.ListenerState{
+			Name:     listener.Name,
+			Protocol: listener.Protocol,
+			Routes:   make(map[string]core.ResolvedRoute),
+		}
+	}
+
 	return &K8sListener{
-		ListenerState:   config.State,
+		ListenerState:   lState,
 		consulNamespace: config.ConsulNamespace,
 		logger:          listenerLogger,
 		client:          config.Client,
