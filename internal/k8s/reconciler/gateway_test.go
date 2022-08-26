@@ -18,7 +18,6 @@ import (
 	internalCore "github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient/mocks"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/state"
-	rstatus "github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/status"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/service"
 	storeMocks "github.com/hashicorp/consul-api-gateway/internal/store/mocks"
 	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
@@ -90,110 +89,6 @@ func TestGatewayListeners(t *testing.T) {
 	require.Len(t, gateway.Listeners(), 1)
 }
 
-func TestGatewayOutputStatus(t *testing.T) {
-	t.Parallel()
-
-	factory := NewFactory(FactoryConfig{
-		Logger: hclog.NewNullLogger(),
-	})
-
-	// Pending listener
-	gw := &gwv1beta1.Gateway{
-		Spec: gwv1beta1.GatewaySpec{
-			Listeners: []gwv1beta1.Listener{{
-				Name: gwv1beta1.SectionName("1"),
-			}},
-		},
-	}
-
-	gateway := factory.NewGateway(NewGatewayConfig{
-		Gateway:         gw,
-		State:           state.InitialGatewayState(gw),
-		ConsulNamespace: "consul",
-	})
-	gateway.GatewayState.Addresses = []string{"127.0.0.1"}
-	gateway.listeners[0].status.Ready.Pending = errors.New("pending")
-	require.Len(t, gateway.Status().Addresses, 1)
-	assert.Equal(t, rstatus.GatewayConditionReasonListenersNotReady, gateway.GatewayState.Status.Ready.Condition(0).Reason)
-
-	// Service ready, pods not
-	gw = &gwv1beta1.Gateway{
-		Spec: gwv1beta1.GatewaySpec{
-			Listeners: []gwv1beta1.Listener{{
-				Name: gwv1beta1.SectionName("1"),
-			}},
-		},
-	}
-
-	gateway = factory.NewGateway(NewGatewayConfig{
-		Gateway:         gw,
-		State:           state.InitialGatewayState(gw),
-		ConsulNamespace: "consul",
-	})
-	gateway.GatewayState.PodReady = false
-	gateway.GatewayState.ServiceReady = true
-	gateway.listeners[0].status.Ready.Invalid = errors.New("invalid")
-	require.Len(t, gateway.Status().Listeners, 1)
-	assert.Equal(t, rstatus.GatewayConditionReasonListenersNotValid, gateway.GatewayState.Status.Ready.Condition(0).Reason)
-
-	// Pods ready, service not
-	gw = &gwv1beta1.Gateway{
-		Spec: gwv1beta1.GatewaySpec{
-			Listeners: []gwv1beta1.Listener{{
-				Name: gwv1beta1.SectionName("1"),
-			}},
-		},
-	}
-
-	gateway = factory.NewGateway(NewGatewayConfig{
-		Gateway:         gw,
-		State:           state.InitialGatewayState(gw),
-		ConsulNamespace: "consul",
-	})
-	gateway.GatewayState.PodReady = true
-	gateway.GatewayState.ServiceReady = false
-	gateway.listeners[0].status.Ready.Invalid = errors.New("invalid")
-	require.Len(t, gateway.Status().Listeners, 1)
-	assert.Equal(t, rstatus.GatewayConditionReasonListenersNotValid, gateway.GatewayState.Status.Ready.Condition(0).Reason)
-
-	// Pods + service ready
-	gw = &gwv1beta1.Gateway{
-		Spec: gwv1beta1.GatewaySpec{
-			Listeners: []gwv1beta1.Listener{{
-				Name: gwv1beta1.SectionName("1"),
-			}},
-			Addresses: []gwv1beta1.GatewayAddress{{}},
-		},
-	}
-
-	gateway = factory.NewGateway(NewGatewayConfig{
-		Gateway:         gw,
-		State:           state.InitialGatewayState(gw),
-		ConsulNamespace: "consul",
-	})
-	gateway.GatewayState.PodReady = true
-	gateway.GatewayState.ServiceReady = true
-	require.Len(t, gateway.Status().Listeners, 1)
-	assert.Equal(t, rstatus.GatewayConditionReasonAddressNotAssigned, gateway.GatewayState.Status.Ready.Condition(0).Reason)
-
-	gw = &gwv1beta1.Gateway{
-		Spec: gwv1beta1.GatewaySpec{
-			Listeners: []gwv1beta1.Listener{{
-				Name: gwv1beta1.SectionName("1"),
-			}},
-			Addresses: []gwv1beta1.GatewayAddress{{}},
-		},
-	}
-
-	gateway = factory.NewGateway(NewGatewayConfig{
-		Gateway:         gw,
-		State:           state.InitialGatewayState(gw),
-		ConsulNamespace: "consul",
-	})
-	gateway.Gateway.Status = gateway.Status()
-	gateway.Status()
-}
-
 func TestGatewayTrackSync(t *testing.T) {
 	t.Parallel()
 
@@ -217,7 +112,7 @@ func TestGatewayTrackSync(t *testing.T) {
 		State:           state.InitialGatewayState(gw),
 		ConsulNamespace: "consul",
 	})
-	gateway.Gateway.Status = gateway.Status()
+	gateway.Gateway.Status = gateway.GatewayState.GetStatus(gw)
 	client.EXPECT().GetDeployment(gomock.Any(), gomock.Any()).Return(nil, nil)
 	client.EXPECT().CreateOrUpdateDeployment(gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil)
 	require.NoError(t, gateway.TrackSync(context.Background(), func() (bool, error) {
