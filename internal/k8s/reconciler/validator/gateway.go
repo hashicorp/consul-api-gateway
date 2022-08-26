@@ -19,6 +19,9 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 )
 
+// GatewayValidator is responsible for taking a provided gwv1beta1.Gateway and
+// deriving a state.GatewayState from it. Ultimately, this GatewayState is what
+// makes up the Status on the Kubernetes Gateway resource.
 type GatewayValidator struct {
 	client gatewayclient.Client
 }
