@@ -63,9 +63,13 @@ func TestRouteAddedCallbacks(t *testing.T) {
 		Logger: hclog.NewNullLogger(),
 	})
 	require.Equal(t, int32(0), listener.routeCount)
-	listener.OnRouteAdded(nil)
+
+	route := newK8sRoute(&gwv1alpha2.HTTPRoute{}, K8sRouteConfig{Logger: hclog.NewNullLogger()})
+
+	listener.OnRouteAdded(route)
 	require.Equal(t, int32(1), listener.routeCount)
-	listener.OnRouteRemoved("")
+
+	listener.OnRouteRemoved(route.ID())
 	require.Equal(t, int32(0), listener.routeCount)
 }
 

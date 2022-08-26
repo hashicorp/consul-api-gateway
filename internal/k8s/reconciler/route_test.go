@@ -15,6 +15,7 @@ import (
 	gwv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	clientMocks "github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient/mocks"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/state"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/service"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/service/mocks"
 )
@@ -329,12 +330,14 @@ func TestRouteResolve(t *testing.T) {
 		Logger: hclog.NewNullLogger(),
 	}).Resolve(NewK8sListener(gateway, listener, K8sListenerConfig{
 		Logger: hclog.NewNullLogger(),
+		State:  &state.ListenerState{},
 	})))
 
 	require.NotNil(t, newK8sRoute(&gwv1alpha2.HTTPRoute{}, K8sRouteConfig{
 		Logger: hclog.NewNullLogger(),
 	}).Resolve(NewK8sListener(gateway, listener, K8sListenerConfig{
 		Logger: hclog.NewNullLogger(),
+		State:  &state.ListenerState{},
 	})))
 }
 

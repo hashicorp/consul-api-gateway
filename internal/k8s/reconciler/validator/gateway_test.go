@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 	core "k8s.io/api/core/v1"
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
+	gwv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 	gwv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/builder"
@@ -40,20 +41,22 @@ func TestGatewayValidate(t *testing.T) {
 		},
 	}
 
+	state := state.InitialGatewayState(gateway)
+
 	validator := NewGatewayValidator(client)
 	client.EXPECT().GetSecret(gomock.Any(), gomock.Any()).Return(nil, nil)
 	client.EXPECT().PodsWithLabels(gomock.Any(), gomock.Any()).Return(nil, nil).Times(2)
-	_, err := validator.Validate(context.Background(), gateway, nil)
+	err := validator.Validate(context.Background(), state, gateway, nil)
 	require.NoError(t, err)
 
 	expected := errors.New("expected")
 	client.EXPECT().PodsWithLabels(gomock.Any(), gomock.Any()).Return(nil, nil).Times(2)
 	client.EXPECT().GetSecret(gomock.Any(), gomock.Any()).Return(nil, expected)
-	_, err = validator.Validate(context.Background(), gateway, nil)
+	err = validator.Validate(context.Background(), state, gateway, nil)
 	require.True(t, errors.Is(err, expected))
 
 	client.EXPECT().PodsWithLabels(gomock.Any(), gomock.Any()).Return(nil, expected).Times(1)
-	_, err = validator.Validate(context.Background(), gateway, nil)
+	err = validator.Validate(context.Background(), state, gateway, nil)
 	require.True(t, errors.Is(err, expected))
 }
 
@@ -185,7 +188,10 @@ func TestGatewayValidate_ListenerProtocolConflicts(t *testing.T) {
 
 	client.EXPECT().PodsWithLabels(gomock.Any(), gomock.Any()).Return(nil, nil).Times(2)
 	validator := NewGatewayValidator(client)
-	state, err := validator.Validate(context.Background(), gateway, nil)
+
+	state := state.InitialGatewayState(gateway)
+
+	err := validator.Validate(context.Background(), state, gateway, nil)
 	require.NoError(t, err)
 	require.Equal(t, status.ListenerConditionReasonProtocolConflict, state.Listeners[0].Status.Conflicted.Condition(0).Reason)
 	require.Equal(t, status.ListenerConditionReasonProtocolConflict, state.Listeners[1].Status.Conflicted.Condition(0).Reason)
@@ -218,7 +224,10 @@ func TestGatewayValidate_ListenerHostnameConflicts(t *testing.T) {
 
 	client.EXPECT().PodsWithLabels(gomock.Any(), gomock.Any()).Return(nil, nil).Times(2)
 	validator := NewGatewayValidator(client)
-	state, err := validator.Validate(context.Background(), gateway, nil)
+
+	state := state.InitialGatewayState(gateway)
+
+	err := validator.Validate(context.Background(), state, gateway, nil)
 	require.NoError(t, err)
 	require.Equal(t, status.ListenerConditionReasonHostnameConflict, state.Listeners[0].Status.Conflicted.Condition(0).Reason)
 	require.Equal(t, status.ListenerConditionReasonHostnameConflict, state.Listeners[1].Status.Conflicted.Condition(0).Reason)
@@ -238,25 +247,28 @@ func TestGatewayValidate_Pods(t *testing.T) {
 	}
 
 	// Pod has no/unknown status
+	gwState := state.InitialGatewayState(gateway)
 	client.EXPECT().PodsWithLabels(gomock.Any(), gomock.Any()).Return([]core.Pod{{
 		Status: core.PodStatus{},
 	}}, nil).Times(2)
 	validator := NewGatewayValidator(client)
-	state, err := validator.Validate(context.Background(), gateway, nil)
+	err := validator.Validate(context.Background(), gwState, gateway, nil)
 	require.NoError(t, err)
-	require.Equal(t, status.GatewayConditionReasonUnknown, state.Status.Scheduled.Condition(0).Reason)
+	require.Equal(t, status.GatewayConditionReasonUnknown, gwState.Status.Scheduled.Condition(0).Reason)
 
 	// Pod has pending status
+	gwState = state.InitialGatewayState(gateway)
 	client.EXPECT().PodsWithLabels(gomock.Any(), gomock.Any()).Return([]core.Pod{{
 		Status: core.PodStatus{
 			Phase: core.PodPending,
 		},
 	}}, nil).Times(2)
-	state, err = validator.Validate(context.Background(), gateway, nil)
+	err = validator.Validate(context.Background(), gwState, gateway, nil)
 	require.NoError(t, err)
-	require.Equal(t, status.GatewayConditionReasonNotReconciled, state.Status.Scheduled.Condition(0).Reason)
+	require.Equal(t, status.GatewayConditionReasonNotReconciled, gwState.Status.Scheduled.Condition(0).Reason)
 
 	// Pod is marked as unschedulable
+	gwState = state.InitialGatewayState(gateway)
 	client.EXPECT().PodsWithLabels(gomock.Any(), gomock.Any()).Return([]core.Pod{{
 		Status: core.PodStatus{
 			Phase: core.PodPending,
@@ -267,11 +279,12 @@ func TestGatewayValidate_Pods(t *testing.T) {
 			}},
 		},
 	}}, nil).Times(2)
-	state, err = validator.Validate(context.Background(), gateway, nil)
+	err = validator.Validate(context.Background(), gwState, gateway, nil)
 	require.NoError(t, err)
-	assert.Equal(t, status.GatewayConditionReasonNoResources, state.Status.Scheduled.Condition(0).Reason)
+	assert.Equal(t, status.GatewayConditionReasonNoResources, gwState.Status.Scheduled.Condition(0).Reason)
 
 	// Pod has running status and is marked ready
+	gwState = state.InitialGatewayState(gateway)
 	client.EXPECT().PodsWithLabels(gomock.Any(), gomock.Any()).Return([]core.Pod{{
 		Status: core.PodStatus{
 			Phase: core.PodRunning,
@@ -281,287 +294,390 @@ func TestGatewayValidate_Pods(t *testing.T) {
 			}},
 		},
 	}}, nil).Times(2)
-	state, err = validator.Validate(context.Background(), gateway, nil)
+	err = validator.Validate(context.Background(), gwState, gateway, nil)
 	require.NoError(t, err)
-	assert.True(t, state.PodReady)
+	assert.True(t, gwState.PodReady)
 
 	// Pod has succeeded status
+	gwState = state.InitialGatewayState(gateway)
 	client.EXPECT().PodsWithLabels(gomock.Any(), gomock.Any()).Return([]core.Pod{{
 		Status: core.PodStatus{
 			Phase: core.PodSucceeded,
 		},
 	}}, nil).Times(2)
-	state, err = validator.Validate(context.Background(), gateway, nil)
+	err = validator.Validate(context.Background(), gwState, gateway, nil)
 	require.NoError(t, err)
-	assert.Equal(t, status.GatewayConditionReasonPodFailed, state.Status.Scheduled.Condition(0).Reason)
+	assert.Equal(t, status.GatewayConditionReasonPodFailed, gwState.Status.Scheduled.Condition(0).Reason)
 
 	// Pod has failed status
+	gwState = state.InitialGatewayState(gateway)
 	client.EXPECT().PodsWithLabels(gomock.Any(), gomock.Any()).Return([]core.Pod{{
 		Status: core.PodStatus{
 			Phase: core.PodFailed,
 		},
 	}}, nil).Times(2)
-	state, err = validator.Validate(context.Background(), gateway, nil)
+	err = validator.Validate(context.Background(), gwState, gateway, nil)
 	require.NoError(t, err)
-	assert.Equal(t, status.GatewayConditionReasonPodFailed, state.Status.Scheduled.Condition(0).Reason)
+	assert.Equal(t, status.GatewayConditionReasonPodFailed, gwState.Status.Scheduled.Condition(0).Reason)
 }
 
 func TestListenerValidate(t *testing.T) {
 	t.Parallel()
 
+	expected := errors.New("expected")
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	client := mocks.NewMockClient(ctrl)
 
 	validator := NewGatewayValidator(client)
 
-	// protocols
-	listener := gwv1beta1.Listener{}
-	listenerState := &state.ListenerState{}
-	validator.validateProtocols(listenerState, listener)
-	condition := listenerState.Status.Detached.Condition(0)
-	require.Equal(t, status.ListenerConditionReasonUnsupportedProtocol, condition.Reason)
+	t.Run("Unsupported protocol", func(t *testing.T) {
+		listener := gwv1beta1.Listener{}
+		listenerState := &state.ListenerState{}
+		validator.validateProtocols(listenerState, listener)
+		condition := listenerState.Status.Detached.Condition(0)
+		require.Equal(t, status.ListenerConditionReasonUnsupportedProtocol, condition.Reason)
+	})
 
-	listener = gwv1beta1.Listener{
-		Protocol: gwv1beta1.HTTPProtocolType,
-		AllowedRoutes: &gwv1beta1.AllowedRoutes{
-			Kinds: []gwv1beta1.RouteGroupKind{{
-				Kind: "UDPRoute",
-			}},
-		},
-	}
-	listenerState = &state.ListenerState{}
-	validator.validateProtocols(listenerState, listener)
-	condition = listenerState.Status.ResolvedRefs.Condition(0)
-	require.Equal(t, status.ListenerConditionReasonInvalidRouteKinds, condition.Reason)
-
-	// Addresses
-	gateway := &gwv1beta1.Gateway{
-		Spec: gwv1beta1.GatewaySpec{
-			Addresses: []gwv1beta1.GatewayAddress{{}},
-		},
-	}
-	listenerState = &state.ListenerState{}
-	validator.validateUnsupported(listenerState, gateway)
-	condition = listenerState.Status.Detached.Condition(0)
-	require.Equal(t, status.ListenerConditionReasonUnsupportedAddress, condition.Reason)
-
-	// TLS validations
-	gateway = &gwv1beta1.Gateway{}
-	listener = gwv1beta1.Listener{
-		Protocol: gwv1beta1.HTTPSProtocolType,
-	}
-	listenerState = &state.ListenerState{}
-	err := validator.validateTLS(context.Background(), listenerState, gateway, listener)
-	require.NoError(t, err)
-	condition = listenerState.Status.Ready.Condition(0)
-	require.Equal(t, status.ListenerConditionReasonInvalid, condition.Reason)
-
-	mode := gwv1beta1.TLSModePassthrough
-	listener = gwv1beta1.Listener{
-		Protocol: gwv1beta1.HTTPSProtocolType,
-		TLS: &gwv1beta1.GatewayTLSConfig{
-			Mode: &mode,
-		},
-	}
-	listenerState = &state.ListenerState{}
-	err = validator.validateTLS(context.Background(), listenerState, gateway, listener)
-	require.NoError(t, err)
-	condition = listenerState.Status.Ready.Condition(0)
-	require.Equal(t, status.ListenerConditionReasonInvalid, condition.Reason)
-
-	listener = gwv1beta1.Listener{
-		Protocol: gwv1beta1.HTTPSProtocolType,
-		TLS:      &gwv1beta1.GatewayTLSConfig{},
-	}
-	listenerState = &state.ListenerState{}
-	err = validator.validateTLS(context.Background(), listenerState, gateway, listener)
-	require.NoError(t, err)
-	condition = listenerState.Status.ResolvedRefs.Condition(0)
-	require.Equal(t, status.ListenerConditionReasonInvalidCertificateRef, condition.Reason)
-
-	expected := errors.New("expected")
-	listener = gwv1beta1.Listener{
-		Protocol: gwv1beta1.HTTPSProtocolType,
-		TLS: &gwv1beta1.GatewayTLSConfig{
-			CertificateRefs: []gwv1beta1.SecretObjectReference{{
-				Name: "secret",
-			}},
-		},
-	}
-	listenerState = &state.ListenerState{}
-	client.EXPECT().GetSecret(gomock.Any(), gomock.Any()).Return(nil, expected)
-	err = validator.validateTLS(context.Background(), listenerState, gateway, listener)
-	require.True(t, errors.Is(err, expected))
-
-	listener = gwv1beta1.Listener{
-		Protocol: gwv1beta1.HTTPSProtocolType,
-		TLS: &gwv1beta1.GatewayTLSConfig{
-			CertificateRefs: []gwv1beta1.SecretObjectReference{{
-				Name: "secret",
-			}},
-		},
-	}
-	listenerState = &state.ListenerState{}
-	client.EXPECT().GetSecret(gomock.Any(), gomock.Any()).Return(nil, nil)
-	err = validator.validateTLS(context.Background(), listenerState, gateway, listener)
-	require.NoError(t, err)
-	condition = listenerState.Status.ResolvedRefs.Condition(0)
-	require.Equal(t, status.ListenerConditionReasonInvalidCertificateRef, condition.Reason)
-
-	listener = gwv1beta1.Listener{
-		Protocol: gwv1beta1.HTTPSProtocolType,
-		TLS: &gwv1beta1.GatewayTLSConfig{
-			CertificateRefs: []gwv1beta1.SecretObjectReference{{
-				Name: "secret",
-			}},
-		},
-	}
-	client.EXPECT().GetSecret(gomock.Any(), gomock.Any()).Return(&core.Secret{
-		ObjectMeta: meta.ObjectMeta{
-			Name: "secret",
-		},
-	}, nil)
-	listenerState = &state.ListenerState{}
-	err = validator.validateTLS(context.Background(), listenerState, gateway, listener)
-	require.NoError(t, err)
-	require.Len(t, listenerState.TLS.Certificates, 1)
-
-	group := gwv1beta1.Group("group")
-	kind := gwv1beta1.Kind("kind")
-	namespace := gwv1beta1.Namespace("namespace")
-	listener = gwv1beta1.Listener{
-		Protocol: gwv1beta1.HTTPSProtocolType,
-		TLS: &gwv1beta1.GatewayTLSConfig{
-			CertificateRefs: []gwv1beta1.SecretObjectReference{{
-				Namespace: &namespace,
-				Group:     &group,
-				Kind:      &kind,
-				Name:      "secret",
-			}},
-		},
-	}
-	listenerState = &state.ListenerState{}
-	err = validator.validateTLS(context.Background(), listenerState, gateway, listener)
-	require.NoError(t, err)
-	condition = listenerState.Status.ResolvedRefs.Condition(0)
-	require.Equal(t, status.ListenerConditionReasonInvalidCertificateRef, condition.Reason)
-
-	listener = gwv1beta1.Listener{
-		Protocol: gwv1beta1.HTTPSProtocolType,
-		TLS: &gwv1beta1.GatewayTLSConfig{
-			CertificateRefs: []gwv1beta1.SecretObjectReference{{
-				Name: "secret",
-			}},
-			Options: map[gwv1beta1.AnnotationKey]gwv1beta1.AnnotationValue{
-				"api-gateway.consul.hashicorp.com/tls_min_version": "TLSv1_2",
+	t.Run("Invalid route kinds", func(t *testing.T) {
+		listener := gwv1beta1.Listener{
+			Protocol: gwv1beta1.HTTPProtocolType,
+			AllowedRoutes: &gwv1beta1.AllowedRoutes{
+				Kinds: []gwv1beta1.RouteGroupKind{{
+					Kind: gwv1beta1.Kind("UDPRoute"),
+				}},
 			},
-		},
-	}
-	listenerState = &state.ListenerState{}
-	client.EXPECT().GetSecret(gomock.Any(), gomock.Any()).Return(&core.Secret{
-		ObjectMeta: meta.ObjectMeta{
-			Name: "secret",
-		},
-	}, nil)
-	err = validator.validateTLS(context.Background(), listenerState, gateway, listener)
-	require.NoError(t, err)
-	condition = listenerState.Status.Ready.Condition(0)
-	require.Equal(t, status.ListenerConditionReasonReady, condition.Reason)
-	require.Equal(t, "TLSv1_2", listenerState.TLS.MinVersion)
+		}
+		listenerState := &state.ListenerState{}
+		validator.validateProtocols(listenerState, listener)
+		condition := listenerState.Status.ResolvedRefs.Condition(0)
+		require.Equal(t, status.ListenerConditionReasonInvalidRouteKinds, condition.Reason)
+	})
 
-	listener = gwv1beta1.Listener{
-		Protocol: gwv1beta1.HTTPSProtocolType,
-		TLS: &gwv1beta1.GatewayTLSConfig{
-			CertificateRefs: []gwv1beta1.SecretObjectReference{{
-				Name: "secret",
-			}},
-			Options: map[gwv1beta1.AnnotationKey]gwv1beta1.AnnotationValue{
-				"api-gateway.consul.hashicorp.com/tls_min_version": "foo",
+	t.Run("Unsupported address", func(t *testing.T) {
+		gateway := &gwv1beta1.Gateway{
+			Spec: gwv1beta1.GatewaySpec{
+				Addresses: []gwv1beta1.GatewayAddress{{}},
 			},
-		},
-	}
-	client.EXPECT().GetSecret(gomock.Any(), gomock.Any()).Return(&core.Secret{
-		ObjectMeta: meta.ObjectMeta{
-			Name: "secret",
-		},
-	}, nil)
-	listenerState = &state.ListenerState{}
-	err = validator.validateTLS(context.Background(), listenerState, gateway, listener)
-	require.NoError(t, err)
-	condition = listenerState.Status.Ready.Condition(0)
-	require.Equal(t, status.ListenerConditionReasonInvalid, condition.Reason)
-	require.Equal(t, "unrecognized TLS min version", condition.Message)
+		}
+		listenerState := &state.ListenerState{}
+		validator.validateUnsupported(listenerState, gateway)
+		condition := listenerState.Status.Detached.Condition(0)
+		require.Equal(t, status.ListenerConditionReasonUnsupportedAddress, condition.Reason)
+	})
 
-	listener = gwv1beta1.Listener{
-		Protocol: gwv1beta1.HTTPSProtocolType,
-		TLS: &gwv1beta1.GatewayTLSConfig{
-			CertificateRefs: []gwv1beta1.SecretObjectReference{{
-				Name: "secret",
-			}},
-			Options: map[gwv1beta1.AnnotationKey]gwv1beta1.AnnotationValue{
-				"api-gateway.consul.hashicorp.com/tls_cipher_suites": "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256",
-			},
-		},
-	}
-	client.EXPECT().GetSecret(gomock.Any(), gomock.Any()).Return(&core.Secret{
-		ObjectMeta: meta.ObjectMeta{
-			Name: "secret",
-		},
-	}, nil)
-	listenerState = &state.ListenerState{}
-	err = validator.validateTLS(context.Background(), listenerState, gateway, listener)
-	require.NoError(t, err)
-	condition = listenerState.Status.Ready.Condition(0)
-	require.Equal(t, status.ListenerConditionReasonReady, condition.Reason)
-	require.Equal(t, []string{"TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256"}, listenerState.TLS.CipherSuites)
+	t.Run("Invalid TLS config", func(t *testing.T) {
+		listener := gwv1beta1.Listener{
+			Protocol: gwv1beta1.HTTPSProtocolType,
+		}
+		listenerState := &state.ListenerState{}
+		validator.validateTLS(context.Background(), listenerState, &gwv1beta1.Gateway{}, listener)
+		condition := listenerState.Status.Ready.Condition(0)
+		require.Equal(t, status.ListenerConditionReasonInvalid, condition.Reason)
+	})
 
-	listener = gwv1beta1.Listener{
-		Protocol: gwv1beta1.HTTPSProtocolType,
-		TLS: &gwv1beta1.GatewayTLSConfig{
-			CertificateRefs: []gwv1beta1.SecretObjectReference{{
-				Name: "secret",
-			}},
-			Options: map[gwv1beta1.AnnotationKey]gwv1beta1.AnnotationValue{
-				"api-gateway.consul.hashicorp.com/tls_min_version":   "TLSv1_3",
-				"api-gateway.consul.hashicorp.com/tls_cipher_suites": "foo",
+	t.Run("Invalid TLS passthrough", func(t *testing.T) {
+		mode := gwv1beta1.TLSModePassthrough
+		listener := gwv1beta1.Listener{
+			Protocol: gwv1beta1.HTTPSProtocolType,
+			TLS: &gwv1beta1.GatewayTLSConfig{
+				Mode: &mode,
 			},
-		},
-	}
-	listenerState = &state.ListenerState{}
-	client.EXPECT().GetSecret(gomock.Any(), gomock.Any()).Return(&core.Secret{
-		ObjectMeta: meta.ObjectMeta{
-			Name: "secret",
-		},
-	}, nil)
-	err = validator.validateTLS(context.Background(), listenerState, gateway, listener)
-	require.NoError(t, err)
-	condition = listenerState.Status.Ready.Condition(0)
-	require.Equal(t, status.ListenerConditionReasonInvalid, condition.Reason)
-	require.Equal(t, "configuring TLS cipher suites is only supported for TLS 1.2 and earlier", condition.Message)
+		}
+		listenerState := &state.ListenerState{}
+		validator.validateTLS(context.Background(), listenerState, &gwv1beta1.Gateway{}, listener)
+		condition := listenerState.Status.Ready.Condition(0)
+		require.Equal(t, status.ListenerConditionReasonInvalid, condition.Reason)
+	})
 
-	listener = gwv1beta1.Listener{
-		Protocol: gwv1beta1.HTTPSProtocolType,
-		TLS: &gwv1beta1.GatewayTLSConfig{
-			CertificateRefs: []gwv1beta1.SecretObjectReference{{
-				Name: "secret",
-			}},
-			Options: map[gwv1beta1.AnnotationKey]gwv1beta1.AnnotationValue{
-				"api-gateway.consul.hashicorp.com/tls_cipher_suites": "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, foo",
+	t.Run("Invalid certificate ref", func(t *testing.T) {
+		listener := gwv1beta1.Listener{
+			Protocol: gwv1beta1.HTTPSProtocolType,
+			TLS:      &gwv1beta1.GatewayTLSConfig{},
+		}
+		listenerState := &state.ListenerState{}
+		validator.validateTLS(context.Background(), listenerState, &gwv1beta1.Gateway{}, listener)
+		condition := listenerState.Status.ResolvedRefs.Condition(0)
+		require.Equal(t, status.ListenerConditionReasonInvalidCertificateRef, condition.Reason)
+	})
+
+	t.Run("Fail to retrieve secret", func(t *testing.T) {
+		listener := gwv1beta1.Listener{
+			Protocol: gwv1beta1.HTTPSProtocolType,
+			TLS: &gwv1beta1.GatewayTLSConfig{
+				CertificateRefs: []gwv1beta1.SecretObjectReference{{
+					Name: "secret",
+				}},
 			},
-		},
-	}
-	listenerState = &state.ListenerState{}
-	client.EXPECT().GetSecret(gomock.Any(), gomock.Any()).Return(&core.Secret{
-		ObjectMeta: meta.ObjectMeta{
-			Name: "secret",
-		},
-	}, nil)
-	err = validator.validateTLS(context.Background(), listenerState, gateway, listener)
-	require.NoError(t, err)
-	condition = listenerState.Status.Ready.Condition(0)
-	require.Equal(t, status.ListenerConditionReasonInvalid, condition.Reason)
-	require.Equal(t, "unrecognized or unsupported TLS cipher suite: foo", condition.Message)
+		}
+		listenerState := &state.ListenerState{}
+		client.EXPECT().GetSecret(gomock.Any(), gomock.Any()).Return(nil, expected)
+		err := validator.validateTLS(context.Background(), listenerState, &gwv1beta1.Gateway{}, listener)
+		require.True(t, errors.Is(err, expected))
+	})
+
+	t.Run("No secret found", func(t *testing.T) {
+		listener := gwv1beta1.Listener{
+			Protocol: gwv1beta1.HTTPSProtocolType,
+			TLS: &gwv1beta1.GatewayTLSConfig{
+				CertificateRefs: []gwv1beta1.SecretObjectReference{{
+					Name: "secret",
+				}},
+			},
+		}
+		listenerState := &state.ListenerState{}
+		client.EXPECT().GetSecret(gomock.Any(), gomock.Any()).Return(nil, nil)
+
+		err := validator.validateTLS(context.Background(), listenerState, &gwv1beta1.Gateway{}, listener)
+		require.NoError(t, err)
+
+		condition := listenerState.Status.ResolvedRefs.Condition(0)
+		require.Equal(t, status.ListenerConditionReasonInvalidCertificateRef, condition.Reason)
+	})
+
+	t.Run("Invalid cross-namespace secret ref with no ReferenceGrant", func(t *testing.T) {
+		otherNamespace := gwv1beta1.Namespace("other-namespace")
+		listener := gwv1beta1.Listener{
+			Protocol: gwv1beta1.HTTPSProtocolType,
+			TLS: &gwv1beta1.GatewayTLSConfig{
+				CertificateRefs: []gwv1beta1.SecretObjectReference{{
+					Namespace: &otherNamespace,
+					Name:      "secret",
+				}},
+			},
+		}
+		listenerState := &state.ListenerState{}
+		client.EXPECT().GetReferenceGrantsInNamespace(gomock.Any(), string(otherNamespace)).Return([]gwv1alpha2.ReferenceGrant{}, nil)
+
+		err := validator.validateTLS(context.Background(), listenerState, &gwv1beta1.Gateway{}, listener)
+		require.NoError(t, err)
+
+		condition := listenerState.Status.ResolvedRefs.Condition(0)
+		assert.Equal(t, status.ListenerConditionReasonInvalidCertificateRef, condition.Reason)
+	})
+
+	t.Run("Valid cross-namespace secret ref with ReferenceGrant", func(t *testing.T) {
+		gatewayNamespace := gwv1alpha2.Namespace("gateway-namespace")
+		secretNamespace := gwv1beta1.Namespace("secret-namespace")
+		gateway := &gwv1beta1.Gateway{
+			ObjectMeta: meta.ObjectMeta{Namespace: string(gatewayNamespace)},
+			TypeMeta:   meta.TypeMeta{APIVersion: "gateway.networking.k8s.io/v1beta1", Kind: "Gateway"},
+		}
+		listener := gwv1beta1.Listener{
+			Protocol: gwv1beta1.HTTPSProtocolType,
+			TLS: &gwv1beta1.GatewayTLSConfig{
+				CertificateRefs: []gwv1beta1.SecretObjectReference{{
+					Namespace: &secretNamespace,
+					Name:      "secret",
+				}},
+			},
+		}
+		listenerState := &state.ListenerState{}
+		client.EXPECT().GetReferenceGrantsInNamespace(gomock.Any(), string(secretNamespace)).
+			Return([]gwv1alpha2.ReferenceGrant{{
+				Spec: gwv1alpha2.ReferenceGrantSpec{
+					From: []gwv1alpha2.ReferenceGrantFrom{{
+						Group:     "gateway.networking.k8s.io",
+						Kind:      "Gateway",
+						Namespace: gatewayNamespace,
+					}},
+					To: []gwv1alpha2.ReferenceGrantTo{{
+						Kind: "Secret",
+					}},
+				},
+			}}, nil)
+		client.EXPECT().GetSecret(gomock.Any(), gomock.Any()).Return(&core.Secret{
+			ObjectMeta: meta.ObjectMeta{
+				Name: "secret",
+			},
+		}, nil)
+
+		err := validator.validateTLS(context.Background(), listenerState, gateway, listener)
+		require.NoError(t, err)
+		assert.Len(t, listenerState.TLS.Certificates, 1)
+
+		condition := listenerState.Status.ResolvedRefs.Condition(0)
+		assert.Equal(t, meta.ConditionTrue, condition.Status)
+	})
+
+	t.Run("Valid same-namespace secret ref without ReferenceGrant", func(t *testing.T) {
+		listener := gwv1beta1.Listener{
+			Protocol: gwv1beta1.HTTPSProtocolType,
+			TLS: &gwv1beta1.GatewayTLSConfig{
+				CertificateRefs: []gwv1beta1.SecretObjectReference{{
+					Name: "secret",
+				}},
+			},
+		}
+		listenerState := &state.ListenerState{}
+		client.EXPECT().GetSecret(gomock.Any(), gomock.Any()).Return(&core.Secret{
+			ObjectMeta: meta.ObjectMeta{
+				Name: "secret",
+			},
+		}, nil)
+
+		err := validator.validateTLS(context.Background(), listenerState, &gwv1beta1.Gateway{}, listener)
+		require.NoError(t, err)
+		assert.Len(t, listenerState.TLS.Certificates, 1)
+	})
+
+	t.Run("Unsupported certificate type", func(t *testing.T) {
+		group := gwv1beta1.Group("group")
+		kind := gwv1beta1.Kind("kind")
+		listener := gwv1beta1.Listener{
+			Protocol: gwv1beta1.HTTPSProtocolType,
+			TLS: &gwv1beta1.GatewayTLSConfig{
+				CertificateRefs: []gwv1beta1.SecretObjectReference{{
+					Group: &group,
+					Kind:  &kind,
+					Name:  "secret",
+				}},
+			},
+		}
+		listenerState := &state.ListenerState{}
+
+		err := validator.validateTLS(context.Background(), listenerState, &gwv1beta1.Gateway{}, listener)
+		require.NoError(t, err)
+
+		condition := listenerState.Status.ResolvedRefs.Condition(0)
+		assert.Equal(t, status.ListenerConditionReasonInvalidCertificateRef, condition.Reason)
+	})
+
+	t.Run("Valid minimum TLS version", func(t *testing.T) {
+		listener := gwv1beta1.Listener{
+			Protocol: gwv1beta1.HTTPSProtocolType,
+			TLS: &gwv1beta1.GatewayTLSConfig{
+				CertificateRefs: []gwv1beta1.SecretObjectReference{{
+					Name: "secret",
+				}},
+				Options: map[gwv1beta1.AnnotationKey]gwv1beta1.AnnotationValue{
+					"api-gateway.consul.hashicorp.com/tls_min_version": "TLSv1_2",
+				},
+			},
+		}
+		listenerState := &state.ListenerState{}
+		client.EXPECT().GetSecret(gomock.Any(), gomock.Any()).Return(&core.Secret{
+			ObjectMeta: meta.ObjectMeta{
+				Name: "secret",
+			},
+		}, nil)
+
+		err := validator.validateTLS(context.Background(), listenerState, &gwv1beta1.Gateway{}, listener)
+		require.NoError(t, err)
+
+		condition := listenerState.Status.Ready.Condition(0)
+		assert.Equal(t, status.ListenerConditionReasonReady, condition.Reason)
+		assert.Equal(t, "TLSv1_2", listenerState.TLS.MinVersion)
+	})
+
+	t.Run("Invalid minimum TLS version", func(t *testing.T) {
+		listener := gwv1beta1.Listener{
+			Protocol: gwv1beta1.HTTPSProtocolType,
+			TLS: &gwv1beta1.GatewayTLSConfig{
+				CertificateRefs: []gwv1beta1.SecretObjectReference{{
+					Name: "secret",
+				}},
+				Options: map[gwv1beta1.AnnotationKey]gwv1beta1.AnnotationValue{
+					"api-gateway.consul.hashicorp.com/tls_min_version": "foo",
+				},
+			},
+		}
+		listenerState := &state.ListenerState{}
+		client.EXPECT().GetSecret(gomock.Any(), gomock.Any()).Return(&core.Secret{
+			ObjectMeta: meta.ObjectMeta{
+				Name: "secret",
+			},
+		}, nil)
+
+		err := validator.validateTLS(context.Background(), listenerState, &gwv1beta1.Gateway{}, listener)
+		require.NoError(t, err)
+
+		condition := listenerState.Status.Ready.Condition(0)
+		assert.Equal(t, status.ListenerConditionReasonInvalid, condition.Reason)
+		assert.Equal(t, "unrecognized TLS min version", condition.Message)
+	})
+
+	t.Run("Valid TLS cipher suite", func(t *testing.T) {
+		listener := gwv1beta1.Listener{
+			Protocol: gwv1beta1.HTTPSProtocolType,
+			TLS: &gwv1beta1.GatewayTLSConfig{
+				CertificateRefs: []gwv1beta1.SecretObjectReference{{
+					Name: "secret",
+				}},
+				Options: map[gwv1beta1.AnnotationKey]gwv1beta1.AnnotationValue{
+					"api-gateway.consul.hashicorp.com/tls_cipher_suites": "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256",
+				},
+			},
+		}
+		listenerState := &state.ListenerState{}
+		client.EXPECT().GetSecret(gomock.Any(), gomock.Any()).Return(&core.Secret{
+			ObjectMeta: meta.ObjectMeta{
+				Name: "secret",
+			},
+		}, nil)
+
+		err := validator.validateTLS(context.Background(), listenerState, &gwv1beta1.Gateway{}, listener)
+		require.NoError(t, err)
+
+		condition := listenerState.Status.Ready.Condition(0)
+		assert.Equal(t, status.ListenerConditionReasonReady, condition.Reason)
+		assert.Equal(t, []string{"TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256"}, listenerState.TLS.CipherSuites)
+	})
+
+	t.Run("TLS cipher suite not allowed", func(t *testing.T) {
+		listener := gwv1beta1.Listener{
+			Protocol: gwv1beta1.HTTPSProtocolType,
+			TLS: &gwv1beta1.GatewayTLSConfig{
+				CertificateRefs: []gwv1beta1.SecretObjectReference{{
+					Name: "secret",
+				}},
+				Options: map[gwv1beta1.AnnotationKey]gwv1beta1.AnnotationValue{
+					"api-gateway.consul.hashicorp.com/tls_min_version":   "TLSv1_3",
+					"api-gateway.consul.hashicorp.com/tls_cipher_suites": "foo",
+				},
+			},
+		}
+		listenerState := &state.ListenerState{}
+		client.EXPECT().GetSecret(gomock.Any(), gomock.Any()).Return(&core.Secret{
+			ObjectMeta: meta.ObjectMeta{
+				Name: "secret",
+			},
+		}, nil)
+
+		err := validator.validateTLS(context.Background(), listenerState, &gwv1beta1.Gateway{}, listener)
+		require.NoError(t, err)
+
+		condition := listenerState.Status.Ready.Condition(0)
+		assert.Equal(t, status.ListenerConditionReasonInvalid, condition.Reason)
+		assert.Equal(t, "configuring TLS cipher suites is only supported for TLS 1.2 and earlier", condition.Message)
+	})
+
+	t.Run("Invalid TLS cipher suite", func(t *testing.T) {
+		listener := gwv1beta1.Listener{
+			Protocol: gwv1beta1.HTTPSProtocolType,
+			TLS: &gwv1beta1.GatewayTLSConfig{
+				CertificateRefs: []gwv1beta1.SecretObjectReference{{
+					Name: "secret",
+				}},
+				Options: map[gwv1beta1.AnnotationKey]gwv1beta1.AnnotationValue{
+					"api-gateway.consul.hashicorp.com/tls_cipher_suites": "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, foo",
+				},
+			},
+		}
+		listenerState := &state.ListenerState{}
+		client.EXPECT().GetSecret(gomock.Any(), gomock.Any()).Return(&core.Secret{
+			ObjectMeta: meta.ObjectMeta{
+				Name: "secret",
+			},
+		}, nil)
+
+		err := validator.validateTLS(context.Background(), listenerState, &gwv1beta1.Gateway{}, listener)
+		require.NoError(t, err)
+
+		condition := listenerState.Status.Ready.Condition(0)
+		assert.Equal(t, status.ListenerConditionReasonInvalid, condition.Reason)
+		assert.Equal(t, "unrecognized or unsupported TLS cipher suite: foo", condition.Message)
+	})
 }
 
 func TestIsKindInSet(t *testing.T) {
