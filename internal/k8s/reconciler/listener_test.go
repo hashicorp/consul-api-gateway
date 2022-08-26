@@ -170,7 +170,6 @@ func TestListenerCanBind_RouteKind(t *testing.T) {
 	}, K8sListenerConfig{
 		Logger: hclog.NewNullLogger(),
 	})
-	//require.NoError(t, listener.Validate(context.Background()))
 
 	canBind, err := listener.CanBind(context.Background(), newK8sRoute(&gwv1alpha2.UDPRoute{
 		TypeMeta: routeMeta,
