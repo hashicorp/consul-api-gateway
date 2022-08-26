@@ -5,6 +5,8 @@
 
 [![CI Status](https://github.com/hashicorp/consul-api-gateway/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/hashicorp/consul-api-gateway/actions/workflows/ci.yml?query=branch%3Amain) [![Discuss](https://img.shields.io/badge/discuss-consul--api--gateway-dc477d?logo=consul)](https://discuss.hashicorp.com/c/consul)
 
+**We're looking for feedback on how our users interact with Consul API Gateway, please fill out our brief [survey](https://hashicorp.sjc1.qualtrics.com/jfe/form/SV_cMSefVc8TkVD0eW)!**
+
 # Overview
 
 The Consul API Gateway is a dedicated ingress solution for intelligently routing traffic to applications
@@ -17,13 +19,13 @@ Consul API Gateway implements the Kubernetes [Gateway API Specification](https:/
 - **Controlling access at the point of entry**: Consul API Gateway allows users to set the protocols of external connection requests and provide clients with TLS certificates from trusted providers (e.g., Verisign, Let’s Encrypt).
 - **Simplifying traffic management**: The Consul API Gateway can load balance requests across services and route traffic to the appropriate service by matching one or more criteria, such as hostname, path, header presence or value, and HTTP Method type (e.g., GET, POST, PATCH).
 
-## Prerequisites  
+## Prerequisites
 
 The Consul API Gateway must be installed on a Kubernetes cluster with the [Consul K8s](https://github.com/hashicorp/consul-k8s) service
 mesh deployed on it. The installed version of Consul must be `v1.11.2` or greater.
 
 The Consul Helm chart must be used, with specific settings, to install Consul on the Kubernetes
-cluster. The Consul Helm chart must be version `0.47.1` or greater.  See the Consul API Gateway documentation for the required settings.
+cluster. The Consul Helm chart must be version `0.47.1` or greater. See the Consul API Gateway documentation for the required settings.
 
 # Documentation
 
