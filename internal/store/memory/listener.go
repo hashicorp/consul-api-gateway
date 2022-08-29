@@ -3,9 +3,10 @@ package memory
 import (
 	"reflect"
 
+	"github.com/hashicorp/go-hclog"
+
 	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul-api-gateway/internal/store"
-	"github.com/hashicorp/go-hclog"
 )
 
 const (

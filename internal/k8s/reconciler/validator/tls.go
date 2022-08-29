@@ -1,4 +1,4 @@
-package reconciler
+package validator
 
 const (
 	annotationKeyPrefix          = "api-gateway.consul.hashicorp.com/"
