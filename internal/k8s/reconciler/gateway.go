@@ -18,6 +18,8 @@ import (
 	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 )
 
+// TODO (nathancoleman) A lot of these fields - including validator, deployer, etc. -
+//   will need to move out of this struct by the end of our store refactor.
 type K8sGateway struct {
 	*gwv1beta1.Gateway
 	GatewayState *state.GatewayState
