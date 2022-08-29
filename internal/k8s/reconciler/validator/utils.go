@@ -11,35 +11,6 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 )
 
-// gatewayAllowedForSecretRef determines whether the gateway is allowed
-// for the secret either by being in the same namespace or by having
-// an applicable ReferenceGrant in the same namespace as the secret.
-func gatewayAllowedForSecretRef(ctx context.Context, gateway *gwv1beta1.Gateway, secretRef gwv1beta1.SecretObjectReference, c gatewayclient.Client) (bool, error) {
-	fromNS := gateway.GetNamespace()
-	fromGK := metav1.GroupKind{
-		Group: gateway.GroupVersionKind().Group,
-		Kind:  gateway.GroupVersionKind().Kind,
-	}
-
-	toName := string(secretRef.Name)
-	toNS := ""
-	if secretRef.Namespace != nil {
-		toNS = string(*secretRef.Namespace)
-	}
-
-	// Kind should default to Secret if not set
-	// https://github.com/kubernetes-sigs/gateway-api/blob/ef773194892636ea8ecbb2b294daf771d4dd5009/apis/v1alpha2/object_reference_types.go#L59
-	toGK := metav1.GroupKind{Kind: "Secret"}
-	if secretRef.Group != nil {
-		toGK.Group = string(*secretRef.Group)
-	}
-	if secretRef.Kind != nil {
-		toGK.Kind = string(*secretRef.Kind)
-	}
-
-	return referenceAllowed(ctx, fromGK, fromNS, toGK, toNS, toName, c)
-}
-
 // referenceAllowed checks to see if a reference between resources is allowed.
 // In particular, references from one namespace to a resource in a different namespace
 // require an applicable ReferenceGrant be found in the namespace containing the resource

@@ -2,11 +2,9 @@ package reconciler
 
 import (
 	"context"
-	"fmt"
 	"testing"
 
 	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	core "k8s.io/api/core/v1"
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -355,133 +353,4 @@ func TestGatewayStatusEqual(t *testing.T) {
 	require.False(t, gatewayStatusEqual(gwv1beta1.GatewayStatus{}, gwv1beta1.GatewayStatus{
 		Listeners: []gwv1beta1.ListenerStatus{{}},
 	}))
-}
-
-func TestRouteAllowedForBackendRef(t *testing.T) {
-	type testCase struct {
-		name        string
-		fromNS      string
-		toNS        *string
-		toKind      *string
-		toName      string
-		grantFromNS string
-		grantToName *string
-		allowed     bool
-	}
-
-	ns1, ns2, ns3 := "namespace1", "namespace2", "namespace3"
-	backend1, backend2, backend3 := "backend1", "backend2", "backend3"
-
-	for _, tc := range []testCase{
-		{name: "unspecified-backend-namespace-allowed", fromNS: ns1, toNS: nil, toName: backend1, grantFromNS: ns1, grantToName: nil, allowed: true},
-		{name: "same-namespace-no-name-allowed", fromNS: ns1, toNS: &ns1, toName: backend1, grantFromNS: ns1, grantToName: nil, allowed: true},
-		{name: "same-namespace-with-name-allowed", fromNS: ns1, toNS: &ns1, toName: backend1, grantFromNS: ns1, grantToName: &backend1, allowed: true},
-		{name: "different-namespace-no-name-allowed", fromNS: ns1, toNS: &ns2, toName: backend2, grantFromNS: ns1, grantToName: nil, allowed: true},
-		{name: "different-namespace-with-name-allowed", fromNS: ns1, toNS: &ns2, toName: backend2, grantFromNS: ns1, grantToName: &backend2, allowed: true},
-		{name: "mismatched-grant-from-namespace-disallowed", fromNS: ns1, toNS: &ns2, toName: backend2, grantFromNS: ns3, grantToName: &backend2, allowed: false},
-		{name: "mismatched-grant-to-name-disallowed", fromNS: ns1, toNS: &ns2, toName: backend2, grantFromNS: ns1, grantToName: &backend3, allowed: false},
-	} {
-		// Test each case for both HTTPRoute + TCPRoute which should function identically
-		for _, routeType := range []string{"HTTPRoute", "TCPRoute"} {
-			t.Run(tc.name+"-for-"+routeType, func(t *testing.T) {
-				ctrl := gomock.NewController(t)
-				defer ctrl.Finish()
-				client := mocks.NewMockClient(ctrl)
-
-				group := gwv1alpha2.Group("")
-
-				backendRef := gwv1alpha2.BackendRef{
-					BackendObjectReference: gwv1alpha2.BackendObjectReference{
-						Group: &group,
-						Name:  gwv1alpha2.ObjectName(tc.toName),
-					},
-				}
-
-				if tc.toNS != nil {
-					ns := gwv1alpha2.Namespace(*tc.toNS)
-					backendRef.BackendObjectReference.Namespace = &ns
-				}
-
-				if tc.toKind != nil {
-					k := gwv1alpha2.Kind(*tc.toKind)
-					backendRef.Kind = &k
-				}
-
-				var route Route
-				switch routeType {
-				case "HTTPRoute":
-					route = &gwv1alpha2.HTTPRoute{
-						ObjectMeta: meta.ObjectMeta{Namespace: tc.fromNS},
-						TypeMeta:   meta.TypeMeta{APIVersion: "gateway.networking.k8s.io/v1alpha2", Kind: "HTTPRoute"},
-						Spec: gwv1alpha2.HTTPRouteSpec{
-							Rules: []gwv1alpha2.HTTPRouteRule{{
-								BackendRefs: []gwv1alpha2.HTTPBackendRef{{BackendRef: backendRef}},
-							}},
-						},
-					}
-				case "TCPRoute":
-					route = &gwv1alpha2.TCPRoute{
-						ObjectMeta: meta.ObjectMeta{Namespace: tc.fromNS},
-						TypeMeta:   meta.TypeMeta{APIVersion: "gateway.networking.k8s.io/v1alpha2", Kind: "TCPRoute"},
-						Spec: gwv1alpha2.TCPRouteSpec{
-							Rules: []gwv1alpha2.TCPRouteRule{{
-								BackendRefs: []gwv1alpha2.BackendRef{backendRef},
-							}},
-						},
-					}
-				default:
-					require.Fail(t, fmt.Sprintf("unhandled route type %q", routeType))
-				}
-
-				var toName *gwv1alpha2.ObjectName
-				if tc.grantToName != nil {
-					on := gwv1alpha2.ObjectName(*tc.grantToName)
-					toName = &on
-				}
-
-				if tc.toNS != nil && tc.fromNS != *tc.toNS {
-					referenceGrant := gwv1alpha2.ReferenceGrant{
-						TypeMeta:   meta.TypeMeta{},
-						ObjectMeta: meta.ObjectMeta{Namespace: *tc.toNS},
-						Spec: gwv1alpha2.ReferenceGrantSpec{
-							From: []gwv1alpha2.ReferenceGrantFrom{{
-								Group:     "gateway.networking.k8s.io",
-								Kind:      gwv1alpha2.Kind(routeType),
-								Namespace: gwv1alpha2.Namespace(tc.grantFromNS),
-							}},
-							To: []gwv1alpha2.ReferenceGrantTo{{
-								Group: "",
-								Kind:  "Service",
-								Name:  toName,
-							}},
-						},
-					}
-
-					throwawayGrant := gwv1alpha2.ReferenceGrant{
-						ObjectMeta: meta.ObjectMeta{Namespace: *tc.toNS},
-						Spec: gwv1alpha2.ReferenceGrantSpec{
-							From: []gwv1alpha2.ReferenceGrantFrom{{
-								Group:     "Kool & The Gang",
-								Kind:      "Jungle Boogie",
-								Namespace: "Wild And Peaceful",
-							}},
-							To: []gwv1alpha2.ReferenceGrantTo{{
-								Group: "does not exist",
-								Kind:  "does not exist",
-								Name:  nil,
-							}},
-						},
-					}
-
-					client.EXPECT().
-						GetReferenceGrantsInNamespace(gomock.Any(), *tc.toNS).
-						Return([]gwv1alpha2.ReferenceGrant{throwawayGrant, referenceGrant}, nil)
-				}
-
-				allowed, err := routeAllowedForBackendRef(context.Background(), route, backendRef, client)
-				require.NoError(t, err)
-				assert.Equal(t, tc.allowed, allowed)
-			})
-		}
-	}
 }

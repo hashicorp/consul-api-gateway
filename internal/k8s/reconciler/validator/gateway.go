@@ -8,6 +8,7 @@ import (
 
 	"golang.org/x/exp/slices"
 	core "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	gwv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
@@ -19,9 +20,10 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 )
 
-// GatewayValidator is responsible for taking a provided gwv1beta1.Gateway and
+// GatewayValidator is responsible for taking a provided v1beta1.Gateway and
 // deriving a state.GatewayState from it. Ultimately, this GatewayState is what
-// makes up the Status on the Kubernetes Gateway resource.
+// makes up the Status on the Kubernetes Gateway resource
+// and stores information about currently bound Routes.
 type GatewayValidator struct {
 	client gatewayclient.Client
 }
@@ -509,4 +511,33 @@ func isKindInSet(value gwv1beta1.RouteGroupKind, set []gwv1beta1.RouteGroupKind)
 		}
 	}
 	return false
+}
+
+// gatewayAllowedForSecretRef determines whether the gateway is allowed
+// for the secret either by being in the same namespace or by having
+// an applicable ReferenceGrant in the same namespace as the secret.
+func gatewayAllowedForSecretRef(ctx context.Context, gateway *gwv1beta1.Gateway, secretRef gwv1beta1.SecretObjectReference, c gatewayclient.Client) (bool, error) {
+	fromNS := gateway.GetNamespace()
+	fromGK := metav1.GroupKind{
+		Group: gateway.GroupVersionKind().Group,
+		Kind:  gateway.GroupVersionKind().Kind,
+	}
+
+	toName := string(secretRef.Name)
+	toNS := ""
+	if secretRef.Namespace != nil {
+		toNS = string(*secretRef.Namespace)
+	}
+
+	// Kind should default to Secret if not set
+	// https://github.com/kubernetes-sigs/gateway-api/blob/ef773194892636ea8ecbb2b294daf771d4dd5009/apis/v1alpha2/object_reference_types.go#L59
+	toGK := metav1.GroupKind{Kind: "Secret"}
+	if secretRef.Group != nil {
+		toGK.Group = string(*secretRef.Group)
+	}
+	if secretRef.Kind != nil {
+		toGK.Kind = string(*secretRef.Kind)
+	}
+
+	return referenceAllowed(ctx, fromGK, fromNS, toGK, toNS, toName, c)
 }
