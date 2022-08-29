@@ -21,6 +21,9 @@ type Route interface {
 	schema.ObjectKind
 }
 
+// RouteValidator is responsible for taking a provided v1alpha2.HTTPRoute or
+// v1alpha2.TCPRoute and deriving a state.RouteState from it. Ultimately, this
+// RouteState is what makes up the Status on the Kubernetes Route resource.
 type RouteValidator struct {
 	client   gatewayclient.Client
 	resolver service.BackendResolver
