@@ -3,7 +3,6 @@ package reconciler
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 
 	"github.com/hashicorp/go-hclog"
@@ -16,6 +15,7 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/state"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/validator"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/service"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	"github.com/hashicorp/consul-api-gateway/internal/store"
@@ -34,7 +34,7 @@ type K8sRoute struct {
 	controllerName string
 	logger         hclog.Logger
 	client         gatewayclient.Client
-	resolver       service.BackendResolver
+	validator      *validator.RouteValidator
 }
 
 var _ store.StatusTrackingRoute = &K8sRoute{}
@@ -53,7 +53,7 @@ func newK8sRoute(route Route, config K8sRouteConfig) *K8sRoute {
 		controllerName: config.ControllerName,
 		logger:         config.Logger.Named("route").With("name", route.GetName()),
 		client:         config.Client,
-		resolver:       config.Resolver,
+		validator:      validator.NewRouteValidator(config.Resolver, config.Client),
 	}
 }
 
@@ -179,84 +179,7 @@ func (r *K8sRoute) Parents() []gwv1alpha2.ParentReference {
 }
 
 func (r *K8sRoute) Validate(ctx context.Context) error {
-	switch route := r.Route.(type) {
-	case *gwv1alpha2.HTTPRoute:
-		for _, httpRule := range route.Spec.Rules {
-			rule := httpRule
-			routeRule := service.NewRouteRule(&rule)
-
-			for _, backendRef := range rule.BackendRefs {
-				ref := backendRef
-
-				allowed, err := routeAllowedForBackendRef(ctx, r.Route, ref.BackendRef, r.client)
-				if err != nil {
-					return err
-				} else if !allowed {
-					nsName := getNamespacedName(ref.Name, ref.Namespace, route.Namespace)
-					msg := fmt.Sprintf("Cross-namespace routing not allowed without matching ReferenceGrant for Service %q", nsName)
-					r.logger.Warn("Cross-namespace routing not allowed without matching ReferenceGrant", "refName", nsName.Name, "refNamespace", nsName.Namespace)
-					r.RouteState.ResolutionErrors.Add(service.NewRefNotPermittedError(msg))
-					continue
-				}
-
-				reference, err := r.resolver.Resolve(ctx, r.GetNamespace(), ref.BackendObjectReference)
-				if err != nil {
-					var resolutionError service.ResolutionError
-					if !errors.As(err, &resolutionError) {
-						return err
-					}
-					r.RouteState.ResolutionErrors.Add(resolutionError)
-					continue
-				}
-				reference.Reference.Set(&ref)
-				r.RouteState.References.Add(routeRule, *reference)
-			}
-		}
-	case *gwv1alpha2.TCPRoute:
-		if len(route.Spec.Rules) != 1 {
-			err := service.NewResolutionError("a single tcp rule is required")
-			r.RouteState.ResolutionErrors.Add(err)
-			return nil
-		}
-
-		rule := route.Spec.Rules[0]
-
-		if len(rule.BackendRefs) != 1 {
-			err := service.NewResolutionError("a single backendRef per tcp rule is required")
-			r.RouteState.ResolutionErrors.Add(err)
-			return nil
-		}
-
-		routeRule := service.NewRouteRule(rule)
-
-		ref := rule.BackendRefs[0]
-
-		allowed, err := routeAllowedForBackendRef(ctx, r.Route, ref, r.client)
-		if err != nil {
-			return err
-		} else if !allowed {
-			nsName := getNamespacedName(ref.Name, ref.Namespace, route.Namespace)
-			msg := fmt.Sprintf("Cross-namespace routing not allowed without matching ReferenceGrant for Service %q", nsName)
-			r.logger.Warn("Cross-namespace routing not allowed without matching ReferenceGrant", "refName", nsName.Name, "refNamespace", nsName.Namespace)
-			r.RouteState.ResolutionErrors.Add(service.NewRefNotPermittedError(msg))
-			return nil
-		}
-
-		reference, err := r.resolver.Resolve(ctx, r.GetNamespace(), ref.BackendObjectReference)
-		if err != nil {
-			var resolutionError service.ResolutionError
-			if !errors.As(err, &resolutionError) {
-				return err
-			}
-			r.RouteState.ResolutionErrors.Add(resolutionError)
-			return nil
-		}
-
-		reference.Reference.Set(&ref)
-		r.RouteState.References.Add(routeRule, *reference)
-	}
-
-	return nil
+	return r.validator.Validate(ctx, r.RouteState, r.Route)
 }
 
 func (r *K8sRoute) OnBindFailed(err error, gateway store.Gateway) {
