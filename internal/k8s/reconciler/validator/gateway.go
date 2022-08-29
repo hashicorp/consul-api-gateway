@@ -22,7 +22,8 @@ import (
 
 // GatewayValidator is responsible for taking a provided v1beta1.Gateway and
 // deriving a state.GatewayState from it. Ultimately, this GatewayState is what
-// makes up the Status on the Kubernetes Gateway resource.
+// makes up the Status on the Kubernetes Gateway resource
+// and stores information about currently bound Routes.
 type GatewayValidator struct {
 	client gatewayclient.Client
 }
