@@ -78,7 +78,7 @@ func (r *K8sRoute) ID() string {
 	return ""
 }
 
-func (r *K8sRoute) MatchesHostname(hostname *gwv1beta1.Hostname) bool {
+func (r *K8sRoute) matchesHostname(hostname *gwv1beta1.Hostname) bool {
 	switch route := r.Route.(type) {
 	case *gwv1alpha2.HTTPRoute:
 		return routeMatchesListenerHostname(hostname, route.Spec.Hostnames)
@@ -142,19 +142,22 @@ func (r *K8sRoute) Resolve(listener store.Listener) core.ResolvedRoute {
 		return nil
 	}
 
-	prefix := fmt.Sprintf("consul-api-gateway_%s_", k8sListener.gateway.Name)
-	namespace := k8sListener.consulNamespace
-	hostname := k8sListener.Config().Hostname
+	return r.resolve(r.GetNamespace(), k8sListener.gateway, k8sListener.listener)
+}
+
+func (r *K8sRoute) resolve(namespace string, gateway *gwv1beta1.Gateway, listener gwv1beta1.Listener) core.ResolvedRoute {
+	hostname := listenerHostname(listener)
+
 	switch route := r.Route.(type) {
 	case *gwv1alpha2.HTTPRoute:
 		return converter.NewHTTPRouteConverter(converter.HTTPRouteConverterConfig{
 			Namespace: namespace,
 			Hostname:  hostname,
-			Prefix:    prefix,
+			//Prefix:    prefix,
 			Meta: map[string]string{
 				"external-source":                            "consul-api-gateway",
-				"consul-api-gateway/k8s/Gateway.Name":        k8sListener.gateway.Name,
-				"consul-api-gateway/k8s/Gateway.Namespace":   k8sListener.gateway.Namespace,
+				"consul-api-gateway/k8s/Gateway.Name":        gateway.Name,
+				"consul-api-gateway/k8s/Gateway.Namespace":   gateway.Namespace,
 				"consul-api-gateway/k8s/HTTPRoute.Name":      r.GetName(),
 				"consul-api-gateway/k8s/HTTPRoute.Namespace": r.GetNamespace(),
 			},
@@ -165,11 +168,11 @@ func (r *K8sRoute) Resolve(listener store.Listener) core.ResolvedRoute {
 		return converter.NewTCPRouteConverter(converter.TCPRouteConverterConfig{
 			Namespace: namespace,
 			Hostname:  hostname,
-			Prefix:    prefix,
+			//Prefix:    prefix,
 			Meta: map[string]string{
 				"external-source":                           "consul-api-gateway",
-				"consul-api-gateway/k8s/Gateway.Name":       k8sListener.gateway.Name,
-				"consul-api-gateway/k8s/Gateway.Namespace":  k8sListener.gateway.Namespace,
+				"consul-api-gateway/k8s/Gateway.Name":       gateway.Name,
+				"consul-api-gateway/k8s/Gateway.Namespace":  gateway.Namespace,
 				"consul-api-gateway/k8s/TCPRoute.Name":      r.GetName(),
 				"consul-api-gateway/k8s/TCPRoute.Namespace": r.GetNamespace(),
 			},

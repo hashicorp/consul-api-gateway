@@ -11,8 +11,10 @@ import (
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 
-	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/go-hclog"
+
+	"github.com/hashicorp/consul-api-gateway/internal/core"
+	"github.com/hashicorp/consul-api-gateway/internal/store"
 )
 
 //go:generate mockgen -source ./middleware.go -destination ./mocks/middleware.go -package mocks GatewaySecretRegistry
@@ -48,30 +50,20 @@ func GatewayFromContext(ctx context.Context) core.GatewayID {
 	return value.(core.GatewayID)
 }
 
-// GatewaySecretRegistry is used as the authority for determining what gateways the SDS server
-// should actually respond to because they're managed by consul-api-gateway
-type GatewaySecretRegistry interface {
-	// GatewayExists is used to determine whether or not we know a particular gateway instance
-	GatewayExists(ctx context.Context, info core.GatewayID) (bool, error)
-	// CanFetchSecrets is used to determine whether a gateway should be able to fetch a set
-	// of secrets it has requested
-	CanFetchSecrets(ctx context.Context, info core.GatewayID, secrets []string) (bool, error)
-}
-
 // SPIFFEStreamMiddleware verifies the spiffe entries for the certificate
 // and sets the client identidy on the request context. If no
 // spiffe information is detected, or if the service is unknown,
 // the request is rejected.
-func SPIFFEStreamMiddleware(logger hclog.Logger, fetcher CertificateFetcher, registry GatewaySecretRegistry) grpc.StreamServerInterceptor {
+func SPIFFEStreamMiddleware(logger hclog.Logger, fetcher CertificateFetcher, store store.Store) grpc.StreamServerInterceptor {
 	return func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
-		if info, ok := verifySPIFFE(ss.Context(), logger, registry); ok {
+		if info, ok := verifySPIFFE(ss.Context(), logger, store); ok {
 			return handler(srv, wrapStream(ss, info))
 		}
 		return status.Errorf(codes.Unauthenticated, "unable to authenticate request")
 	}
 }
 
-func verifySPIFFE(ctx context.Context, logger hclog.Logger, registry GatewaySecretRegistry) (core.GatewayID, bool) {
+func verifySPIFFE(ctx context.Context, logger hclog.Logger, store store.Store) (core.GatewayID, bool) {
 	if p, ok := peer.FromContext(ctx); ok {
 		if mtls, ok := p.AuthInfo.(credentials.TLSInfo); ok {
 			// grab the peer certificate info
@@ -90,12 +82,12 @@ func verifySPIFFE(ctx context.Context, logger hclog.Logger, registry GatewaySecr
 							continue
 						}
 						// if we're tracking the gateway then we're good
-						exists, err := registry.GatewayExists(ctx, info)
+						gateway, err := store.GetGateway(ctx, info)
 						if err != nil {
 							logger.Error("error checking for gateway, skipping", "error", err)
 							continue
 						}
-						if exists {
+						if gateway != nil {
 							return info, true
 						}
 						logger.Warn("gateway not found", "namespace", info.ConsulNamespace, "service", info.Service)
