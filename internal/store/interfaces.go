@@ -86,7 +86,7 @@ type StatusTrackingRoute interface {
 // source integrations
 type Route interface {
 	ID() string
-	Resolve(listener Listener) *core.ResolvedRoute
+	Resolve(listener Listener) core.ResolvedRoute
 }
 
 // Store is used for persisting and querying gateways and routes

@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 	core "k8s.io/api/core/v1"
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	gwv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 	gwv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
@@ -39,6 +40,18 @@ func TestRouteID(t *testing.T) {
 	require.Equal(t, "", newK8sRoute(&core.Pod{
 		ObjectMeta: meta,
 	}, config).ID())
+}
+
+func TestHTTPRouteID(t *testing.T) {
+	t.Parallel()
+
+	require.Equal(t, "http-namespace/name", HTTPRouteID(types.NamespacedName{Namespace: "namespace", Name: "name"}))
+}
+
+func TestTCPRouteID(t *testing.T) {
+	t.Parallel()
+
+	require.Equal(t, "tcp-namespace/name", TCPRouteID(types.NamespacedName{Namespace: "namespace", Name: "name"}))
 }
 
 func TestRouteCommonRouteSpec(t *testing.T) {
