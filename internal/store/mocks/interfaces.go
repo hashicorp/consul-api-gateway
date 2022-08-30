@@ -471,10 +471,10 @@ func (mr *MockStatusTrackingRouteMockRecorder) OnGatewayRemoved(gateway interfac
 }
 
 // Resolve mocks base method.
-func (m *MockStatusTrackingRoute) Resolve(listener store.Listener) *core.ResolvedRoute {
+func (m *MockStatusTrackingRoute) Resolve(listener store.Listener) core.ResolvedRoute {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Resolve", listener)
-	ret0, _ := ret[0].(*core.ResolvedRoute)
+	ret0, _ := ret[0].(core.ResolvedRoute)
 	return ret0
 }
 
@@ -536,10 +536,10 @@ func (mr *MockRouteMockRecorder) ID() *gomock.Call {
 }
 
 // Resolve mocks base method.
-func (m *MockRoute) Resolve(listener store.Listener) *core.ResolvedRoute {
+func (m *MockRoute) Resolve(listener store.Listener) core.ResolvedRoute {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Resolve", listener)
-	ret0, _ := ret[0].(*core.ResolvedRoute)
+	ret0, _ := ret[0].(core.ResolvedRoute)
 	return ret0
 }
 

@@ -14,6 +14,7 @@ import (
 
 	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/converter"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/state"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/validator"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/service"
@@ -135,7 +136,7 @@ func (r *K8sRoute) SyncStatus(ctx context.Context) error {
 	return nil
 }
 
-func (r *K8sRoute) Resolve(listener store.Listener) *core.ResolvedRoute {
+func (r *K8sRoute) Resolve(listener store.Listener) core.ResolvedRoute {
 	k8sListener, ok := listener.(*K8sListener)
 	if !ok {
 		return nil
@@ -146,21 +147,35 @@ func (r *K8sRoute) Resolve(listener store.Listener) *core.ResolvedRoute {
 	hostname := k8sListener.Config().Hostname
 	switch route := r.Route.(type) {
 	case *gwv1alpha2.HTTPRoute:
-		return convertHTTPRoute(namespace, hostname, prefix, map[string]string{
-			"external-source":                            "consul-api-gateway",
-			"consul-api-gateway/k8s/Gateway.Name":        k8sListener.gateway.Name,
-			"consul-api-gateway/k8s/Gateway.Namespace":   k8sListener.gateway.Namespace,
-			"consul-api-gateway/k8s/HTTPRoute.Name":      r.GetName(),
-			"consul-api-gateway/k8s/HTTPRoute.Namespace": r.GetNamespace(),
-		}, route, r)
+		return converter.NewHTTPRouteConverter(converter.HTTPRouteConverterConfig{
+			Namespace: namespace,
+			Hostname:  hostname,
+			Prefix:    prefix,
+			Meta: map[string]string{
+				"external-source":                            "consul-api-gateway",
+				"consul-api-gateway/k8s/Gateway.Name":        k8sListener.gateway.Name,
+				"consul-api-gateway/k8s/Gateway.Namespace":   k8sListener.gateway.Namespace,
+				"consul-api-gateway/k8s/HTTPRoute.Name":      r.GetName(),
+				"consul-api-gateway/k8s/HTTPRoute.Namespace": r.GetNamespace(),
+			},
+			Route: route,
+			State: r.RouteState,
+		}).Convert()
 	case *gwv1alpha2.TCPRoute:
-		return convertTCPRoute(namespace, prefix, map[string]string{
-			"external-source":                           "consul-api-gateway",
-			"consul-api-gateway/k8s/Gateway.Name":       k8sListener.gateway.Name,
-			"consul-api-gateway/k8s/Gateway.Namespace":  k8sListener.gateway.Namespace,
-			"consul-api-gateway/k8s/TCPRoute.Name":      r.GetName(),
-			"consul-api-gateway/k8s/TCPRoute.Namespace": r.GetNamespace(),
-		}, route, r)
+		return converter.NewTCPRouteConverter(converter.TCPRouteConverterConfig{
+			Namespace: namespace,
+			Hostname:  hostname,
+			Prefix:    prefix,
+			Meta: map[string]string{
+				"external-source":                           "consul-api-gateway",
+				"consul-api-gateway/k8s/Gateway.Name":       k8sListener.gateway.Name,
+				"consul-api-gateway/k8s/Gateway.Namespace":  k8sListener.gateway.Namespace,
+				"consul-api-gateway/k8s/TCPRoute.Name":      r.GetName(),
+				"consul-api-gateway/k8s/TCPRoute.Namespace": r.GetNamespace(),
+			},
+			Route: route,
+			State: r.RouteState,
+		}).Convert()
 	default:
 		// TODO: add other route types
 		return nil
@@ -214,4 +229,12 @@ func (r *K8sRoute) OnGatewayRemoved(gateway store.Gateway) {
 
 func (r *K8sRoute) IsValid() bool {
 	return r.RouteState.ResolutionErrors.Empty()
+}
+
+func HTTPRouteID(namespacedName types.NamespacedName) string {
+	return "http-" + namespacedName.String()
+}
+
+func TCPRouteID(namespacedName types.NamespacedName) string {
+	return "tcp-" + namespacedName.String()
 }

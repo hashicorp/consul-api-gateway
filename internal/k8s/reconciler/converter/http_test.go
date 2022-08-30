@@ -1,22 +1,16 @@
-package reconciler
+package converter
 
 import (
 	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"k8s.io/apimachinery/pkg/types"
+	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	gwv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/state"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/service"
 )
-
-func TestHTTPRouteID(t *testing.T) {
-	t.Parallel()
-
-	require.Equal(t, "http-namespace/name", HTTPRouteID(types.NamespacedName{Namespace: "namespace", Name: "name"}))
-}
 
 func TestConvertHTTPRoute(t *testing.T) {
 	t.Parallel()
@@ -35,13 +29,15 @@ func TestConvertHTTPRoute(t *testing.T) {
 		name       string
 		namespace  string
 		hostname   string
+		prefix     string
 		meta       map[string]string
 		route      *gwv1alpha2.HTTPRoute
 		references service.RouteRuleReferenceMap
 		expected   string
 	}{{
-		name:  "kitchen-sink",
-		route: &gwv1alpha2.HTTPRoute{},
+		name:   "kitchen-sink",
+		prefix: "everything-but-the/",
+		route:  &gwv1alpha2.HTTPRoute{ObjectMeta: meta.ObjectMeta{Name: "kitchen-sink"}},
 		references: service.RouteRuleReferenceMap{
 			service.RouteRule{
 				HTTPRule: &gwv1alpha2.HTTPRouteRule{
@@ -105,7 +101,7 @@ func TestConvertHTTPRoute(t *testing.T) {
 		expected: `
 {
 	"Meta": null,
-	"Name": "kitchen-sink",
+	"Name": "everything-but-the/kitchen-sink",
 	"Namespace": "",
 	"Hostnames": [
 		"*"
@@ -196,6 +192,7 @@ func TestConvertHTTPRoute(t *testing.T) {
 	}, {
 		name: "hostnames",
 		route: &gwv1alpha2.HTTPRoute{
+			ObjectMeta: meta.ObjectMeta{Name: "hostnames"},
 			Spec: gwv1alpha2.HTTPRouteSpec{
 				Hostnames: []gwv1alpha2.Hostname{"*"},
 			},
@@ -214,8 +211,17 @@ func TestConvertHTTPRoute(t *testing.T) {
 `,
 	}} {
 		t.Run(test.name, func(t *testing.T) {
-			resolved := convertHTTPRoute(test.namespace, test.hostname, test.name, test.meta, test.route, &K8sRoute{RouteState: &state.RouteState{References: test.references}})
-
+			converter := &HTTPRouteConverter{
+				namespace: test.namespace,
+				hostname:  test.hostname,
+				prefix:    test.prefix,
+				meta:      test.meta,
+				route:     test.route,
+				state: &state.RouteState{
+					References: test.references,
+				},
+			}
+			resolved := converter.Convert()
 			data, err := json.MarshalIndent(resolved, "", "  ")
 			require.NoError(t, err)
 			require.JSONEq(t, test.expected, string(data))
