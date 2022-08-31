@@ -142,7 +142,7 @@ func (r *K8sRoute) Resolve(listener store.Listener) core.ResolvedRoute {
 		return nil
 	}
 
-	return r.resolve(r.GetNamespace(), k8sListener.gateway, k8sListener.listener)
+	return r.resolve(k8sListener.consulNamespace, k8sListener.gateway, k8sListener.listener)
 }
 
 func (r *K8sRoute) resolve(namespace string, gateway *gwv1beta1.Gateway, listener gwv1beta1.Listener) core.ResolvedRoute {
@@ -153,7 +153,7 @@ func (r *K8sRoute) resolve(namespace string, gateway *gwv1beta1.Gateway, listene
 		return converter.NewHTTPRouteConverter(converter.HTTPRouteConverterConfig{
 			Namespace: namespace,
 			Hostname:  hostname,
-			//Prefix:    prefix,
+			Prefix:    fmt.Sprintf("consul-api-gateway_%s_", gateway.Name),
 			Meta: map[string]string{
 				"external-source":                            "consul-api-gateway",
 				"consul-api-gateway/k8s/Gateway.Name":        gateway.Name,
@@ -168,7 +168,7 @@ func (r *K8sRoute) resolve(namespace string, gateway *gwv1beta1.Gateway, listene
 		return converter.NewTCPRouteConverter(converter.TCPRouteConverterConfig{
 			Namespace: namespace,
 			Hostname:  hostname,
-			//Prefix:    prefix,
+			Prefix:    fmt.Sprintf("consul-api-gateway_%s_", gateway.Name),
 			Meta: map[string]string{
 				"external-source":                           "consul-api-gateway",
 				"consul-api-gateway/k8s/Gateway.Name":       gateway.Name,
