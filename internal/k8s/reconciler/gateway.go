@@ -168,39 +168,6 @@ func (g *K8sGateway) Listeners() []store.Listener {
 	return listeners
 }
 
-func (g *K8sGateway) ShouldUpdate(other store.Gateway) bool {
-	if other == nil {
-		return false
-	}
-
-	if g == nil {
-		return true
-	}
-
-	otherGateway, ok := other.(*K8sGateway)
-	if !ok {
-		return false
-	}
-
-	return !utils.ResourceVersionGreater(g.Gateway.ResourceVersion, otherGateway.Gateway.ResourceVersion)
-}
-
-func (g *K8sGateway) ShouldBind(route store.Route) bool {
-	k8sRoute, ok := route.(*K8sRoute)
-	if !ok {
-		return false
-	}
-
-	for _, ref := range k8sRoute.CommonRouteSpec().ParentRefs {
-		if namespacedName, isGateway := utils.ReferencesGateway(k8sRoute.GetNamespace(), ref); isGateway {
-			if utils.NamespacedName(g.Gateway) == namespacedName {
-				return true
-			}
-		}
-	}
-	return false
-}
-
 func (g *K8sGateway) TrackSync(ctx context.Context, sync func() (bool, error)) error {
 	// we've done all but synced our state, so ensure our deployments are up-to-date
 	if err := g.deployer.Deploy(ctx, g.GatewayState.ConsulNamespace, g.config, g.Gateway); err != nil {
