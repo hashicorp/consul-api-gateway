@@ -17,6 +17,7 @@ import (
 )
 
 type syncState struct {
+	ingress   *api.IngressGatewayConfigEntry
 	routers   *consul.ConfigEntryIndex
 	splitters *consul.ConfigEntryIndex
 	defaults  *consul.ConfigEntryIndex
@@ -209,19 +210,20 @@ func discoveryChain(gateway core.ResolvedGateway) (*api.IngressGatewayConfigEntr
 	return ingress, routers, splitters, defaults
 }
 
-func (a *SyncAdapter) entriesForGateway(id core.GatewayID) (*consul.ConfigEntryIndex, *consul.ConfigEntryIndex, *consul.ConfigEntryIndex) {
+func (a *SyncAdapter) entriesForGateway(id core.GatewayID) (*api.IngressGatewayConfigEntry, *consul.ConfigEntryIndex, *consul.ConfigEntryIndex, *consul.ConfigEntryIndex) {
 	existing, found := a.sync[id]
 	if !found {
 		routers := consul.NewConfigEntryIndex(api.ServiceRouter)
 		splitters := consul.NewConfigEntryIndex(api.ServiceSplitter)
 		defaults := consul.NewConfigEntryIndex(api.ServiceDefaults)
-		return routers, splitters, defaults
+		return nil, routers, splitters, defaults
 	}
-	return existing.routers, existing.splitters, existing.defaults
+	return existing.ingress, existing.routers, existing.splitters, existing.defaults
 }
 
-func (a *SyncAdapter) setEntriesForGateway(gateway core.ResolvedGateway, routers *consul.ConfigEntryIndex, splitters *consul.ConfigEntryIndex, defaults *consul.ConfigEntryIndex) {
+func (a *SyncAdapter) setEntriesForGateway(gateway core.ResolvedGateway, ingress *api.IngressGatewayConfigEntry, routers *consul.ConfigEntryIndex, splitters *consul.ConfigEntryIndex, defaults *consul.ConfigEntryIndex) {
 	a.sync[gateway.ID] = syncState{
+		ingress:   ingress,
 		routers:   routers,
 		splitters: splitters,
 		defaults:  defaults,
@@ -258,12 +260,7 @@ func (a *SyncAdapter) Clear(ctx context.Context, id core.GatewayID) error {
 		defer a.logger.Trace("entries cleared", "time", time.Now(), "spent", time.Since(started))
 	}
 
-	ingress := &api.IngressGatewayConfigEntry{
-		Kind:      api.IngressGateway,
-		Name:      id.Service,
-		Namespace: id.ConsulNamespace,
-	}
-	existingRouters, existingSplitters, existingDefaults := a.entriesForGateway(id)
+	ingress, existingRouters, existingSplitters, existingDefaults := a.entriesForGateway(id)
 	removedRouters := existingRouters.ToArray()
 	removedSplitters := existingSplitters.ToArray()
 	removedDefaults := existingDefaults.ToArray()
@@ -315,7 +312,7 @@ func (a *SyncAdapter) Sync(ctx context.Context, gateway core.ResolvedGateway) (b
 	}
 
 	ingress, computedRouters, computedSplitters, computedDefaults := discoveryChain(gateway)
-	existingRouters, existingSplitters, existingDefaults := a.entriesForGateway(gateway.ID)
+	existingIngress, existingRouters, existingSplitters, existingDefaults := a.entriesForGateway(gateway.ID)
 
 	// Since we can't make multiple config entry changes in a single transaction we must
 	// perform the operations in a set that is least likely to induce downtime.
@@ -330,7 +327,22 @@ func (a *SyncAdapter) Sync(ctx context.Context, gateway core.ResolvedGateway) (b
 	removedSplitters := computedSplitters.Difference(existingSplitters).ToArray()
 	removedDefaults := computedDefaults.Difference(existingDefaults).ToArray()
 
+	// if we have nothing to change, don't do anything
+	if len(addedRouters) == 0 && len(addedDefaults) == 0 && len(addedSplitters) == 0 &&
+		len(removedRouters) == 0 && len(removedDefaults) == 0 && len(removedSplitters) == 0 &&
+		ingressesEqual(ingress, existingIngress) {
+		return false, nil
+	}
+
 	if a.logger.IsTrace() {
+		started := time.Now()
+		resolved, err := json.MarshalIndent(gateway, "", "  ")
+		if err == nil {
+			a.logger.Trace("reconciling gateway snapshot", "gateway", string(resolved))
+		}
+		a.logger.Trace("started reconciliation", "time", started)
+		defer a.logger.Trace("reconciliation finished", "time", time.Now(), "spent", time.Since(started))
+
 		ingressEntry, err := json.MarshalIndent(ingress, "", "  ")
 		if err == nil {
 			a.logger.Trace("setting ingress", "items", string(ingressEntry))
@@ -370,10 +382,19 @@ func (a *SyncAdapter) Sync(ctx context.Context, gateway core.ResolvedGateway) (b
 		return false, fmt.Errorf("error removing service defaults config entries: %w", err)
 	}
 
-	a.setEntriesForGateway(gateway, computedRouters, computedSplitters, computedDefaults)
+	a.setEntriesForGateway(gateway, ingress, computedRouters, computedSplitters, computedDefaults)
 	if err := a.syncIntentionsForGateway(gateway.ID, ingress); err != nil {
 		return false, fmt.Errorf("error syncing service intention config entries: %w", err)
 	}
 
 	return true, nil
+}
+
+func ingressesEqual(a, b *api.IngressGatewayConfigEntry) bool {
+	if a == nil || b == nil {
+		return false
+	}
+	dataA, _ := json.Marshal(a)
+	dataB, _ := json.Marshal(b)
+	return string(dataA) == string(dataB)
 }
