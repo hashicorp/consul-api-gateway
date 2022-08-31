@@ -58,16 +58,6 @@ func newK8sRoute(route Route, config K8sRouteConfig) *K8sRoute {
 	}
 }
 
-func (r *K8sRoute) parentKeyForGateway(parent types.NamespacedName) (string, bool) {
-	for _, p := range r.Parents() {
-		gatewayName, isGateway := utils.ReferencesGateway(r.GetNamespace(), p)
-		if isGateway && gatewayName == parent {
-			return asJSON(p), true
-		}
-	}
-	return "", false
-}
-
 func (r *K8sRoute) ID() string {
 	switch r.Route.(type) {
 	case *gwv1alpha2.HTTPRoute:

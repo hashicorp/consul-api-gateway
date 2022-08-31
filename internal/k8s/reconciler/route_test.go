@@ -182,7 +182,7 @@ func TestRouteResolve(t *testing.T) {
 
 func TestRouteSyncStatus(t *testing.T) {
 	t.Parallel()
-	
+
 	inner := &gwv1alpha2.HTTPRoute{
 		Spec: gwv1alpha2.HTTPRouteSpec{
 			CommonRouteSpec: gwv1alpha2.CommonRouteSpec{
