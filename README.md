@@ -5,7 +5,7 @@
 
 [![CI Status](https://github.com/hashicorp/consul-api-gateway/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/hashicorp/consul-api-gateway/actions/workflows/ci.yml?query=branch%3Amain) [![Discuss](https://img.shields.io/badge/discuss-consul--api--gateway-dc477d?logo=consul)](https://discuss.hashicorp.com/c/consul)
 
-**We're looking for feedback on how our users interact with Consul API Gateway, please fill out our brief [survey](https://hashicorp.sjc1.qualtrics.com/jfe/form/SV_cMSefVc8TkVD0eW)!**
+**We're looking for feedback on how our users interact with Consul API Gateway. Please fill out our brief [survey](https://hashicorp.sjc1.qualtrics.com/jfe/form/SV_cMSefVc8TkVD0eW)!**
 
 # Overview
 
