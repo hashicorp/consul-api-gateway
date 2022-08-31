@@ -97,7 +97,7 @@ func (b *Binder) canBind(ctx context.Context, listener gwv1beta1.Listener, state
 			return false
 		}
 
-		route.RouteState.ParentStatuses.Bound(common.AsJSON(ref))
+		route.RouteState.Bound(ref)
 		return true
 	}
 

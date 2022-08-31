@@ -200,32 +200,16 @@ func (r *K8sRoute) Validate(ctx context.Context) error {
 	return r.validator.Validate(ctx, r.RouteState, r.Route)
 }
 
-func (r *K8sRoute) OnBindFailed(err error, gateway store.Gateway) {
-	k8sGateway, ok := gateway.(*K8sGateway)
-	if ok {
-		id, found := r.parentKeyForGateway(utils.NamespacedName(k8sGateway.Gateway))
-		if found {
-			r.RouteState.ParentStatuses.BindFailed(r.RouteState.ResolutionErrors, err, id)
-		}
-	}
-}
-
-func (r *K8sRoute) OnBound(gateway store.Gateway) {
-	k8sGateway, ok := gateway.(*K8sGateway)
-	if ok {
-		id, found := r.parentKeyForGateway(utils.NamespacedName(k8sGateway.Gateway))
-		if found {
-			r.RouteState.ParentStatuses.Bound(id)
-		}
-	}
-}
-
 func (r *K8sRoute) OnGatewayRemoved(gateway store.Gateway) {
 	k8sGateway, ok := gateway.(*K8sGateway)
 	if ok {
-		id, found := r.parentKeyForGateway(utils.NamespacedName(k8sGateway.Gateway))
-		if found {
-			r.RouteState.ParentStatuses.Remove(id)
+		parent := utils.NamespacedName(k8sGateway.Gateway)
+		for _, p := range r.Parents() {
+			gatewayName, isGateway := utils.ReferencesGateway(r.GetNamespace(), p)
+			if isGateway && gatewayName == parent {
+				r.RouteState.Remove(p)
+				return
+			}
 		}
 	}
 }
