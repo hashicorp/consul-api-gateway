@@ -182,14 +182,7 @@ func TestRouteResolve(t *testing.T) {
 
 func TestRouteSyncStatus(t *testing.T) {
 	t.Parallel()
-
-	gateway := newK8sGateway(&gwv1beta1.Gateway{
-		ObjectMeta: meta.ObjectMeta{
-			Name: "expected",
-		},
-	}, K8sGatewayConfig{
-		Logger: hclog.NewNullLogger(),
-	})
+	
 	inner := &gwv1alpha2.HTTPRoute{
 		Spec: gwv1alpha2.HTTPRouteSpec{
 			CommonRouteSpec: gwv1alpha2.CommonRouteSpec{
@@ -234,7 +227,7 @@ func TestRouteSyncStatus(t *testing.T) {
 		Logger:         logger,
 		Client:         client,
 	})
-	route.OnBound(gateway)
+	route.RouteState.Bound(gwv1alpha2.ParentReference{Name: "expected"})
 
 	expected := errors.New("expected")
 	client.EXPECT().UpdateStatus(gomock.Any(), inner).Return(expected)
