@@ -157,13 +157,6 @@ func (s *Store) SyncAtInterval(ctx context.Context) {
 			case <-ticker.C:
 				s.mutex.Lock()
 
-				// TODO
-				// Force each gateway to sync its state even though listeners
-				// on the gateway may not be marked as needing a sync right now
-				//for _, gateway := range s.gateways {
-				//	gateway.needsSync = true
-				//}
-
 				if err := s.sync(ctx); err != nil {
 					s.logger.Warn("An error occurred during memory store sync, some changes may be out of sync", "error", err)
 				} else {
