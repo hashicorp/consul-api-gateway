@@ -50,11 +50,13 @@ func ParseKVSecret(ref string) (KVSecret, error) {
 		return KVSecret{}, ErrInvalidSecret
 	}
 
-	// TODO Error on certField or privateKeyField not included since
-	//   the Secret can't fully indicate a cert+key pair without them
 	path := parsed.Path
 	certField := parsed.Query().Get(queryParamCertField)
 	privateKeyField := parsed.Query().Get(queryParamPrivateKeyField)
+
+	if certField == "" || privateKeyField == "" {
+		return KVSecret{}, ErrInvalidSecret
+	}
 
 	return NewKVSecret(path, certField, privateKeyField), nil
 }
