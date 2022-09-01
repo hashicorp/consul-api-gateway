@@ -37,23 +37,44 @@ func NewBinder(client gatewayclient.Client, gateway *gwv1beta1.Gateway, state *s
 }
 
 func (b *Binder) Bind(ctx context.Context, route *K8sRoute) []string {
-	boundListeners := []string{}
+	var boundListeners []string
+
+	// If the route doesn't reference this Gateway, remove the route
+	// from any listeners that it may have previously bound to
+	if !b.routeReferencesThisGateway(route) {
+		for _, listenerState := range b.GatewayState.Listeners {
+			delete(listenerState.Routes, route.ID())
+		}
+		return boundListeners
+	}
+
+	// The route does reference this Gateway, so attempt to bind to each listener
 	for _, ref := range route.CommonRouteSpec().ParentRefs {
-		if namespacedName, isGateway := utils.ReferencesGateway(route.GetNamespace(), ref); isGateway {
-			expected := utils.NamespacedName(b.Gateway)
-			if expected == namespacedName {
-				for i, listener := range b.Gateway.Spec.Listeners {
-					state := b.GatewayState.Listeners[i]
-					if b.canBind(ctx, listener, state, ref, route) {
-						state.Routes[route.ID()] = route.resolve(b.GatewayState.ConsulNamespace, b.Gateway, listener)
-						boundListeners = append(boundListeners, string(listener.Name))
-					}
-				}
+		for i, listener := range b.Gateway.Spec.Listeners {
+			listenerState := b.GatewayState.Listeners[i]
+			if b.canBind(ctx, listener, listenerState, ref, route) {
+				listenerState.Routes[route.ID()] = route.resolve(b.GatewayState.ConsulNamespace, b.Gateway, listener)
+				boundListeners = append(boundListeners, string(listener.Name))
+			} else {
+				// If the route cannot bind to this listener, remove the route
+				// in case it was previously bound
+				delete(listenerState.Routes, route.ID())
 			}
 		}
 	}
 
 	return boundListeners
+}
+
+func (b *Binder) routeReferencesThisGateway(route *K8sRoute) bool {
+	thisGateway := utils.NamespacedName(b.Gateway)
+	for _, ref := range route.CommonRouteSpec().ParentRefs {
+		gatewayReferenced, isGatewayTypeRef := utils.ReferencesGateway(route.GetNamespace(), ref)
+		if isGatewayTypeRef && gatewayReferenced == thisGateway {
+			return true
+		}
+	}
+	return false
 }
 
 func (b *Binder) canBind(ctx context.Context, listener gwv1beta1.Listener, state *state.ListenerState, ref gwv1alpha2.ParentReference, route *K8sRoute) bool {
@@ -64,44 +85,44 @@ func (b *Binder) canBind(ctx context.Context, listener gwv1beta1.Listener, state
 	// must is only true if there's a ref with a specific listener name
 	// meaning if we must attach, but cannot, it's an error
 	allowed, must := routeMatchesListener(listener.Name, ref.SectionName)
-	if allowed {
-		if !routeKindIsAllowedForListener(common.SupportedKindsFor(listener.Protocol), route) {
-			if must {
-				route.RouteState.BindFailed(errors.NewBindErrorRouteKind("route kind not allowed for listener"), ref)
-			}
-			return false
-		}
-
-		allowed, err := routeAllowedForListenerNamespaces(ctx, b.Gateway.Namespace, listener.AllowedRoutes, route, b.Client)
-		if err != nil {
-			route.RouteState.BindFailed(fmt.Errorf("error checking listener namespaces: %w", err), ref)
-			return false
-		}
-		if !allowed {
-			if must {
-				route.RouteState.BindFailed(errors.NewBindErrorListenerNamespacePolicy("route not allowed because of listener namespace policy"), ref)
-			}
-			return false
-		}
-
-		if !route.matchesHostname(listener.Hostname) {
-			if must {
-				route.RouteState.BindFailed(errors.NewBindErrorHostnameMismatch("route does not match listener hostname"), ref)
-			}
-			return false
-		}
-
-		// check if the route is valid, if not, then return a status about it being rejected
-		if !route.RouteState.ResolutionErrors.Empty() {
-			route.RouteState.BindFailed(errors.NewBindErrorRouteInvalid("route is in an invalid state and cannot bind"), ref)
-			return false
-		}
-
-		route.RouteState.Bound(ref)
-		return true
+	if !allowed {
+		return false
 	}
 
-	return false
+	if !routeKindIsAllowedForListener(common.SupportedKindsFor(listener.Protocol), route) {
+		if must {
+			route.RouteState.BindFailed(errors.NewBindErrorRouteKind("route kind not allowed for listener"), ref)
+		}
+		return false
+	}
+
+	allowed, err := routeAllowedForListenerNamespaces(ctx, b.Gateway.Namespace, listener.AllowedRoutes, route, b.Client)
+	if err != nil {
+		route.RouteState.BindFailed(fmt.Errorf("error checking listener namespaces: %w", err), ref)
+		return false
+	}
+	if !allowed {
+		if must {
+			route.RouteState.BindFailed(errors.NewBindErrorListenerNamespacePolicy("route not allowed because of listener namespace policy"), ref)
+		}
+		return false
+	}
+
+	if !route.matchesHostname(listener.Hostname) {
+		if must {
+			route.RouteState.BindFailed(errors.NewBindErrorHostnameMismatch("route does not match listener hostname"), ref)
+		}
+		return false
+	}
+
+	// check if the route is valid, if not, then return a status about it being rejected
+	if !route.RouteState.ResolutionErrors.Empty() {
+		route.RouteState.BindFailed(errors.NewBindErrorRouteInvalid("route is in an invalid state and cannot bind"), ref)
+		return false
+	}
+
+	route.RouteState.Bound(ref)
+	return true
 }
 
 // routeAllowedForListenerNamespaces determines whether the route is allowed
