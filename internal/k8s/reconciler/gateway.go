@@ -99,7 +99,7 @@ func (g *K8sGateway) Bind(ctx context.Context, route store.Route) []string {
 		return nil
 	}
 
-	return NewBinder(g.client, g.Gateway, g.GatewayState).Bind(ctx, k8sRoute)
+	return newBinder(g.client, g.Gateway, g.GatewayState).Bind(ctx, k8sRoute)
 }
 
 func (g *K8sGateway) Remove(ctx context.Context, routeID string) error {

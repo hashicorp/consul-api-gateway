@@ -22,21 +22,26 @@ const (
 	NamespaceNameLabel = "kubernetes.io/metadata.name"
 )
 
-type Binder struct {
+// binder wraps a Gateway and the corresponding GatewayState and encapsulates
+// the logic for binding new routes to that Gateway.
+type binder struct {
 	Client       gatewayclient.Client
 	Gateway      *gwv1beta1.Gateway
 	GatewayState *state.GatewayState
 }
 
-func NewBinder(client gatewayclient.Client, gateway *gwv1beta1.Gateway, state *state.GatewayState) *Binder {
-	return &Binder{
+func newBinder(client gatewayclient.Client, gateway *gwv1beta1.Gateway, state *state.GatewayState) *binder {
+	return &binder{
 		Client:       client,
 		Gateway:      gateway,
 		GatewayState: state,
 	}
 }
 
-func (b *Binder) Bind(ctx context.Context, route *K8sRoute) []string {
+// Bind will attempt to bind the provided route to all listeners on the Gateway and
+// remove the route from any listeners that the route should no longer be bound to.
+// The latter is important for scenarios such as the route's parent changing.
+func (b *binder) Bind(ctx context.Context, route *K8sRoute) []string {
 	var boundListeners []string
 
 	// If the route doesn't reference this Gateway, remove the route
@@ -66,7 +71,7 @@ func (b *Binder) Bind(ctx context.Context, route *K8sRoute) []string {
 	return boundListeners
 }
 
-func (b *Binder) routeReferencesThisGateway(route *K8sRoute) bool {
+func (b *binder) routeReferencesThisGateway(route *K8sRoute) bool {
 	thisGateway := utils.NamespacedName(b.Gateway)
 	for _, ref := range route.CommonRouteSpec().ParentRefs {
 		gatewayReferenced, isGatewayTypeRef := utils.ReferencesGateway(route.GetNamespace(), ref)
@@ -77,7 +82,7 @@ func (b *Binder) routeReferencesThisGateway(route *K8sRoute) bool {
 	return false
 }
 
-func (b *Binder) canBind(ctx context.Context, listener gwv1beta1.Listener, state *state.ListenerState, ref gwv1alpha2.ParentReference, route *K8sRoute) bool {
+func (b *binder) canBind(ctx context.Context, listener gwv1beta1.Listener, state *state.ListenerState, ref gwv1alpha2.ParentReference, route *K8sRoute) bool {
 	if state.Status.Ready.HasError() {
 		return false
 	}
