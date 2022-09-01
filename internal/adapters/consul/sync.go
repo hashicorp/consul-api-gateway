@@ -382,12 +382,3 @@ func (a *SyncAdapter) Sync(ctx context.Context, gateway core.ResolvedGateway) (b
 
 	return true, nil
 }
-
-func ingressesEqual(a, b *api.IngressGatewayConfigEntry) bool {
-	if a == nil || b == nil {
-		return false
-	}
-	dataA, _ := json.Marshal(a)
-	dataB, _ := json.Marshal(b)
-	return string(dataA) == string(dataB)
-}
