@@ -6,7 +6,7 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/core"
 )
 
-//go:generate mockgen -source ./interfaces.go -destination ./mocks/interfaces.go -package mocks StatusTrackingGateway,Gateway,RouteTrackingListener,Listener,StatusTrackingRoute,Route,Store
+//go:generate mockgen -source ./interfaces.go -destination ./mocks/interfaces.go -package mocks StatusTrackingGateway,Gateway,StatusTrackingRoute,Route,Store
 
 type CompareResult int
 
@@ -28,35 +28,6 @@ type Gateway interface {
 	Remove(ctx context.Context, id string) error
 	Resolve() core.ResolvedGateway
 	CanFetchSecrets(ctx context.Context, secrets []string) (bool, error)
-}
-
-// ListenerConfig contains the common configuration
-// options of a listener.
-type ListenerConfig struct {
-	Name     string
-	Hostname string
-	Port     int
-	Protocol string
-	TLS      core.TLSParams
-}
-
-// RouteTrackingListener is an optional extension
-// to Listener that tracks when routes have been
-// bound to it.
-type RouteTrackingListener interface {
-	Listener
-
-	OnRouteAdded(route Route)
-	OnRouteRemoved(id string)
-}
-
-// Listener describes the basic methods of a gateway
-// listener.
-type Listener interface {
-	ID() string
-	CanBind(ctx context.Context, route Route) (bool, error)
-	Config() ListenerConfig
-	IsValid() bool
 }
 
 // StatusTrackingRoute is an optional extension
