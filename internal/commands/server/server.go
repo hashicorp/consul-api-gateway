@@ -149,7 +149,7 @@ func registerSecretClients(config ServerConfig) (*envoy.MultiSecretClient, error
 		config.Logger.Error("error initializing the vault static cert fetcher", "error", err)
 		return nil, err
 	}
-	secretClient.Register(vault.StaticSecretScheme, vaultStaticClient)
+	secretClient.Register(vault.KVSecretScheme, vaultStaticClient)
 
 	return secretClient, nil
 }

@@ -42,7 +42,7 @@ func ParseKVSecret(ref string) (KVSecret, error) {
 		return KVSecret{}, err
 	}
 
-	if parsed.Scheme != StaticSecretScheme {
+	if parsed.Scheme != KVSecretScheme {
 		return KVSecret{}, ErrInvalidSecret
 	}
 
@@ -71,7 +71,7 @@ func (s KVSecret) String() string {
 	}
 
 	return (&url.URL{
-		Scheme:   StaticSecretScheme,
+		Scheme:   KVSecretScheme,
 		Path:     s.Path,
 		RawQuery: v.Encode(),
 	}).String()

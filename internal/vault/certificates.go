@@ -26,8 +26,8 @@ var _ envoy.SecretClient = (*PKISecretClient)(nil)
 var _ envoy.SecretClient = (*KVSecretClient)(nil)
 
 const (
-	PKISecretScheme    = "vault+pki"
-	StaticSecretScheme = "vault+kv"
+	KVSecretScheme  = "vault+kv"
+	PKISecretScheme = "vault+pki"
 
 	defaultIssuer = "default"
 )
@@ -80,7 +80,7 @@ func (c *KVSecretClient) FetchSecret(ctx context.Context, name string) (*tls.Sec
 
 	c.logger.Trace("fetching SDS secret", "name", name)
 	gwmetrics.Registry.IncrCounterWithLabels(gwmetrics.SDSCertificateFetches, 1, []metrics.Label{
-		{Name: "fetcher", Value: StaticSecretScheme},
+		{Name: "fetcher", Value: KVSecretScheme},
 		{Name: "name", Value: name}})
 
 	path := strings.TrimPrefix(secret.Path, "/")
