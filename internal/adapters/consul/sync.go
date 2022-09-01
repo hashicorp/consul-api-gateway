@@ -312,7 +312,7 @@ func (a *SyncAdapter) Sync(ctx context.Context, gateway core.ResolvedGateway) (b
 	}
 
 	ingress, computedRouters, computedSplitters, computedDefaults := discoveryChain(gateway)
-	existingIngress, existingRouters, existingSplitters, existingDefaults := a.entriesForGateway(gateway.ID)
+	_, existingRouters, existingSplitters, existingDefaults := a.entriesForGateway(gateway.ID)
 
 	// Since we can't make multiple config entry changes in a single transaction we must
 	// perform the operations in a set that is least likely to induce downtime.
@@ -326,13 +326,6 @@ func (a *SyncAdapter) Sync(ctx context.Context, gateway core.ResolvedGateway) (b
 	removedRouters := computedRouters.Difference(existingRouters).ToArray()
 	removedSplitters := computedSplitters.Difference(existingSplitters).ToArray()
 	removedDefaults := computedDefaults.Difference(existingDefaults).ToArray()
-
-	// if we have nothing to change, don't do anything
-	if len(addedRouters) == 0 && len(addedDefaults) == 0 && len(addedSplitters) == 0 &&
-		len(removedRouters) == 0 && len(removedDefaults) == 0 && len(removedSplitters) == 0 &&
-		ingressesEqual(ingress, existingIngress) {
-		return false, nil
-	}
 
 	if a.logger.IsTrace() {
 		started := time.Now()
