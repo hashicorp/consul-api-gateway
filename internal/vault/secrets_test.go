@@ -76,13 +76,13 @@ func TestParseKVSecret(t *testing.T) {
 	assert.EqualError(t, ErrInvalidSecret, err.Error())
 
 	// Test partial set of serialized values
-	secret, err := ParseKVSecret("vault+kv:///kv/api-gateway-tls-cert?tlsCertField=tls.cert")
+	_, err = ParseKVSecret("vault+kv:///kv/api-gateway-tls-cert?tlsCertField=tls.cert")
 	assert.EqualError(t, err, ErrInvalidSecret.Error())
-	secret, err = ParseKVSecret("vault+kv:///kv/api-gateway-tls-cert?tlsPrivateKeyField=tls.key")
+	_, err = ParseKVSecret("vault+kv:///kv/api-gateway-tls-cert?tlsPrivateKeyField=tls.key")
 	assert.EqualError(t, err, ErrInvalidSecret.Error())
 
 	// Test full set of serialized values
-	secret, err = ParseKVSecret("vault+kv:///kv/api-gateway-tls-cert?tlsCertField=tls.cert&tlsPrivateKeyField=tls.key")
+	secret, err := ParseKVSecret("vault+kv:///kv/api-gateway-tls-cert?tlsCertField=tls.cert&tlsPrivateKeyField=tls.key")
 	require.NoError(t, err)
 	assert.Equal(t, "/kv/api-gateway-tls-cert", secret.Path)
 	assert.Equal(t, "tls.cert", secret.CertField)
