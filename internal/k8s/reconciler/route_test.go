@@ -16,7 +16,6 @@ import (
 	gwv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	clientMocks "github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient/mocks"
-	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/state"
 )
 
 func TestRouteID(t *testing.T) {
@@ -145,7 +144,7 @@ func TestRouteMatchesHostname(t *testing.T) {
 		},
 	}, K8sRouteConfig{
 		Logger: hclog.NewNullLogger(),
-	}).MatchesHostname(&hostname))
+	}).matchesHostname(&hostname))
 
 	require.False(t, newK8sRoute(&gwv1alpha2.HTTPRoute{
 		Spec: gwv1alpha2.HTTPRouteSpec{
@@ -153,17 +152,21 @@ func TestRouteMatchesHostname(t *testing.T) {
 		},
 	}, K8sRouteConfig{
 		Logger: hclog.NewNullLogger(),
-	}).MatchesHostname(&hostname))
+	}).matchesHostname(&hostname))
 
 	// check where the underlying route doesn't implement
 	// a matching routine
 	require.True(t, newK8sRoute(&gwv1alpha2.TCPRoute{}, K8sRouteConfig{
 		Logger: hclog.NewNullLogger(),
-	}).MatchesHostname(&hostname))
+	}).matchesHostname(&hostname))
 }
 
 func TestRouteResolve(t *testing.T) {
 	t.Parallel()
+
+	factory := NewFactory(FactoryConfig{
+		Logger: hclog.NewNullLogger(),
+	})
 
 	gateway := &gwv1beta1.Gateway{
 		ObjectMeta: meta.ObjectMeta{
@@ -172,35 +175,14 @@ func TestRouteResolve(t *testing.T) {
 	}
 	listener := gwv1beta1.Listener{}
 
-	require.Nil(t, newK8sRoute(&gwv1alpha2.HTTPRoute{}, K8sRouteConfig{
-		Logger: hclog.NewNullLogger(),
-	}).Resolve(nil))
+	require.Nil(t, factory.NewRoute(&core.Pod{}).resolve("", gateway, listener))
 
-	require.Nil(t, newK8sRoute(&core.Pod{}, K8sRouteConfig{
-		Logger: hclog.NewNullLogger(),
-	}).Resolve(NewK8sListener(gateway, listener, K8sListenerConfig{
-		Logger: hclog.NewNullLogger(),
-		State:  &state.ListenerState{},
-	})))
-
-	require.NotNil(t, newK8sRoute(&gwv1alpha2.HTTPRoute{}, K8sRouteConfig{
-		Logger: hclog.NewNullLogger(),
-	}).Resolve(NewK8sListener(gateway, listener, K8sListenerConfig{
-		Logger: hclog.NewNullLogger(),
-		State:  &state.ListenerState{},
-	})))
+	require.NotNil(t, factory.NewRoute(&gwv1alpha2.HTTPRoute{}).resolve("", gateway, listener))
 }
 
 func TestRouteSyncStatus(t *testing.T) {
 	t.Parallel()
 
-	gateway := newK8sGateway(&gwv1beta1.Gateway{
-		ObjectMeta: meta.ObjectMeta{
-			Name: "expected",
-		},
-	}, K8sGatewayConfig{
-		Logger: hclog.NewNullLogger(),
-	})
 	inner := &gwv1alpha2.HTTPRoute{
 		Spec: gwv1alpha2.HTTPRouteSpec{
 			CommonRouteSpec: gwv1alpha2.CommonRouteSpec{
@@ -245,7 +227,7 @@ func TestRouteSyncStatus(t *testing.T) {
 		Logger:         logger,
 		Client:         client,
 	})
-	route.OnBound(gateway)
+	route.RouteState.Bound(gwv1alpha2.ParentReference{Name: "expected"})
 
 	expected := errors.New("expected")
 	client.EXPECT().UpdateStatus(gomock.Any(), inner).Return(expected)

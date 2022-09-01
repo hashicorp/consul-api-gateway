@@ -1,6 +1,9 @@
 package state
 
 import (
+	gwv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
+
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/common"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/status"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/service"
 )
@@ -19,4 +22,16 @@ func NewRouteState() *RouteState {
 		ResolutionErrors: service.NewResolutionErrors(),
 		ParentStatuses:   make(status.RouteStatuses),
 	}
+}
+
+func (r *RouteState) BindFailed(err error, ref gwv1alpha2.ParentReference) {
+	r.ParentStatuses.BindFailed(r.ResolutionErrors, err, common.AsJSON(ref))
+}
+
+func (r *RouteState) Bound(ref gwv1alpha2.ParentReference) {
+	r.ParentStatuses.Bound(common.AsJSON(ref))
+}
+
+func (r *RouteState) Remove(ref gwv1alpha2.ParentReference) {
+	r.ParentStatuses.Remove(common.AsJSON(ref))
 }

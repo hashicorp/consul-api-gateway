@@ -58,16 +58,6 @@ func newK8sRoute(route Route, config K8sRouteConfig) *K8sRoute {
 	}
 }
 
-func (r *K8sRoute) parentKeyForGateway(parent types.NamespacedName) (string, bool) {
-	for _, p := range r.Parents() {
-		gatewayName, isGateway := utils.ReferencesGateway(r.GetNamespace(), p)
-		if isGateway && gatewayName == parent {
-			return asJSON(p), true
-		}
-	}
-	return "", false
-}
-
 func (r *K8sRoute) ID() string {
 	switch r.Route.(type) {
 	case *gwv1alpha2.HTTPRoute:
@@ -78,7 +68,7 @@ func (r *K8sRoute) ID() string {
 	return ""
 }
 
-func (r *K8sRoute) MatchesHostname(hostname *gwv1beta1.Hostname) bool {
+func (r *K8sRoute) matchesHostname(hostname *gwv1beta1.Hostname) bool {
 	switch route := r.Route.(type) {
 	case *gwv1alpha2.HTTPRoute:
 		return routeMatchesListenerHostname(hostname, route.Spec.Hostnames)
@@ -142,19 +132,22 @@ func (r *K8sRoute) Resolve(listener store.Listener) core.ResolvedRoute {
 		return nil
 	}
 
-	prefix := fmt.Sprintf("consul-api-gateway_%s_", k8sListener.gateway.Name)
-	namespace := k8sListener.consulNamespace
-	hostname := k8sListener.Config().Hostname
+	return r.resolve(k8sListener.consulNamespace, k8sListener.gateway, k8sListener.listener)
+}
+
+func (r *K8sRoute) resolve(namespace string, gateway *gwv1beta1.Gateway, listener gwv1beta1.Listener) core.ResolvedRoute {
+	hostname := listenerHostname(listener)
+
 	switch route := r.Route.(type) {
 	case *gwv1alpha2.HTTPRoute:
 		return converter.NewHTTPRouteConverter(converter.HTTPRouteConverterConfig{
 			Namespace: namespace,
 			Hostname:  hostname,
-			Prefix:    prefix,
+			Prefix:    fmt.Sprintf("consul-api-gateway_%s_", gateway.Name),
 			Meta: map[string]string{
 				"external-source":                            "consul-api-gateway",
-				"consul-api-gateway/k8s/Gateway.Name":        k8sListener.gateway.Name,
-				"consul-api-gateway/k8s/Gateway.Namespace":   k8sListener.gateway.Namespace,
+				"consul-api-gateway/k8s/Gateway.Name":        gateway.Name,
+				"consul-api-gateway/k8s/Gateway.Namespace":   gateway.Namespace,
 				"consul-api-gateway/k8s/HTTPRoute.Name":      r.GetName(),
 				"consul-api-gateway/k8s/HTTPRoute.Namespace": r.GetNamespace(),
 			},
@@ -165,11 +158,11 @@ func (r *K8sRoute) Resolve(listener store.Listener) core.ResolvedRoute {
 		return converter.NewTCPRouteConverter(converter.TCPRouteConverterConfig{
 			Namespace: namespace,
 			Hostname:  hostname,
-			Prefix:    prefix,
+			Prefix:    fmt.Sprintf("consul-api-gateway_%s_", gateway.Name),
 			Meta: map[string]string{
 				"external-source":                           "consul-api-gateway",
-				"consul-api-gateway/k8s/Gateway.Name":       k8sListener.gateway.Name,
-				"consul-api-gateway/k8s/Gateway.Namespace":  k8sListener.gateway.Namespace,
+				"consul-api-gateway/k8s/Gateway.Name":       gateway.Name,
+				"consul-api-gateway/k8s/Gateway.Namespace":  gateway.Namespace,
 				"consul-api-gateway/k8s/TCPRoute.Name":      r.GetName(),
 				"consul-api-gateway/k8s/TCPRoute.Namespace": r.GetNamespace(),
 			},
@@ -197,32 +190,16 @@ func (r *K8sRoute) Validate(ctx context.Context) error {
 	return r.validator.Validate(ctx, r.RouteState, r.Route)
 }
 
-func (r *K8sRoute) OnBindFailed(err error, gateway store.Gateway) {
-	k8sGateway, ok := gateway.(*K8sGateway)
-	if ok {
-		id, found := r.parentKeyForGateway(utils.NamespacedName(k8sGateway.Gateway))
-		if found {
-			r.RouteState.ParentStatuses.BindFailed(r.RouteState.ResolutionErrors, err, id)
-		}
-	}
-}
-
-func (r *K8sRoute) OnBound(gateway store.Gateway) {
-	k8sGateway, ok := gateway.(*K8sGateway)
-	if ok {
-		id, found := r.parentKeyForGateway(utils.NamespacedName(k8sGateway.Gateway))
-		if found {
-			r.RouteState.ParentStatuses.Bound(id)
-		}
-	}
-}
-
 func (r *K8sRoute) OnGatewayRemoved(gateway store.Gateway) {
 	k8sGateway, ok := gateway.(*K8sGateway)
 	if ok {
-		id, found := r.parentKeyForGateway(utils.NamespacedName(k8sGateway.Gateway))
-		if found {
-			r.RouteState.ParentStatuses.Remove(id)
+		parent := utils.NamespacedName(k8sGateway.Gateway)
+		for _, p := range r.Parents() {
+			gatewayName, isGateway := utils.ReferencesGateway(r.GetNamespace(), p)
+			if isGateway && gatewayName == parent {
+				r.RouteState.Remove(p)
+				return
+			}
 		}
 	}
 }

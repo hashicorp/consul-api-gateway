@@ -196,7 +196,7 @@ func TestConsulSyncAdapter_Sync(t *testing.T) {
 		}},
 	}
 
-	err = adapter.Sync(ctx, gateway)
+	_, err = adapter.Sync(ctx, gateway)
 	require.NoError(t, err)
 
 	require.Eventually(t, func() bool {

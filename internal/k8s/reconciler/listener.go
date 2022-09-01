@@ -195,7 +195,7 @@ func (l *K8sListener) canBind(ctx context.Context, ref gwv1alpha2.ParentReferenc
 			return false, nil
 		}
 
-		if !route.MatchesHostname(l.listener.Hostname) {
+		if !route.matchesHostname(l.listener.Hostname) {
 			l.logger.Trace("route does not match listener hostname", "route", route.ID())
 			if must {
 				return false, rerrors.NewBindErrorHostnameMismatch("route does not match listener hostname")
@@ -216,7 +216,10 @@ func (l *K8sListener) canBind(ctx context.Context, ref gwv1alpha2.ParentReferenc
 
 func (l *K8sListener) OnRouteAdded(route store.Route) {
 	atomic.AddInt32(&l.routeCount, 1)
-	l.ListenerState.Routes[route.ID()] = route.Resolve(l)
+
+	if k8sRoute, ok := route.(*K8sRoute); ok {
+		l.ListenerState.Routes[route.ID()] = k8sRoute.resolve(l.consulNamespace, l.gateway, l.listener)
+	}
 }
 
 func (l *K8sListener) OnRouteRemoved(routeID string) {

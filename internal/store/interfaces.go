@@ -10,14 +10,6 @@ import (
 
 type CompareResult int
 
-const (
-	CompareResultInvalid CompareResult = iota
-	CompareResultNewer
-	CompareResultNotEqual
-	CompareResultEqual
-	CompareResultStatusNotEqual
-)
-
 // StatusTrackingGateway is an optional extension
 // of Gateway. If supported by a Store, when
 // a Gateway is synced to an external location,
@@ -32,10 +24,10 @@ type StatusTrackingGateway interface {
 // Gateway describes a gateway.
 type Gateway interface {
 	ID() core.GatewayID
-	Meta() map[string]string
-	ShouldUpdate(other Gateway) bool
-	Listeners() []Listener
-	ShouldBind(route Route) bool
+	Bind(ctx context.Context, route Route) []string
+	Remove(ctx context.Context, id string) error
+	Resolve() core.ResolvedGateway
+	CanFetchSecrets(ctx context.Context, secrets []string) (bool, error)
 }
 
 // ListenerConfig contains the common configuration
@@ -77,8 +69,6 @@ type StatusTrackingRoute interface {
 	Route
 
 	SyncStatus(ctx context.Context) error
-	OnBound(gateway Gateway)
-	OnBindFailed(err error, gateway Gateway)
 	OnGatewayRemoved(gateway Gateway)
 }
 
@@ -86,13 +76,11 @@ type StatusTrackingRoute interface {
 // source integrations
 type Route interface {
 	ID() string
-	Resolve(listener Listener) core.ResolvedRoute
 }
 
 // Store is used for persisting and querying gateways and routes
 type Store interface {
-	GatewayExists(ctx context.Context, id core.GatewayID) (bool, error)
-	CanFetchSecrets(ctx context.Context, id core.GatewayID, secrets []string) (bool, error)
+	GetGateway(ctx context.Context, id core.GatewayID) (Gateway, error)
 	DeleteGateway(ctx context.Context, id core.GatewayID) error
 	UpsertGateway(ctx context.Context, gateway Gateway, updateConditionFn func(current Gateway) bool) error
 	DeleteRoute(ctx context.Context, id string) error
