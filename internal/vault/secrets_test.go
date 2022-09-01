@@ -76,18 +76,18 @@ func TestParseKVSecret(t *testing.T) {
 	assert.EqualError(t, ErrInvalidSecret, err.Error())
 
 	// Test partial set of serialized values
-	secret, err := ParseKVSecret("vault+kv:///kv/api-gateway-tls-cert?tlsCertKey=tls.cert")
+	secret, err := ParseKVSecret("vault+kv:///kv/api-gateway-tls-cert?tlsCertField=tls.cert")
 	require.NoError(t, err)
 	assert.Equal(t, "/kv/api-gateway-tls-cert", secret.Path)
-	assert.Equal(t, "tls.cert", secret.CertKey)
-	assert.Empty(t, secret.PrivateKeyKey)
+	assert.Equal(t, "tls.cert", secret.CertField)
+	assert.Empty(t, secret.PrivateKeyField)
 
 	// Test full set of serialized values
-	secret, err = ParseKVSecret("vault+kv:///kv/api-gateway-tls-cert?tlsCertKey=tls.cert&tlsPrivateKeyKey=tls.key")
+	secret, err = ParseKVSecret("vault+kv:///kv/api-gateway-tls-cert?tlsCertField=tls.cert&tlsPrivateKeyField=tls.key")
 	require.NoError(t, err)
 	assert.Equal(t, "/kv/api-gateway-tls-cert", secret.Path)
-	assert.Equal(t, "tls.cert", secret.CertKey)
-	assert.Equal(t, "tls.key", secret.PrivateKeyKey)
+	assert.Equal(t, "tls.cert", secret.CertField)
+	assert.Equal(t, "tls.key", secret.PrivateKeyField)
 
 	// Test round trip
 	secret2, err := ParseKVSecret(secret.String())
@@ -106,12 +106,12 @@ func TestKVSecret_String(t *testing.T) {
 	assert.Equal(t, "vault+kv:///kv/api-gateway-tls-cert", secret.String())
 
 	// Test with path + certificate key
-	secret.CertKey = "tls.cert"
-	assert.Equal(t, "vault+kv:///kv/api-gateway-tls-cert?tlsCertKey=tls.cert", secret.String())
+	secret.CertField = "tls.cert"
+	assert.Equal(t, "vault+kv:///kv/api-gateway-tls-cert?tlsCertField=tls.cert", secret.String())
 
 	// Test with all values
-	secret.PrivateKeyKey = "tls.key"
-	assert.Equal(t, "vault+kv:///kv/api-gateway-tls-cert?tlsCertKey=tls.cert&tlsPrivateKeyKey=tls.key", secret.String())
+	secret.PrivateKeyField = "tls.key"
+	assert.Equal(t, "vault+kv:///kv/api-gateway-tls-cert?tlsCertField=tls.cert&tlsPrivateKeyField=tls.key", secret.String())
 
 	// Test round trip
 	secret2, err := ParseKVSecret(secret.String())

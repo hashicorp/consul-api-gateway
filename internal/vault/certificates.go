@@ -91,8 +91,8 @@ func (c *KVSecretClient) FetchSecret(ctx context.Context, name string) (*tls.Sec
 		return nil, time.Time{}, err
 	}
 
-	certValue, certExists := result.Data[secret.CertKey]
-	privateKeyValue, privateKeyExists := result.Data[secret.PrivateKeyKey]
+	certValue, certExists := result.Data[secret.CertField]
+	privateKeyValue, privateKeyExists := result.Data[secret.PrivateKeyField]
 	if !certExists || !privateKeyExists {
 		return nil, time.Time{}, errors.New("cert or private key not included in Vault secret")
 	}

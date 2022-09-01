@@ -12,27 +12,27 @@ var (
 
 const (
 	// PKI secret
-	queryKeyAltNames  = "altNames"
-	queryKeyIPSANs    = "ipSans"
-	queryKeyOtherSANs = "otherSans"
-	queryKeyTTL       = "ttl"
+	queryParamAltNames  = "altNames"
+	queryParamIPSANs    = "ipSans"
+	queryParamOtherSANs = "otherSans"
+	queryParamTTL       = "ttl"
 
-	// Static secret
-	queryKeyCertKey       = "tlsCertKey"
-	queryKeyPrivateKeyKey = "tlsPrivateKeyKey"
+	// KV secret
+	queryParamCertField       = "tlsCertField"
+	queryParamPrivateKeyField = "tlsPrivateKeyField"
 )
 
 type KVSecret struct {
-	Path          string
-	CertKey       string
-	PrivateKeyKey string
+	Path            string
+	CertField       string
+	PrivateKeyField string
 }
 
-func NewKVSecret(path, certKey, privateKeyKey string) KVSecret {
+func NewKVSecret(path, certField, privateKeyField string) KVSecret {
 	return KVSecret{
-		Path:          path,
-		CertKey:       certKey,
-		PrivateKeyKey: privateKeyKey,
+		Path:            path,
+		CertField:       certField,
+		PrivateKeyField: privateKeyField,
 	}
 }
 
@@ -50,24 +50,24 @@ func ParseKVSecret(ref string) (KVSecret, error) {
 		return KVSecret{}, ErrInvalidSecret
 	}
 
-	// TODO Error on certKey or privateKeyKey not included since
+	// TODO Error on certField or privateKeyField not included since
 	//   the Secret can't fully indicate a cert+key pair without them
 	path := parsed.Path
-	certKey := parsed.Query().Get(queryKeyCertKey)
-	privateKeyKey := parsed.Query().Get(queryKeyPrivateKeyKey)
+	certField := parsed.Query().Get(queryParamCertField)
+	privateKeyField := parsed.Query().Get(queryParamPrivateKeyField)
 
-	return NewKVSecret(path, certKey, privateKeyKey), nil
+	return NewKVSecret(path, certField, privateKeyField), nil
 }
 
 func (s KVSecret) String() string {
 	v := url.Values{}
 
-	if s.CertKey != "" {
-		v.Add(queryKeyCertKey, s.CertKey)
+	if s.CertField != "" {
+		v.Add(queryParamCertField, s.CertField)
 	}
 
-	if s.PrivateKeyKey != "" {
-		v.Add(queryKeyPrivateKeyKey, s.PrivateKeyKey)
+	if s.PrivateKeyField != "" {
+		v.Add(queryParamPrivateKeyField, s.PrivateKeyField)
 	}
 
 	return (&url.URL{
@@ -122,10 +122,10 @@ func ParsePKISecret(ref string) (PKISecret, error) {
 	}
 
 	commonName := parsed.Host
-	altNames := parsed.Query().Get(queryKeyAltNames)
-	ipSANs := parsed.Query().Get(queryKeyIPSANs)
-	otherSANs := parsed.Query().Get(queryKeyOtherSANs)
-	ttl := parsed.Query().Get(queryKeyTTL)
+	altNames := parsed.Query().Get(queryParamAltNames)
+	ipSANs := parsed.Query().Get(queryParamIPSANs)
+	otherSANs := parsed.Query().Get(queryParamOtherSANs)
+	ttl := parsed.Query().Get(queryParamTTL)
 
 	return NewPKISecret(commonName, altNames, ipSANs, otherSANs, ttl), nil
 }
@@ -135,16 +135,16 @@ func ParsePKISecret(ref string) (PKISecret, error) {
 func (s PKISecret) String() string {
 	v := url.Values{}
 	if s.AltNames != "" {
-		v.Add(queryKeyAltNames, s.AltNames)
+		v.Add(queryParamAltNames, s.AltNames)
 	}
 	if s.IPSANs != "" {
-		v.Add(queryKeyIPSANs, s.IPSANs)
+		v.Add(queryParamIPSANs, s.IPSANs)
 	}
 	if s.OtherSANs != "" {
-		v.Add(queryKeyOtherSANs, s.OtherSANs)
+		v.Add(queryParamOtherSANs, s.OtherSANs)
 	}
 	if s.TTL != "" {
-		v.Add(queryKeyTTL, s.TTL)
+		v.Add(queryParamTTL, s.TTL)
 	}
 
 	return (&url.URL{
