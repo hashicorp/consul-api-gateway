@@ -3,12 +3,9 @@ package reconciler
 import (
 	"encoding/json"
 	"reflect"
-	"sort"
 	"strings"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
-
 	gwv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 	gwv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 )
@@ -49,18 +46,6 @@ func hostnamesMatch(a gwv1alpha2.Hostname, b gwv1beta1.Hostname) bool {
 	return string(a) == string(b)
 }
 
-func sortParents(parents []gwv1alpha2.RouteParentStatus) []gwv1alpha2.RouteParentStatus {
-	for _, parent := range parents {
-		sort.SliceStable(parent.Conditions, func(i, j int) bool {
-			return asJSON(parent.Conditions[i]) < asJSON(parent.Conditions[j])
-		})
-	}
-	sort.SliceStable(parents, func(i, j int) bool {
-		return asJSON(parents[i]) < asJSON(parents[j])
-	})
-	return parents
-}
-
 func asJSON(item interface{}) string {
 	data, err := json.Marshal(item)
 	if err != nil {
@@ -71,18 +56,6 @@ func asJSON(item interface{}) string {
 		panic(err)
 	}
 	return string(data)
-}
-
-func parseParent(stringified string) gwv1alpha2.ParentReference {
-	var ref gwv1alpha2.ParentReference
-	if err := json.Unmarshal([]byte(stringified), &ref); err != nil {
-		// everything passed to this internally should be
-		// deserializable, if something is passed to it that
-		// isn't, just panic since it's a usage error at
-		// that point
-		panic(err)
-	}
-	return ref
 }
 
 func conditionEqual(a, b metav1.Condition) bool {
@@ -147,19 +120,6 @@ func parentStatusEqual(a, b gwv1alpha2.RouteParentStatus) bool {
 	return conditionsEqual(a.Conditions, b.Conditions)
 }
 
-func routeStatusEqual(a, b gwv1alpha2.RouteStatus) bool {
-	if len(a.Parents) != len(b.Parents) {
-		return false
-	}
-
-	for i, oldParent := range a.Parents {
-		if !parentStatusEqual(oldParent, b.Parents[i]) {
-			return false
-		}
-	}
-	return true
-}
-
 func gatewayStatusEqual(a, b gwv1beta1.GatewayStatus) bool {
 	if !conditionsEqual(a.Conditions, b.Conditions) {
 		return false
@@ -170,21 +130,4 @@ func gatewayStatusEqual(a, b gwv1beta1.GatewayStatus) bool {
 	}
 
 	return true
-}
-
-type gwObjectName interface {
-	gwv1beta1.ObjectName | gwv1alpha2.ObjectName
-}
-
-type gwNamespace interface {
-	gwv1beta1.Namespace | gwv1alpha2.Namespace
-}
-
-// getNamespacedName returns types.NamespacedName defaulted to a parent
-// namespace in the case where the provided namespace is nil.
-func getNamespacedName[O gwObjectName, N gwNamespace](name O, namespace *N, parentNamespace string) types.NamespacedName {
-	if namespace != nil {
-		return types.NamespacedName{Namespace: string(*namespace), Name: string(name)}
-	}
-	return types.NamespacedName{Namespace: parentNamespace, Name: string(name)}
 }
