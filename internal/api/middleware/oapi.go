@@ -3,8 +3,10 @@ package middleware
 // based on https://github.com/deepmap/oapi-codegen/blob/9dc8b8d293a991614ea12447bd6507bfadf38304/pkg/chi-middleware/oapi_validate.go
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
+	"reflect"
 	"strings"
 
 	"github.com/getkin/kin-openapi/openapi3"
@@ -75,11 +77,7 @@ func validateRequest(r *http.Request, router routers.Router, options *Options) (
 	if err := openapi3filter.ValidateRequest(context.Background(), requestValidationInput); err != nil {
 		switch e := err.(type) {
 		case *openapi3filter.RequestError:
-			// We've got a bad request
-			// Split up the verbose error by lines and return the first one
-			// openapi errors seem to be multi-line with a decent message on the first
-			errorLines := strings.Split(e.Error(), "\n")
-			return http.StatusBadRequest, fmt.Errorf(errorLines[0])
+			return formatSchemaError(e)
 		case *openapi3filter.SecurityRequirementsError:
 			return http.StatusUnauthorized, err
 		default:
@@ -90,4 +88,35 @@ func validateRequest(r *http.Request, router routers.Router, options *Options) (
 	}
 
 	return http.StatusOK, nil
+}
+
+func formatSchemaError(err *openapi3filter.RequestError) (int, error) {
+	switch err := err.Unwrap().(type) {
+	case *openapi3.SchemaError:
+		message := strings.Join(err.JSONPointer(), ".")
+		message += ": " + strings.ToLower(err.Reason)
+		if err.SchemaField == "enum" {
+			message += fmt.Sprintf("; allowed values: %s", enumToString(err.Schema.Enum))
+		}
+		if err.Value != nil && !isComplex(err.Value) {
+			message += fmt.Sprintf("; current value: \"%v\"", err.Value)
+		}
+		return http.StatusBadRequest, errors.New(message)
+	default:
+		// we offer this fallback since we don't know exactly what the error is
+		return http.StatusBadRequest, fmt.Errorf("error validating route: %s", err.Error())
+	}
+}
+
+func enumToString(enum []interface{}) string {
+	enumStrings := []string{}
+	for _, e := range enum {
+		enumStrings = append(enumStrings, fmt.Sprintf("%v", e))
+	}
+	return fmt.Sprintf("[%s]", strings.Join(enumStrings, ", "))
+}
+
+func isComplex(field interface{}) bool {
+	kind := reflect.ValueOf(field).Kind()
+	return kind == reflect.Map || kind == reflect.Array
 }
