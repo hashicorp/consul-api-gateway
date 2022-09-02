@@ -291,19 +291,16 @@ type ServerInterface interface {
 	DeleteHTTPRouteInNamespace(w http.ResponseWriter, r *http.Request, namespace string, name string)
 
 	// (GET /namespaces/{namespace}/http-routes/{name})
-<<<<<<< HEAD
 	GetHTTPRouteInNamespace(w http.ResponseWriter, r *http.Request, namespace string, name string)
-=======
-	GetNamespacedHTTPRoute(w http.ResponseWriter, r *http.Request, namespace string, name string)
 
 	// (GET /namespaces/{namespace}/tcp-routes)
-	ListNamespacedTCPRoutes(w http.ResponseWriter, r *http.Request, namespace string)
+	ListTCPRoutesInNamespace(w http.ResponseWriter, r *http.Request, namespace string)
 
 	// (DELETE /namespaces/{namespace}/tcp-routes/{name})
-	DeleteNamespacedTCPRoute(w http.ResponseWriter, r *http.Request, namespace string, name string)
+	DeleteTCPRouteInNamespace(w http.ResponseWriter, r *http.Request, namespace string, name string)
 
 	// (GET /namespaces/{namespace}/tcp-routes/{name})
-	GetNamespacedTCPRoute(w http.ResponseWriter, r *http.Request, namespace string, name string)
+	GetTCPRouteInNamespace(w http.ResponseWriter, r *http.Request, namespace string, name string)
 
 	// (GET /tcp-routes)
 	ListTCPRoutes(w http.ResponseWriter, r *http.Request, params ListTCPRoutesParams)
@@ -316,7 +313,6 @@ type ServerInterface interface {
 
 	// (GET /tcp-routes/{name})
 	GetTCPRoute(w http.ResponseWriter, r *http.Request, name string)
->>>>>>> 966d39b (update stubs)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -710,8 +706,8 @@ func (siw *ServerInterfaceWrapper) GetHTTPRouteInNamespace(w http.ResponseWriter
 	handler.ServeHTTP(w, r.WithContext(ctx))
 }
 
-// ListNamespacedTCPRoutes operation middleware
-func (siw *ServerInterfaceWrapper) ListNamespacedTCPRoutes(w http.ResponseWriter, r *http.Request) {
+// ListTCPRoutesInNamespace operation middleware
+func (siw *ServerInterfaceWrapper) ListTCPRoutesInNamespace(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	var err error
@@ -726,7 +722,7 @@ func (siw *ServerInterfaceWrapper) ListNamespacedTCPRoutes(w http.ResponseWriter
 	}
 
 	var handler http.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.ListNamespacedTCPRoutes(w, r, namespace)
+		siw.Handler.ListTCPRoutesInNamespace(w, r, namespace)
 	})
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -736,8 +732,8 @@ func (siw *ServerInterfaceWrapper) ListNamespacedTCPRoutes(w http.ResponseWriter
 	handler.ServeHTTP(w, r.WithContext(ctx))
 }
 
-// DeleteNamespacedTCPRoute operation middleware
-func (siw *ServerInterfaceWrapper) DeleteNamespacedTCPRoute(w http.ResponseWriter, r *http.Request) {
+// DeleteTCPRouteInNamespace operation middleware
+func (siw *ServerInterfaceWrapper) DeleteTCPRouteInNamespace(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	var err error
@@ -761,7 +757,7 @@ func (siw *ServerInterfaceWrapper) DeleteNamespacedTCPRoute(w http.ResponseWrite
 	}
 
 	var handler http.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.DeleteNamespacedTCPRoute(w, r, namespace, name)
+		siw.Handler.DeleteTCPRouteInNamespace(w, r, namespace, name)
 	})
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -771,8 +767,8 @@ func (siw *ServerInterfaceWrapper) DeleteNamespacedTCPRoute(w http.ResponseWrite
 	handler.ServeHTTP(w, r.WithContext(ctx))
 }
 
-// GetNamespacedTCPRoute operation middleware
-func (siw *ServerInterfaceWrapper) GetNamespacedTCPRoute(w http.ResponseWriter, r *http.Request) {
+// GetTCPRouteInNamespace operation middleware
+func (siw *ServerInterfaceWrapper) GetTCPRouteInNamespace(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	var err error
@@ -796,7 +792,7 @@ func (siw *ServerInterfaceWrapper) GetNamespacedTCPRoute(w http.ResponseWriter, 
 	}
 
 	var handler http.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetNamespacedTCPRoute(w, r, namespace, name)
+		siw.Handler.GetTCPRouteInNamespace(w, r, namespace, name)
 	})
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1057,13 +1053,13 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/namespaces/{namespace}/http-routes/{name}", wrapper.GetHTTPRouteInNamespace)
 	})
 	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/namespaces/{namespace}/tcp-routes", wrapper.ListNamespacedTCPRoutes)
+		r.Get(options.BaseURL+"/namespaces/{namespace}/tcp-routes", wrapper.ListTCPRoutesInNamespace)
 	})
 	r.Group(func(r chi.Router) {
-		r.Delete(options.BaseURL+"/namespaces/{namespace}/tcp-routes/{name}", wrapper.DeleteNamespacedTCPRoute)
+		r.Delete(options.BaseURL+"/namespaces/{namespace}/tcp-routes/{name}", wrapper.DeleteTCPRouteInNamespace)
 	})
 	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/namespaces/{namespace}/tcp-routes/{name}", wrapper.GetNamespacedTCPRoute)
+		r.Get(options.BaseURL+"/namespaces/{namespace}/tcp-routes/{name}", wrapper.GetTCPRouteInNamespace)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/tcp-routes", wrapper.ListTCPRoutes)
@@ -1084,68 +1080,37 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-<<<<<<< HEAD
-	"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",
-	"/6jSeuf7LgAA",
-=======
-	"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",
-	"/z6sicIrQAAA",
->>>>>>> 966d39b (update stubs)
+	"H4sIAAAAAAAC/+xaW2/bOBb+KwJ3nxaKnab75KfNum4SNBdP4hYDtAXKSEcWOxKpklQST+D/PiCpqyVb",
+	"ki9JPOOXVhbJw3P5zvl4qDwjh4URo0ClQINnJBwfQqwfh8Al8YiDJaifEWeRegN68AHHgVQP/+bgoQH6",
+	"Vz+X00+E9L+oSUUx87mN5CwCNEDs/ic4Es1tNOKc8eoODnP1vh7jIZZogAiV709QJoBQCVPgSkIIQuCp",
+	"nh0Segl0Kn00eJdNFZITOtW7c/gVEw4uGnzNltlmr+81up1hCY94VtUuIEICBa5/EAmhaHLGZbJCK0zo",
+	"hVmTK4k5xzNjjcRKWEUZisNmG800EWGnsz+0/OJ6u2DmCu+ME9+XPTQ1g+0dlPp63tolC/pnO67Q9RY8",
+	"4ECdGoVf3L11ap5PJuOPJJAJssoa+oDdLpBTws71GiOy6tr5EhVKqyp6YNdN/iOSMIqDcWm44rLKFhxC",
+	"9gAlO5YtyjAgQG6y6WpLr7B0/KqhoXp9Q9Uj0DhUUYQn7Ehko4iDR56QjUTsmYeIgwCqxjhM4wDz0ZN6",
+	"JQijhVCXgVSr+QMO4rqRxfKVKGenyDLrlqFqiYnrY8oIrM9Wn7lFpw1vrq9Hwwmy0YfR5WgyQjY6G6mf",
+	"56PTD8hGN+PJxc31HbLR+HQyPFf/39yp8fFn9e/k9nQ4qvVhhKXfRuMxln6m768Y+KyTwb+pFUvsXQas",
+	"fMu1YNUOQ52hshojBTs7Kv2WkX/LYrlFgsoppInJfSakLvfdKt3WichGPA6gW45rp93GAdQivuHYsJKJ",
+	"M+n154alxx+u1qxhRKMBieCVumpPVHT1cqZuUiUldYUZBd+OliwttgL4A3E6Srszi9oXs3TBljywtACU",
+	"MF0ZfQQy9WVhiMbhvTrW1CGyLpzZGbxKg0mqqmcXPNPdoP+gLtUrYrxOOVUfmWQOC4q105cyUtKdqLZE",
+	"yqDRp5PLuyGjHpnGHKsTUcUNmU2JagVF6pwzGb5epdxByeucGJNhMS9C/JSru0L3DYth6vTd1sIstBuU",
+	"woJ7dt86dcz1pq6qkirV24b8lqK9W0tXG1VQOyTygd/FRHY9AYT46QtwkWhamR4Suny4roRXLmKq9vuY",
+	"0I8EArdFbNJTd9M0Th6whE8waye4tmkT4MScyNmd8rnR9TQin2B2GhslCEWDpItJD4QD9PvRkFERB0cT",
+	"9gfQvIpjvRTNlWRCPWYumqhU51hVnENMAjRQr9RiHJGjJHv/52PhE4fxqOewMN/IbGOdji+spOhZE8Bq",
+	"QsyVJFXmB/1+efXcRi4Ih5PIgLFOyhWmeAohUKle66sYB6iAPN3QFfuTBAG2xvF9QBzr0kywTnrHpe3F",
+	"oN9/fHzshWZ6j/FpH+jR57v+1fiyf9I77msIEhnUG6TO1yna0Lvece9YzWcRUBwRNEDv9SuDCh2ffpEv",
+	"pqZtL9t7CzLmVFg4CCwnSUxwrXRdD2n5JlcvXDTQxH2WSlVbcRyCOXh8XRQ+8cHKyoGwmJfJtSSzAiIU",
+	"E2rUmEYwi2W+SLX1Osfr8uu7KkAiYlQYOJ4cH6cwUk3Q4BnhKApUnhFG+z+FydJcXgvi1GygQVo2LTHE",
+	"Svc3SPLSu9itqGCuY2s2jyk8ReBIcC3I50RM1AR4yEFVUgtbFB5T/1fDaqblOFOFHYT8P3Nn23ZpnUVp",
+	"rklmOVoTVOQWyWOYV2L97iUUe3Nxntt5VvefVaLMTdADkFANv3mvwi8InQaQIsAi1JI+WD++peZ8Qz/y",
+	"ZLXusQDXYmaSem2JWBkIbgU6H/QWOXRWloRrJSovBCrgiepJJdCMVioEFSh0Kwn/rTol3dzs7L6B3F1d",
+	"mzsGzfOUh4kUVkzJr9jEr5ryZyDXD5oHqgveVcyO/7GprY4JR3lP0cjZar5l5jego57Ks2uVNcg82fbN",
+	"U3n5mqsmGNqQfaPyPPLL2Dy/d9sNnxfu9aqGZYMKH9h1X5TQV2r2xqK9kPXrcHoOha3TehFDrTiioMur",
+	"cLvZek+YXUWhc/Da03vn4GVx2xd637dEz9nQ5Ll+nm/cpqfImZIHoE2Un3bvF/S6cDfaiA+DwYUevgEn",
+	"qfA3dRbcm5a+BWA26QBLXHDdvsXbEDc7gY196DO3w0YL4OjcSu4rOA797IvWrw3bXNyO6fLmtgMsS33u",
+	"8jZ3OTAPTe72wLGdbmgBLBt0QeuWt3JX9HIV7tCNrd+Nrd9urYuSVwDIoeN7nRonnU78J53FW95WBJj+",
+	"tYnYCJH71+mV/pbnb4KTdagwg00rJmzTA6aeXRdQuUYvWuZK2x5osJEG2wKnPTluCpwDN7Yve3tS8jbm",
+	"wE5fOjMubA07sYIB395Xzj3jvHYfObOYL/vGmUF+N584V2VUOvYaHzj3NtO3copp9XWzy2mm7fexwzFi",
+	"w2PE1j5tdo3cgct3mOHz+V8BAAD//wj9f729QAAA",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

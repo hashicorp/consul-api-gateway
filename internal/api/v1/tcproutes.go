@@ -5,7 +5,7 @@ import (
 	"net/http"
 )
 
-func (s *Server) ListNamespacedTCPRoutes(w http.ResponseWriter, r *http.Request, namespace string) {
+func (s *Server) ListTCPRoutesInNamespace(w http.ResponseWriter, r *http.Request, namespace string) {
 	// do the actual route listing here
 	sendEmpty(w, http.StatusNotImplemented)
 }
@@ -15,7 +15,7 @@ func (s *Server) ListTCPRoutes(w http.ResponseWriter, r *http.Request, params Li
 	if params.Namespaces != nil {
 		namespaces = *params.Namespaces
 	}
-	s.ListNamespacedTCPRoutes(w, r, namespaces)
+	s.ListTCPRoutesInNamespace(w, r, namespaces)
 }
 
 func (s *Server) CreateTCPRoute(w http.ResponseWriter, r *http.Request) {
@@ -31,16 +31,16 @@ func (s *Server) CreateTCPRoute(w http.ResponseWriter, r *http.Request) {
 	send(w, http.StatusCreated, route)
 }
 
-func (s *Server) GetNamespacedTCPRoute(w http.ResponseWriter, r *http.Request, namespace string, name string) {
+func (s *Server) GetTCPRouteInNamespace(w http.ResponseWriter, r *http.Request, namespace string, name string) {
 	// do the actual gateway retrieval here
 	sendEmpty(w, http.StatusNotImplemented)
 }
 
 func (s *Server) GetTCPRoute(w http.ResponseWriter, r *http.Request, name string) {
-	s.GetNamespacedTCPRoute(w, r, defaultNamespace, name)
+	s.GetTCPRouteInNamespace(w, r, defaultNamespace, name)
 }
 
-func (s *Server) DeleteNamespacedTCPRoute(w http.ResponseWriter, r *http.Request, namespace string, name string) {
+func (s *Server) DeleteTCPRouteInNamespace(w http.ResponseWriter, r *http.Request, namespace string, name string) {
 	s.logger.Info("deleting tcp route", "namespace", namespace, "name", name)
 	// do the actual route deletion here
 
@@ -48,5 +48,5 @@ func (s *Server) DeleteNamespacedTCPRoute(w http.ResponseWriter, r *http.Request
 }
 
 func (s *Server) DeleteTCPRoute(w http.ResponseWriter, r *http.Request, name string) {
-	s.DeleteNamespacedTCPRoute(w, r, defaultNamespace, name)
+	s.DeleteTCPRouteInNamespace(w, r, defaultNamespace, name)
 }
