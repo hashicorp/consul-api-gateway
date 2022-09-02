@@ -18,6 +18,8 @@ import (
 	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 )
 
+const defaultListenerName = "default"
+
 // TODO (nathancoleman) A lot of these fields - including validator, deployer, etc. -
 //   will need to move out of this struct by the end of our store refactor.
 type K8sGateway struct {
@@ -29,8 +31,6 @@ type K8sGateway struct {
 	config    apigwv1alpha1.GatewayClassConfig
 	validator *validator.GatewayValidator
 	deployer  *GatewayDeployer
-
-	listeners []*K8sListener
 }
 
 var _ store.StatusTrackingGateway = &K8sGateway{}
@@ -48,28 +48,14 @@ type K8sGatewayConfig struct {
 }
 
 func newK8sGateway(gateway *gwv1beta1.Gateway, config K8sGatewayConfig) *K8sGateway {
-	gatewayLogger := config.Logger.Named("gateway").With("name", gateway.Name, "namespace", gateway.Namespace)
-	listeners := make([]*K8sListener, 0, len(gateway.Spec.Listeners))
-	for index, listener := range gateway.Spec.Listeners {
-		k8sListener := NewK8sListener(gateway, listener, K8sListenerConfig{
-			ConsulNamespace: config.ConsulNamespace,
-			Logger:          gatewayLogger,
-			Client:          config.Client,
-			State:           config.State.Listeners[index],
-		})
-		k8sListener.status = &(config.State.Listeners[index].Status)
-		listeners = append(listeners, k8sListener)
-	}
-
 	return &K8sGateway{
 		Gateway:      gateway,
 		GatewayState: config.State,
 		config:       config.Config,
 		validator:    validator.NewGatewayValidator(config.Client),
 		deployer:     config.Deployer,
-		logger:       gatewayLogger,
+		logger:       config.Logger.Named("gateway").With("name", gateway.Name, "namespace", gateway.Namespace),
 		client:       config.Client,
-		listeners:    listeners,
 	}
 }
 
@@ -92,47 +78,70 @@ func (g *K8sGateway) Meta() map[string]string {
 	}
 }
 
-func (g *K8sGateway) Listeners() []store.Listener {
-	listeners := []store.Listener{}
-
-	for _, listener := range g.listeners {
-		listeners = append(listeners, listener)
-	}
-
-	return listeners
-}
-
-func (g *K8sGateway) ShouldUpdate(other store.Gateway) bool {
-	if other == nil {
-		return false
-	}
-
-	if g == nil {
-		return true
-	}
-
-	otherGateway, ok := other.(*K8sGateway)
-	if !ok {
-		return false
-	}
-
-	return !utils.ResourceVersionGreater(g.Gateway.ResourceVersion, otherGateway.Gateway.ResourceVersion)
-}
-
-func (g *K8sGateway) ShouldBind(route store.Route) bool {
+// Bind returns the name of the listeners to which a route bound
+func (g *K8sGateway) Bind(ctx context.Context, route store.Route) []string {
 	k8sRoute, ok := route.(*K8sRoute)
 	if !ok {
-		return false
+		return nil
 	}
 
-	for _, ref := range k8sRoute.CommonRouteSpec().ParentRefs {
-		if namespacedName, isGateway := utils.ReferencesGateway(k8sRoute.GetNamespace(), ref); isGateway {
-			if utils.NamespacedName(g.Gateway) == namespacedName {
-				return true
-			}
+	return newBinder(g.client, g.Gateway, g.GatewayState).Bind(ctx, k8sRoute)
+}
+
+func (g *K8sGateway) Remove(ctx context.Context, routeID string) error {
+	for _, listener := range g.GatewayState.Listeners {
+		delete(listener.Routes, routeID)
+	}
+
+	return nil
+}
+
+func (g *K8sGateway) Resolve() core.ResolvedGateway {
+	listeners := []core.ResolvedListener{}
+	for i, listener := range g.Gateway.Spec.Listeners {
+		state := g.GatewayState.Listeners[i]
+		if state.Valid() {
+			listeners = append(listeners, g.resolveListener(state, listener))
 		}
 	}
-	return false
+	return core.ResolvedGateway{
+		ID:        g.ID(),
+		Meta:      g.Meta(),
+		Listeners: listeners,
+	}
+}
+
+func (g *K8sGateway) resolveListener(state *state.ListenerState, listener gwv1beta1.Listener) core.ResolvedListener {
+	routes := []core.ResolvedRoute{}
+	for _, route := range state.Routes {
+		routes = append(routes, route)
+	}
+	protocol, _ := utils.ProtocolToConsul(state.Protocol)
+
+	return core.ResolvedListener{
+		Name:     listenerName(listener),
+		Hostname: listenerHostname(listener),
+		Port:     int(listener.Port),
+		Protocol: protocol,
+		TLS:      state.TLS,
+		Routes:   routes,
+	}
+
+}
+
+func (g *K8sGateway) CanFetchSecrets(_ context.Context, secrets []string) (bool, error) {
+	certificates := make(map[string]struct{})
+	for _, listener := range g.GatewayState.Listeners {
+		for _, cert := range listener.TLS.Certificates {
+			certificates[cert] = struct{}{}
+		}
+	}
+	for _, secret := range secrets {
+		if _, found := certificates[secret]; !found {
+			return false, nil
+		}
+	}
+	return true, nil
 }
 
 func (g *K8sGateway) TrackSync(ctx context.Context, sync func() (bool, error)) error {
@@ -164,4 +173,18 @@ func (g *K8sGateway) TrackSync(ctx context.Context, sync func() (bool, error)) e
 		}
 	}
 	return nil
+}
+
+func listenerHostname(listener gwv1beta1.Listener) string {
+	if listener.Hostname != nil {
+		return string(*listener.Hostname)
+	}
+	return ""
+}
+
+func listenerName(listener gwv1beta1.Listener) string {
+	if listener.Name != "" {
+		return string(listener.Name)
+	}
+	return defaultListenerName
 }

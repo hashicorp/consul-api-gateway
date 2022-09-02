@@ -6,17 +6,9 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/core"
 )
 
-//go:generate mockgen -source ./interfaces.go -destination ./mocks/interfaces.go -package mocks StatusTrackingGateway,Gateway,RouteTrackingListener,Listener,StatusTrackingRoute,Route,Store
+//go:generate mockgen -source ./interfaces.go -destination ./mocks/interfaces.go -package mocks StatusTrackingGateway,Gateway,StatusTrackingRoute,Route,Store
 
 type CompareResult int
-
-const (
-	CompareResultInvalid CompareResult = iota
-	CompareResultNewer
-	CompareResultNotEqual
-	CompareResultEqual
-	CompareResultStatusNotEqual
-)
 
 // StatusTrackingGateway is an optional extension
 // of Gateway. If supported by a Store, when
@@ -32,39 +24,10 @@ type StatusTrackingGateway interface {
 // Gateway describes a gateway.
 type Gateway interface {
 	ID() core.GatewayID
-	Meta() map[string]string
-	ShouldUpdate(other Gateway) bool
-	Listeners() []Listener
-	ShouldBind(route Route) bool
-}
-
-// ListenerConfig contains the common configuration
-// options of a listener.
-type ListenerConfig struct {
-	Name     string
-	Hostname string
-	Port     int
-	Protocol string
-	TLS      core.TLSParams
-}
-
-// RouteTrackingListener is an optional extension
-// to Listener that tracks when routes have been
-// bound to it.
-type RouteTrackingListener interface {
-	Listener
-
-	OnRouteAdded(route Route)
-	OnRouteRemoved(id string)
-}
-
-// Listener describes the basic methods of a gateway
-// listener.
-type Listener interface {
-	ID() string
-	CanBind(ctx context.Context, route Route) (bool, error)
-	Config() ListenerConfig
-	IsValid() bool
+	Bind(ctx context.Context, route Route) []string
+	Remove(ctx context.Context, id string) error
+	Resolve() core.ResolvedGateway
+	CanFetchSecrets(ctx context.Context, secrets []string) (bool, error)
 }
 
 // StatusTrackingRoute is an optional extension
@@ -77,8 +40,6 @@ type StatusTrackingRoute interface {
 	Route
 
 	SyncStatus(ctx context.Context) error
-	OnBound(gateway Gateway)
-	OnBindFailed(err error, gateway Gateway)
 	OnGatewayRemoved(gateway Gateway)
 }
 
@@ -86,13 +47,11 @@ type StatusTrackingRoute interface {
 // source integrations
 type Route interface {
 	ID() string
-	Resolve(listener Listener) core.ResolvedRoute
 }
 
 // Store is used for persisting and querying gateways and routes
 type Store interface {
-	GatewayExists(ctx context.Context, id core.GatewayID) (bool, error)
-	CanFetchSecrets(ctx context.Context, id core.GatewayID, secrets []string) (bool, error)
+	GetGateway(ctx context.Context, id core.GatewayID) (Gateway, error)
 	DeleteGateway(ctx context.Context, id core.GatewayID) error
 	UpsertGateway(ctx context.Context, gateway Gateway, updateConditionFn func(current Gateway) bool) error
 	DeleteRoute(ctx context.Context, id string) error
