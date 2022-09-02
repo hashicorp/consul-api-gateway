@@ -65,26 +65,6 @@ func TestGatewayMeta(t *testing.T) {
 	require.NotNil(t, gateway.Meta())
 }
 
-func TestGatewayListeners(t *testing.T) {
-	t.Parallel()
-
-	factory := NewFactory(FactoryConfig{
-		Logger: hclog.NewNullLogger(),
-	})
-
-	gw := &gwv1beta1.Gateway{
-		Spec: gwv1beta1.GatewaySpec{
-			Listeners: []gwv1beta1.Listener{{}},
-		},
-	}
-	gateway := factory.NewGateway(NewGatewayConfig{
-		Gateway:         gw,
-		State:           state.InitialGatewayState(gw),
-		ConsulNamespace: "consul",
-	})
-	require.Len(t, gateway.Listeners(), 1)
-}
-
 func TestGatewayTrackSync(t *testing.T) {
 	t.Parallel()
 

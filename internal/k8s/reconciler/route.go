@@ -126,15 +126,6 @@ func (r *K8sRoute) SyncStatus(ctx context.Context) error {
 	return nil
 }
 
-func (r *K8sRoute) Resolve(listener store.Listener) core.ResolvedRoute {
-	k8sListener, ok := listener.(*K8sListener)
-	if !ok {
-		return nil
-	}
-
-	return r.resolve(k8sListener.consulNamespace, k8sListener.gateway, k8sListener.listener)
-}
-
 func (r *K8sRoute) resolve(namespace string, gateway *gwv1beta1.Gateway, listener gwv1beta1.Listener) core.ResolvedRoute {
 	hostname := listenerHostname(listener)
 

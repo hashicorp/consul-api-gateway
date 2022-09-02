@@ -18,6 +18,8 @@ import (
 	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 )
 
+const defaultListenerName = "default"
+
 // TODO (nathancoleman) A lot of these fields - including validator, deployer, etc. -
 //   will need to move out of this struct by the end of our store refactor.
 type K8sGateway struct {
@@ -29,8 +31,6 @@ type K8sGateway struct {
 	config    apigwv1alpha1.GatewayClassConfig
 	validator *validator.GatewayValidator
 	deployer  *GatewayDeployer
-
-	listeners []*K8sListener
 }
 
 var _ store.StatusTrackingGateway = &K8sGateway{}
@@ -48,28 +48,14 @@ type K8sGatewayConfig struct {
 }
 
 func newK8sGateway(gateway *gwv1beta1.Gateway, config K8sGatewayConfig) *K8sGateway {
-	gatewayLogger := config.Logger.Named("gateway").With("name", gateway.Name, "namespace", gateway.Namespace)
-	listeners := make([]*K8sListener, 0, len(gateway.Spec.Listeners))
-	for index, listener := range gateway.Spec.Listeners {
-		k8sListener := NewK8sListener(gateway, listener, K8sListenerConfig{
-			ConsulNamespace: config.ConsulNamespace,
-			Logger:          gatewayLogger,
-			Client:          config.Client,
-			State:           config.State.Listeners[index],
-		})
-		k8sListener.status = &(config.State.Listeners[index].Status)
-		listeners = append(listeners, k8sListener)
-	}
-
 	return &K8sGateway{
 		Gateway:      gateway,
 		GatewayState: config.State,
 		config:       config.Config,
 		validator:    validator.NewGatewayValidator(config.Client),
 		deployer:     config.Deployer,
-		logger:       gatewayLogger,
+		logger:       config.Logger.Named("gateway").With("name", gateway.Name, "namespace", gateway.Namespace),
 		client:       config.Client,
-		listeners:    listeners,
 	}
 }
 
@@ -156,16 +142,6 @@ func (g *K8sGateway) CanFetchSecrets(_ context.Context, secrets []string) (bool,
 		}
 	}
 	return true, nil
-}
-
-func (g *K8sGateway) Listeners() []store.Listener {
-	listeners := []store.Listener{}
-
-	for _, listener := range g.listeners {
-		listeners = append(listeners, listener)
-	}
-
-	return listeners
 }
 
 func (g *K8sGateway) TrackSync(ctx context.Context, sync func() (bool, error)) error {
