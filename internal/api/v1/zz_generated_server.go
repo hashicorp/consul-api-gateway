@@ -255,13 +255,13 @@ type ServerInterface interface {
 	GetGatewayInNamespace(w http.ResponseWriter, r *http.Request, namespace string, name string)
 
 	// (GET /namespaces/{namespace}/http-routes)
-	ListNamespacedHTTPRoutes(w http.ResponseWriter, r *http.Request, namespace string)
+	ListHTTPRoutesInNamespace(w http.ResponseWriter, r *http.Request, namespace string)
 
 	// (DELETE /namespaces/{namespace}/http-routes/{name})
-	DeleteNamespacedHTTPRoute(w http.ResponseWriter, r *http.Request, namespace string, name string)
+	DeleteHTTPRouteInNamespace(w http.ResponseWriter, r *http.Request, namespace string, name string)
 
 	// (GET /namespaces/{namespace}/http-routes/{name})
-	GetNamespacedHTTPRoute(w http.ResponseWriter, r *http.Request, namespace string, name string)
+	GetHTTPRouteInNamespace(w http.ResponseWriter, r *http.Request, namespace string, name string)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -559,8 +559,8 @@ func (siw *ServerInterfaceWrapper) GetGatewayInNamespace(w http.ResponseWriter, 
 	handler.ServeHTTP(w, r.WithContext(ctx))
 }
 
-// ListNamespacedHTTPRoutes operation middleware
-func (siw *ServerInterfaceWrapper) ListNamespacedHTTPRoutes(w http.ResponseWriter, r *http.Request) {
+// ListHTTPRoutesInNamespace operation middleware
+func (siw *ServerInterfaceWrapper) ListHTTPRoutesInNamespace(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	var err error
@@ -575,7 +575,7 @@ func (siw *ServerInterfaceWrapper) ListNamespacedHTTPRoutes(w http.ResponseWrite
 	}
 
 	var handler http.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.ListNamespacedHTTPRoutes(w, r, namespace)
+		siw.Handler.ListHTTPRoutesInNamespace(w, r, namespace)
 	})
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -585,8 +585,8 @@ func (siw *ServerInterfaceWrapper) ListNamespacedHTTPRoutes(w http.ResponseWrite
 	handler.ServeHTTP(w, r.WithContext(ctx))
 }
 
-// DeleteNamespacedHTTPRoute operation middleware
-func (siw *ServerInterfaceWrapper) DeleteNamespacedHTTPRoute(w http.ResponseWriter, r *http.Request) {
+// DeleteHTTPRouteInNamespace operation middleware
+func (siw *ServerInterfaceWrapper) DeleteHTTPRouteInNamespace(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	var err error
@@ -610,7 +610,7 @@ func (siw *ServerInterfaceWrapper) DeleteNamespacedHTTPRoute(w http.ResponseWrit
 	}
 
 	var handler http.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.DeleteNamespacedHTTPRoute(w, r, namespace, name)
+		siw.Handler.DeleteHTTPRouteInNamespace(w, r, namespace, name)
 	})
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -620,8 +620,8 @@ func (siw *ServerInterfaceWrapper) DeleteNamespacedHTTPRoute(w http.ResponseWrit
 	handler.ServeHTTP(w, r.WithContext(ctx))
 }
 
-// GetNamespacedHTTPRoute operation middleware
-func (siw *ServerInterfaceWrapper) GetNamespacedHTTPRoute(w http.ResponseWriter, r *http.Request) {
+// GetHTTPRouteInNamespace operation middleware
+func (siw *ServerInterfaceWrapper) GetHTTPRouteInNamespace(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	var err error
@@ -645,7 +645,7 @@ func (siw *ServerInterfaceWrapper) GetNamespacedHTTPRoute(w http.ResponseWriter,
 	}
 
 	var handler http.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetNamespacedHTTPRoute(w, r, namespace, name)
+		siw.Handler.GetHTTPRouteInNamespace(w, r, namespace, name)
 	})
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -802,13 +802,13 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/namespaces/{namespace}/gateways/{name}", wrapper.GetGatewayInNamespace)
 	})
 	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/namespaces/{namespace}/http-routes", wrapper.ListNamespacedHTTPRoutes)
+		r.Get(options.BaseURL+"/namespaces/{namespace}/http-routes", wrapper.ListHTTPRoutesInNamespace)
 	})
 	r.Group(func(r chi.Router) {
-		r.Delete(options.BaseURL+"/namespaces/{namespace}/http-routes/{name}", wrapper.DeleteNamespacedHTTPRoute)
+		r.Delete(options.BaseURL+"/namespaces/{namespace}/http-routes/{name}", wrapper.DeleteHTTPRouteInNamespace)
 	})
 	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/namespaces/{namespace}/http-routes/{name}", wrapper.GetNamespacedHTTPRoute)
+		r.Get(options.BaseURL+"/namespaces/{namespace}/http-routes/{name}", wrapper.GetHTTPRouteInNamespace)
 	})
 
 	return r
@@ -817,34 +817,34 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"H4sIAAAAAAAC/+xYW2/buBL+KwLPeTpQLDc9T37arOsmQXPxxm6xQFugjDSy2JVIlaSSeAv/98WIulry",
-	"RbaTJti8JLJIzvWbGX76SVwRxYID14oMfhLlBhDR9HEIUjOfuVQD/oyliPENpIt3NAk1PvxXgk8G5D9O",
-	"KcfJhDifcFNVzGJhEz2PgQyIuP0OriYLm4ykFLKpwRVeqtcXMqKaDAjj+u0xKQQwrmEGEiVEoBSdpbsj",
-	"xi+Az3RABm+KrUpLxmepdgk/EibBI4PPxTHb6PraYtsp1XBP503rQqY0cJDpD6YhUpuCcZGdSA1m/Nyc",
-	"KY2kUtK58UZTFNYwhtNos49mm4qp2zkeqfzqebvi5projLPY1yM0M4vbByiP9WLrkCzZX2hcY+sN+CCB",
-	"uy0GP3l428w8m07H71moM2TVLQyAel0gh8LO0jNGZDO0ixUm1E417KCel/1jmglOw3FtuRGyhgoJkbiD",
-	"mh+rDhUYUKD3Ubre00uq3aDpaISvrzk+Ak8izCI8UFcTm8QSfPZAbKIS3zzEEhRwXJMwS0IqRw/4SjHB",
-	"K6muA6nV8jsaJm0ry+0rM87OkWXOrULVChd3x5QR2F6tgfCqQRteX12NhlNik3eji9F0RGxyOsKfZ6OT",
-	"d8Qm1+Pp+fXVhNhkfDIdnuH/6wmujz/i3+nNyXDUGsOY6mAbi8dUB4W9PxKQ804O/4EnVvi7Clilyp1g",
-	"tR2GOkNlPUYqfnY0+jkj/0Yk+oADqhwhmyZ5IJRO2323TnfwQWQTmYTQrcbToN0kIbQifsO1Ye0kLqS3",
-	"3xtWXn8kntnBiY0OZILX2ppGomGrX07qTabkQx0xg/Dt6MnKZqtA3jG3o7SJObR9M8sPHCgCKxtADdON",
-	"1Xtgs0BXlngS3eK1pg2Rbeks7uDNMZiVKj574Bt2Q/5HunSvWMg247A/Ci1cEVZ7Z6B1jNLduLVF6nBj",
-	"TKcXk6HgPpslkuKNqBGGwqfMtIohbcFpyGtSspLKbY+3Gv9r4tdlcQBykjDdtU1G9OETSJVZ2tgeMb56",
-	"uQ3nDbba9D+gjL9nEHpbtNz8arJpm2R3VMMHmG8nuPVmq8BNJNPzCcbc2HoSsw8wP0mMEYyTQXbVy6fm",
-	"gPx5NBRcJeHRVPwFvIQ6TY+SBUpm3BeGjXONwx4RHFEWkgG+wsM0ZkdZv/8toCpgrpBxzxVRqciosU7G",
-	"51Y2Q60pUNyQSJSEtTBwnPrphU08UK5ksQFjm5RLyukMIuAaX6d81QWuoKRz5FL8zcKQWuPkNmSudWE2",
-	"WMe9fk29GjjO/f19LzLbe0LOHOBHHyfO5fjCOe71nRSCTIftDuElJEcbedPr9/q4X8TAaczIgLxNXxlU",
-	"pPlxqtePmeE2dX9vQCeSK4uGoeVmhQmelZ/rkVS+qdVzjwzS7naaS0VVkkZguvPnZeHTAKyi2SpL+IVc",
-	"SwsLaT+xDWrMbbnIZXkIuU9a42319RVbkYoFVwaOx/1+DiO8KSKRi+MQ64wJ7nxXpkpLeVvcw9LrQwrS",
-	"umuZI1au3yDJzz9YHcQE882qRXnC4SEGV4NnQbknFqolwUMJ2EktanG4z+PfTKvZVuIMWzwo/bvw5ocO",
-	"aZtHea1pYbmpJaQ6ZbRMYNHI9ZunMOzZ5Xlhl1Xt/MRCWZikh6ChmX7zHtOvGJ+FkCPAYtzSAVjfvuTu",
-	"fCHfymK1bqkCzxJmE762VIIOgteAzrtURQmdtS3hCkWVjQATnpmedYJ0otUaQQMK3VrC/5tByZUbzd4z",
-	"qN31vblj0nwfI8y0shLOfiQmf82SPwW9e9J8QKrwWDnr/2tLG68JRyUJ3Tizcb9l9rfP6oJc7jCtjdzn",
-	"P6vrZL8l2qkjL21Wl6ldNa7Lrw+PM7ArXzeajhWLiA/qeU86sdda9syyvVTWuwztEgr5CMg82mdiV9Gz",
-	"VfuvWPFLxrZR/UKGNmahErDOo7lzdorEvJTR/NJquBx0poTT58XeFDuv6Bm7A17W83rmfc6vKl/CN+LD",
-	"dIgl/r0BJ7nwZ3WPezF0fAvA7MPeas3+ant6tiduHgU29itHPMy4WQJHZxr4UsHxykWftH/tQVFx1tHt",
-	"Jl2BMG9HBruawK7G5St9PRw2DsNzlrDSneW04KhTc6uTnqfrb69k6wnJ1r4g+QX4eKV7j9nhFot/AgAA",
-	"//8L3eq6tC4AAA==",
+	"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",
+	"/6jSeuf7LgAA",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

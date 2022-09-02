@@ -31,7 +31,7 @@ func TestServer_ListHTTPRoutes(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			resp, err := http.Get(testServer.URL + "/routes/http")
+			resp, err := http.Get(testServer.URL + "/http-routes")
 			require.NoError(t, err)
 			require.Equal(t, "application/json", resp.Header.Get("Content-Type"))
 			require.Equal(t, tt.wantStatusCode, resp.StatusCode)
@@ -39,7 +39,7 @@ func TestServer_ListHTTPRoutes(t *testing.T) {
 	}
 }
 
-func TestServer_GetHTTPRoute(t *testing.T) {
+func TestServer_GetNamespacedHTTPRoute(t *testing.T) {
 	s, err := NewServer("", testConsul(t, false), hclog.NewNullLogger())
 	require.NoError(t, err)
 
@@ -61,7 +61,7 @@ func TestServer_GetHTTPRoute(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			resp, err := http.Get(testServer.URL + "/routes/http/" + tt.routeNamespace + "/" + tt.routeName)
+			resp, err := http.Get(testServer.URL + "/namespaces/" + tt.routeNamespace + "/http-routes/" + tt.routeName)
 			require.NoError(t, err)
 			require.Equal(t, "application/json", resp.Header.Get("Content-Type"))
 			require.Equal(t, tt.wantStatusCode, resp.StatusCode)
@@ -138,7 +138,7 @@ func TestServer_CreateHTTPRoute(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			data, err := json.Marshal(tt.route)
 			require.NoError(t, err)
-			resp, err := http.Post(testServer.URL+"/routes/http", "application/json", bytes.NewBuffer(data))
+			resp, err := http.Post(testServer.URL+"/http-routes", "application/json", bytes.NewBuffer(data))
 			require.NoError(t, err)
 			require.Equal(t, "application/json", resp.Header.Get("Content-Type"))
 			require.Equal(t, tt.wantStatusCode, resp.StatusCode)
@@ -152,7 +152,7 @@ func TestServer_CreateHTTPRoute(t *testing.T) {
 	}
 }
 
-func TestServer_DeleteHTTPRoute(t *testing.T) {
+func TestServer_DeleteNamespacedHTTPRoute(t *testing.T) {
 	s, err := NewServer("", testConsul(t, false), hclog.NewNullLogger())
 	require.NoError(t, err)
 
@@ -174,7 +174,7 @@ func TestServer_DeleteHTTPRoute(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req, err := http.NewRequest("DELETE", testServer.URL+"/routes/http/"+tt.routeNamespace+"/"+tt.routeName, nil)
+			req, err := http.NewRequest("DELETE", testServer.URL+"/namespaces/"+tt.routeNamespace+"/http-routes/"+tt.routeName, nil)
 			require.NoError(t, err)
 			resp, err := http.DefaultClient.Do(req)
 			require.NoError(t, err)

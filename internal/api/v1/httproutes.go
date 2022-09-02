@@ -5,9 +5,17 @@ import (
 	"net/http"
 )
 
-func (s *Server) ListHTTPRoutes(w http.ResponseWriter, r *http.Request) {
+func (s *Server) ListNamespacedHTTPRoutes(w http.ResponseWriter, r *http.Request, namespace string) {
 	// do the actual route listing here
 	sendEmpty(w, http.StatusNotImplemented)
+}
+
+func (s *Server) ListHTTPRoutes(w http.ResponseWriter, r *http.Request, params ListHTTPRoutesParams) {
+	namespaces := defaultNamespace
+	if params.Namespaces != nil {
+		namespaces = *params.Namespaces
+	}
+	s.ListNamespacedHTTPRoutes(w, r, namespaces)
 }
 
 func (s *Server) CreateHTTPRoute(w http.ResponseWriter, r *http.Request) {
@@ -23,14 +31,22 @@ func (s *Server) CreateHTTPRoute(w http.ResponseWriter, r *http.Request) {
 	send(w, http.StatusCreated, route)
 }
 
-func (s *Server) GetHTTPRoute(w http.ResponseWriter, r *http.Request, namespace string, name string) {
+func (s *Server) GetNamespacedHTTPRoute(w http.ResponseWriter, r *http.Request, namespace, name string) {
 	// do the actual gateway retrieval here
 	sendEmpty(w, http.StatusNotImplemented)
 }
 
-func (s *Server) DeleteHTTPRoute(w http.ResponseWriter, r *http.Request, namespace string, name string) {
+func (s *Server) GetHTTPRoute(w http.ResponseWriter, r *http.Request, name string) {
+	s.GetNamespacedHTTPRoute(w, r, defaultNamespace, name)
+}
+
+func (s *Server) DeleteNamespacedHTTPRoute(w http.ResponseWriter, r *http.Request, namespace, name string) {
 	s.logger.Info("deleting http route", "namespace", namespace, "name", name)
 	// do the actual route deletion here
 
 	sendEmpty(w, http.StatusAccepted)
+}
+
+func (s *Server) DeleteHTTPRoute(w http.ResponseWriter, r *http.Request, name string) {
+	s.DeleteNamespacedHTTPRoute(w, r, defaultNamespace, name)
 }

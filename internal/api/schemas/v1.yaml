@@ -182,7 +182,7 @@ paths:
                 "$ref": "#/components/schemas/Error"
   "/http-routes":
     get:
-      description: 'Returns all http routes.'
+      description: 'Returns all http routes in the `"default"` namespace.'
       operationId: listHTTPRoutes
       parameters:
       - name: namespaces
@@ -229,7 +229,7 @@ paths:
   "/namespaces/{namespace}/http-routes":
     get:
       description: 'Returns all http routes in a given namespace.'
-      operationId: listNamespacedHTTPRoutes
+      operationId: listHTTPRoutesInNamespace
       parameters:
       - name: namespace
         in: path
@@ -252,7 +252,7 @@ paths:
   "/namespaces/{namespace}/http-routes/{name}":
     get:
       description: Returns the http route based off of its unique name.
-      operationId: getNamespacedHTTPRoute
+      operationId: getHTTPRouteInNamespace
       parameters:
       - name: namespace
         in: path
@@ -281,7 +281,7 @@ paths:
                 "$ref": "#/components/schemas/Error"
     delete:
       description: deletes a single http route in the given namespace based on the name supplied
-      operationId: deleteNamespacedHTTPRoute
+      operationId: deleteHTTPRouteInNamespace
       parameters:
       - name: namespace
         in: path
@@ -306,7 +306,7 @@ paths:
                 "$ref": "#/components/schemas/Error"
   "/http-routes/{name}":
     get:
-      description: Returns the http route based off of its unique name.
+      description: Returns the http route in the `"default"` namespace based off of its unique name.
       operationId: getHTTPRoute
       parameters:
       - name: name
@@ -329,7 +329,7 @@ paths:
               schema:
                 "$ref": "#/components/schemas/Error"
     delete:
-      description: deletes a single http route in the default namespace based on the name supplied
+      description: deletes a single http route in the `"default"` namespace based on the name supplied
       operationId: deleteHTTPRoute
       parameters:
       - name: name
