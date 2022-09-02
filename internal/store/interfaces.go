@@ -58,3 +58,27 @@ type Store interface {
 	UpsertRoute(ctx context.Context, route Route, updateConditionFn func(current Route) bool) error
 	Sync(ctx context.Context) error
 }
+
+// Backend is used for persisting and querying gateways and routes
+type Backend interface {
+	GetGateway(ctx context.Context, id core.GatewayID) ([]byte, error)
+	ListGateways(ctx context.Context) ([][]byte, error)
+	DeleteGateway(ctx context.Context, id core.GatewayID) error
+	UpsertGateways(ctx context.Context, gateways ...GatewayRecord) error
+	GetRoute(ctx context.Context, id string) ([]byte, error)
+	ListRoutes(ctx context.Context) ([][]byte, error)
+	DeleteRoute(ctx context.Context, id string) error
+	UpsertRoutes(ctx context.Context, routes ...RouteRecord) error
+}
+
+// GatewayRecord represents a serialized Gateway
+type GatewayRecord struct {
+	ID   core.GatewayID
+	Data []byte
+}
+
+// RouteRecord represents a serialized Route
+type RouteRecord struct {
+	ID   string
+	Data []byte
+}
