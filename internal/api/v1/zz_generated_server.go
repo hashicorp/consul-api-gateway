@@ -76,23 +76,38 @@ type VaultCertificate struct {
 	PrivateKeyField *string `json:"privateKeyField,omitempty"`
 }
 
-// AddGatewayJSONRequestBody defines body for AddGateway for application/json ContentType.
-type AddGatewayJSONRequestBody = Gateway
+// ListGatewaysParams defines parameters for ListGateways.
+type ListGatewaysParams struct {
+	// Namespaces The namespaces of gateways to list
+	Namespaces *string `form:"namespaces,omitempty" json:"namespaces,omitempty"`
+}
+
+// CreateGatewayJSONRequestBody defines body for CreateGateway for application/json ContentType.
+type CreateGatewayJSONRequestBody = Gateway
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 
 	// (GET /gateways)
-	ListGateways(w http.ResponseWriter, r *http.Request)
+	ListGateways(w http.ResponseWriter, r *http.Request, params ListGatewaysParams)
 
 	// (POST /gateways)
-	AddGateway(w http.ResponseWriter, r *http.Request)
+	CreateGateway(w http.ResponseWriter, r *http.Request)
 
-	// (DELETE /gateways/{namespace}/{name})
-	DeleteGateway(w http.ResponseWriter, r *http.Request, namespace string, name string)
+	// (DELETE /gateways/{name})
+	DeleteGateway(w http.ResponseWriter, r *http.Request, name string)
 
-	// (GET /gateways/{namespace}/{name})
-	GetGateway(w http.ResponseWriter, r *http.Request, namespace string, name string)
+	// (GET /gateways/{name})
+	GetGateway(w http.ResponseWriter, r *http.Request, name string)
+
+	// (GET /namespaces/{namespace}/gateways)
+	ListNamespacedGateways(w http.ResponseWriter, r *http.Request, namespace string)
+
+	// (DELETE /namespaces/{namespace}/gateways/{name})
+	DeleteNamespacedGateway(w http.ResponseWriter, r *http.Request, namespace string, name string)
+
+	// (GET /namespaces/{namespace}/gateways/{name})
+	GetNamespacedGateway(w http.ResponseWriter, r *http.Request, namespace string, name string)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -108,8 +123,21 @@ type MiddlewareFunc func(http.Handler) http.Handler
 func (siw *ServerInterfaceWrapper) ListGateways(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
+	var err error
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListGatewaysParams
+
+	// ------------- Optional query parameter "namespaces" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "namespaces", r.URL.Query(), &params.Namespaces)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "namespaces", Err: err})
+		return
+	}
+
 	var handler http.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.ListGateways(w, r)
+		siw.Handler.ListGateways(w, r, params)
 	})
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -119,12 +147,12 @@ func (siw *ServerInterfaceWrapper) ListGateways(w http.ResponseWriter, r *http.R
 	handler.ServeHTTP(w, r.WithContext(ctx))
 }
 
-// AddGateway operation middleware
-func (siw *ServerInterfaceWrapper) AddGateway(w http.ResponseWriter, r *http.Request) {
+// CreateGateway operation middleware
+func (siw *ServerInterfaceWrapper) CreateGateway(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	var handler http.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.AddGateway(w, r)
+		siw.Handler.CreateGateway(w, r)
 	})
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -140,15 +168,6 @@ func (siw *ServerInterfaceWrapper) DeleteGateway(w http.ResponseWriter, r *http.
 
 	var err error
 
-	// ------------- Path parameter "namespace" -------------
-	var namespace string
-
-	err = runtime.BindStyledParameterWithLocation("simple", false, "namespace", runtime.ParamLocationPath, chi.URLParam(r, "namespace"), &namespace)
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "namespace", Err: err})
-		return
-	}
-
 	// ------------- Path parameter "name" -------------
 	var name string
 
@@ -159,7 +178,7 @@ func (siw *ServerInterfaceWrapper) DeleteGateway(w http.ResponseWriter, r *http.
 	}
 
 	var handler http.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.DeleteGateway(w, r, namespace, name)
+		siw.Handler.DeleteGateway(w, r, name)
 	})
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -171,6 +190,58 @@ func (siw *ServerInterfaceWrapper) DeleteGateway(w http.ResponseWriter, r *http.
 
 // GetGateway operation middleware
 func (siw *ServerInterfaceWrapper) GetGateway(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var err error
+
+	// ------------- Path parameter "name" -------------
+	var name string
+
+	err = runtime.BindStyledParameterWithLocation("simple", false, "name", runtime.ParamLocationPath, chi.URLParam(r, "name"), &name)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "name", Err: err})
+		return
+	}
+
+	var handler http.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetGateway(w, r, name)
+	})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r.WithContext(ctx))
+}
+
+// ListNamespacedGateways operation middleware
+func (siw *ServerInterfaceWrapper) ListNamespacedGateways(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var err error
+
+	// ------------- Path parameter "namespace" -------------
+	var namespace string
+
+	err = runtime.BindStyledParameterWithLocation("simple", false, "namespace", runtime.ParamLocationPath, chi.URLParam(r, "namespace"), &namespace)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "namespace", Err: err})
+		return
+	}
+
+	var handler http.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListNamespacedGateways(w, r, namespace)
+	})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r.WithContext(ctx))
+}
+
+// DeleteNamespacedGateway operation middleware
+func (siw *ServerInterfaceWrapper) DeleteNamespacedGateway(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	var err error
@@ -194,7 +265,42 @@ func (siw *ServerInterfaceWrapper) GetGateway(w http.ResponseWriter, r *http.Req
 	}
 
 	var handler http.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetGateway(w, r, namespace, name)
+		siw.Handler.DeleteNamespacedGateway(w, r, namespace, name)
+	})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r.WithContext(ctx))
+}
+
+// GetNamespacedGateway operation middleware
+func (siw *ServerInterfaceWrapper) GetNamespacedGateway(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var err error
+
+	// ------------- Path parameter "namespace" -------------
+	var namespace string
+
+	err = runtime.BindStyledParameterWithLocation("simple", false, "namespace", runtime.ParamLocationPath, chi.URLParam(r, "namespace"), &namespace)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "namespace", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "name" -------------
+	var name string
+
+	err = runtime.BindStyledParameterWithLocation("simple", false, "name", runtime.ParamLocationPath, chi.URLParam(r, "name"), &name)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "name", Err: err})
+		return
+	}
+
+	var handler http.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetNamespacedGateway(w, r, namespace, name)
 	})
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -321,13 +427,22 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/gateways", wrapper.ListGateways)
 	})
 	r.Group(func(r chi.Router) {
-		r.Post(options.BaseURL+"/gateways", wrapper.AddGateway)
+		r.Post(options.BaseURL+"/gateways", wrapper.CreateGateway)
 	})
 	r.Group(func(r chi.Router) {
-		r.Delete(options.BaseURL+"/gateways/{namespace}/{name}", wrapper.DeleteGateway)
+		r.Delete(options.BaseURL+"/gateways/{name}", wrapper.DeleteGateway)
 	})
 	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/gateways/{namespace}/{name}", wrapper.GetGateway)
+		r.Get(options.BaseURL+"/gateways/{name}", wrapper.GetGateway)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/namespaces/{namespace}/gateways", wrapper.ListNamespacedGateways)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/namespaces/{namespace}/gateways/{name}", wrapper.DeleteNamespacedGateway)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/namespaces/{namespace}/gateways/{name}", wrapper.GetNamespacedGateway)
 	})
 
 	return r
@@ -336,23 +451,24 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"H4sIAAAAAAAC/+RWTW/cNhD9KwTbo7xaOz3pVNdtDSPrwKjdoECQA02NJKYSyZAjb7aG/ntBUl+7VLIb",
-	"NChc9KYVh/PevHkzq2fKVaOVBImWZs/U8goa5h+vwKAoBGcI7qc2Srs34A+fWFuje/jeQEEz+l065Un7",
-	"JOlbFzRP03UJxZ0GmlH1+AE40i6hvxijTIzAVe5xC2UahjSjQuKrCzomEBKhBOMyNGAtK310I+QGZIkV",
-	"zc7HUItGyNKjG/jYCgM5zd6N15KA9X6B2zVD2LJdzK4WFkGC8T8EQmOPibHpb3jCQt6EOxNJZgzbhWqQ",
-	"uWQRGcma4zWGMKsZ/2o9fP75/WRW5hfUueu131eoDIenCzRo3Z0syQH/EXGJ6yh/RLRSFgdpF8VcPNDK",
-	"4OxAts1j6K02ChVXtTsE2TaOWYWonXO5nnGbcmF9VJyHzf2VkoUoW8NQKBkVP1bRU5sRWZIjyhfP3zS3",
-	"p/dwb9jjPnKhKzD3rTjMGUty6AD26S0Y2zONwhshP3+8tHSi1RTXXzEhfxVQ5yfMnGbu5HiYEU8M4TXs",
-	"TkscM+8SaoG3RuDu3mkeuF5q8Rp2l20gISTNaAUsB0MHB9M/zq6UtG199qD+BDmtUeav0s5lFrJQYfVK",
-	"ZNzbGxomapq5V+4y0+KsH7MfK2YrwZXRK66aCSjAkMu7G9JPNHkA5gJa4zK5WcjSdP92l9AcLDdCBzMu",
-	"ZbllkpXQgET32i8nDtL61vXYt+ovUdeM3LWPteBkEwLIxWq9B2+zNN1ut6smhK+UKVOQZ7/fp7d3m/Ri",
-	"tU69BQXWywXRhD4NbqPnq/Vq7eKVBsm0oBl95V8FV/j+pPNlWIJXdr/e3wBbIy1hdU14P5iQk+Heivr8",
-	"YVZvcpr5fXY9ZHWrwGolbbDDxXo9tBGkB2Na187nQsn0gw1TEmb2xK3sd7w3yT7vniAZ8EMni+Hr4JtQ",
-	"CB8IC+CthE8aOEJOYIrRyi4IfGXAbTLCiITtoGss62WeT012+xUs/qTy3bfWc6mcweioCMtzOt/vaFro",
-	"oi6f/xusXlyHu2Sap/R5/FrpwnMXWl9D2On76cJ7ZwIrZFnD4APyyCzkREmCFZA3rAFiW1cN5JFDfvY5",
-	"JpNoZlgD6D8F3x0CvhnYEVWMYKhIAcgrmoRV7f88xv05//zaN0AyUzP6o1hCPgDtVfks6lcBvo/c+EOs",
-	"9wAekPMXsBy+uHxd8w8cURRORIGWtFJ8bIE4oeK1cQ34X3TEEdB/aIj1/3M9dd3fAQAA//9LI94bVQ8A",
-	"AA==",
+	"H4sIAAAAAAAC/+xXX0/kthf9KpZ/v8cwGdg+5amUtggtIFToqtJqH4xzk3ib2Ma+gZ2ifPfKdjKZ4BSy",
+	"y1Kx6r4N9vW5/849N9xTrhqtJEi0NLunllfQMP/zCAyKQnCG4P7URml3Av7ylrU1uh//N1DQjP4vHXHS",
+	"HiR954x2YbouobjRQDOqrj8CR9ol9BdjlIk9cJV7v4UyDUOaUSHxzQHdAgiJUIJxCA1Yy0pv3Qh5CrLE",
+	"imb7W1OLRsjSezdw0woDOc3eb58lwdeHmdiOGcId28TR1cIiSDD+D4HQ2KeKcdq/8AELeRLejEEyY9gm",
+	"ZIPMgUXBSNY8nWMws5rxz66Hx999n+yk+Uh1LvraTytUhsvlBRpq3S0uyYP4tx7nYt2WPwq0UhaH0s4W",
+	"c/ZCK4M7F7JtrkNvtVGouKrdJci2cZFViNoxl+ud2EYsrJ8sztXp5ZGShShbw1AoGSW/zaIPbSeQuXJE",
+	"ePH8jXO7vIeTYY/7yIWuwFy24iFmXJKHDGCf3oGxfaSReSPkP1/PiU4kTXH+FRPyVwF1vmDmNHM3T5sZ",
+	"ccsQ3sJmGXAceZdQC7w1AjeXruYh1kMt3sLmsA1BCEkzWgHLwdCBwfSPvSMlbVvvXak/QY4yyvxT2jlk",
+	"IQsVpFci457e0DBR08wducdMi71+zH6smK0EV0avuGpGR8ENObw4If1EkytgzqA1DsnNQpam09ddQnOw",
+	"3AgdyDiHcsYkK6EBie7YixMHaX3ret9n6i9R14xctNe14OQ0GJCD1Xri3mZpend3t2qC+UqZMgW59/tl",
+	"enZxmh6s1qmnoMB6PiGa0NuBbXR/tV6tnb3SIJkWNKNv/FFghe9PuiuGJfjKTvP9DbA10hJW14T3gwk5",
+	"Gd6tqMcPs3qS08zr2fGA6lwZ1gD6hfT+IfhVBWSr6paoYotLUBGn8TQJrLlpwWzGXo6PaNJ/GszN1wcn",
+	"RVYraQMdD9brgUYgfbJM69rNmVAy/WjDlI54C7aC3zGepNPU+kTI4D8wqRi+Tr5KCOEDZcZ5K+GTBo6Q",
+	"ExhttLIzDT4y4JSUMCLhbqh/3NZgNvLMSTxY/Enlm69d0rmMhllDRbiPhO5uGTQtdFGv9/+NwF5dn7tk",
+	"nOr03g1KF5peQ9gmU4hw7tpvhSxrGBhAhCRYAelzGceUXDMLOVHh2h0T27rUII9I87MHH0nzqBicO6hR",
+	"Alyr+6B7DfC7bCIBEQk+Twx+iMsxOA+e81cwtY+r8uJ2FYWrrUBLWilu2tC5eMyPAb+8XQUgr16sW+v/",
+	"7DiP2y4MtP/dPXt3D5wpxS3IkTHzK/18uM6XLvfti4d7/QmaDP/ivSqufDNrfgFfnrMVJuJ/vkD8I958",
+	"CW1ehDXJ9wX0/AXk9WPKjeWb5tvmxvdt9wLq1XV/BwAA//+xrcFi+RUAAA==",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

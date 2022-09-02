@@ -65,7 +65,7 @@ func TestServer_ListGateways(t *testing.T) {
 	}
 }
 
-func TestServer_GetGateway(t *testing.T) {
+func TestServer_GetNamespacedGateway(t *testing.T) {
 	s, err := NewServer("", testConsul(t, false), hclog.NewNullLogger())
 	require.NoError(t, err)
 
@@ -87,7 +87,7 @@ func TestServer_GetGateway(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			resp, err := http.Get(testServer.URL + "/gateways/" + tt.gatewayNamespace + "/" + tt.gatewayName)
+			resp, err := http.Get(testServer.URL + "/namespaces/" + tt.gatewayNamespace + "/gateways/" + tt.gatewayName)
 			require.NoError(t, err)
 			require.Equal(t, "application/json", resp.Header.Get("Content-Type"))
 			require.Equal(t, tt.wantStatusCode, resp.StatusCode)
@@ -95,7 +95,7 @@ func TestServer_GetGateway(t *testing.T) {
 	}
 }
 
-func TestServer_AddGateway(t *testing.T) {
+func TestServer_CreateGateway(t *testing.T) {
 	s, err := NewServer("", testConsul(t, false), hclog.NewNullLogger())
 	require.NoError(t, err)
 
@@ -162,7 +162,7 @@ func TestServer_AddGateway(t *testing.T) {
 	}
 }
 
-func TestServer_DeleteGateway(t *testing.T) {
+func TestServer_DeleteNamespacedGateway(t *testing.T) {
 	s, err := NewServer("", testConsul(t, false), hclog.NewNullLogger())
 	require.NoError(t, err)
 
@@ -184,7 +184,7 @@ func TestServer_DeleteGateway(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req, err := http.NewRequest("DELETE", testServer.URL+"/gateways/"+tt.gatewayNamespace+"/"+tt.gatewayName, nil)
+			req, err := http.NewRequest("DELETE", testServer.URL+"/namespaces/"+tt.gatewayNamespace+"/gateways/"+tt.gatewayName, nil)
 			require.NoError(t, err)
 			resp, err := http.DefaultClient.Do(req)
 			require.NoError(t, err)

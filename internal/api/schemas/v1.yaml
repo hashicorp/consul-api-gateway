@@ -11,10 +11,40 @@ info:
     name: Mozilla Public License 2.0
     url: https://www.mozilla.org/en-US/MPL/2.0/
 paths:
+  "/namespaces/{namespace}/gateways":
+    get:
+      description: 'Returns all configured gateways in the given namespace.'
+      operationId: listNamespacedGateways
+      parameters:
+      - name: namespace
+        in: path
+        description: Namespace of gateways to fetch
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: gateway response
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/GatewayPage"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Error"
   "/gateways":
     get:
       description: 'Returns all configured gateways.'
       operationId: listGateways
+      parameters:
+      - name: namespaces
+        in: query
+        description: The namespaces of gateways to list
+        schema:
+          type: string
       responses:
         '200':
           description: gateway response
@@ -32,7 +62,7 @@ paths:
       description: 'Creates a new gateway.'
       operationId: createGateway
       requestBody:
-        description: Gateway to add
+        description: Gateway to create
         required: true
         content:
           application/json:
@@ -51,10 +81,10 @@ paths:
             application/json:
               schema:
                 "$ref": "#/components/schemas/Error"
-  "/gateways/{namespace}/{name}":
+  "/namespaces/{namespace}/gateways/{name}":
     get:
       description: Returns the gateway based off of its unique name.
-      operationId: getGateway
+      operationId: getNamespacedGateway
       parameters:
       - name: namespace
         in: path
@@ -83,7 +113,7 @@ paths:
                 "$ref": "#/components/schemas/Error"
     delete:
       description: deletes a single gateway based on the Name supplied
-      operationId: deleteGateway
+      operationId: deleteNamespacedGateway
       parameters:
       - name: namespace
         in: path
@@ -91,6 +121,49 @@ paths:
         required: true
         schema:
           type: string
+      - name: name
+        in: path
+        description: Name of gateway to delete
+        required: true
+        schema:
+          type: string
+      responses:
+        '204':
+          description: gateway deleted
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Error"
+  "/gateways/{name}":
+    get:
+      description: Returns a gateway in the default namespace based off of its unique name.
+      operationId: getGateway
+      parameters:
+      - name: name
+        in: path
+        description: Name of gateway to fetch
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: gateway response
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Gateway"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Error"
+    delete:
+      description: deletes a single gateway in the default namespace based on the name supplied
+      operationId: deleteGateway
+      parameters:
       - name: name
         in: path
         description: Name of gateway to delete
