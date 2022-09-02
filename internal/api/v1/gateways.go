@@ -10,7 +10,7 @@ func (s *Server) ListGateways(w http.ResponseWriter, r *http.Request) {
 	s.sendError(w, http.StatusNotImplemented, "Not implemented")
 }
 
-func (s *Server) AddGateway(w http.ResponseWriter, r *http.Request) {
+func (s *Server) CreateGateway(w http.ResponseWriter, r *http.Request) {
 	gateway := &Gateway{}
 	if err := json.NewDecoder(r.Body).Decode(gateway); err != nil {
 		sendError(w, http.StatusBadRequest, "invalid json")
