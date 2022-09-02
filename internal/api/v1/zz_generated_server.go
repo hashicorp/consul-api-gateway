@@ -185,6 +185,27 @@ type Listener struct {
 // ListenerProtocol defines model for Listener.Protocol.
 type ListenerProtocol string
 
+// TCPRoute defines model for TCPRoute.
+type TCPRoute struct {
+	Gateways  []GatewayReference `json:"gateways"`
+	Name      string             `json:"name"`
+	Namespace string             `json:"namespace"`
+	Services  []TCPService       `json:"services,omitempty"`
+}
+
+// TCPRoutePage defines model for TCPRoutePage.
+type TCPRoutePage struct {
+	Meta   map[string]interface{} `json:"meta,omitempty"`
+	Routes []TCPRoute             `json:"routes"`
+}
+
+// TCPService defines model for TCPService.
+type TCPService struct {
+	Name      string   `json:"name"`
+	Namespace string   `json:"namespace"`
+	Weight    *float32 `json:"weight,omitempty"`
+}
+
 // TLSConfiguration defines model for TLSConfiguration.
 type TLSConfiguration struct {
 	Certificates []Certificate `json:"certificates,omitempty"`
@@ -205,6 +226,9 @@ type CreateGatewayJSONRequestBody = Gateway
 
 // CreateHTTPRouteJSONRequestBody defines body for CreateHTTPRoute for application/json ContentType.
 type CreateHTTPRouteJSONRequestBody = HTTPRoute
+
+// CreateTCPRouteJSONRequestBody defines body for CreateTCPRoute for application/json ContentType.
+type CreateTCPRouteJSONRequestBody = TCPRoute
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -232,6 +256,18 @@ type ServerInterface interface {
 
 	// (GET /routes/http/{namespace}/{name})
 	GetHTTPRoute(w http.ResponseWriter, r *http.Request, namespace string, name string)
+
+	// (GET /routes/tcp)
+	ListTCPRoutes(w http.ResponseWriter, r *http.Request)
+
+	// (POST /routes/tcp)
+	CreateTCPRoute(w http.ResponseWriter, r *http.Request)
+
+	// (DELETE /routes/tcp/{namespace}/{name})
+	DeleteTCPRoute(w http.ResponseWriter, r *http.Request, namespace string, name string)
+
+	// (GET /routes/tcp/{namespace}/{name})
+	GetTCPRoute(w http.ResponseWriter, r *http.Request, namespace string, name string)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -443,6 +479,106 @@ func (siw *ServerInterfaceWrapper) GetHTTPRoute(w http.ResponseWriter, r *http.R
 	handler.ServeHTTP(w, r.WithContext(ctx))
 }
 
+// ListTCPRoutes operation middleware
+func (siw *ServerInterfaceWrapper) ListTCPRoutes(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var handler http.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListTCPRoutes(w, r)
+	})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r.WithContext(ctx))
+}
+
+// CreateTCPRoute operation middleware
+func (siw *ServerInterfaceWrapper) CreateTCPRoute(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var handler http.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateTCPRoute(w, r)
+	})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r.WithContext(ctx))
+}
+
+// DeleteTCPRoute operation middleware
+func (siw *ServerInterfaceWrapper) DeleteTCPRoute(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var err error
+
+	// ------------- Path parameter "namespace" -------------
+	var namespace string
+
+	err = runtime.BindStyledParameterWithLocation("simple", false, "namespace", runtime.ParamLocationPath, chi.URLParam(r, "namespace"), &namespace)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "namespace", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "name" -------------
+	var name string
+
+	err = runtime.BindStyledParameterWithLocation("simple", false, "name", runtime.ParamLocationPath, chi.URLParam(r, "name"), &name)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "name", Err: err})
+		return
+	}
+
+	var handler http.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteTCPRoute(w, r, namespace, name)
+	})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r.WithContext(ctx))
+}
+
+// GetTCPRoute operation middleware
+func (siw *ServerInterfaceWrapper) GetTCPRoute(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var err error
+
+	// ------------- Path parameter "namespace" -------------
+	var namespace string
+
+	err = runtime.BindStyledParameterWithLocation("simple", false, "namespace", runtime.ParamLocationPath, chi.URLParam(r, "namespace"), &namespace)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "namespace", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "name" -------------
+	var name string
+
+	err = runtime.BindStyledParameterWithLocation("simple", false, "name", runtime.ParamLocationPath, chi.URLParam(r, "name"), &name)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "name", Err: err})
+		return
+	}
+
+	var handler http.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetTCPRoute(w, r, namespace, name)
+	})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r.WithContext(ctx))
+}
+
 type UnescapedCookieParamError struct {
 	ParamName string
 	Err       error
@@ -580,6 +716,18 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/routes/http/{namespace}/{name}", wrapper.GetHTTPRoute)
 	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/routes/tcp", wrapper.ListTCPRoutes)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/routes/tcp", wrapper.CreateTCPRoute)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/routes/tcp/{namespace}/{name}", wrapper.DeleteTCPRoute)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/routes/tcp/{namespace}/{name}", wrapper.GetTCPRoute)
+	})
 
 	return r
 }
@@ -587,31 +735,33 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
-	"pOBmIQAA",
+	"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",
+	"+Z9Fi9+FfzeVOrS6v17/HQAA//+5nbyaOSwAAA==",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file
