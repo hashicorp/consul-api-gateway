@@ -185,6 +185,27 @@ type Listener struct {
 // ListenerProtocol defines model for Listener.Protocol.
 type ListenerProtocol string
 
+// TCPRoute defines model for TCPRoute.
+type TCPRoute struct {
+	Gateways  []GatewayReference `json:"gateways"`
+	Name      string             `json:"name"`
+	Namespace string             `json:"namespace"`
+	Services  []TCPService       `json:"services,omitempty"`
+}
+
+// TCPRoutePage defines model for TCPRoutePage.
+type TCPRoutePage struct {
+	Meta   map[string]interface{} `json:"meta,omitempty"`
+	Routes []TCPRoute             `json:"routes"`
+}
+
+// TCPService defines model for TCPService.
+type TCPService struct {
+	Name      string   `json:"name"`
+	Namespace string   `json:"namespace"`
+	Weight    *float32 `json:"weight,omitempty"`
+}
+
 // TLSConfiguration defines model for TLSConfiguration.
 type TLSConfiguration struct {
 	Certificates []Certificate `json:"certificates,omitempty"`
@@ -212,11 +233,20 @@ type ListHTTPRoutesParams struct {
 	Namespaces *string `form:"namespaces,omitempty" json:"namespaces,omitempty"`
 }
 
+// ListTCPRoutesParams defines parameters for ListTCPRoutes.
+type ListTCPRoutesParams struct {
+	// Namespaces Namespaces of routes to fetch
+	Namespaces *string `form:"namespaces,omitempty" json:"namespaces,omitempty"`
+}
+
 // CreateGatewayJSONRequestBody defines body for CreateGateway for application/json ContentType.
 type CreateGatewayJSONRequestBody = Gateway
 
 // CreateHTTPRouteJSONRequestBody defines body for CreateHTTPRoute for application/json ContentType.
 type CreateHTTPRouteJSONRequestBody = HTTPRoute
+
+// CreateTCPRouteJSONRequestBody defines body for CreateTCPRoute for application/json ContentType.
+type CreateTCPRouteJSONRequestBody = TCPRoute
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -261,7 +291,32 @@ type ServerInterface interface {
 	DeleteHTTPRouteInNamespace(w http.ResponseWriter, r *http.Request, namespace string, name string)
 
 	// (GET /namespaces/{namespace}/http-routes/{name})
+<<<<<<< HEAD
 	GetHTTPRouteInNamespace(w http.ResponseWriter, r *http.Request, namespace string, name string)
+=======
+	GetNamespacedHTTPRoute(w http.ResponseWriter, r *http.Request, namespace string, name string)
+
+	// (GET /namespaces/{namespace}/tcp-routes)
+	ListNamespacedTCPRoutes(w http.ResponseWriter, r *http.Request, namespace string)
+
+	// (DELETE /namespaces/{namespace}/tcp-routes/{name})
+	DeleteNamespacedTCPRoute(w http.ResponseWriter, r *http.Request, namespace string, name string)
+
+	// (GET /namespaces/{namespace}/tcp-routes/{name})
+	GetNamespacedTCPRoute(w http.ResponseWriter, r *http.Request, namespace string, name string)
+
+	// (GET /tcp-routes)
+	ListTCPRoutes(w http.ResponseWriter, r *http.Request, params ListTCPRoutesParams)
+
+	// (POST /tcp-routes)
+	CreateTCPRoute(w http.ResponseWriter, r *http.Request)
+
+	// (DELETE /tcp-routes/{name})
+	DeleteTCPRoute(w http.ResponseWriter, r *http.Request, name string)
+
+	// (GET /tcp-routes/{name})
+	GetTCPRoute(w http.ResponseWriter, r *http.Request, name string)
+>>>>>>> 966d39b (update stubs)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -655,6 +710,197 @@ func (siw *ServerInterfaceWrapper) GetHTTPRouteInNamespace(w http.ResponseWriter
 	handler.ServeHTTP(w, r.WithContext(ctx))
 }
 
+// ListNamespacedTCPRoutes operation middleware
+func (siw *ServerInterfaceWrapper) ListNamespacedTCPRoutes(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var err error
+
+	// ------------- Path parameter "namespace" -------------
+	var namespace string
+
+	err = runtime.BindStyledParameterWithLocation("simple", false, "namespace", runtime.ParamLocationPath, chi.URLParam(r, "namespace"), &namespace)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "namespace", Err: err})
+		return
+	}
+
+	var handler http.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListNamespacedTCPRoutes(w, r, namespace)
+	})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r.WithContext(ctx))
+}
+
+// DeleteNamespacedTCPRoute operation middleware
+func (siw *ServerInterfaceWrapper) DeleteNamespacedTCPRoute(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var err error
+
+	// ------------- Path parameter "namespace" -------------
+	var namespace string
+
+	err = runtime.BindStyledParameterWithLocation("simple", false, "namespace", runtime.ParamLocationPath, chi.URLParam(r, "namespace"), &namespace)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "namespace", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "name" -------------
+	var name string
+
+	err = runtime.BindStyledParameterWithLocation("simple", false, "name", runtime.ParamLocationPath, chi.URLParam(r, "name"), &name)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "name", Err: err})
+		return
+	}
+
+	var handler http.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteNamespacedTCPRoute(w, r, namespace, name)
+	})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r.WithContext(ctx))
+}
+
+// GetNamespacedTCPRoute operation middleware
+func (siw *ServerInterfaceWrapper) GetNamespacedTCPRoute(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var err error
+
+	// ------------- Path parameter "namespace" -------------
+	var namespace string
+
+	err = runtime.BindStyledParameterWithLocation("simple", false, "namespace", runtime.ParamLocationPath, chi.URLParam(r, "namespace"), &namespace)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "namespace", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "name" -------------
+	var name string
+
+	err = runtime.BindStyledParameterWithLocation("simple", false, "name", runtime.ParamLocationPath, chi.URLParam(r, "name"), &name)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "name", Err: err})
+		return
+	}
+
+	var handler http.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetNamespacedTCPRoute(w, r, namespace, name)
+	})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r.WithContext(ctx))
+}
+
+// ListTCPRoutes operation middleware
+func (siw *ServerInterfaceWrapper) ListTCPRoutes(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var err error
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListTCPRoutesParams
+
+	// ------------- Optional query parameter "namespaces" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "namespaces", r.URL.Query(), &params.Namespaces)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "namespaces", Err: err})
+		return
+	}
+
+	var handler http.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListTCPRoutes(w, r, params)
+	})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r.WithContext(ctx))
+}
+
+// CreateTCPRoute operation middleware
+func (siw *ServerInterfaceWrapper) CreateTCPRoute(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var handler http.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateTCPRoute(w, r)
+	})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r.WithContext(ctx))
+}
+
+// DeleteTCPRoute operation middleware
+func (siw *ServerInterfaceWrapper) DeleteTCPRoute(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var err error
+
+	// ------------- Path parameter "name" -------------
+	var name string
+
+	err = runtime.BindStyledParameterWithLocation("simple", false, "name", runtime.ParamLocationPath, chi.URLParam(r, "name"), &name)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "name", Err: err})
+		return
+	}
+
+	var handler http.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteTCPRoute(w, r, name)
+	})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r.WithContext(ctx))
+}
+
+// GetTCPRoute operation middleware
+func (siw *ServerInterfaceWrapper) GetTCPRoute(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var err error
+
+	// ------------- Path parameter "name" -------------
+	var name string
+
+	err = runtime.BindStyledParameterWithLocation("simple", false, "name", runtime.ParamLocationPath, chi.URLParam(r, "name"), &name)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "name", Err: err})
+		return
+	}
+
+	var handler http.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetTCPRoute(w, r, name)
+	})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r.WithContext(ctx))
+}
+
 type UnescapedCookieParamError struct {
 	ParamName string
 	Err       error
@@ -810,6 +1056,27 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/namespaces/{namespace}/http-routes/{name}", wrapper.GetHTTPRouteInNamespace)
 	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/namespaces/{namespace}/tcp-routes", wrapper.ListNamespacedTCPRoutes)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/namespaces/{namespace}/tcp-routes/{name}", wrapper.DeleteNamespacedTCPRoute)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/namespaces/{namespace}/tcp-routes/{name}", wrapper.GetNamespacedTCPRoute)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/tcp-routes", wrapper.ListTCPRoutes)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/tcp-routes", wrapper.CreateTCPRoute)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/tcp-routes/{name}", wrapper.DeleteTCPRoute)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/tcp-routes/{name}", wrapper.GetTCPRoute)
+	})
 
 	return r
 }
@@ -817,6 +1084,7 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
+<<<<<<< HEAD
 	"H4sIAAAAAAAC/+xYW2/buBL+KwLPeTpQrDQ9T37arOsmQXPxxm6xQFugjDSy2JVIlaSSeAv/98WIulqy",
 	"LTlOmmDzksgiOddvZvjpJ3FFFAsOXCsy/EmUG0BE08cRSM185lIN+DOWIsY3kC7e0iTU+PBfCT4Zkv84",
 	"pRwnE+J8wk1VMculTfQiBjIk4uY7uJosbTKWUsimBld4qV5fyIhqMiSM67dHpBDAuIY5SJQQgVJ0nu6O",
@@ -845,6 +1113,39 @@ var swaggerSpec = []string{
 	"wRUOvwUnufBndRd8MZS+A2AewgBrs+CyO8V7IG4eBTb2K8/czzRaAUdvKvlSwfHKZ5+0fz2Q5tJuk64k",
 	"tz1gWeO562nuemC+ktz9gWM/bGgFLA9gQbu2tzoreroO98rGdmdju9OtXVHyCwDyyvges8ctl/8EAAD/",
 	"/6jSeuf7LgAA",
+=======
+	"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",
+	"/z6sicIrQAAA",
+>>>>>>> 966d39b (update stubs)
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

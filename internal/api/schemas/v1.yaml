@@ -347,6 +347,174 @@ paths:
             application/json:
               schema:
                 "$ref": "#/components/schemas/Error"
+  "/namespaces/{namespace}/tcp-routes":
+    get:
+      description: 'Returns all tcp routes in the given namespace.'
+      operationId: listNamespacedTCPRoutes
+      parameters:
+      - name: namespace
+        in: path
+        description: Namespace of routes to fetch
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: route response
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/TCPRoutePage"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Error"
+  "/tcp-routes":
+    get:
+      description: 'Returns all tcp routes.'
+      operationId: listTCPRoutes
+      parameters:
+      - name: namespaces
+        in: query
+        description: Namespaces of routes to fetch
+        schema:
+          type: string
+      responses:
+        '200':
+          description: route response
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/TCPRoutePage"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Error"
+    post:
+      description: 'Creates a new tcp route.'
+      operationId: createTCPRoute
+      requestBody:
+        description: TCPRoute to add
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/TCPRoute"
+      responses:
+        '201':
+          description: route response
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/TCPRoute"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Error"
+  "/namespaces/{namespace}/tcp-routes/{name}":
+    get:
+      description: Returns the tcp route in the given namespace based off of its unique name.
+      operationId: getNamespacedTCPRoute
+      parameters:
+      - name: namespace
+        in: path
+        description: Namespace of route to fetch
+        required: true
+        schema:
+          type: string
+      - name: name
+        in: path
+        description: Name of route to fetch
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: route response
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/TCPRoute"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Error"
+    delete:
+      description: deletes a single tcp route in the given namespace based on the Name supplied
+      operationId: deleteNamespacedTCPRoute
+      parameters:
+      - name: namespace
+        in: path
+        description: Namespace of tcp route to fetch
+        required: true
+        schema:
+          type: string
+      - name: name
+        in: path
+        description: Name of tcp route to delete
+        required: true
+        schema:
+          type: string
+      responses:
+        '204':
+          description: route deleted
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Error"
+  "/tcp-routes/{name}":
+    get:
+      description: Returns the tcp route in the default namespace based off of its unique name.
+      operationId: getTCPRoute
+      parameters:
+      - name: name
+        in: path
+        description: Name of route to fetch
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: route response
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/TCPRoute"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Error"
+    delete:
+      description: deletes a single tcp route in the default namespace based on the Name supplied
+      operationId: deleteTCPRoute
+      parameters:
+      - name: name
+        in: path
+        description: Name of tcp route to delete
+        required: true
+        schema:
+          type: string
+      responses:
+        '204':
+          description: route deleted
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Error"
 components:
   securitySchemes:
     ApiKeyAuth:
@@ -611,6 +779,55 @@ components:
           type: string
         value:
           type: string
+    TCPRoutePage:
+      type: object
+      required:
+      - routes
+      properties:
+        routes:
+          type: array
+          items:
+            "$ref": "#/components/schemas/TCPRoute"
+        meta:
+          type: object
+    TCPRoute:
+      type: object
+      required:
+      - name
+      - namespace
+      - gateways
+      properties:
+        name:
+          type: string
+          minLength: 1
+        namespace:
+          type: string
+          minLength: 1
+        gateways:
+          type: array
+          items:
+            "$ref": "#/components/schemas/GatewayReference"
+          minItems: 1
+        services:
+          type: array
+          items:
+            "$ref": "#/components/schemas/TCPService"
+          minItems: 1
+          maxItems: 1 # this is a max for now until we support TCP load balancing
+    TCPService:
+      type: object
+      required:
+      - name
+      - namespace
+      properties:
+        name:
+          type: string
+          minLength: 1
+        namespace:
+          type: string
+          minLength: 1
+        weight:
+          type: number
     Error:
       type: object
       required:
