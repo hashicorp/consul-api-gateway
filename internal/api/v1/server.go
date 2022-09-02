@@ -11,7 +11,7 @@ import (
 	"github.com/hashicorp/go-hclog"
 )
 
-//go:generate oapi-codegen -old-config-style -generate "spec,types,chi-server" -package v1 -o zz_generated_server.go ../schemas/v1.yaml
+//go:generate oapi-codegen -config ../schemas/v1.config.yaml ../schemas/v1.yaml
 
 var _ ServerInterface = &Server{}
 
