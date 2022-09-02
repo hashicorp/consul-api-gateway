@@ -101,13 +101,13 @@ type ServerInterface interface {
 	GetGateway(w http.ResponseWriter, r *http.Request, name string)
 
 	// (GET /namespaces/{namespace}/gateways)
-	ListNamespacedGateways(w http.ResponseWriter, r *http.Request, namespace string)
+	ListGatewaysInNamespace(w http.ResponseWriter, r *http.Request, namespace string)
 
 	// (DELETE /namespaces/{namespace}/gateways/{name})
-	DeleteNamespacedGateway(w http.ResponseWriter, r *http.Request, namespace string, name string)
+	DeleteGatewayInNamespace(w http.ResponseWriter, r *http.Request, namespace string, name string)
 
 	// (GET /namespaces/{namespace}/gateways/{name})
-	GetNamespacedGateway(w http.ResponseWriter, r *http.Request, namespace string, name string)
+	GetGatewayInNamespace(w http.ResponseWriter, r *http.Request, namespace string, name string)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -214,8 +214,8 @@ func (siw *ServerInterfaceWrapper) GetGateway(w http.ResponseWriter, r *http.Req
 	handler.ServeHTTP(w, r.WithContext(ctx))
 }
 
-// ListNamespacedGateways operation middleware
-func (siw *ServerInterfaceWrapper) ListNamespacedGateways(w http.ResponseWriter, r *http.Request) {
+// ListGatewaysInNamespace operation middleware
+func (siw *ServerInterfaceWrapper) ListGatewaysInNamespace(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	var err error
@@ -230,7 +230,7 @@ func (siw *ServerInterfaceWrapper) ListNamespacedGateways(w http.ResponseWriter,
 	}
 
 	var handler http.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.ListNamespacedGateways(w, r, namespace)
+		siw.Handler.ListGatewaysInNamespace(w, r, namespace)
 	})
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -240,8 +240,8 @@ func (siw *ServerInterfaceWrapper) ListNamespacedGateways(w http.ResponseWriter,
 	handler.ServeHTTP(w, r.WithContext(ctx))
 }
 
-// DeleteNamespacedGateway operation middleware
-func (siw *ServerInterfaceWrapper) DeleteNamespacedGateway(w http.ResponseWriter, r *http.Request) {
+// DeleteGatewayInNamespace operation middleware
+func (siw *ServerInterfaceWrapper) DeleteGatewayInNamespace(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	var err error
@@ -265,7 +265,7 @@ func (siw *ServerInterfaceWrapper) DeleteNamespacedGateway(w http.ResponseWriter
 	}
 
 	var handler http.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.DeleteNamespacedGateway(w, r, namespace, name)
+		siw.Handler.DeleteGatewayInNamespace(w, r, namespace, name)
 	})
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -275,8 +275,8 @@ func (siw *ServerInterfaceWrapper) DeleteNamespacedGateway(w http.ResponseWriter
 	handler.ServeHTTP(w, r.WithContext(ctx))
 }
 
-// GetNamespacedGateway operation middleware
-func (siw *ServerInterfaceWrapper) GetNamespacedGateway(w http.ResponseWriter, r *http.Request) {
+// GetGatewayInNamespace operation middleware
+func (siw *ServerInterfaceWrapper) GetGatewayInNamespace(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	var err error
@@ -300,7 +300,7 @@ func (siw *ServerInterfaceWrapper) GetNamespacedGateway(w http.ResponseWriter, r
 	}
 
 	var handler http.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetNamespacedGateway(w, r, namespace, name)
+		siw.Handler.GetGatewayInNamespace(w, r, namespace, name)
 	})
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -436,13 +436,13 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/gateways/{name}", wrapper.GetGateway)
 	})
 	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/namespaces/{namespace}/gateways", wrapper.ListNamespacedGateways)
+		r.Get(options.BaseURL+"/namespaces/{namespace}/gateways", wrapper.ListGatewaysInNamespace)
 	})
 	r.Group(func(r chi.Router) {
-		r.Delete(options.BaseURL+"/namespaces/{namespace}/gateways/{name}", wrapper.DeleteNamespacedGateway)
+		r.Delete(options.BaseURL+"/namespaces/{namespace}/gateways/{name}", wrapper.DeleteGatewayInNamespace)
 	})
 	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/namespaces/{namespace}/gateways/{name}", wrapper.GetNamespacedGateway)
+		r.Get(options.BaseURL+"/namespaces/{namespace}/gateways/{name}", wrapper.GetGatewayInNamespace)
 	})
 
 	return r
@@ -451,24 +451,24 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
+	"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",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

@@ -9,7 +9,7 @@ const (
 	defaultNamespace = "default"
 )
 
-func (s *Server) ListNamespacedGateways(w http.ResponseWriter, r *http.Request, namespace string) {
+func (s *Server) ListGatewaysInNamespace(w http.ResponseWriter, r *http.Request, namespace string) {
 	// do the actual gateway listing here
 	s.sendError(w, http.StatusNotImplemented, "Not implemented")
 }
@@ -19,7 +19,7 @@ func (s *Server) ListGateways(w http.ResponseWriter, r *http.Request, params Lis
 	if params.Namespaces != nil {
 		namespaces = *params.Namespaces
 	}
-	s.ListNamespacedGateways(w, r, namespaces)
+	s.ListGatewaysInNamespace(w, r, namespaces)
 }
 
 func (s *Server) CreateGateway(w http.ResponseWriter, r *http.Request) {
@@ -35,20 +35,20 @@ func (s *Server) CreateGateway(w http.ResponseWriter, r *http.Request) {
 	send(w, http.StatusCreated, gateway)
 }
 
-func (s *Server) GetNamespacedGateway(w http.ResponseWriter, r *http.Request, namespace, name string) {
+func (s *Server) GetGatewayInNamespace(w http.ResponseWriter, r *http.Request, namespace, name string) {
 	// do the actual gateway retrieval here
 	s.sendError(w, http.StatusNotImplemented, "Not implemented")
 }
 
 func (s *Server) GetGateway(w http.ResponseWriter, r *http.Request, name string) {
-	s.GetNamespacedGateway(w, r, defaultNamespace, name)
+	s.GetGatewayInNamespace(w, r, defaultNamespace, name)
 }
 
 func (s *Server) DeleteGateway(w http.ResponseWriter, r *http.Request, name string) {
-	s.DeleteNamespacedGateway(w, r, defaultNamespace, name)
+	s.DeleteGatewayInNamespace(w, r, defaultNamespace, name)
 }
 
-func (s *Server) DeleteNamespacedGateway(w http.ResponseWriter, r *http.Request, namespace, name string) {
+func (s *Server) DeleteGatewayInNamespace(w http.ResponseWriter, r *http.Request, namespace, name string) {
 	s.logger.Info("deleting gateway", "namespace", namespace, "name", name)
 	// do the actual gateway deletion here
 

@@ -14,7 +14,7 @@ paths:
   "/namespaces/{namespace}/gateways":
     get:
       description: 'Returns all configured gateways in the given namespace.'
-      operationId: listNamespacedGateways
+      operationId: listGatewaysInNamespace
       parameters:
       - name: namespace
         in: path
@@ -84,7 +84,7 @@ paths:
   "/namespaces/{namespace}/gateways/{name}":
     get:
       description: Returns the gateway based off of its unique name.
-      operationId: getNamespacedGateway
+      operationId: getGatewayInNamespace
       parameters:
       - name: namespace
         in: path
@@ -113,7 +113,7 @@ paths:
                 "$ref": "#/components/schemas/Error"
     delete:
       description: deletes a single gateway based on the Name supplied
-      operationId: deleteNamespacedGateway
+      operationId: deleteGatewayInNamespace
       parameters:
       - name: namespace
         in: path
@@ -138,7 +138,7 @@ paths:
                 "$ref": "#/components/schemas/Error"
   "/gateways/{name}":
     get:
-      description: Returns a gateway in the default namespace based off of its unique name.
+      description: Returns a gateway in the `"default"` namespace based off of its unique name.
       operationId: getGateway
       parameters:
       - name: name
@@ -161,7 +161,7 @@ paths:
               schema:
                 "$ref": "#/components/schemas/Error"
     delete:
-      description: deletes a single gateway in the default namespace based on the name supplied
+      description: deletes a single gateway in the `"default"` namespace based on the name supplied
       operationId: deleteGateway
       parameters:
       - name: name
@@ -229,6 +229,7 @@ components:
           type: string
         hostname:
           type: string
+          default: "*"
         port:
           type: number
         protocol:
