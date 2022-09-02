@@ -7,7 +7,7 @@ import (
 
 func (s *Server) ListGateways(w http.ResponseWriter, r *http.Request) {
 	// do the actual gateway listing here
-	s.sendError(w, http.StatusNotImplemented, "Not implemented")
+	sendError(w, http.StatusNotImplemented, "Not implemented")
 }
 
 func (s *Server) CreateGateway(w http.ResponseWriter, r *http.Request) {
@@ -25,7 +25,7 @@ func (s *Server) CreateGateway(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) GetGateway(w http.ResponseWriter, r *http.Request, namespace, name string) {
 	// do the actual gateway retrieval here
-	s.sendError(w, http.StatusNotImplemented, "Not implemented")
+	sendError(w, http.StatusNotImplemented, "Not implemented")
 }
 
 func (s *Server) DeleteGateway(w http.ResponseWriter, r *http.Request, namespace, name string) {

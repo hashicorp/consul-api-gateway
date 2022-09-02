@@ -1,0 +1,52 @@
+openapi: 3.0.0
+info:
+  version: 1.0.0
+  title: Consul API Gateway
+  description: Consul API Gateway Internal API
+  contact:
+    name: Consul API Gateway Team
+    email: consul-api-gateway@hashicorp.com
+    url: http://hashicorp.com
+  license:
+    name: Mozilla Public License 2.0
+    url: https://www.mozilla.org/en-US/MPL/2.0/
+paths:
+  "/bootstrap":
+    get:
+      description: 'Returns the bootstrap information for a deployed gateway.'
+      operationId: bootstrap
+      responses:
+        '200':
+          description: bootstrap configuration response
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/BootstrapConfiguration"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Error"
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-Gateway-Token
+  schemas:
+    BootstrapConfiguration:
+      type: object
+      properties: {}
+    Error:
+      type: object
+      required:
+      - message
+      - code
+      properties:
+        code:
+          type: integer
+          format: int32
+        message:
+          type: string
+          minLength: 1
