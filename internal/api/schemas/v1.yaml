@@ -31,7 +31,6 @@ paths:
     post:
       description: 'Creates a new gateway.'
       operationId: createGateway
-      operationId: addGateway
       requestBody:
         description: Gateway to add
         required: true
