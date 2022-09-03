@@ -13,16 +13,6 @@ import (
 
 //go:generate oapi-codegen -config ../schemas/internal.config.yaml ../schemas/internal.yaml
 
-var spec *openapi3.T
-
-func init() {
-	var err error
-	spec, err = GetSwagger()
-	if err != nil {
-		panic(err)
-	}
-}
-
 var _ ServerInterface = &Server{}
 
 type Server struct {
@@ -33,6 +23,7 @@ type Server struct {
 // TODO(andrew): most of this is boilerplate that should be generated
 
 func NewServer(url string, consulClient *api.Client, logger hclog.Logger) http.Handler {
+	spec, _ := GetSwagger()
 	spec.Servers = openapi3.Servers{&openapi3.Server{URL: url}}
 
 	s := &Server{consulClient: consulClient, logger: logger}
