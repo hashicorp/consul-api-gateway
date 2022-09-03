@@ -1,4 +1,4 @@
-package v1
+package internal
 
 import (
 	"encoding/json"
@@ -11,7 +11,7 @@ import (
 	"github.com/hashicorp/go-hclog"
 )
 
-//go:generate oapi-codegen -config ../schemas/v1.config.yaml ../schemas/v1.yaml
+//go:generate oapi-codegen -config ../schemas/internal.config.yaml ../schemas/internal.yaml
 
 var spec *openapi3.T
 
@@ -37,7 +37,7 @@ func NewServer(url string, consulClient *api.Client, logger hclog.Logger) http.H
 
 	s := &Server{consulClient: consulClient, logger: logger}
 	r := chi.NewRouter()
-	r.Use(middleware.JSONContentType, s.consulTokenMiddleware, middleware.OapiRequestValidator(spec, sendError))
+	r.Use(middleware.JSONContentType, s.gatewayTokenMiddleware, middleware.OapiRequestValidator(spec, sendError))
 
 	return HandlerWithOptions(s, ChiServerOptions{
 		BaseURL:    url,
