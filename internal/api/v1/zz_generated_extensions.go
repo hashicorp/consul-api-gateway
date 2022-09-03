@@ -63,6 +63,20 @@ func (c *APIClient) ListGateways(ctx context.Context, params ...ListGatewaysPara
 	return nil, NewUnexpectedResponse(resp.StatusCode(), resp.Body)
 }
 
+func (c *APIClient) CreateGateway(ctx context.Context, body Gateway) (*Gateway, error) {
+	resp, err := c.client.CreateGatewayWithResponse(ctx, CreateGatewayJSONRequestBody(body))
+	if err != nil {
+		return nil, err
+	}
+	if resp.JSONDefault != nil {
+		return nil, resp.JSONDefault
+	}
+	if resp.JSON201 != nil {
+		return resp.JSON201, nil
+	}
+	return nil, NewUnexpectedResponse(resp.StatusCode(), resp.Body)
+}
+
 func (c *APIClient) DeleteGateway(ctx context.Context, name string) error {
 	resp, err := c.client.DeleteGatewayWithResponse(ctx, name)
 	if err != nil {
@@ -110,6 +124,20 @@ func (c *APIClient) ListHTTPRoutes(ctx context.Context, params ...ListHTTPRoutes
 	}
 	if resp.JSON200 != nil {
 		return resp.JSON200, nil
+	}
+	return nil, NewUnexpectedResponse(resp.StatusCode(), resp.Body)
+}
+
+func (c *APIClient) CreateHTTPRoute(ctx context.Context, body HTTPRoute) (*HTTPRoute, error) {
+	resp, err := c.client.CreateHTTPRouteWithResponse(ctx, CreateHTTPRouteJSONRequestBody(body))
+	if err != nil {
+		return nil, err
+	}
+	if resp.JSONDefault != nil {
+		return nil, resp.JSONDefault
+	}
+	if resp.JSON201 != nil {
+		return resp.JSON201, nil
 	}
 	return nil, NewUnexpectedResponse(resp.StatusCode(), resp.Body)
 }
@@ -293,6 +321,20 @@ func (c *APIClient) ListTCPRoutes(ctx context.Context, params ...ListTCPRoutesPa
 	}
 	if resp.JSON200 != nil {
 		return resp.JSON200, nil
+	}
+	return nil, NewUnexpectedResponse(resp.StatusCode(), resp.Body)
+}
+
+func (c *APIClient) CreateTCPRoute(ctx context.Context, body TCPRoute) (*TCPRoute, error) {
+	resp, err := c.client.CreateTCPRouteWithResponse(ctx, CreateTCPRouteJSONRequestBody(body))
+	if err != nil {
+		return nil, err
+	}
+	if resp.JSONDefault != nil {
+		return nil, resp.JSONDefault
+	}
+	if resp.JSON201 != nil {
+		return resp.JSON201, nil
 	}
 	return nil, NewUnexpectedResponse(resp.StatusCode(), resp.Body)
 }

@@ -26,13 +26,12 @@ func (c *APIClient) {{$opid}}(ctx context.Context{{genParamArgs $op.PathParams}}
 {{$responseType := $typeDef.Schema.TypeDecl}}
 {{$isArray := $typeDef.Schema.ArrayType}}
 {{if $op.HasBody}}
-{{$typeDefs := $op.TypeDefinitions -}}
+{{$typeDefs := getResponseTypeDefinitions $op -}}
 {{range $op.Bodies}}
 {{$body := . -}}
 {{$bodyTypeDecl := .Schema.TypeDecl -}}
 {{range $typeDefs}}
-
-{{ if eq $bodyTypeDecl .TypeName -}}
+{{ if eq $bodyTypeDecl .Schema.TypeDecl -}}
 {{/* set up all variables */}}
 {{/* opid - name of operation */}}
 {{/* requestNameInternal - name of internal request name */}}
