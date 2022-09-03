@@ -29,15 +29,15 @@ const (
 
 // Defines values for HTTPMatchMethod.
 const (
-	CONNECT HTTPMatchMethod = "CONNECT"
-	DELETE  HTTPMatchMethod = "DELETE"
-	GET     HTTPMatchMethod = "GET"
-	HEAD    HTTPMatchMethod = "HEAD"
-	OPTIONS HTTPMatchMethod = "OPTIONS"
-	PATCH   HTTPMatchMethod = "PATCH"
-	POST    HTTPMatchMethod = "POST"
-	PUT     HTTPMatchMethod = "PUT"
-	TRACE   HTTPMatchMethod = "TRACE"
+	HTTPMatchMethodCONNECT HTTPMatchMethod = "CONNECT"
+	HTTPMatchMethodDELETE  HTTPMatchMethod = "DELETE"
+	HTTPMatchMethodGET     HTTPMatchMethod = "GET"
+	HTTPMatchMethodHEAD    HTTPMatchMethod = "HEAD"
+	HTTPMatchMethodOPTIONS HTTPMatchMethod = "OPTIONS"
+	HTTPMatchMethodPATCH   HTTPMatchMethod = "PATCH"
+	HTTPMatchMethodPOST    HTTPMatchMethod = "POST"
+	HTTPMatchMethodPUT     HTTPMatchMethod = "PUT"
+	HTTPMatchMethodTRACE   HTTPMatchMethod = "TRACE"
 )
 
 // Defines values for HTTPPathMatchMatchOn.
@@ -49,15 +49,15 @@ const (
 
 // Defines values for HTTPQueryMatchMatchOn.
 const (
-	Exact             HTTPQueryMatchMatchOn = "exact"
-	Present           HTTPQueryMatchMatchOn = "present"
-	RegularExpression HTTPQueryMatchMatchOn = "regularExpression"
+	HTTPQueryMatchMatchOnExact             HTTPQueryMatchMatchOn = "exact"
+	HTTPQueryMatchMatchOnPresent           HTTPQueryMatchMatchOn = "present"
+	HTTPQueryMatchMatchOnRegularExpression HTTPQueryMatchMatchOn = "regularExpression"
 )
 
 // Defines values for ListenerProtocol.
 const (
-	Http ListenerProtocol = "http"
-	Tcp  ListenerProtocol = "tcp"
+	ListenerProtocolHttp ListenerProtocol = "http"
+	ListenerProtocolTcp  ListenerProtocol = "tcp"
 )
 
 // Certificate defines model for Certificate.
