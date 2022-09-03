@@ -44,13 +44,13 @@ func (s *Server) GetGateway(w http.ResponseWriter, r *http.Request, name string)
 	s.GetGatewayInNamespace(w, r, defaultNamespace, name)
 }
 
-func (s *Server) DeleteGateway(w http.ResponseWriter, r *http.Request, name string) {
-	s.DeleteGatewayInNamespace(w, r, defaultNamespace, name)
-}
-
 func (s *Server) DeleteGatewayInNamespace(w http.ResponseWriter, r *http.Request, namespace, name string) {
 	s.logger.Info("deleting gateway", "namespace", namespace, "name", name)
 	// do the actual gateway deletion here
 
 	sendEmpty(w, http.StatusAccepted)
+}
+
+func (s *Server) DeleteGateway(w http.ResponseWriter, r *http.Request, name string) {
+	s.DeleteGatewayInNamespace(w, r, defaultNamespace, name)
 }

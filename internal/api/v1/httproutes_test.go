@@ -9,37 +9,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/hashicorp/consul/api"
-	"github.com/hashicorp/consul/sdk/testutil"
 	"github.com/hashicorp/go-hclog"
 	"github.com/stretchr/testify/require"
 )
 
-const testToken = "6d1b28fc-3ccf-4a26-ab19-1ba1c103ade3"
-
-func testConsul(t *testing.T, aclEnabled bool) *api.Client {
-	t.Helper()
-
-	consulSrv, err := testutil.NewTestServerConfigT(t, func(c *testutil.TestServerConfig) {
-		c.ACL.Enabled = aclEnabled
-		c.ACL.Tokens.InitialManagement = testToken
-		c.Peering = nil
-	})
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		_ = consulSrv.Stop()
-	})
-	consulSrv.WaitForLeader(t)
-
-	cfg := api.DefaultConfig()
-	cfg.Address = consulSrv.HTTPAddr
-	cfg.Token = testToken
-	consul, err := api.NewClient(cfg)
-	require.NoError(t, err)
-	return consul
-}
-
-func TestServer_ListGateways(t *testing.T) {
+func TestServer_ListHTTPRoutes(t *testing.T) {
 	s, err := NewServer("", testConsul(t, false), hclog.NewNullLogger())
 	require.NoError(t, err)
 
@@ -57,7 +31,7 @@ func TestServer_ListGateways(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			resp, err := http.Get(testServer.URL + "/gateways")
+			resp, err := http.Get(testServer.URL + "/http-routes")
 			require.NoError(t, err)
 			require.Equal(t, "application/json", resp.Header.Get("Content-Type"))
 			require.Equal(t, tt.wantStatusCode, resp.StatusCode)
@@ -65,37 +39,7 @@ func TestServer_ListGateways(t *testing.T) {
 	}
 }
 
-func TestServer_GetNamespacedGateway(t *testing.T) {
-	s, err := NewServer("", testConsul(t, false), hclog.NewNullLogger())
-	require.NoError(t, err)
-
-	testServer := httptest.NewServer(s)
-	defer testServer.Close()
-
-	tests := []struct {
-		name             string
-		gatewayNamespace string
-		gatewayName      string
-		wantStatusCode   int
-	}{
-		{
-			name:             "stub",
-			gatewayNamespace: "a",
-			gatewayName:      "b",
-			wantStatusCode:   http.StatusNotImplemented,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			resp, err := http.Get(testServer.URL + "/namespaces/" + tt.gatewayNamespace + "/gateways/" + tt.gatewayName)
-			require.NoError(t, err)
-			require.Equal(t, "application/json", resp.Header.Get("Content-Type"))
-			require.Equal(t, tt.wantStatusCode, resp.StatusCode)
-		})
-	}
-}
-
-func TestServer_CreateGateway(t *testing.T) {
+func TestServer_GetNamespacedHTTPRoute(t *testing.T) {
 	s, err := NewServer("", testConsul(t, false), hclog.NewNullLogger())
 	require.NoError(t, err)
 
@@ -104,51 +48,97 @@ func TestServer_CreateGateway(t *testing.T) {
 
 	tests := []struct {
 		name           string
-		gateway        *Gateway
+		routeNamespace string
+		routeName      string
+		wantStatusCode int
+	}{
+		{
+			name:           "stub",
+			routeNamespace: "a",
+			routeName:      "b",
+			wantStatusCode: http.StatusNotImplemented,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resp, err := http.Get(testServer.URL + "/namespaces/" + tt.routeNamespace + "/http-routes/" + tt.routeName)
+			require.NoError(t, err)
+			require.Equal(t, "application/json", resp.Header.Get("Content-Type"))
+			require.Equal(t, tt.wantStatusCode, resp.StatusCode)
+		})
+	}
+}
+
+func TestServer_CreateHTTPRoute(t *testing.T) {
+	s, err := NewServer("", testConsul(t, false), hclog.NewNullLogger())
+	require.NoError(t, err)
+
+	testServer := httptest.NewServer(s)
+	defer testServer.Close()
+
+	tests := []struct {
+		name           string
+		route          *HTTPRoute
 		wantStatusCode int
 		wantError      string
 	}{
 		{
-			name:           "validate-listeners",
-			gateway:        &Gateway{Name: "a", Namespace: "b"},
+			name:           "validate-gateways",
+			route:          &HTTPRoute{Name: "a", Namespace: "b"},
 			wantStatusCode: http.StatusBadRequest,
-			wantError:      "listeners",
+			wantError:      "gateways",
 		},
 		{
-			name:           "validate-listeners-protocol",
-			gateway:        &Gateway{Listeners: []Listener{{}}, Name: "a", Namespace: "b"},
+			name:           "validate-gateways-length",
+			route:          &HTTPRoute{Gateways: []GatewayReference{}, Name: "a", Namespace: "b"},
 			wantStatusCode: http.StatusBadRequest,
-			wantError:      "listeners.0.protocol",
+			wantError:      "gateways",
+		},
+		{
+			name: "validate-gateways-namespace",
+			route: &HTTPRoute{Gateways: []GatewayReference{
+				{Name: "a"},
+			}, Name: "a", Namespace: "b"},
+			wantStatusCode: http.StatusBadRequest,
+			wantError:      "gateways.0.namespace",
+		},
+		{
+			name: "validate-gateways-name",
+			route: &HTTPRoute{Gateways: []GatewayReference{
+				{Namespace: "b"},
+			}, Name: "a", Namespace: "b"},
+			wantStatusCode: http.StatusBadRequest,
+			wantError:      "gateways.0.name",
 		},
 		{
 			name: "validate-name",
-			gateway: &Gateway{Listeners: []Listener{{
-				Protocol: "http",
-			}}, Namespace: "b"},
+			route: &HTTPRoute{Gateways: []GatewayReference{
+				{Name: "a", Namespace: "b"},
+			}, Namespace: "b"},
 			wantStatusCode: http.StatusBadRequest,
 			wantError:      "name",
 		},
 		{
 			name: "validate-namespace",
-			gateway: &Gateway{Listeners: []Listener{{
-				Protocol: "http",
-			}}, Name: "a"},
+			route: &HTTPRoute{Gateways: []GatewayReference{
+				{Name: "a", Namespace: "b"},
+			}, Name: "a"},
 			wantStatusCode: http.StatusBadRequest,
 			wantError:      "namespace",
 		},
 		{
 			name: "pass-validation",
-			gateway: &Gateway{Listeners: []Listener{{
-				Protocol: "http",
-			}}, Name: "a", Namespace: "b"},
+			route: &HTTPRoute{Gateways: []GatewayReference{
+				{Name: "a", Namespace: "b"},
+			}, Name: "a", Namespace: "b"},
 			wantStatusCode: http.StatusCreated,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			data, err := json.Marshal(tt.gateway)
+			data, err := json.Marshal(tt.route)
 			require.NoError(t, err)
-			resp, err := http.Post(testServer.URL+"/gateways", "application/json", bytes.NewBuffer(data))
+			resp, err := http.Post(testServer.URL+"/http-routes", "application/json", bytes.NewBuffer(data))
 			require.NoError(t, err)
 			require.Equal(t, "application/json", resp.Header.Get("Content-Type"))
 			require.Equal(t, tt.wantStatusCode, resp.StatusCode)
@@ -162,7 +152,7 @@ func TestServer_CreateGateway(t *testing.T) {
 	}
 }
 
-func TestServer_DeleteNamespacedGateway(t *testing.T) {
+func TestServer_DeleteNamespacedHTTPRoute(t *testing.T) {
 	s, err := NewServer("", testConsul(t, false), hclog.NewNullLogger())
 	require.NoError(t, err)
 
@@ -170,21 +160,21 @@ func TestServer_DeleteNamespacedGateway(t *testing.T) {
 	defer testServer.Close()
 
 	tests := []struct {
-		name             string
-		gatewayNamespace string
-		gatewayName      string
-		wantStatusCode   int
+		name           string
+		routeNamespace string
+		routeName      string
+		wantStatusCode int
 	}{
 		{
-			name:             "non-existent",
-			gatewayNamespace: "a",
-			gatewayName:      "b",
-			wantStatusCode:   http.StatusAccepted,
+			name:           "non-existent",
+			routeNamespace: "a",
+			routeName:      "b",
+			wantStatusCode: http.StatusAccepted,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req, err := http.NewRequest("DELETE", testServer.URL+"/namespaces/"+tt.gatewayNamespace+"/gateways/"+tt.gatewayName, nil)
+			req, err := http.NewRequest("DELETE", testServer.URL+"/namespaces/"+tt.routeNamespace+"/http-routes/"+tt.routeName, nil)
 			require.NoError(t, err)
 			resp, err := http.DefaultClient.Do(req)
 			require.NoError(t, err)

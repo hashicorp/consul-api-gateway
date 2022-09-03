@@ -2,7 +2,8 @@ openapi: 3.0.0
 info:
   version: 1.0.0
   title: Consul API Gateway
-  description: Consul API Gateway Management API
+  description:
+   Consul API Gateway Management API
   contact:
     name: Consul API Gateway Team
     email: consul-api-gateway@hashicorp.com
@@ -179,6 +180,173 @@ paths:
             application/json:
               schema:
                 "$ref": "#/components/schemas/Error"
+  "/http-routes":
+    get:
+      description: 'Returns all http routes in the `"default"` namespace.'
+      operationId: listHTTPRoutes
+      parameters:
+      - name: namespaces
+        in: query
+        description: The namespaces of routes to list
+        schema:
+          type: string
+      responses:
+        '200':
+          description: route response
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/HTTPRoutePage"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Error"
+    post:
+      description: 'Creates a new http route.'
+      operationId: createHTTPRoute
+      requestBody:
+        description: HTTPRoute to add
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/HTTPRoute"
+      responses:
+        '201':
+          description: route response
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/HTTPRoute"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Error"
+  "/namespaces/{namespace}/http-routes":
+    get:
+      description: 'Returns all http routes in a given namespace.'
+      operationId: listHTTPRoutesInNamespace
+      parameters:
+      - name: namespace
+        in: path
+        description: The namespace of routes to list
+        schema:
+          type: string
+      responses:
+        '200':
+          description: route response
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/HTTPRoutePage"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Error"
+  "/namespaces/{namespace}/http-routes/{name}":
+    get:
+      description: Returns the http route based off of its unique name.
+      operationId: getHTTPRouteInNamespace
+      parameters:
+      - name: namespace
+        in: path
+        description: Namespace of route to fetch
+        required: true
+        schema:
+          type: string
+      - name: name
+        in: path
+        description: Name of route to fetch
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: route response
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/HTTPRoute"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Error"
+    delete:
+      description: deletes a single http route in the given namespace based on the name supplied
+      operationId: deleteHTTPRouteInNamespace
+      parameters:
+      - name: namespace
+        in: path
+        description: Namespace of http route to fetch
+        required: true
+        schema:
+          type: string
+      - name: name
+        in: path
+        description: Name of http route to delete
+        required: true
+        schema:
+          type: string
+      responses:
+        '204':
+          description: route deleted
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Error"
+  "/http-routes/{name}":
+    get:
+      description: Returns the http route in the `"default"` namespace based off of its unique name.
+      operationId: getHTTPRoute
+      parameters:
+      - name: name
+        in: path
+        description: Name of route to fetch
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: route response
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/HTTPRoute"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Error"
+    delete:
+      description: deletes a single http route in the `"default"` namespace based on the name supplied
+      operationId: deleteHTTPRoute
+      parameters:
+      - name: name
+        in: path
+        description: Name of http route to delete
+        required: true
+        schema:
+          type: string
+      responses:
+        '204':
+          description: route deleted
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Error"
 components:
   securitySchemes:
     ApiKeyAuth:
@@ -271,6 +439,178 @@ components:
         privateKeyField:
           type: string
           minLength: 1
+    HTTPRoutePage:
+      type: object
+      required:
+      - routes
+      properties:
+        routes:
+          type: array
+          items:
+            "$ref": "#/components/schemas/HTTPRoute"
+        meta:
+          type: object
+    GatewayReference:
+      type: object
+      required:
+      - name
+      - namespace
+      properties:
+        name:
+          type: string
+          minLength: 1
+        namespace:
+          type: string
+          minLength: 1
+    HTTPRoute:
+      type: object
+      required:
+      - name
+      - namespace
+      - gateways
+      properties:
+        name:
+          type: string
+          minLength: 1
+        namespace:
+          type: string
+          minLength: 1
+        gateways:
+          type: array
+          items:
+            "$ref": "#/components/schemas/GatewayReference"
+          minItems: 1
+        hostnames:
+          type: array
+          items:
+            type: string
+        rules:
+          type: array
+          items:
+            "$ref": "#/components/schemas/HTTPRouteRule"
+    HTTPRouteRule:
+      type: object
+      properties:
+        matches:
+          type: array
+          items:
+            "$ref": "#/components/schemas/HTTPMatch"
+        filters:
+          "$ref": "#/components/schemas/HTTPFilters"
+        services:
+          type: array
+          items:
+            "$ref": "#/components/schemas/HTTPService"
+    HTTPService:
+      type: object
+      required:
+      - name
+      properties:
+        name:
+          type: string
+        namespace:
+          type: string
+        weight:
+          type: number
+        filters:
+          "$ref": "#/components/schemas/HTTPFilters"
+    HTTPFilters:
+      type: object
+      properties:
+        headers:
+          type: array
+          items:
+            "$ref": "#/components/schemas/HTTPHeaderFilter"
+    HTTPHeaderFilter:
+      type: object
+      properties:
+        set:
+          type: object
+          additionalProperties:
+            type: string
+        add:
+          type: object
+          additionalProperties:
+            type: string
+        remove:
+          type: array
+          items:
+            type: string
+    HTTPMatch:
+      type: object
+      properties:
+        path:
+          "$ref": "#/components/schemas/HTTPPathMatch"
+        headers:
+          type: array
+          items:
+            "$ref": "#/components/schemas/HTTPHeaderMatch"
+        query:
+          type: array
+          items:
+            "$ref": "#/components/schemas/HTTPQueryMatch"
+        method:
+          type: string
+          enum:
+          - CONNECT
+          - DELETE
+          - GET
+          - HEAD
+          - OPTIONS
+          - PATCH
+          - POST
+          - PUT
+          - TRACE
+    HTTPPathMatch:
+      type: object
+      required:
+      - matchOn
+      - value
+      properties:
+        matchOn:
+          type: string
+          enum:
+          - exact
+          - prefix
+          - regularExpression
+        value:
+          type: string
+    HTTPHeaderMatch:
+      type: object
+      required:
+      - matchOn
+      - name
+      - value
+      properties:
+        matchOn:
+          type: string
+          enum:
+          - exact
+          - prefix
+          - suffix
+          - present
+          - regularExpression
+        name:
+          type: string
+        value:
+          type: string
+    HTTPQueryMatch:
+      type: object
+      required:
+      - matchOn
+      - name
+      - value
+      properties:
+        matchOn:
+          type: string
+          enum:
+          - exact
+          - present
+          - regularExpression
+        name:
+          type: string
+        value:
+          type: string
     Error:
       type: object
       required:
