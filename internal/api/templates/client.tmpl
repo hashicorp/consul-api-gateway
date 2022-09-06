@@ -1,0 +1,29 @@
+// Start of User Generated Client
+
+type UnexpectedResponse struct {
+  code int
+  body string
+}
+
+func NewUnexpectedResponse(code int, body []byte) *UnexpectedResponse {
+  return &UnexpectedResponse{
+    code: code,
+    body: string(body),
+  }
+}
+
+func (e *UnexpectedResponse) Error() string {
+	return fmt.Sprintf("server response could not be parsed - code: %d, message: %s", e.code, e.body)
+}
+
+func (e *Error) Error() string {
+	return fmt.Sprintf("server error - code: %d, message: %s", e.Code, e.Message)
+}
+
+func IsNotFound(e error) bool {
+	var err *Error
+	if errors.As(e, &err) {
+		return err.Code == http.StatusNotFound
+	}
+	return false
+}
