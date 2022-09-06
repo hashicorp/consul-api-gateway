@@ -32,10 +32,10 @@ func (s *Server) consulTokenMiddleware(next http.Handler) http.Handler {
 		if !hasGlobalManagementToken(acl) {
 			if err != nil && !aclNotFound(err) {
 				s.logger.Error("checking token acl", "error", err)
-				s.sendError(w, http.StatusInternalServerError, err.Error())
+				sendError(w, http.StatusInternalServerError, err.Error())
 				return
 			}
-			s.sendError(w, http.StatusUnauthorized, "unauthorized")
+			sendError(w, http.StatusUnauthorized, "unauthorized")
 			return
 		}
 

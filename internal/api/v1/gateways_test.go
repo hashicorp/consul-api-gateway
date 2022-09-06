@@ -14,8 +14,7 @@ import (
 )
 
 func TestServer_ListGateways(t *testing.T) {
-	s, err := NewServer("", testConsul(t, false), hclog.NewNullLogger())
-	require.NoError(t, err)
+	s := NewServer("", testConsul(t, false), hclog.NewNullLogger())
 
 	testServer := httptest.NewServer(s)
 	defer testServer.Close()
@@ -40,8 +39,7 @@ func TestServer_ListGateways(t *testing.T) {
 }
 
 func TestServer_GetNamespacedGateway(t *testing.T) {
-	s, err := NewServer("", testConsul(t, false), hclog.NewNullLogger())
-	require.NoError(t, err)
+	s := NewServer("", testConsul(t, false), hclog.NewNullLogger())
 
 	testServer := httptest.NewServer(s)
 	defer testServer.Close()
@@ -70,8 +68,7 @@ func TestServer_GetNamespacedGateway(t *testing.T) {
 }
 
 func TestServer_CreateGateway(t *testing.T) {
-	s, err := NewServer("", testConsul(t, false), hclog.NewNullLogger())
-	require.NoError(t, err)
+	s := NewServer("", testConsul(t, false), hclog.NewNullLogger())
 
 	testServer := httptest.NewServer(s)
 	defer testServer.Close()
@@ -137,8 +134,7 @@ func TestServer_CreateGateway(t *testing.T) {
 }
 
 func TestServer_DeleteNamespacedGateway(t *testing.T) {
-	s, err := NewServer("", testConsul(t, false), hclog.NewNullLogger())
-	require.NoError(t, err)
+	s := NewServer("", testConsul(t, false), hclog.NewNullLogger())
 
 	testServer := httptest.NewServer(s)
 	defer testServer.Close()

@@ -14,8 +14,7 @@ import (
 )
 
 func TestServer_ListTCPRoutes(t *testing.T) {
-	s, err := NewServer("", testConsul(t, false), hclog.NewNullLogger())
-	require.NoError(t, err)
+	s := NewServer("", testConsul(t, false), hclog.NewNullLogger())
 
 	testServer := httptest.NewServer(s)
 	defer testServer.Close()
@@ -40,8 +39,7 @@ func TestServer_ListTCPRoutes(t *testing.T) {
 }
 
 func TestServer_GetNamespacedTCPRoute(t *testing.T) {
-	s, err := NewServer("", testConsul(t, false), hclog.NewNullLogger())
-	require.NoError(t, err)
+	s := NewServer("", testConsul(t, false), hclog.NewNullLogger())
 
 	testServer := httptest.NewServer(s)
 	defer testServer.Close()
@@ -70,8 +68,7 @@ func TestServer_GetNamespacedTCPRoute(t *testing.T) {
 }
 
 func TestServer_CreateTCPRoute(t *testing.T) {
-	s, err := NewServer("", testConsul(t, false), hclog.NewNullLogger())
-	require.NoError(t, err)
+	s := NewServer("", testConsul(t, false), hclog.NewNullLogger())
 
 	testServer := httptest.NewServer(s)
 	defer testServer.Close()
@@ -153,8 +150,7 @@ func TestServer_CreateTCPRoute(t *testing.T) {
 }
 
 func TestServer_DeleteNamespacedTCPRoute(t *testing.T) {
-	s, err := NewServer("", testConsul(t, false), hclog.NewNullLogger())
-	require.NoError(t, err)
+	s := NewServer("", testConsul(t, false), hclog.NewNullLogger())
 
 	testServer := httptest.NewServer(s)
 	defer testServer.Close()
