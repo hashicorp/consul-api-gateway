@@ -55,8 +55,7 @@ func TestServer_consulTokenMiddleware(t *testing.T) {
 			t.Parallel()
 
 			consul := testConsul(t, tt.aclEnabled)
-			s, err := NewServer("", consul, hclog.Default())
-			require.NoError(t, err)
+			s := NewServer("", consul, hclog.Default())
 
 			token := tt.token
 			if tt.createToken {

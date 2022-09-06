@@ -1,0 +1,8 @@
+package: internal
+generate:
+  models: true
+  embedded-spec: true
+  chi-server: true
+compatibility:
+  always-prefix-enum-values: true
+output: ../internal/zz_generated_server.go

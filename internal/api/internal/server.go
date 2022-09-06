@@ -1,6 +1,7 @@
-package v1
+package internal
 
 import (
+	"encoding/json"
 	"net/http"
 
 	"github.com/getkin/kin-openapi/openapi3"
@@ -10,8 +11,7 @@ import (
 	"github.com/hashicorp/go-hclog"
 )
 
-//go:generate oapi-codegen -config ../schemas/v1.config.yaml ../schemas/v1.yaml
-//go:generate oapi-codegen -old-config-style -package v1 -generate client -templates ../templates -o zz_generated_extensions.go ../schemas/v1.yaml
+//go:generate oapi-codegen -config ../schemas/internal.config.yaml ../schemas/internal.yaml
 
 var _ ServerInterface = &Server{}
 
@@ -28,7 +28,7 @@ func NewServer(url string, consulClient *api.Client, logger hclog.Logger) http.H
 
 	s := &Server{consulClient: consulClient, logger: logger}
 	r := chi.NewRouter()
-	r.Use(middleware.JSONContentType, s.consulTokenMiddleware, middleware.OapiRequestValidator(spec, sendError))
+	r.Use(middleware.JSONContentType, s.gatewayTokenMiddleware, middleware.OapiRequestValidator(spec, sendError))
 
 	return HandlerWithOptions(s, ChiServerOptions{
 		BaseURL:    url,
@@ -37,4 +37,21 @@ func NewServer(url string, consulClient *api.Client, logger hclog.Logger) http.H
 			sendError(w, http.StatusBadRequest, err.Error())
 		},
 	})
+}
+
+func sendError(w http.ResponseWriter, code int, message string) {
+	send(w, code, Error{
+		Code:    int32(code),
+		Message: message,
+	})
+}
+
+func send(w http.ResponseWriter, code int, object interface{}) {
+	w.WriteHeader(code)
+	json.NewEncoder(w).Encode(object)
+}
+
+func sendEmpty(w http.ResponseWriter, code int) {
+	w.WriteHeader(code)
+	w.Write([]byte("{}\n"))
 }
