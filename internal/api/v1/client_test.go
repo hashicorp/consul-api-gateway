@@ -11,8 +11,7 @@ import (
 )
 
 func TestClient_ListGateways(t *testing.T) {
-	s, err := NewServer("", testConsul(t, false), hclog.NewNullLogger())
-	require.NoError(t, err)
+	s := NewServer("", testConsul(t, false), hclog.NewNullLogger())
 
 	testServer := httptest.NewServer(s)
 	defer testServer.Close()
