@@ -1,7 +1,6 @@
 package internal
 
 import (
-	"encoding/json"
 	"net/http"
 
 	"github.com/getkin/kin-openapi/openapi3"
@@ -12,6 +11,7 @@ import (
 )
 
 //go:generate oapi-codegen -config ../schemas/internal.config.yaml ../schemas/internal.yaml
+//go:generate oapi-codegen -old-config-style -package internal -generate client -templates ../templates -o zz_generated_extensions.go ../schemas/internal.yaml
 
 var _ ServerInterface = &Server{}
 
@@ -37,21 +37,4 @@ func NewServer(url string, consulClient *api.Client, logger hclog.Logger) http.H
 			sendError(w, http.StatusBadRequest, err.Error())
 		},
 	})
-}
-
-func sendError(w http.ResponseWriter, code int, message string) {
-	send(w, code, Error{
-		Code:    int32(code),
-		Message: message,
-	})
-}
-
-func send(w http.ResponseWriter, code int, object interface{}) {
-	w.WriteHeader(code)
-	json.NewEncoder(w).Encode(object)
-}
-
-func sendEmpty(w http.ResponseWriter, code int) {
-	w.WriteHeader(code)
-	w.Write([]byte("{}\n"))
 }
