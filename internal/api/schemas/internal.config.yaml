@@ -3,6 +3,7 @@ generate:
   models: true
   embedded-spec: true
   chi-server: true
+  client: true
 compatibility:
   always-prefix-enum-values: true
-output: ../internal/zz_generated_server.go
+output: ../internal/zz_generated.go

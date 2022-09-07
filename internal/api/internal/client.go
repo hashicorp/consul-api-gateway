@@ -1,4 +1,4 @@
-package v1
+package internal
 
 import (
 	"errors"
@@ -8,7 +8,7 @@ import (
 
 // TODO(andrew): most of this is boilerplate that should be generated
 
-const defaultServerBase = "/api/v1"
+const defaultServerBase = "/api/internal"
 
 type ClientConfig struct {
 	Server  string
@@ -28,7 +28,7 @@ func CreateClient(config ClientConfig) (*APIClient, error) {
 
 	if config.Token != "" {
 		// error ignored because when the first parameter is "header" an error is never returned
-		apiKeyProvider, _ := securityprovider.NewSecurityProviderApiKey("header", "X-Consul-Token", config.Token)
+		apiKeyProvider, _ := securityprovider.NewSecurityProviderApiKey("header", "X-API-Gateway-Token", config.Token)
 		clientOptions = append(clientOptions, WithRequestEditorFn(apiKeyProvider.Intercept))
 	}
 

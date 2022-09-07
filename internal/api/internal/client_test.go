@@ -1,4 +1,4 @@
-package v1
+package internal
 
 import (
 	"context"
@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestClient_ListGateways(t *testing.T) {
-	s := NewServer("", testConsul(t, false), hclog.NewNullLogger())
+func TestClient_Bootstrap(t *testing.T) {
+	s := NewServer("", nil, hclog.NewNullLogger())
 
 	testServer := httptest.NewServer(s)
 	defer testServer.Close()
@@ -32,7 +32,7 @@ func TestClient_ListGateways(t *testing.T) {
 				BaseURL: "/",
 			})
 			require.NoError(t, err)
-			_, err = client.ListGateways(context.Background())
+			_, err = client.Bootstrap(context.Background())
 			require.Error(t, err)
 		})
 	}
