@@ -28,8 +28,8 @@ func TestClient_ListGateways(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			client, err := CreateClient(ClientConfig{
-				Server: testServer.URL,
-				Base:   "/",
+				Server:  testServer.URL,
+				BaseURL: "/",
 			})
 			require.NoError(t, err)
 			_, err = client.ListGateways(context.Background())
