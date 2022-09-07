@@ -24,6 +24,7 @@ func CreateClient(config ClientConfig) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	internalClient, err := internal.CreateClient(internal.ClientConfig{
 		Server: config.Server,
 		Token:  config.GatewayToken,
@@ -31,6 +32,7 @@ func CreateClient(config ClientConfig) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return &Client{
 		v1:       v1Client,
 		internal: internalClient,

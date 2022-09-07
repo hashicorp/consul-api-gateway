@@ -8,12 +8,12 @@ import (
 
 // TODO(andrew): most of this is boilerplate that should be generated
 
-const serverBase = "/api/v1"
+const defaultServerBase = "/api/v1"
 
 type ClientConfig struct {
-	Server string
-	Base   string
-	Token  string
+	Server  string
+	BaseURL string
+	Token   string
 }
 
 type APIClient struct {
@@ -27,13 +27,14 @@ func CreateClient(config ClientConfig) (*APIClient, error) {
 	clientOptions := []ClientOption{}
 
 	if config.Token != "" {
+		// error ignored because when the first parameter is "header" an error is never returned
 		apiKeyProvider, _ := securityprovider.NewSecurityProviderApiKey("header", "X-Consul-Token", config.Token)
 		clientOptions = append(clientOptions, WithRequestEditorFn(apiKeyProvider.Intercept))
 	}
 
-	serverBase := serverBase
-	if config.Base != "" {
-		serverBase = config.Base
+	serverBase := defaultServerBase
+	if config.BaseURL != "" {
+		serverBase = config.BaseURL
 	}
 
 	client, err := NewClientWithResponses(config.Server+serverBase, clientOptions...)
