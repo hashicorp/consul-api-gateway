@@ -9,8 +9,12 @@ import (
 	"github.com/mitchellh/cli"
 
 	cmdExec "github.com/hashicorp/consul-api-gateway/internal/commands/exec"
+	"github.com/hashicorp/consul-api-gateway/internal/commands/gateways"
+	"github.com/hashicorp/consul-api-gateway/internal/commands/httproutes"
 	cmdServer "github.com/hashicorp/consul-api-gateway/internal/commands/server"
+	"github.com/hashicorp/consul-api-gateway/internal/commands/tcproutes"
 	cmdVersion "github.com/hashicorp/consul-api-gateway/internal/commands/version"
+
 	"github.com/hashicorp/consul-api-gateway/internal/version"
 )
 
@@ -34,7 +38,7 @@ func run(args []string, ui cli.Ui, logOutput io.Writer) int {
 }
 
 func initializeCommands(ui cli.Ui, logOutput io.Writer) map[string]cli.CommandFactory {
-	return map[string]cli.CommandFactory{
+	commands := map[string]cli.CommandFactory{
 		"server": func() (cli.Command, error) {
 			return cmdServer.New(context.Background(), ui, logOutput), nil
 		},
@@ -45,6 +49,12 @@ func initializeCommands(ui cli.Ui, logOutput io.Writer) map[string]cli.CommandFa
 			return &cmdVersion.Command{UI: ui, Version: version.GetHumanVersion()}, nil
 		},
 	}
+
+	gateways.RegisterCommands(context.Background(), commands, ui, logOutput)
+	httproutes.RegisterCommands(context.Background(), commands, ui, logOutput)
+	tcproutes.RegisterCommands(context.Background(), commands, ui, logOutput)
+
+	return commands
 }
 
 func helpFunc(commands map[string]cli.CommandFactory) cli.HelpFunc {
@@ -53,7 +63,8 @@ func helpFunc(commands map[string]cli.CommandFactory) cli.HelpFunc {
 	// aren't shown in any help output. We use this for prerelease functionality
 	// or advanced features.
 	hidden := map[string]struct{}{
-		"exec": {},
+		"exec":   {},
+		"server": {},
 	}
 
 	var include []string

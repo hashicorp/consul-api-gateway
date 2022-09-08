@@ -6,6 +6,7 @@ import (
 )
 
 const (
+	AllNamespaces    = "*"
 	defaultNamespace = "default"
 )
 
