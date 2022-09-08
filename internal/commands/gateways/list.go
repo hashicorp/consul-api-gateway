@@ -60,7 +60,7 @@ const (
 	listHelp     = `
 Usage: consul-api-gateway gateways list [options]
 
-  Lists configured Gateways.
+  Lists Gateways.
 
   Additional flags and more advanced use cases are detailed below.
 `

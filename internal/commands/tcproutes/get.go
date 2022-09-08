@@ -48,7 +48,7 @@ const (
 	getHelp     = `
 Usage: consul-api-gateway tcp-routes get [options] NAME
 
-  Gets a configured TCPRoute with the given NAME.
+  Gets a TCPRoute with the given NAME.
 
   Additional flags and more advanced use cases are detailed below.
 `

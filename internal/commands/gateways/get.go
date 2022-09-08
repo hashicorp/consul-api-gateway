@@ -48,7 +48,7 @@ const (
 	getHelp     = `
 Usage: consul-api-gateway gateways get [options] NAME
 
-  Gets a configured Gateway with the given NAME.
+  Gets a Gateway with the given NAME.
 
   Additional flags and more advanced use cases are detailed below.
 `

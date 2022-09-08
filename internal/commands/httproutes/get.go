@@ -48,7 +48,7 @@ const (
 	getHelp     = `
 Usage: consul-api-gateway http-routes get [options] NAME
 
-  Gets a configured HTTPRoute with the given NAME.
+  Gets an HTTPRoute with the given NAME.
 
   Additional flags and more advanced use cases are detailed below.
 `

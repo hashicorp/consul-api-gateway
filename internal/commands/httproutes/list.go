@@ -60,7 +60,7 @@ const (
 	listHelp     = `
 Usage: consul-api-gateway http-routes list [options]
 
-  Lists configured HTTPRoutes.
+  Lists HTTPRoutes.
 
   Additional flags and more advanced use cases are detailed below.
 `
