@@ -122,6 +122,7 @@ func (c *Command) Run(args []string) int {
 	cfg.SDSServerHost = c.flagSDSServerHost
 	cfg.SDSServerPort = c.flagSDSServerPort
 	cfg.Namespace = c.flagK8sNamespace
+	cfg.PrimaryDatacenter = c.flagPrimaryDatacenter
 
 	consulCfg := api.DefaultConfig()
 	if c.flagCAFile != "" {

@@ -69,6 +69,7 @@ type Kubernetes struct {
 
 type Config struct {
 	CACert              string
+	PrimaryDatacenter   string
 	SDSServerHost       string
 	SDSServerPort       int
 	MetricsBindAddr     string
@@ -154,6 +155,7 @@ func (k *Kubernetes) Start(ctx context.Context) error {
 		Client:                gwClient,
 		Consul:                k.consul,
 		ConsulCA:              k.config.CACert,
+		PrimaryDatacenter:     k.config.PrimaryDatacenter,
 		SDSHost:               k.config.SDSServerHost,
 		SDSPort:               k.config.SDSServerPort,
 		Logger:                k.logger.Named("Reconciler"),

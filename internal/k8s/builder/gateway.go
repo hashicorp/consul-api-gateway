@@ -80,12 +80,13 @@ func filterAnnotations(annotations map[string]string, allowed []string) map[stri
 }
 
 type GatewayDeploymentBuilder struct {
-	gateway                *gwv1beta1.Gateway
-	gwConfig               *v1alpha1.GatewayClassConfig
-	sdsHost                string
-	sdsPort                int
-	consulCAData           string
-	consulGatewayNamespace string
+	gateway                 *gwv1beta1.Gateway
+	gwConfig                *v1alpha1.GatewayClassConfig
+	sdsHost                 string
+	sdsPort                 int
+	consulCAData            string
+	consulGatewayNamespace  string
+	consulPrimaryDatacenter string
 }
 
 func NewGatewayDeployment(gw *gwv1beta1.Gateway) *GatewayDeploymentBuilder {
@@ -107,6 +108,10 @@ func (b *GatewayDeploymentBuilder) WithConsulCA(caData string) {
 
 func (b *GatewayDeploymentBuilder) WithConsulGatewayNamespace(namespace string) {
 	b.consulGatewayNamespace = namespace
+}
+
+func (b *GatewayDeploymentBuilder) WithPrimaryConsulDatacenter(datacenter string) {
+	b.consulPrimaryDatacenter = datacenter
 }
 
 func (b *GatewayDeploymentBuilder) Validate() error {
@@ -262,16 +267,17 @@ func (b *GatewayDeploymentBuilder) podSpec() corev1.PodSpec {
 func (b *GatewayDeploymentBuilder) execCommand() []string {
 	// Render the command
 	data := gwContainerCommandData{
-		ACLAuthMethod:    b.gwConfig.Spec.ConsulSpec.AuthSpec.Method,
-		ConsulHTTPAddr:   orDefault(b.gwConfig.Spec.ConsulSpec.Address, defaultConsulAddress),
-		ConsulHTTPPort:   orDefaultIntString(b.gwConfig.Spec.ConsulSpec.PortSpec.HTTP, defaultConsulHTTPPort),
-		ConsulGRPCPort:   orDefaultIntString(b.gwConfig.Spec.ConsulSpec.PortSpec.GRPC, defaultConsulXDSPort),
-		LogLevel:         orDefault(b.gwConfig.Spec.LogLevel, defaultLogLevel),
-		GatewayHost:      "$(IP)",
-		GatewayName:      b.gateway.Name,
-		GatewayNamespace: b.consulGatewayNamespace,
-		SDSHost:          b.sdsHost,
-		SDSPort:          b.sdsPort,
+		ACLAuthMethod:     b.gwConfig.Spec.ConsulSpec.AuthSpec.Method,
+		ConsulHTTPAddr:    orDefault(b.gwConfig.Spec.ConsulSpec.Address, defaultConsulAddress),
+		ConsulHTTPPort:    orDefaultIntString(b.gwConfig.Spec.ConsulSpec.PortSpec.HTTP, defaultConsulHTTPPort),
+		ConsulGRPCPort:    orDefaultIntString(b.gwConfig.Spec.ConsulSpec.PortSpec.GRPC, defaultConsulXDSPort),
+		LogLevel:          orDefault(b.gwConfig.Spec.LogLevel, defaultLogLevel),
+		GatewayHost:       "$(IP)",
+		GatewayName:       b.gateway.Name,
+		GatewayNamespace:  b.consulGatewayNamespace,
+		PrimaryDatacenter: b.consulPrimaryDatacenter,
+		SDSHost:           b.sdsHost,
+		SDSPort:           b.sdsPort,
 	}
 	if b.requiresCA() {
 		data.ConsulCAFile = consulCALocalFile
@@ -349,18 +355,19 @@ func (b *GatewayDeploymentBuilder) requiresCA() bool {
 }
 
 type gwContainerCommandData struct {
-	ConsulCAFile     string
-	ConsulCAData     string
-	ConsulHTTPAddr   string
-	ConsulHTTPPort   string
-	ConsulGRPCPort   string
-	ACLAuthMethod    string
-	LogLevel         string
-	GatewayHost      string
-	GatewayName      string
-	GatewayNamespace string
-	SDSHost          string
-	SDSPort          int
+	ConsulCAFile      string
+	ConsulCAData      string
+	ConsulHTTPAddr    string
+	ConsulHTTPPort    string
+	ConsulGRPCPort    string
+	ACLAuthMethod     string
+	LogLevel          string
+	GatewayHost       string
+	GatewayName       string
+	GatewayNamespace  string
+	PrimaryDatacenter string
+	SDSHost           string
+	SDSPort           int
 }
 
 // gwContainerCommandTpl is the template for the command executed by
@@ -385,6 +392,9 @@ exec /bootstrap/consul-api-gateway exec -log-json \
   -consul-xds-port  {{ .ConsulGRPCPort }} \
 {{- if .ACLAuthMethod }}
   -acl-auth-method {{ .ACLAuthMethod }} \
+{{- end }}
+{{- if .PrimaryDatacenter }}
+  -primary-datacenter {{ .PrimaryDatacenter }}
 {{- end }}
   -envoy-bootstrap-path /bootstrap/envoy.json \
   -envoy-sds-address {{ .SDSHost }} \
