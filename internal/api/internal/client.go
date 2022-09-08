@@ -33,8 +33,6 @@ func CreateClient(config ClientConfig) (*APIClient, error) {
 	if config.Server == "" {
 		return nil, errors.New("must specify a server value")
 	}
-	clientOptions := []ClientOption{}
-
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	httpClient := &http.Client{
 		Transport: transport,
@@ -53,7 +51,7 @@ func CreateClient(config ClientConfig) (*APIClient, error) {
 			transport.TLSClientConfig.RootCAs = certPool
 		}
 	}
-	clientOptions = append(clientOptions, WithHTTPClient(httpClient))
+	clientOptions := []ClientOption{WithHTTPClient(httpClient)}
 
 	if config.Token != "" {
 		// error ignored because when the first parameter is "header" an error is never returned

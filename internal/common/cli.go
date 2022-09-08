@@ -39,8 +39,7 @@ func NewCommonCLI(ctx context.Context, help, synopsis string, ui cli.Ui, logOutp
 
 func (c *CommonCLI) init() {
 	c.Flags.StringVar(&c.flagLogLevel, "log-level", "info",
-		"Log verbosity level. Supported values (in order of detail) are \"trace\", "+
-			"\"debug\", \"info\", \"warn\", and \"error\".")
+		`Log verbosity level. Supported values (in order of detail) are "trace", "debug", "info", "warn", and "error".`)
 	c.Flags.BoolVar(&c.flagLogJSON, "log-json", false,
 		"Enable or disable JSON output format for logging.")
 

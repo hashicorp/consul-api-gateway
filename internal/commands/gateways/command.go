@@ -1,10 +1,35 @@
 package gateways
 
 import (
+	"context"
+	"io"
+
 	"github.com/mitchellh/cli"
 )
 
-func New() *Command {
+func RegisterCommands(ctx context.Context, commands map[string]cli.CommandFactory, ui cli.Ui, logOutput io.Writer) {
+	commands["gateways"] = func() (cli.Command, error) {
+		return NewCommand(), nil
+	}
+
+	commands["gateways delete"] = func() (cli.Command, error) {
+		return NewDeleteCommand(ctx, ui, logOutput), nil
+	}
+
+	commands["gateways get"] = func() (cli.Command, error) {
+		return NewGetCommand(ctx, ui, logOutput), nil
+	}
+
+	commands["gateways list"] = func() (cli.Command, error) {
+		return NewListCommand(ctx, ui, logOutput), nil
+	}
+
+	commands["gateways put"] = func() (cli.Command, error) {
+		return NewPutCommand(ctx, ui, logOutput), nil
+	}
+}
+
+func NewCommand() *Command {
 	return &Command{}
 }
 

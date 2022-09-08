@@ -1,4 +1,4 @@
-package list
+package tcproutes
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"github.com/mitchellh/cli"
 )
 
-type Command struct {
+type ListCommand struct {
 	*common.ClientCLIWithNamespace
 
 	help string
@@ -18,17 +18,17 @@ type Command struct {
 	flagAllNamespaces bool // list from all namespaces
 }
 
-func New(ctx context.Context, ui cli.Ui, logOutput io.Writer) *Command {
-	cmd := &Command{
-		ClientCLIWithNamespace: common.NewClientCLIWithNamespace(ctx, help, synopsis, ui, logOutput, "get"),
+func NewListCommand(ctx context.Context, ui cli.Ui, logOutput io.Writer) *ListCommand {
+	cmd := &ListCommand{
+		ClientCLIWithNamespace: common.NewClientCLIWithNamespace(ctx, listHelp, listSynopsis, ui, logOutput, "get"),
 	}
-	cmd.Flags.BoolVar(&cmd.flagAllNamespaces, "all", false, "List gateways in all namespaces.")
+	cmd.Flags.BoolVar(&cmd.flagAllNamespaces, "all-namespaces", false, "List tcp-routes in all namespaces.")
 	cmd.help = common.FlagUsage(help, cmd.Flags)
 
 	return cmd
 }
 
-func (c *Command) Run(args []string) int {
+func (c *ListCommand) Run(args []string) int {
 	if err := c.Parse(args); err != nil {
 		return c.Error("parsing command line flags", err)
 	}
@@ -42,20 +42,22 @@ func (c *Command) Run(args []string) int {
 	if err != nil {
 		return c.Error("creating the client", err)
 	}
+
 	routes, err := client.V1().ListTCPRoutesInNamespace(c.Context(), namespace)
 	if err != nil {
 		return c.Error("sending the request", err)
 	}
+
 	return c.Success(fmt.Sprintf("Successfully retrieved TCPRoutes: %v", routes))
 }
 
-func (c *Command) Help() string {
+func (c *ListCommand) Help() string {
 	return c.help
 }
 
 const (
-	synopsis = "Lists configured TCPRoutes"
-	help     = `
+	listSynopsis = "Lists configured TCPRoutes"
+	listHelp     = `
 Usage: consul-api-gateway tcp-routes list [options]
 
   Lists configured TCPRoutes.

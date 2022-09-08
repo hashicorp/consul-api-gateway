@@ -1,4 +1,4 @@
-package get
+package tcproutes
 
 import (
 	"context"
@@ -10,17 +10,17 @@ import (
 	"github.com/mitchellh/cli"
 )
 
-type Command struct {
+type GetCommand struct {
 	*common.ClientCLIWithNamespace
 }
 
-func New(ctx context.Context, ui cli.Ui, logOutput io.Writer) *Command {
-	return &Command{
-		ClientCLIWithNamespace: common.NewClientCLIWithNamespace(ctx, help, synopsis, ui, logOutput, "get"),
+func NewGetCommand(ctx context.Context, ui cli.Ui, logOutput io.Writer) *GetCommand {
+	return &GetCommand{
+		ClientCLIWithNamespace: common.NewClientCLIWithNamespace(ctx, getHelp, getSynopsis, ui, logOutput, "get"),
 	}
 }
 
-func (c *Command) Run(args []string) int {
+func (c *GetCommand) Run(args []string) int {
 	if err := c.Parse(args); err != nil {
 		return c.Error("parsing command line flags", err)
 	}
@@ -29,20 +29,23 @@ func (c *Command) Run(args []string) int {
 	if name == "" {
 		return c.Error("parsing arguments", errors.New("a name parameter must be provided"))
 	}
+
 	client, err := c.CreateClient()
 	if err != nil {
 		return c.Error("creating the client", err)
 	}
+
 	route, err := client.V1().GetTCPRouteInNamespace(c.Context(), c.Namespace(), name)
 	if err != nil {
 		return c.Error("sending the request", err)
 	}
+
 	return c.Success(fmt.Sprintf("Successfully retrieved http-route: %v", route))
 }
 
 const (
-	synopsis = "Gets a configured TCPRoute"
-	help     = `
+	getSynopsis = "Gets a configured TCPRoute"
+	getHelp     = `
 Usage: consul-api-gateway tcp-routes get [options] NAME
 
   Gets a configured TCPRoute with the given NAME.

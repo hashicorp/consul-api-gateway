@@ -1,4 +1,4 @@
-package delete
+package httproutes
 
 import (
 	"context"
@@ -10,17 +10,17 @@ import (
 	"github.com/mitchellh/cli"
 )
 
-type Command struct {
+type DeleteCommand struct {
 	*common.ClientCLIWithNamespace
 }
 
-func New(ctx context.Context, ui cli.Ui, logOutput io.Writer) *Command {
-	return &Command{
-		ClientCLIWithNamespace: common.NewClientCLIWithNamespace(ctx, help, synopsis, ui, logOutput, "delete"),
+func NewDeleteCommand(ctx context.Context, ui cli.Ui, logOutput io.Writer) *DeleteCommand {
+	return &DeleteCommand{
+		ClientCLIWithNamespace: common.NewClientCLIWithNamespace(ctx, deleteHelp, deleteSynopsis, ui, logOutput, "delete"),
 	}
 }
 
-func (c *Command) Run(args []string) int {
+func (c *DeleteCommand) Run(args []string) int {
 	if err := c.Parse(args); err != nil {
 		return c.Error("parsing command line flags", err)
 	}
@@ -29,19 +29,22 @@ func (c *Command) Run(args []string) int {
 	if name == "" {
 		return c.Error("parsing arguments", errors.New("a name parameter must be provided"))
 	}
+
 	client, err := c.CreateClient()
 	if err != nil {
 		return c.Error("creating the client", err)
 	}
+
 	if err := client.V1().DeleteHTTPRouteInNamespace(c.Context(), c.Namespace(), name); err != nil {
 		return c.Error("sending the request", err)
 	}
+
 	return c.Success(fmt.Sprintf("Successfully deleted http-route: %s", name))
 }
 
 const (
-	synopsis = "Deletes an HTTPRoute"
-	help     = `
+	deleteSynopsis = "Deletes an HTTPRoute"
+	deleteHelp     = `
 Usage: consul-api-gateway http-routes delete [options] NAME
 
   Deletes an HTTPRoute with the given NAME.
