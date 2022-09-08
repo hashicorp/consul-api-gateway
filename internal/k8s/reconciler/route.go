@@ -1,12 +1,14 @@
 package reconciler
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 
 	"github.com/hashicorp/go-hclog"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	k8sjson "k8s.io/apimachinery/pkg/runtime/serializer/json"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gwv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
@@ -22,7 +24,8 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/store"
 )
 
-// all kubernetes routes implement the following two interfaces
+// Route represents any Kubernetes route type - currently v1alpha2.HTTPRoute
+// and v1alpha2.TCPRoute - as both implement client.Object and schema.ObjectKind
 type Route interface {
 	client.Object
 	schema.ObjectKind
@@ -36,6 +39,12 @@ type K8sRoute struct {
 	logger         hclog.Logger
 	client         gatewayclient.Client
 	validator      *validator.RouteValidator
+}
+
+type serializedRoute struct {
+	GVK        schema.GroupVersionKind
+	Route      []byte
+	RouteState *state.RouteState
 }
 
 var _ store.StatusTrackingRoute = &K8sRoute{}
@@ -193,6 +202,45 @@ func (r *K8sRoute) OnGatewayRemoved(gateway store.Gateway) {
 			}
 		}
 	}
+}
+
+func (r *K8sRoute) UnmarshalJSON(b []byte) error {
+	stored := &serializedRoute{}
+	if err := json.Unmarshal(b, stored); err != nil {
+		return err
+	}
+
+	var into Route
+	switch stored.GVK.Kind {
+	case "HTTPRoute":
+		into = &gwv1alpha2.HTTPRoute{}
+	case "TCPRoute":
+		into = &gwv1alpha2.TCPRoute{}
+	}
+
+	serializer := k8sjson.NewSerializer(k8sjson.DefaultMetaFactory, scheme, scheme, false)
+	if _, _, err := serializer.Decode(stored.Route, &stored.GVK, into); err != nil {
+		return err
+	}
+
+	r.Route = into
+	r.RouteState = stored.RouteState
+
+	return nil
+}
+
+func (r K8sRoute) MarshalJSON() ([]byte, error) {
+	var buffer bytes.Buffer
+	serializer := k8sjson.NewSerializer(k8sjson.DefaultMetaFactory, scheme, scheme, false)
+	if err := serializer.Encode(r.Route, &buffer); err != nil {
+		return nil, err
+	}
+
+	return json.Marshal(&serializedRoute{
+		GVK:        r.Route.GetObjectKind().GroupVersionKind(),
+		Route:      buffer.Bytes(),
+		RouteState: r.RouteState,
+	})
 }
 
 func HTTPRouteID(namespacedName types.NamespacedName) string {

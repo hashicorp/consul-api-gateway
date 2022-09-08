@@ -1,6 +1,8 @@
 package service
 
 import (
+	"encoding/json"
+
 	gwv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 )
 
@@ -29,4 +31,33 @@ func (r RouteRuleReferenceMap) Add(rule RouteRule, resolved ResolvedReference) {
 		return
 	}
 	r[rule] = []ResolvedReference{resolved}
+}
+
+func (r RouteRuleReferenceMap) MarshalJSON() ([]byte, error) {
+	data := map[string][]ResolvedReference{}
+
+	for k, v := range r {
+		key, err := json.Marshal(k)
+		if err != nil {
+			return nil, err
+		}
+		data[string(key)] = v
+	}
+	return json.Marshal(data)
+}
+
+func (r *RouteRuleReferenceMap) UnmarshalJSON(b []byte) error {
+	*r = map[RouteRule][]ResolvedReference{}
+	data := map[string][]ResolvedReference{}
+	if err := json.Unmarshal(b, &data); err != nil {
+		return err
+	}
+	for k, v := range data {
+		rule := RouteRule{}
+		if err := json.Unmarshal([]byte(k), &rule); err != nil {
+			return err
+		}
+		(*r)[rule] = v
+	}
+	return nil
 }

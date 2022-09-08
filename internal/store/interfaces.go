@@ -71,6 +71,13 @@ type Backend interface {
 	UpsertRoutes(ctx context.Context, routes ...RouteRecord) error
 }
 
+type Marshaler interface {
+	UnmarshalRoute(data []byte) (Route, error)
+	MarshalRoute(Route) ([]byte, error)
+	UnmarshalGateway(data []byte) (Gateway, error)
+	MarshalGateway(Gateway) ([]byte, error)
+}
+
 // GatewayRecord represents a serialized Gateway
 type GatewayRecord struct {
 	ID   core.GatewayID
