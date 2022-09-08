@@ -56,7 +56,7 @@ func (c *ListCommand) Help() string {
 }
 
 const (
-	listSynopsis = "Lists configured Gateways"
+	listSynopsis = "Lists Gateways"
 	listHelp     = `
 Usage: consul-api-gateway gateways list [options]
 

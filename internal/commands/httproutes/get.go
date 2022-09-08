@@ -44,7 +44,7 @@ func (c *GetCommand) Run(args []string) int {
 }
 
 const (
-	getSynopsis = "Gets a configured HTTPRoute"
+	getSynopsis = "Gets a HTTPRoute"
 	getHelp     = `
 Usage: consul-api-gateway http-routes get [options] NAME
 

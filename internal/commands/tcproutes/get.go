@@ -44,7 +44,7 @@ func (c *GetCommand) Run(args []string) int {
 }
 
 const (
-	getSynopsis = "Gets a configured TCPRoute"
+	getSynopsis = "Gets a TCPRoute"
 	getHelp     = `
 Usage: consul-api-gateway tcp-routes get [options] NAME
 

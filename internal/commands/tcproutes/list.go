@@ -56,7 +56,7 @@ func (c *ListCommand) Help() string {
 }
 
 const (
-	listSynopsis = "Lists configured TCPRoutes"
+	listSynopsis = "Lists TCPRoutes"
 	listHelp     = `
 Usage: consul-api-gateway tcp-routes list [options]
 
