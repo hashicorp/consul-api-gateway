@@ -73,9 +73,10 @@ func init() {
 
 // CertManagerOptions contains the optional configuration used to initialize a CertManager.
 type CertManagerOptions struct {
-	Directory  string
-	SDSAddress string
-	SDSPort    int
+	Directory         string
+	PrimaryDatacenter string
+	SDSAddress        string
+	SDSPort           int
 }
 
 // DefaultCertManagerOptions returns the default options for a CertManager instance.
@@ -97,11 +98,12 @@ type CertManager struct {
 	consul *api.Client
 	logger hclog.Logger
 
-	service         string
-	directory       string
-	configDirectory string // only used for testing
-	sdsAddress      string
-	sdsPort         int
+	service           string
+	directory         string
+	configDirectory   string // only used for testing
+	primaryDatacenter string
+	sdsAddress        string
+	sdsPort           int
 
 	lock sync.RWMutex
 
@@ -130,14 +132,15 @@ func NewCertManager(logger hclog.Logger, consul *api.Client, service string, opt
 		options = DefaultCertManagerOptions()
 	}
 	manager := &CertManager{
-		consul:           consul,
-		logger:           logger,
-		sdsAddress:       options.SDSAddress,
-		sdsPort:          options.SDSPort,
-		service:          service,
-		configDirectory:  options.Directory,
-		directory:        options.Directory,
-		initializeSignal: make(chan struct{}),
+		consul:            consul,
+		logger:            logger,
+		primaryDatacenter: options.PrimaryDatacenter,
+		sdsAddress:        options.SDSAddress,
+		sdsPort:           options.SDSPort,
+		service:           service,
+		configDirectory:   options.Directory,
+		directory:         options.Directory,
+		initializeSignal:  make(chan struct{}),
 	}
 	manager.writeCerts = manager.persist
 	return manager
@@ -213,7 +216,8 @@ func (c *CertManager) Manage(ctx context.Context) error {
 	c.logger.Trace("running cert manager")
 
 	rootWatch, err := watch.Parse(map[string]interface{}{
-		"type": "connect_roots",
+		"datacenter": c.primaryDatacenter,
+		"type":       "connect_roots",
 	})
 	if err != nil {
 		return err

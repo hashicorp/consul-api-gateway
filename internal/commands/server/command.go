@@ -39,6 +39,8 @@ type Command struct {
 
 	flagConsulAddress string // Consul server address
 
+	flagPrimaryDatacenter string // Primary datacenter, may or may not be the datacenter this controller is running in
+
 	flagSDSServerHost string // SDS server host
 	flagSDSServerPort int    // SDS server port
 	flagMetricsPort   int    // Port for prometheus metrics
@@ -70,6 +72,7 @@ func (c *Command) init() {
 	c.flagSet.StringVar(&c.flagCASecret, "ca-secret", "", "CA Secret for Consul server.")
 	c.flagSet.StringVar(&c.flagCASecretNamespace, "ca-secret-namespace", "default", "CA Secret namespace for Consul server.")
 	c.flagSet.StringVar(&c.flagConsulAddress, "consul-address", "", "Consul Address.")
+	c.flagSet.StringVar(&c.flagPrimaryDatacenter, "primary-datacenter", "", "Name of the primary Consul datacenter")
 	c.flagSet.StringVar(&c.flagSDSServerHost, "sds-server-host", defaultSDSServerHost, "SDS Server Host.")
 	c.flagSet.StringVar(&c.flagK8sContext, "k8s-context", "", "Kubernetes context to use.")
 	c.flagSet.StringVar(&c.flagK8sNamespace, "k8s-namespace", "", "Kubernetes namespace to use.")
@@ -164,13 +167,14 @@ func (c *Command) Run(args []string) int {
 	}
 
 	return RunServer(ServerConfig{
-		Context:       context.Background(),
-		Logger:        logger,
-		ConsulConfig:  consulCfg,
-		K8sConfig:     cfg,
-		ProfilingPort: c.flagPprofPort,
-		MetricsPort:   c.flagMetricsPort,
-		isTest:        c.isTest,
+		Context:           context.Background(),
+		Logger:            logger,
+		ConsulConfig:      consulCfg,
+		K8sConfig:         cfg,
+		ProfilingPort:     c.flagPprofPort,
+		MetricsPort:       c.flagMetricsPort,
+		PrimaryDatacenter: c.flagPrimaryDatacenter,
+		isTest:            c.isTest,
 	})
 }
 

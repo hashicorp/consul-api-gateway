@@ -24,12 +24,13 @@ import (
 )
 
 type ServerConfig struct {
-	Context       context.Context
-	Logger        hclog.Logger
-	ConsulConfig  *api.Config
-	K8sConfig     *k8s.Config
-	ProfilingPort int
-	MetricsPort   int
+	Context           context.Context
+	Logger            hclog.Logger
+	ConsulConfig      *api.Config
+	K8sConfig         *k8s.Config
+	ProfilingPort     int
+	MetricsPort       int
+	PrimaryDatacenter string
 
 	// for testing only
 	isTest bool
@@ -72,6 +73,8 @@ func RunServer(config ServerConfig) int {
 	controller.SetStore(store)
 
 	options := consul.DefaultCertManagerOptions()
+	options.PrimaryDatacenter = config.PrimaryDatacenter
+
 	certManager := consul.NewCertManager(
 		config.Logger.Named("cert-manager"),
 		consulClient,
