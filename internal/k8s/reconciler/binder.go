@@ -54,7 +54,7 @@ func (b *binder) Bind(ctx context.Context, route *K8sRoute) []string {
 	}
 
 	// The route does reference this Gateway, so attempt to bind to each listener
-	for _, ref := range route.CommonRouteSpec().ParentRefs {
+	for _, ref := range route.commonRouteSpec().ParentRefs {
 		for i, listener := range b.Gateway.Spec.Listeners {
 			listenerState := b.GatewayState.Listeners[i]
 			if b.canBind(ctx, listener, listenerState, ref, route) {
@@ -73,7 +73,7 @@ func (b *binder) Bind(ctx context.Context, route *K8sRoute) []string {
 
 func (b *binder) routeReferencesThisGateway(route *K8sRoute) bool {
 	thisGateway := utils.NamespacedName(b.Gateway)
-	for _, ref := range route.CommonRouteSpec().ParentRefs {
+	for _, ref := range route.commonRouteSpec().ParentRefs {
 		gatewayReferenced, isGatewayTypeRef := utils.ReferencesGateway(route.GetNamespace(), ref)
 		if isGatewayTypeRef && gatewayReferenced == thisGateway {
 			return true

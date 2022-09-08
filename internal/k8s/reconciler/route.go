@@ -77,7 +77,7 @@ func (r *K8sRoute) matchesHostname(hostname *gwv1beta1.Hostname) bool {
 	}
 }
 
-func (r *K8sRoute) CommonRouteSpec() gwv1alpha2.CommonRouteSpec {
+func (r *K8sRoute) commonRouteSpec() gwv1alpha2.CommonRouteSpec {
 	switch route := r.Route.(type) {
 	case *gwv1alpha2.HTTPRoute:
 		return route.Spec.CommonRouteSpec
@@ -97,7 +97,7 @@ func (r *K8sRoute) routeStatus() gwv1alpha2.RouteStatus {
 	return gwv1alpha2.RouteStatus{}
 }
 
-func (r *K8sRoute) SetStatus(updated gwv1alpha2.RouteStatus) {
+func (r *K8sRoute) setStatus(updated gwv1alpha2.RouteStatus) {
 	switch route := r.Route.(type) {
 	case *gwv1alpha2.HTTPRoute:
 		route.Status.RouteStatus = updated
@@ -108,7 +108,7 @@ func (r *K8sRoute) SetStatus(updated gwv1alpha2.RouteStatus) {
 
 func (r *K8sRoute) SyncStatus(ctx context.Context) error {
 	if status, ok := r.RouteState.ParentStatuses.NeedsUpdate(r.routeStatus(), r.controllerName, r.GetGeneration()); ok {
-		r.SetStatus(status)
+		r.setStatus(status)
 
 		if r.logger.IsTrace() {
 			status, err := json.MarshalIndent(r.routeStatus(), "", "  ")
@@ -118,7 +118,7 @@ func (r *K8sRoute) SyncStatus(ctx context.Context) error {
 		}
 		if err := r.client.UpdateStatus(ctx, r.Route); err != nil {
 			// reset the status so we sync again on a retry
-			r.SetStatus(status)
+			r.setStatus(status)
 			return fmt.Errorf("error updating route status: %w", err)
 		}
 	}
@@ -166,7 +166,7 @@ func (r *K8sRoute) resolve(namespace string, gateway *gwv1beta1.Gateway, listene
 	}
 }
 
-func (r *K8sRoute) Parents() []gwv1alpha2.ParentReference {
+func (r *K8sRoute) parents() []gwv1alpha2.ParentReference {
 	// filter for this controller
 	switch route := r.Route.(type) {
 	case *gwv1alpha2.HTTPRoute:
@@ -177,7 +177,7 @@ func (r *K8sRoute) Parents() []gwv1alpha2.ParentReference {
 	return nil
 }
 
-func (r *K8sRoute) Validate(ctx context.Context) error {
+func (r *K8sRoute) validate(ctx context.Context) error {
 	return r.validator.Validate(ctx, r.RouteState, r.Route)
 }
 
@@ -185,7 +185,7 @@ func (r *K8sRoute) OnGatewayRemoved(gateway store.Gateway) {
 	k8sGateway, ok := gateway.(*K8sGateway)
 	if ok {
 		parent := utils.NamespacedName(k8sGateway.Gateway)
-		for _, p := range r.Parents() {
+		for _, p := range r.parents() {
 			gatewayName, isGateway := utils.ReferencesGateway(r.GetNamespace(), p)
 			if isGateway && gatewayName == parent {
 				r.RouteState.Remove(p)
@@ -193,10 +193,6 @@ func (r *K8sRoute) OnGatewayRemoved(gateway store.Gateway) {
 			}
 		}
 	}
-}
-
-func (r *K8sRoute) IsValid() bool {
-	return r.RouteState.ResolutionErrors.Empty()
 }
 
 func HTTPRouteID(namespacedName types.NamespacedName) string {
