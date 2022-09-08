@@ -3,6 +3,7 @@ package status
 // GENERATED from statuses.yaml, DO NOT EDIT DIRECTLY
 
 import (
+	"encoding/json"
 	"errors"
 	"testing"
 
@@ -45,6 +46,25 @@ func TestGatewayClassStatus(t *testing.T) {
 	reason = GatewayClassConditionReasonAccepted
 	require.Equal(t, conditionType, conditions[0].Type)
 	require.Equal(t, reason, conditions[0].Reason)
+}
+
+func TestGatewayClassAcceptedStatusMarshaling(t *testing.T) {
+	t.Parallel()
+
+	status := GatewayClassAcceptedStatus{
+		InvalidParameters: errors.New("InvalidParameters"),
+		Waiting:           errors.New("Waiting"),
+	}
+
+	data, err := json.Marshal(&status)
+	require.NoError(t, err)
+	unmarshaled := GatewayClassAcceptedStatus{}
+	err = json.Unmarshal(data, &unmarshaled)
+	require.NoError(t, err)
+
+	require.Equal(t, status.InvalidParameters.Error(), unmarshaled.InvalidParameters.Error())
+
+	require.Equal(t, status.Waiting.Error(), unmarshaled.Waiting.Error())
 }
 
 func TestGatewayReadyStatus(t *testing.T) {
@@ -151,6 +171,69 @@ func TestGatewayStatus(t *testing.T) {
 	require.Equal(t, reason, conditions[2].Reason)
 }
 
+func TestGatewayReadyStatusMarshaling(t *testing.T) {
+	t.Parallel()
+
+	status := GatewayReadyStatus{
+		ListenersNotValid:  errors.New("ListenersNotValid"),
+		ListenersNotReady:  errors.New("ListenersNotReady"),
+		AddressNotAssigned: errors.New("AddressNotAssigned"),
+	}
+
+	data, err := json.Marshal(&status)
+	require.NoError(t, err)
+	unmarshaled := GatewayReadyStatus{}
+	err = json.Unmarshal(data, &unmarshaled)
+	require.NoError(t, err)
+
+	require.Equal(t, status.ListenersNotValid.Error(), unmarshaled.ListenersNotValid.Error())
+
+	require.Equal(t, status.ListenersNotReady.Error(), unmarshaled.ListenersNotReady.Error())
+
+	require.Equal(t, status.AddressNotAssigned.Error(), unmarshaled.AddressNotAssigned.Error())
+}
+
+func TestGatewayScheduledStatusMarshaling(t *testing.T) {
+	t.Parallel()
+
+	status := GatewayScheduledStatus{
+		NotReconciled: errors.New("NotReconciled"),
+		PodFailed:     errors.New("PodFailed"),
+		Unknown:       errors.New("Unknown"),
+		NoResources:   errors.New("NoResources"),
+	}
+
+	data, err := json.Marshal(&status)
+	require.NoError(t, err)
+	unmarshaled := GatewayScheduledStatus{}
+	err = json.Unmarshal(data, &unmarshaled)
+	require.NoError(t, err)
+
+	require.Equal(t, status.NotReconciled.Error(), unmarshaled.NotReconciled.Error())
+
+	require.Equal(t, status.PodFailed.Error(), unmarshaled.PodFailed.Error())
+
+	require.Equal(t, status.Unknown.Error(), unmarshaled.Unknown.Error())
+
+	require.Equal(t, status.NoResources.Error(), unmarshaled.NoResources.Error())
+}
+
+func TestGatewayInSyncStatusMarshaling(t *testing.T) {
+	t.Parallel()
+
+	status := GatewayInSyncStatus{
+		SyncError: errors.New("SyncError"),
+	}
+
+	data, err := json.Marshal(&status)
+	require.NoError(t, err)
+	unmarshaled := GatewayInSyncStatus{}
+	err = json.Unmarshal(data, &unmarshaled)
+	require.NoError(t, err)
+
+	require.Equal(t, status.SyncError.Error(), unmarshaled.SyncError.Error())
+}
+
 func TestRouteAcceptedStatus(t *testing.T) {
 	t.Parallel()
 
@@ -241,6 +324,62 @@ func TestRouteStatus(t *testing.T) {
 	reason = RouteConditionReasonResolvedRefs
 	require.Equal(t, conditionType, conditions[1].Type)
 	require.Equal(t, reason, conditions[1].Reason)
+}
+
+func TestRouteAcceptedStatusMarshaling(t *testing.T) {
+	t.Parallel()
+
+	status := RouteAcceptedStatus{
+		InvalidRouteKind:         errors.New("InvalidRouteKind"),
+		ListenerNamespacePolicy:  errors.New("ListenerNamespacePolicy"),
+		ListenerHostnameMismatch: errors.New("ListenerHostnameMismatch"),
+		BindError:                errors.New("BindError"),
+	}
+
+	data, err := json.Marshal(&status)
+	require.NoError(t, err)
+	unmarshaled := RouteAcceptedStatus{}
+	err = json.Unmarshal(data, &unmarshaled)
+	require.NoError(t, err)
+
+	require.Equal(t, status.InvalidRouteKind.Error(), unmarshaled.InvalidRouteKind.Error())
+
+	require.Equal(t, status.ListenerNamespacePolicy.Error(), unmarshaled.ListenerNamespacePolicy.Error())
+
+	require.Equal(t, status.ListenerHostnameMismatch.Error(), unmarshaled.ListenerHostnameMismatch.Error())
+
+	require.Equal(t, status.BindError.Error(), unmarshaled.BindError.Error())
+}
+
+func TestRouteResolvedRefsStatusMarshaling(t *testing.T) {
+	t.Parallel()
+
+	status := RouteResolvedRefsStatus{
+		Errors:                errors.New("Errors"),
+		ServiceNotFound:       errors.New("ServiceNotFound"),
+		ConsulServiceNotFound: errors.New("ConsulServiceNotFound"),
+		RefNotPermitted:       errors.New("RefNotPermitted"),
+		InvalidKind:           errors.New("InvalidKind"),
+		BackendNotFound:       errors.New("BackendNotFound"),
+	}
+
+	data, err := json.Marshal(&status)
+	require.NoError(t, err)
+	unmarshaled := RouteResolvedRefsStatus{}
+	err = json.Unmarshal(data, &unmarshaled)
+	require.NoError(t, err)
+
+	require.Equal(t, status.Errors.Error(), unmarshaled.Errors.Error())
+
+	require.Equal(t, status.ServiceNotFound.Error(), unmarshaled.ServiceNotFound.Error())
+
+	require.Equal(t, status.ConsulServiceNotFound.Error(), unmarshaled.ConsulServiceNotFound.Error())
+
+	require.Equal(t, status.RefNotPermitted.Error(), unmarshaled.RefNotPermitted.Error())
+
+	require.Equal(t, status.InvalidKind.Error(), unmarshaled.InvalidKind.Error())
+
+	require.Equal(t, status.BackendNotFound.Error(), unmarshaled.BackendNotFound.Error())
 }
 
 func TestListenerConflictedStatus(t *testing.T) {
@@ -427,4 +566,92 @@ func TestListenerStatus(t *testing.T) {
 	status = ListenerStatus{}
 	status.ResolvedRefs.RefNotPermitted = validationError
 	require.False(t, status.Valid())
+}
+
+func TestListenerConflictedStatusMarshaling(t *testing.T) {
+	t.Parallel()
+
+	status := ListenerConflictedStatus{
+		HostnameConflict: errors.New("HostnameConflict"),
+		ProtocolConflict: errors.New("ProtocolConflict"),
+		RouteConflict:    errors.New("RouteConflict"),
+	}
+
+	data, err := json.Marshal(&status)
+	require.NoError(t, err)
+	unmarshaled := ListenerConflictedStatus{}
+	err = json.Unmarshal(data, &unmarshaled)
+	require.NoError(t, err)
+
+	require.Equal(t, status.HostnameConflict.Error(), unmarshaled.HostnameConflict.Error())
+
+	require.Equal(t, status.ProtocolConflict.Error(), unmarshaled.ProtocolConflict.Error())
+
+	require.Equal(t, status.RouteConflict.Error(), unmarshaled.RouteConflict.Error())
+}
+
+func TestListenerDetachedStatusMarshaling(t *testing.T) {
+	t.Parallel()
+
+	status := ListenerDetachedStatus{
+		PortUnavailable:      errors.New("PortUnavailable"),
+		UnsupportedExtension: errors.New("UnsupportedExtension"),
+		UnsupportedProtocol:  errors.New("UnsupportedProtocol"),
+		UnsupportedAddress:   errors.New("UnsupportedAddress"),
+	}
+
+	data, err := json.Marshal(&status)
+	require.NoError(t, err)
+	unmarshaled := ListenerDetachedStatus{}
+	err = json.Unmarshal(data, &unmarshaled)
+	require.NoError(t, err)
+
+	require.Equal(t, status.PortUnavailable.Error(), unmarshaled.PortUnavailable.Error())
+
+	require.Equal(t, status.UnsupportedExtension.Error(), unmarshaled.UnsupportedExtension.Error())
+
+	require.Equal(t, status.UnsupportedProtocol.Error(), unmarshaled.UnsupportedProtocol.Error())
+
+	require.Equal(t, status.UnsupportedAddress.Error(), unmarshaled.UnsupportedAddress.Error())
+}
+
+func TestListenerReadyStatusMarshaling(t *testing.T) {
+	t.Parallel()
+
+	status := ListenerReadyStatus{
+		Invalid: errors.New("Invalid"),
+		Pending: errors.New("Pending"),
+	}
+
+	data, err := json.Marshal(&status)
+	require.NoError(t, err)
+	unmarshaled := ListenerReadyStatus{}
+	err = json.Unmarshal(data, &unmarshaled)
+	require.NoError(t, err)
+
+	require.Equal(t, status.Invalid.Error(), unmarshaled.Invalid.Error())
+
+	require.Equal(t, status.Pending.Error(), unmarshaled.Pending.Error())
+}
+
+func TestListenerResolvedRefsStatusMarshaling(t *testing.T) {
+	t.Parallel()
+
+	status := ListenerResolvedRefsStatus{
+		InvalidCertificateRef: errors.New("InvalidCertificateRef"),
+		InvalidRouteKinds:     errors.New("InvalidRouteKinds"),
+		RefNotPermitted:       errors.New("RefNotPermitted"),
+	}
+
+	data, err := json.Marshal(&status)
+	require.NoError(t, err)
+	unmarshaled := ListenerResolvedRefsStatus{}
+	err = json.Unmarshal(data, &unmarshaled)
+	require.NoError(t, err)
+
+	require.Equal(t, status.InvalidCertificateRef.Error(), unmarshaled.InvalidCertificateRef.Error())
+
+	require.Equal(t, status.InvalidRouteKinds.Error(), unmarshaled.InvalidRouteKinds.Error())
+
+	require.Equal(t, status.RefNotPermitted.Error(), unmarshaled.RefNotPermitted.Error())
 }
