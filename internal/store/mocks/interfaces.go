@@ -571,3 +571,86 @@ func (mr *MockBackendMockRecorder) UpsertRoutes(ctx interface{}, routes ...inter
 	varargs := append([]interface{}{ctx}, routes...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertRoutes", reflect.TypeOf((*MockBackend)(nil).UpsertRoutes), varargs...)
 }
+
+// MockMarshaler is a mock of Marshaler interface.
+type MockMarshaler struct {
+	ctrl     *gomock.Controller
+	recorder *MockMarshalerMockRecorder
+}
+
+// MockMarshalerMockRecorder is the mock recorder for MockMarshaler.
+type MockMarshalerMockRecorder struct {
+	mock *MockMarshaler
+}
+
+// NewMockMarshaler creates a new mock instance.
+func NewMockMarshaler(ctrl *gomock.Controller) *MockMarshaler {
+	mock := &MockMarshaler{ctrl: ctrl}
+	mock.recorder = &MockMarshalerMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockMarshaler) EXPECT() *MockMarshalerMockRecorder {
+	return m.recorder
+}
+
+// MarshalGateway mocks base method.
+func (m *MockMarshaler) MarshalGateway(arg0 store.Gateway) ([]byte, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MarshalGateway", arg0)
+	ret0, _ := ret[0].([]byte)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// MarshalGateway indicates an expected call of MarshalGateway.
+func (mr *MockMarshalerMockRecorder) MarshalGateway(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarshalGateway", reflect.TypeOf((*MockMarshaler)(nil).MarshalGateway), arg0)
+}
+
+// MarshalRoute mocks base method.
+func (m *MockMarshaler) MarshalRoute(arg0 store.Route) ([]byte, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MarshalRoute", arg0)
+	ret0, _ := ret[0].([]byte)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// MarshalRoute indicates an expected call of MarshalRoute.
+func (mr *MockMarshalerMockRecorder) MarshalRoute(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarshalRoute", reflect.TypeOf((*MockMarshaler)(nil).MarshalRoute), arg0)
+}
+
+// UnmarshalGateway mocks base method.
+func (m *MockMarshaler) UnmarshalGateway(data []byte) (store.Gateway, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UnmarshalGateway", data)
+	ret0, _ := ret[0].(store.Gateway)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UnmarshalGateway indicates an expected call of UnmarshalGateway.
+func (mr *MockMarshalerMockRecorder) UnmarshalGateway(data interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UnmarshalGateway", reflect.TypeOf((*MockMarshaler)(nil).UnmarshalGateway), data)
+}
+
+// UnmarshalRoute mocks base method.
+func (m *MockMarshaler) UnmarshalRoute(data []byte) (store.Route, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UnmarshalRoute", data)
+	ret0, _ := ret[0].(store.Route)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UnmarshalRoute indicates an expected call of UnmarshalRoute.
+func (mr *MockMarshalerMockRecorder) UnmarshalRoute(data interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UnmarshalRoute", reflect.TypeOf((*MockMarshaler)(nil).UnmarshalRoute), data)
+}
