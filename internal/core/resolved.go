@@ -5,11 +5,11 @@ type ResolvedService struct {
 	Service         string
 }
 
-type ResolvedRouteType int
+type ResolvedRouteType string
 
 const (
-	ResolvedHTTPRouteType ResolvedRouteType = iota
-	ResolvedTCPRouteType
+	ResolvedHTTPRouteType ResolvedRouteType = "HTTPRoute"
+	ResolvedTCPRouteType  ResolvedRouteType = "TCPRoute"
 )
 
 type ResolvedRoute interface {

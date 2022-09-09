@@ -106,7 +106,7 @@ func httpRouteFiltersToDestinationPrefixRewrite(filters []core.HTTPFilter) strin
 	for _, filter := range filters {
 		switch filter.Type {
 		case core.HTTPURLRewriteFilterType:
-			if filter.URLRewrite.Type == core.ReplacePrefixMatchURLRewriteType {
+			if filter.URLRewrite.Type == core.URLRewriteReplacePrefixMatchType {
 				return filter.URLRewrite.ReplacePrefixMatch
 			}
 		}
@@ -243,11 +243,11 @@ func hostsKey(hosts ...string) string {
 //
 // Ordering prefers matches based on the largest number of:
 //
-//   1. characters in a matching non-wildcard hostname
-//   2. characters in a matching hostname
-//   3. characters in a matching path
-//   4. header matches
-//   5. query param matches
+//  1. characters in a matching non-wildcard hostname
+//  2. characters in a matching hostname
+//  3. characters in a matching path
+//  4. header matches
+//  5. query param matches
 //
 // The hostname-specific comparison (1+2) occur in Envoy outside of our control:
 // https://github.com/envoyproxy/envoy/blob/5c4d4bd957f9402eca80bef82e7cc3ae714e04b4/source/common/router/config_impl.cc#L1645-L1682

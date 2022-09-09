@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	gwv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
@@ -111,29 +112,29 @@ func TestConvertHTTPRoute(t *testing.T) {
 			"Matches": [
 				{
 					"Path": {
-						"Type": 1,
+						"Type": "HTTPPathMatchExact",
 						"Value": "/"
 					},
 					"Headers": [
 						{
-							"Type": 1,
+							"Type": "HTTPHeaderMatchExact",
 							"Name": "a",
 							"Value": "b"
 						}
 					],
 					"Query": [
 						{
-							"Type": 1,
+							"Type": "HTTPQueryMatchExact",
 							"Name": "a",
 							"Value": "b"
 						}
 					],
-					"Method": 7
+					"Method": "POST"
 				}
 			],
 			"Filters": [
 				{
-					"Type": 1,
+					"Type": "HTTPRedirectFilter",
 					"Header": {
 						"Set": null,
 						"Add": null,
@@ -146,12 +147,12 @@ func TestConvertHTTPRoute(t *testing.T) {
 						"Status": 302
 					},
 					"URLRewrite": {
-						"Type": 0,
+						"Type": "",
 						"ReplacePrefixMatch": ""
 					}
 				},
 				{
-					"Type": 0,
+					"Type": "HTTPHeaderFilter",
 					"Header": {
 						"Set": {
 							"x-a": "a"
@@ -170,7 +171,7 @@ func TestConvertHTTPRoute(t *testing.T) {
 						"Status": 0
 					},
 					"URLRewrite": {
-						"Type": 0,
+						"Type": "",
 						"ReplacePrefixMatch": ""
 					}
 				}
@@ -224,7 +225,7 @@ func TestConvertHTTPRoute(t *testing.T) {
 			resolved := converter.Convert()
 			data, err := json.MarshalIndent(resolved, "", "  ")
 			require.NoError(t, err)
-			require.JSONEq(t, test.expected, string(data))
+			assert.JSONEq(t, test.expected, string(data))
 		})
 	}
 }

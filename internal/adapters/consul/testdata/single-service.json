@@ -10,14 +10,14 @@
         {
           "Type": 1,
           "Path": {
-            "Type": 1,
+            "Type": "HTTPPathMatchExact",
             "Value": "/prefix"
           }
         }
       ],
       "Filters": [
         {
-          "Type": 0,
+          "Type": "HTTPHeaderFilter",
           "Header": {
             "Set": {
               "x-set": "1"
@@ -40,7 +40,7 @@
           "Weight": 1,
           "Filters": [
             {
-              "Type": 0,
+              "Type": "HTTPHeaderFilter",
               "Header": {
                 "Set": {
                   "x-set": "3"

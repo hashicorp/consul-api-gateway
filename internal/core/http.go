@@ -6,12 +6,12 @@ type HTTPService struct {
 	Filters []HTTPFilter
 }
 
-type HTTPFilterType int
+type HTTPFilterType string
 
 const (
-	HTTPHeaderFilterType HTTPFilterType = iota
-	HTTPRedirectFilterType
-	HTTPURLRewriteFilterType
+	HTTPHeaderFilterType     HTTPFilterType = "HTTPHeaderFilter"
+	HTTPRedirectFilterType   HTTPFilterType = "HTTPRedirectFilter"
+	HTTPURLRewriteFilterType HTTPFilterType = "HTTPURLRewriteFilter"
 )
 
 type HTTPHeaderFilter struct {
@@ -27,10 +27,10 @@ type HTTPRedirectFilter struct {
 	Status   int
 }
 
-type URLRewriteType int
+type URLRewriteType string
 
 const (
-	ReplacePrefixMatchURLRewriteType = iota
+	URLRewriteReplacePrefixMatchType URLRewriteType = "URLRewriteReplacePrefixMatch"
 )
 
 type HTTPURLRewriteFilter struct {
@@ -45,28 +45,28 @@ type HTTPFilter struct {
 	URLRewrite HTTPURLRewriteFilter
 }
 
-type HTTPMethod int
+type HTTPMethod string
 
 const (
-	HTTPMethodNone HTTPMethod = iota
-	HTTPMethodConnect
-	HTTPMethodDelete
-	HTTPMethodGet
-	HTTPMethodHead
-	HTTPMethodOptions
-	HTTPMethodPatch
-	HTTPMethodPost
-	HTTPMethodPut
-	HTTPMethodTrace
+	HTTPMethodNone    HTTPMethod = ""
+	HTTPMethodConnect HTTPMethod = "CONNECT"
+	HTTPMethodDelete  HTTPMethod = "DELETE"
+	HTTPMethodGet     HTTPMethod = "GET"
+	HTTPMethodHead    HTTPMethod = "HEAD"
+	HTTPMethodOptions HTTPMethod = "OPTIONS"
+	HTTPMethodPatch   HTTPMethod = "PATCH"
+	HTTPMethodPost    HTTPMethod = "POST"
+	HTTPMethodPut     HTTPMethod = "PUT"
+	HTTPMethodTrace   HTTPMethod = "TRACE"
 )
 
-type HTTPPathMatchType int
+type HTTPPathMatchType string
 
 const (
-	HTTPPathMatchNoneType HTTPPathMatchType = iota
-	HTTPPathMatchExactType
-	HTTPPathMatchPrefixType
-	HTTPPathMatchRegularExpressionType
+	HTTPPathMatchNoneType              HTTPPathMatchType = ""
+	HTTPPathMatchExactType             HTTPPathMatchType = "HTTPPathMatchExact"
+	HTTPPathMatchPrefixType            HTTPPathMatchType = "HTTPPathMatchPrefix"
+	HTTPPathMatchRegularExpressionType HTTPPathMatchType = "HTTPPathMatchRegularExpression"
 )
 
 type HTTPPathMatch struct {
@@ -74,15 +74,15 @@ type HTTPPathMatch struct {
 	Value string
 }
 
-type HTTPHeaderMatchType int
+type HTTPHeaderMatchType string
 
 const (
-	HTTPHeaderMatchNoneType HTTPHeaderMatchType = iota
-	HTTPHeaderMatchExactType
-	HTTPHeaderMatchPrefixType
-	HTTPHeaderMatchSuffixType
-	HTTPHeaderMatchPresentType
-	HTTPHeaderMatchRegularExpressionType
+	HTTPHeaderMatchNoneType              HTTPHeaderMatchType = ""
+	HTTPHeaderMatchExactType             HTTPHeaderMatchType = "HTTPHeaderMatchExact"
+	HTTPHeaderMatchPrefixType            HTTPHeaderMatchType = "HTTPHeaderMatchPrefix"
+	HTTPHeaderMatchSuffixType            HTTPHeaderMatchType = "HTTPHeaderMatchSuffix"
+	HTTPHeaderMatchPresentType           HTTPHeaderMatchType = "HTTPHeaderMatchPresent"
+	HTTPHeaderMatchRegularExpressionType HTTPHeaderMatchType = "HTTPHeaderMatchRegularExpression"
 )
 
 type HTTPHeaderMatch struct {
@@ -91,13 +91,13 @@ type HTTPHeaderMatch struct {
 	Value string
 }
 
-type HTTPQueryMatchType int
+type HTTPQueryMatchType string
 
 const (
-	HTTPQueryMatchNoneType HTTPQueryMatchType = iota
-	HTTPQueryMatchExactType
-	HTTPQueryMatchPresentType
-	HTTPQueryMatchRegularExpressionType
+	HTTPQueryMatchNoneType              HTTPQueryMatchType = ""
+	HTTPQueryMatchExactType             HTTPQueryMatchType = "HTTPQueryMatchExact"
+	HTTPQueryMatchPresentType           HTTPQueryMatchType = "HTTPQueryMatchPresent"
+	HTTPQueryMatchRegularExpressionType HTTPQueryMatchType = "HTTPQueryMatchRegularExpression"
 )
 
 type HTTPQueryMatch struct {
