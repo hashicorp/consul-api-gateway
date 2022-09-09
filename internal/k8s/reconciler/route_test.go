@@ -70,13 +70,13 @@ func TestRouteCommonRouteSpec(t *testing.T) {
 		Spec: gwv1alpha2.HTTPRouteSpec{
 			CommonRouteSpec: expected,
 		},
-	}, config).CommonRouteSpec())
+	}, config).commonRouteSpec())
 	require.Equal(t, expected, newK8sRoute(&gwv1alpha2.TCPRoute{
 		Spec: gwv1alpha2.TCPRouteSpec{
 			CommonRouteSpec: expected,
 		},
-	}, config).CommonRouteSpec())
-	require.Equal(t, gwv1alpha2.CommonRouteSpec{}, newK8sRoute(&core.Pod{}, config).CommonRouteSpec())
+	}, config).commonRouteSpec())
+	require.Equal(t, gwv1alpha2.CommonRouteSpec{}, newK8sRoute(&core.Pod{}, config).commonRouteSpec())
 }
 
 func TestRouteSetStatus(t *testing.T) {
@@ -96,18 +96,18 @@ func TestRouteSetStatus(t *testing.T) {
 
 	httpRoute := &gwv1alpha2.HTTPRoute{}
 	route := newK8sRoute(httpRoute, config)
-	route.SetStatus(expected)
+	route.setStatus(expected)
 	require.Equal(t, expected, httpRoute.Status.RouteStatus)
 	require.Equal(t, expected, route.routeStatus())
 
 	tcpRoute := &gwv1alpha2.TCPRoute{}
 	route = newK8sRoute(tcpRoute, config)
-	route.SetStatus(expected)
+	route.setStatus(expected)
 	require.Equal(t, expected, tcpRoute.Status.RouteStatus)
 	require.Equal(t, expected, route.routeStatus())
 
 	route = newK8sRoute(&core.Pod{}, config)
-	route.SetStatus(expected)
+	route.setStatus(expected)
 	require.Equal(t, gwv1alpha2.RouteStatus{}, route.routeStatus())
 }
 
@@ -124,13 +124,13 @@ func TestRouteParents(t *testing.T) {
 		}},
 	}
 
-	parents := newK8sRoute(&gwv1alpha2.HTTPRoute{Spec: gwv1alpha2.HTTPRouteSpec{CommonRouteSpec: expected}}, config).Parents()
+	parents := newK8sRoute(&gwv1alpha2.HTTPRoute{Spec: gwv1alpha2.HTTPRouteSpec{CommonRouteSpec: expected}}, config).parents()
 	require.Equal(t, expected.ParentRefs, parents)
 
-	parents = newK8sRoute(&gwv1alpha2.TCPRoute{Spec: gwv1alpha2.TCPRouteSpec{CommonRouteSpec: expected}}, config).Parents()
+	parents = newK8sRoute(&gwv1alpha2.TCPRoute{Spec: gwv1alpha2.TCPRouteSpec{CommonRouteSpec: expected}}, config).parents()
 	require.Equal(t, expected.ParentRefs, parents)
 
-	require.Nil(t, newK8sRoute(&core.Pod{}, config).Parents())
+	require.Nil(t, newK8sRoute(&core.Pod{}, config).parents())
 }
 
 func TestRouteMatchesHostname(t *testing.T) {

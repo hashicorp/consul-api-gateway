@@ -228,7 +228,7 @@ func (m *GatewayReconcileManager) upsertRoute(ctx context.Context, r Route, id s
 	// external references and set the statuses accordingly. Since we actually
 	// have other object updates triggering reconciliation loops, this is necessary
 	// prior to dirty-checking on upsert.
-	if err := route.Validate(ctx); err != nil {
+	if err := route.validate(ctx); err != nil {
 		return err
 	}
 	return m.store.UpsertRoute(ctx, route, func(current store.Route) bool {
@@ -270,11 +270,11 @@ func (m *GatewayReconcileManager) DeleteTCPRoute(ctx context.Context, name types
 
 func (m *GatewayReconcileManager) deleteUnmanagedRoute(ctx context.Context, route *K8sRoute, id string) (bool, error) {
 	// check our cache first
-	managed := m.managedByCachedGatewaysForRoute(route.GetNamespace(), route.Parents())
+	managed := m.managedByCachedGatewaysForRoute(route.GetNamespace(), route.parents())
 	if !managed {
 		var err error
 		// we might not yet have the gateway in our cache, check remotely
-		if managed, err = m.client.IsManagedRoute(ctx, route.GetNamespace(), route.Parents()); err != nil {
+		if managed, err = m.client.IsManagedRoute(ctx, route.GetNamespace(), route.parents()); err != nil {
 			return false, err
 		}
 	}
