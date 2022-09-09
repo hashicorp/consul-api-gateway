@@ -401,13 +401,13 @@ func (g *GatewayValidator) validateTLS(ctx context.Context, state *state.Listene
 		tlsCipherSuitesStr := listener.TLS.Options[tlsCipherSuitesAnnotationKey]
 
 		if tlsMinVersion != "" {
-			if _, ok := supportedTlsVersions[string(tlsMinVersion)]; !ok {
+			if _, ok := common.SupportedTLSVersions[string(tlsMinVersion)]; !ok {
 				state.Status.Ready.Invalid = errors.New("unrecognized TLS min version")
 				return nil
 			}
 
 			if tlsCipherSuitesStr != "" {
-				if _, ok := tlsVersionsWithConfigurableCipherSuites[string(tlsMinVersion)]; !ok {
+				if _, ok := common.TLSVersionsWithConfigurableCipherSuites[string(tlsMinVersion)]; !ok {
 					state.Status.Ready.Invalid = errors.New("configuring TLS cipher suites is only supported for TLS 1.2 and earlier")
 					return nil
 				}
@@ -417,7 +417,7 @@ func (g *GatewayValidator) validateTLS(ctx context.Context, state *state.Listene
 		}
 
 		if tlsMaxVersion != "" {
-			if _, ok := supportedTlsVersions[string(tlsMaxVersion)]; !ok {
+			if _, ok := common.SupportedTLSVersions[string(tlsMaxVersion)]; !ok {
 				state.Status.Ready.Invalid = errors.New("unrecognized TLS max version")
 				return nil
 			}

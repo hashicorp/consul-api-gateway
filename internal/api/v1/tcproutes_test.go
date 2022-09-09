@@ -3,18 +3,20 @@ package v1
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"github.com/golang/mock/gomock"
 	"github.com/hashicorp/go-hclog"
 	"github.com/stretchr/testify/require"
 )
 
 func TestServer_ListTCPRoutes(t *testing.T) {
-	s := NewServer("", "foo", "", testConsul(t, false), hclog.NewNullLogger())
+	s := NewServer("", nil, "foo", "", testConsul(t, false), hclog.NewNullLogger())
 
 	testServer := httptest.NewServer(s)
 	defer testServer.Close()
@@ -39,7 +41,7 @@ func TestServer_ListTCPRoutes(t *testing.T) {
 }
 
 func TestServer_GetNamespacedTCPRoute(t *testing.T) {
-	s := NewServer("", "foo", "", testConsul(t, false), hclog.NewNullLogger())
+	s := NewServer("", nil, "foo", "", testConsul(t, false), hclog.NewNullLogger())
 
 	testServer := httptest.NewServer(s)
 	defer testServer.Close()
@@ -68,89 +70,95 @@ func TestServer_GetNamespacedTCPRoute(t *testing.T) {
 }
 
 func TestServer_CreateTCPRoute(t *testing.T) {
-	s := NewServer("", "foo", "", testConsul(t, false), hclog.NewNullLogger())
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	validator := NewMockValidator(ctrl)
+
+	s := NewServer("", validator, "foo", "", testConsul(t, false), hclog.NewNullLogger())
 
 	testServer := httptest.NewServer(s)
 	defer testServer.Close()
 
 	tests := []struct {
-		name           string
-		route          *TCPRoute
-		wantStatusCode int
-		wantError      string
+		name                   string
+		route                  *TCPRoute
+		runtimeValidationError string
+		wantStatusCode         int
+		wantError              string
 	}{
 		{
 			name:           "validate-gateways",
-			route:          &TCPRoute{Name: "a", Namespace: "b"},
+			route:          &TCPRoute{Name: "a"},
 			wantStatusCode: http.StatusBadRequest,
 			wantError:      "gateways",
 		},
 		{
 			name:           "validate-gateways-length",
-			route:          &TCPRoute{Gateways: []GatewayReference{}, Name: "a", Namespace: "b"},
+			route:          &TCPRoute{Gateways: []GatewayReference{}, Name: "a"},
 			wantStatusCode: http.StatusBadRequest,
 			wantError:      "gateways",
 		},
 		{
-			name: "validate-gateways-namespace",
-			route: &TCPRoute{Gateways: []GatewayReference{
-				{Name: "a"},
-			}, Name: "a", Namespace: "b"},
-			wantStatusCode: http.StatusBadRequest,
-			wantError:      "gateways.0.namespace",
-		},
-		{
-			name: "validate-gateways-name",
-			route: &TCPRoute{Gateways: []GatewayReference{
-				{Namespace: "b"},
-			}, Name: "a", Namespace: "b"},
+			name:           "validate-gateways-name",
+			route:          &TCPRoute{Gateways: []GatewayReference{{}}, Name: "a"},
 			wantStatusCode: http.StatusBadRequest,
 			wantError:      "gateways.0.name",
 		},
 		{
 			name: "validate-name",
 			route: &TCPRoute{Gateways: []GatewayReference{
-				{Name: "a", Namespace: "b"},
-			}, Namespace: "b"},
+				{Name: "a"},
+			}},
 			wantStatusCode: http.StatusBadRequest,
 			wantError:      "name",
 		},
 		{
-			name: "validate-namespace",
-			route: &TCPRoute{Gateways: []GatewayReference{
-				{Name: "a", Namespace: "b"},
-			}, Name: "a"},
-			wantStatusCode: http.StatusBadRequest,
-			wantError:      "namespace",
-		},
-		{
 			name: "pass-validation",
 			route: &TCPRoute{Gateways: []GatewayReference{
-				{Name: "a", Namespace: "b"},
-			}, Name: "a", Namespace: "b"},
+				{Name: "a"},
+			}, Name: "a"},
 			wantStatusCode: http.StatusCreated,
+		},
+		{
+			name: "runtime-validation-error",
+			route: &TCPRoute{Gateways: []GatewayReference{
+				{Name: "a"},
+			}, Name: "a"},
+			wantStatusCode:         http.StatusBadRequest,
+			runtimeValidationError: "foobar",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// set up expectations
+			if tt.runtimeValidationError != "" {
+				validator.EXPECT().ValidateTCPRoute(gomock.Any(), gomock.Any()).Return(errors.New(tt.runtimeValidationError))
+			} else if tt.wantError == "" {
+				validator.EXPECT().ValidateTCPRoute(gomock.Any(), gomock.Any()).Return(nil)
+			}
+
 			data, err := json.Marshal(tt.route)
 			require.NoError(t, err)
 			resp, err := http.Post(testServer.URL+"/tcp-routes", "application/json", bytes.NewBuffer(data))
 			require.NoError(t, err)
 			require.Equal(t, "application/json", resp.Header.Get("Content-Type"))
 			require.Equal(t, tt.wantStatusCode, resp.StatusCode)
+			body, err := ioutil.ReadAll(resp.Body)
+			require.NoError(t, err)
+			resp.Body.Close()
+
 			if tt.wantError != "" {
-				body, err := ioutil.ReadAll(resp.Body)
-				require.NoError(t, err)
-				resp.Body.Close()
 				require.Contains(t, string(body), fmt.Sprintf("\"%s:", tt.wantError))
+			} else if tt.runtimeValidationError != "" {
+				require.Contains(t, string(body), fmt.Sprintf("\"%s\"", tt.runtimeValidationError))
 			}
 		})
 	}
 }
 
 func TestServer_DeleteNamespacedTCPRoute(t *testing.T) {
-	s := NewServer("", "foo", "", testConsul(t, false), hclog.NewNullLogger())
+	s := NewServer("", nil, "foo", "", testConsul(t, false), hclog.NewNullLogger())
 
 	testServer := httptest.NewServer(s)
 	defer testServer.Close()
