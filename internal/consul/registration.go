@@ -93,7 +93,7 @@ func (s *ServiceRegistry) RegisterGateway(ctx context.Context) error {
 // Register registers a service with Consul.
 func (s *ServiceRegistry) Register(ctx context.Context) error {
 	return s.register(ctx, &api.AgentServiceRegistration{
-		Kind:      api.ServiceKind(api.ServiceKindTypical),
+		Kind:      api.ServiceKindTypical,
 		ID:        s.id,
 		Name:      s.name,
 		Namespace: s.namespace,
@@ -109,7 +109,8 @@ func (s *ServiceRegistry) Register(ctx context.Context) error {
 }
 
 func (s *ServiceRegistry) updateTTL(ctx context.Context) error {
-	return s.consul.Agent().UpdateTTL(s.id, "service healthy", "pass")
+	opts := &api.QueryOptions{}
+	return s.consul.Agent().UpdateTTLOpts(s.id, "service healthy", "pass", opts.WithContext(ctx))
 }
 
 func (s *ServiceRegistry) register(ctx context.Context, registration *api.AgentServiceRegistration, ttl bool) error {
