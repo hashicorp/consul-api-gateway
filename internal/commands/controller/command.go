@@ -29,10 +29,6 @@ func RegisterCommands(ctx context.Context, commands map[string]cli.CommandFactor
 	commands["controller"] = func() (cli.Command, error) {
 		return NewCommand(ctx, ui, logOutput), nil
 	}
-
-	commands["controller health"] = func() (cli.Command, error) {
-		return NewHealthCommand(ctx, ui, logOutput), nil
-	}
 }
 
 type Command struct {
@@ -172,6 +168,8 @@ func (c *Command) Run(args []string) (ret int) {
 		Address:         address,
 		CertFile:        c.flagControllerCertFile,
 		KeyFile:         c.flagControllerKeyFile,
+		Name:            c.flagConsulRegistrationName,
+		Namespace:       c.flagConsulRegistrationNamespace,
 		ShutdownTimeout: 10 * time.Second,
 		Bootstrap: apiinternal.BootstrapConfiguration{
 			Consul: apiinternal.ConsulConfiguration{

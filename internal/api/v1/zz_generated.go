@@ -68,6 +68,13 @@ type Certificate struct {
 	Vault *VaultCertificate `json:"vault,omitempty"`
 }
 
+// ControllerHealth defines model for ControllerHealth.
+type ControllerHealth struct {
+	Id     string `json:"id"`
+	Name   string `json:"name"`
+	Status string `json:"status"`
+}
+
 // Error defines model for Error.
 type Error struct {
 	Code    int32  `json:"code"`
@@ -80,6 +87,13 @@ type Gateway struct {
 	Meta      map[string]interface{} `json:"meta,omitempty"`
 	Name      string                 `json:"name"`
 	Namespace string                 `json:"namespace"`
+}
+
+// GatewayHealth defines model for GatewayHealth.
+type GatewayHealth struct {
+	Id     string `json:"id"`
+	Name   string `json:"name"`
+	Status string `json:"status"`
 }
 
 // GatewayPage defines model for GatewayPage.
@@ -174,6 +188,12 @@ type HTTPService struct {
 	Name      string       `json:"name"`
 	Namespace *string      `json:"namespace,omitempty"`
 	Weight    *float32     `json:"weight,omitempty"`
+}
+
+// HealthStatus defines model for HealthStatus.
+type HealthStatus struct {
+	Controllers []ControllerHealth `json:"controllers"`
+	Gateways    []GatewayHealth    `json:"gateways"`
 }
 
 // Listener defines model for Listener.
@@ -338,6 +358,9 @@ type ClientInterface interface {
 	// GetGateway request
 	GetGateway(ctx context.Context, name string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// Health request
+	Health(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListHTTPRoutes request
 	ListHTTPRoutes(ctx context.Context, params *ListHTTPRoutesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -444,6 +467,18 @@ func (c *Client) DeleteGateway(ctx context.Context, name string, reqEditors ...R
 
 func (c *Client) GetGateway(ctx context.Context, name string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetGatewayRequest(c.Server, name)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) Health(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewHealthRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -820,6 +855,33 @@ func NewGetGatewayRequest(server string, name string) (*http.Request, error) {
 	}
 
 	operationPath := fmt.Sprintf("/gateways/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewHealthRequest generates requests for Health
+func NewHealthRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/health")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -1552,6 +1614,9 @@ type ClientWithResponsesInterface interface {
 	// GetGateway request
 	GetGatewayWithResponse(ctx context.Context, name string, reqEditors ...RequestEditorFn) (*GetGatewayResponse, error)
 
+	// Health request
+	HealthWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*HealthResponse, error)
+
 	// ListHTTPRoutes request
 	ListHTTPRoutesWithResponse(ctx context.Context, params *ListHTTPRoutesParams, reqEditors ...RequestEditorFn) (*ListHTTPRoutesResponse, error)
 
@@ -1693,6 +1758,29 @@ func (r GetGatewayResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r GetGatewayResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type HealthResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *HealthStatus
+	JSONDefault  *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r HealthResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r HealthResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -2129,6 +2217,15 @@ func (c *ClientWithResponses) GetGatewayWithResponse(ctx context.Context, name s
 	return ParseGetGatewayResponse(rsp)
 }
 
+// HealthWithResponse request returning *HealthResponse
+func (c *ClientWithResponses) HealthWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*HealthResponse, error) {
+	rsp, err := c.Health(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseHealthResponse(rsp)
+}
+
 // ListHTTPRoutesWithResponse request returning *ListHTTPRoutesResponse
 func (c *ClientWithResponses) ListHTTPRoutesWithResponse(ctx context.Context, params *ListHTTPRoutesParams, reqEditors ...RequestEditorFn) (*ListHTTPRoutesResponse, error) {
 	rsp, err := c.ListHTTPRoutes(ctx, params, reqEditors...)
@@ -2406,6 +2503,39 @@ func ParseGetGatewayResponse(rsp *http.Response) (*GetGatewayResponse, error) {
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest Gateway
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseHealthResponse parses an HTTP response from a HealthWithResponse call
+func ParseHealthResponse(rsp *http.Response) (*HealthResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &HealthResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest HealthStatus
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -2964,6 +3094,9 @@ type ServerInterface interface {
 	// (GET /gateways/{name})
 	GetGateway(w http.ResponseWriter, r *http.Request, name string)
 
+	// (GET /health)
+	Health(w http.ResponseWriter, r *http.Request)
+
 	// (GET /http-routes)
 	ListHTTPRoutes(w http.ResponseWriter, r *http.Request, params ListHTTPRoutesParams)
 
@@ -3111,6 +3244,21 @@ func (siw *ServerInterfaceWrapper) GetGateway(w http.ResponseWriter, r *http.Req
 
 	var handler http.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetGateway(w, r, name)
+	})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r.WithContext(ctx))
+}
+
+// Health operation middleware
+func (siw *ServerInterfaceWrapper) Health(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var handler http.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.Health(w, r)
 	})
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -3724,6 +3872,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/gateways/{name}", wrapper.GetGateway)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/health", wrapper.Health)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/http-routes", wrapper.ListHTTPRoutes)
 	})
 	r.Group(func(r chi.Router) {
@@ -3781,37 +3932,39 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
+	"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",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

@@ -27,7 +27,7 @@ func NewServer(url string, bootstrap BootstrapConfiguration, consulClient *api.C
 
 	s := &Server{bootstrap: bootstrap, consulClient: consulClient, logger: logger}
 	r := chi.NewRouter()
-	r.Use(middleware.JSONContentType, s.gatewayTokenMiddleware, middleware.OapiRequestValidator(spec, sendError))
+	r.Use(middleware.JSONContentType, middleware.OapiRequestValidator(spec, sendError))
 
 	return HandlerWithOptions(s, ChiServerOptions{
 		BaseURL:    url,

@@ -106,6 +106,21 @@ func (c *APIClient) GetGateway(ctx context.Context, name string) (*Gateway, erro
 	return nil, NewUnexpectedResponse(resp.StatusCode(), resp.Body)
 }
 
+func (c *APIClient) Health(ctx context.Context) (*HealthStatus, error) {
+
+	resp, err := c.client.HealthWithResponse(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if resp.JSONDefault != nil {
+		return nil, resp.JSONDefault
+	}
+	if resp.JSON200 != nil {
+		return resp.JSON200, nil
+	}
+	return nil, NewUnexpectedResponse(resp.StatusCode(), resp.Body)
+}
+
 func (c *APIClient) ListHTTPRoutes(ctx context.Context, params ...ListHTTPRoutesParams) (*HTTPRoutePage, error) {
 
 	// only use the first parameter passed in

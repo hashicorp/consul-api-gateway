@@ -18,15 +18,17 @@ var _ ServerInterface = &Server{}
 type Server struct {
 	logger       hclog.Logger
 	consulClient *api.Client
+	name         string
+	namespace    string
 }
 
 // TODO(andrew): most of this is boilerplate that should be generated
 
-func NewServer(url string, consulClient *api.Client, logger hclog.Logger) http.Handler {
+func NewServer(url string, name, namespace string, consulClient *api.Client, logger hclog.Logger) http.Handler {
 	spec, _ := GetSwagger()
 	spec.Servers = openapi3.Servers{&openapi3.Server{URL: url}}
 
-	s := &Server{consulClient: consulClient, logger: logger}
+	s := &Server{consulClient: consulClient, logger: logger, name: name, namespace: namespace}
 	r := chi.NewRouter()
 	r.Use(middleware.JSONContentType, s.consulTokenMiddleware, middleware.OapiRequestValidator(spec, sendError))
 
