@@ -8,6 +8,7 @@ import (
 
 	"github.com/mitchellh/cli"
 
+	"github.com/hashicorp/consul-api-gateway/internal/commands/controller"
 	cmdExec "github.com/hashicorp/consul-api-gateway/internal/commands/exec"
 	"github.com/hashicorp/consul-api-gateway/internal/commands/gateways"
 	"github.com/hashicorp/consul-api-gateway/internal/commands/httproutes"
@@ -53,6 +54,7 @@ func initializeCommands(ui cli.Ui, logOutput io.Writer) map[string]cli.CommandFa
 	gateways.RegisterCommands(context.Background(), commands, ui, logOutput)
 	httproutes.RegisterCommands(context.Background(), commands, ui, logOutput)
 	tcproutes.RegisterCommands(context.Background(), commands, ui, logOutput)
+	controller.RegisterCommands(context.Background(), commands, ui, logOutput)
 
 	return commands
 }
