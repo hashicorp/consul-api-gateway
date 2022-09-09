@@ -11,6 +11,7 @@ import (
 
 	consulAdapters "github.com/hashicorp/consul-api-gateway/internal/adapters/consul"
 	"github.com/hashicorp/consul-api-gateway/internal/api"
+	"github.com/hashicorp/consul-api-gateway/internal/api/apiinternal"
 	"github.com/hashicorp/consul-api-gateway/internal/common"
 	"github.com/hashicorp/consul-api-gateway/internal/consul"
 	"github.com/hashicorp/consul-api-gateway/internal/envoy"
@@ -44,6 +45,7 @@ type Command struct {
 	flagControllerKeyFile  string // Server TLS key file
 
 	flagConsulAddress           string // Consul server address
+	flagConsulXDSPort           uint   // Consul xDS server port
 	flagConsulToken             string // Consul token
 	flagConsulScheme            string // Consul server scheme
 	flagConsulTLSCAFile         string // Consul TLS CA file for TLS verification
@@ -81,7 +83,8 @@ func (c *Command) init() {
 	c.Flags.StringVar(&c.flagControllerCertFile, "gateway-controller-cert-file", "", "Path to TLS certificate file for HTTPS connections.")
 	c.Flags.StringVar(&c.flagControllerKeyFile, "gateway-controller-key-file", "", "Path to TLS key file for HTTPS connections.")
 
-	c.Flags.StringVar(&c.flagConsulAddress, "consul-address", "", "Consul Address.")
+	c.Flags.StringVar(&c.flagConsulAddress, "consul-address", "127.0.0.1:8500", "Consul Address.")
+	c.Flags.UintVar(&c.flagConsulXDSPort, "consul-xds-port", 8502, "Consul xDS port.")
 	c.Flags.StringVar(&c.flagConsulToken, "consul-token", "", "Token to use for Consul client.")
 	c.Flags.StringVar(&c.flagConsulScheme, "consul-scheme", "", "Scheme to use for Consul client.")
 	c.Flags.StringVar(&c.flagConsulTLSCAFile, "consul-tls-ca-file", "", "Path to CA for Consul server.")
@@ -170,6 +173,13 @@ func (c *Command) Run(args []string) (ret int) {
 		CertFile:        c.flagControllerCertFile,
 		KeyFile:         c.flagControllerKeyFile,
 		ShutdownTimeout: 10 * time.Second,
+		Bootstrap: apiinternal.BootstrapConfiguration{
+			Consul: apiinternal.ConsulConfiguration{
+				Server:  c.flagConsulAddress,
+				XdsPort: int(c.flagConsulXDSPort),
+			},
+			SdsPort: int(c.flagSDSPort),
+		},
 	})
 	group.Go(func() error {
 		return server.Run(groupCtx)

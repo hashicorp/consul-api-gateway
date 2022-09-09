@@ -127,7 +127,6 @@ func (c *ClientCLI) CreateClient() (*api.Client, error) {
 		Address:          c.flagAddress,
 		Port:             c.flagPort,
 		Token:            GetConsulTokenOr(c.flagToken),
-		GatewayToken:     c.flagToken,
 		TLSConfiguration: tlsConfig,
 	})
 }

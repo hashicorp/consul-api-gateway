@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi"
-	"github.com/hashicorp/consul-api-gateway/internal/api/internal"
+	"github.com/hashicorp/consul-api-gateway/internal/api/apiinternal"
 	v1 "github.com/hashicorp/consul-api-gateway/internal/api/v1"
 	consul "github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
@@ -19,6 +19,9 @@ type ServerConfig struct {
 	CertFile        string
 	KeyFile         string
 	ShutdownTimeout time.Duration
+
+	// info for bootstrapping our deployments
+	Bootstrap apiinternal.BootstrapConfiguration
 }
 
 type Server struct {
@@ -31,7 +34,7 @@ type Server struct {
 func NewServer(config ServerConfig) *Server {
 	router := chi.NewRouter()
 	router.Mount("/api/v1", v1.NewServer("/api/v1", config.Consul, config.Logger))
-	router.Mount("/api/internal", internal.NewServer("/api/internal", config.Consul, config.Logger))
+	router.Mount("/api/internal", apiinternal.NewServer("/api/internal", config.Bootstrap, config.Consul, config.Logger))
 
 	return &Server{
 		server: &http.Server{

@@ -3,13 +3,13 @@ package api
 import (
 	"fmt"
 
-	"github.com/hashicorp/consul-api-gateway/internal/api/internal"
+	"github.com/hashicorp/consul-api-gateway/internal/api/apiinternal"
 	v1 "github.com/hashicorp/consul-api-gateway/internal/api/v1"
 )
 
 type Client struct {
 	v1       *v1.APIClient
-	internal *internal.APIClient
+	internal *apiinternal.APIClient
 }
 
 type TLSConfiguration struct {
@@ -52,10 +52,10 @@ func CreateClient(config ClientConfig) (*Client, error) {
 		return nil, err
 	}
 
-	internalClient, err := internal.CreateClient(internal.ClientConfig{
+	internalClient, err := apiinternal.CreateClient(apiinternal.ClientConfig{
 		Server: server,
 		Token:  config.GatewayToken,
-		TLSConfiguration: &internal.ClientTLSConfiguration{
+		TLSConfiguration: &apiinternal.ClientTLSConfiguration{
 			CAFile:           caFile,
 			SkipVerification: skipVerification,
 		},
@@ -74,6 +74,6 @@ func (c *Client) V1() *v1.APIClient {
 	return c.v1
 }
 
-func (c *Client) Internal() *internal.APIClient {
+func (c *Client) Internal() *apiinternal.APIClient {
 	return c.internal
 }
