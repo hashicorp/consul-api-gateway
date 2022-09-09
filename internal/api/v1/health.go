@@ -17,10 +17,11 @@ func (s *Server) Health(w http.ResponseWriter, r *http.Request) {
 	}
 
 	controllerStatuses := []ControllerHealth{}
+
 	for _, service := range services {
 		controllerStatuses = append(controllerStatuses, ControllerHealth{
 			Name:   service.ServiceName,
-			Id:     service.ID, // instance ID
+			Id:     service.ServiceID, // instance ID
 			Status: service.Checks.AggregatedStatus(),
 		})
 	}
