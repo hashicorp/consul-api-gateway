@@ -387,8 +387,10 @@ func TestBinder(t *testing.T) {
 				client.EXPECT().GetNamespace(gomock.Any(), gomock.Any()).Return(test.namespace, nil)
 			}
 
-			binder := newBinder(client, test.gateway, gatewayState)
-			listeners := binder.Bind(context.Background(), factory.NewRoute(test.route))
+			binder := newBinder(client)
+			listeners := binder.Bind(context.Background(),
+				factory.NewGateway(NewGatewayConfig{Gateway: test.gateway, State: gatewayState}),
+				factory.NewRoute(test.route))
 			if test.didBind {
 				require.NotEmpty(t, listeners)
 			} else {
