@@ -9,10 +9,17 @@ import (
 	"syscall"
 	"time"
 
+	consulAdapters "github.com/hashicorp/consul-api-gateway/internal/adapters/consul"
 	"github.com/hashicorp/consul-api-gateway/internal/api"
 	"github.com/hashicorp/consul-api-gateway/internal/common"
 	"github.com/hashicorp/consul-api-gateway/internal/consul"
+	"github.com/hashicorp/consul-api-gateway/internal/envoy"
+	"github.com/hashicorp/consul-api-gateway/internal/metrics"
+	"github.com/hashicorp/consul-api-gateway/internal/profiling"
+	"github.com/hashicorp/consul-api-gateway/internal/store/memory"
+	"github.com/hashicorp/consul-api-gateway/internal/vault"
 	consulapi "github.com/hashicorp/consul/api"
+	"github.com/hashicorp/go-hclog"
 	"github.com/mitchellh/cli"
 	"golang.org/x/sync/errgroup"
 )
@@ -50,6 +57,12 @@ type Command struct {
 
 	flagConsulStoragePath      string // Storage path for persistent data
 	flagConsulStorageNamespace string // Storage namespace for persistent data
+
+	flagSDSAddress string // Server address to use for SDS
+	flagSDSPort    uint   // Server port to use for SDS
+
+	flagDebugProfilingPort uint // Port for pprof profiling
+	flagDebugMetricsPort   uint // Port for Prometheus metrics
 }
 
 func NewCommand(ctx context.Context, ui cli.Ui, logOutput io.Writer) *Command {
@@ -82,6 +95,12 @@ func (c *Command) init() {
 
 	c.Flags.StringVar(&c.flagConsulStoragePath, "consul-storage-path", "", "Storage path for Gateway data persisted in Consul.")
 	c.Flags.StringVar(&c.flagConsulStorageNamespace, "consul-storage-namespace", "", "Storage namespace for Gateway data persisted in Consul.")
+
+	c.Flags.StringVar(&c.flagSDSAddress, "sds-address", "", "Server address to use for SDS.")
+	c.Flags.UintVar(&c.flagSDSPort, "sds-port", 5606, "Server port to use for SDS.")
+
+	c.Flags.UintVar(&c.flagDebugMetricsPort, "debug-metrics-port", 5607, "Server port to use for metrics.")
+	c.Flags.UintVar(&c.flagDebugProfilingPort, "debug-pprof-port", 5608, "Server port to use for pprof debugging.")
 }
 
 func (c *Command) Run(args []string) (ret int) {
@@ -97,12 +116,52 @@ func (c *Command) Run(args []string) (ret int) {
 		return c.Error("initializing Consul client", err)
 	}
 
+	secretClient, err := registerSecretClients(logger)
+	if err != nil {
+		return c.Error("initializing secret fetchers", err)
+	}
+
 	ctx, cancel := signal.NotifyContext(c.Context(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
 	group, groupCtx := errgroup.WithContext(ctx)
 
-	// add store stuff here
+	certManager := consul.NewCertManager(
+		logger.Named("cert-manager"),
+		client,
+		c.flagConsulRegistrationName,
+		consul.DefaultCertManagerOptions(),
+	)
+	group.Go(func() error {
+		return certManager.Manage(groupCtx)
+	})
+
+	waitCtx, waitCancel := context.WithTimeout(ctx, 10*time.Second)
+	defer waitCancel()
+
+	if err := certManager.WaitForWrite(waitCtx); err != nil {
+		return c.Error("timeout waiting for certs to be written", err)
+	}
+
+	// replace this with the Consul store
+	store := memory.NewStore(memory.StoreConfig{
+		Adapter: consulAdapters.NewSyncAdapter(logger.Named("consul-adapter"), client),
+		Logger:  logger.Named("state"),
+	})
+	group.Go(func() error {
+		store.SyncAtInterval(groupCtx)
+		return nil
+	})
+
+	sds := envoy.NewSDSServer(
+		logger.Named("sds-server"),
+		certManager,
+		secretClient,
+		store,
+	).WithAddress(c.flagSDSAddress, c.flagSDSPort)
+	group.Go(func() error {
+		return sds.Run(groupCtx)
+	})
 
 	server := api.NewServer(api.ServerConfig{
 		Logger:          logger,
@@ -115,6 +174,19 @@ func (c *Command) Run(args []string) (ret int) {
 	group.Go(func() error {
 		return server.Run(groupCtx)
 	})
+
+	if c.flagDebugMetricsPort != 0 {
+		group.Go(func() error {
+			return metrics.RunServer(groupCtx, logger.Named("metrics"), fmt.Sprintf("127.0.0.1:%d", c.flagDebugMetricsPort))
+		})
+	}
+
+	// Run profiling server if configured
+	if c.flagDebugProfilingPort != 0 {
+		group.Go(func() error {
+			return profiling.RunServer(groupCtx, logger.Named("pprof"), fmt.Sprintf("127.0.0.1:%d", c.flagDebugProfilingPort))
+		})
+	}
 
 	registry := consul.NewServiceRegistry(
 		logger.Named("service-registry"),
@@ -170,6 +242,26 @@ func (c *Command) ConsulConfig() *consulapi.Config {
 	}
 
 	return consulCfg
+}
+
+func registerSecretClients(logger hclog.Logger) (*envoy.MultiSecretClient, error) {
+	secretClient := envoy.NewMultiSecretClient()
+
+	vaultPKIClient, err := vault.NewPKISecretClient(logger.Named("vault-pki-cert-fetcher"), "pki", "TODO")
+	if err != nil {
+		logger.Error("error initializing the Vault PKI cert fetcher", "error", err)
+		return nil, err
+	}
+	secretClient.Register(vault.PKISecretScheme, vaultPKIClient)
+
+	vaultStaticClient, err := vault.NewKVSecretClient(logger.Named("vault-kv-cert-fetcher"), "secret")
+	if err != nil {
+		logger.Error("error initializing the Vault KV cert fetcher", "error", err)
+		return nil, err
+	}
+	secretClient.Register(vault.KVSecretScheme, vaultStaticClient)
+
+	return secretClient, nil
 }
 
 func (c *Command) Help() string {

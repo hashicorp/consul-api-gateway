@@ -70,6 +70,11 @@ func NewSDSServer(logger hclog.Logger, fetcher CertificateFetcher, client Secret
 	}
 }
 
+func (s *SDSServer) WithAddress(address string, port uint) *SDSServer {
+	s.bindAddress = fmt.Sprintf("%s:%d", address, port)
+	return s
+}
+
 // Run starts the SDS server
 func (s *SDSServer) Run(ctx context.Context) error {
 	childCtx, cancel := context.WithCancel(ctx)
