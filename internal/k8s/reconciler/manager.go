@@ -15,6 +15,7 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/common"
 	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/validator"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/service"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	"github.com/hashicorp/consul-api-gateway/internal/store"
@@ -49,10 +50,12 @@ type GatewayReconcileManager struct {
 	sdsHost        string
 	sdsPort        int
 
-	deployer       *GatewayDeployer
-	store          store.Store
-	gatewayClasses *K8sGatewayClasses
-	factory        *Factory
+	deployer         *GatewayDeployer
+	store            store.Store
+	gatewayClasses   *K8sGatewayClasses
+	gatewayValidator *validator.GatewayValidator
+	routeValidator   *validator.RouteValidator
+	factory          *Factory
 
 	consulNamespaceMapper common.ConsulNamespaceMapper
 
@@ -94,6 +97,8 @@ func NewReconcileManager(config ManagerConfig) *GatewayReconcileManager {
 		sdsHost:               config.SDSHost,
 		sdsPort:               config.SDSPort,
 		gatewayClasses:        NewK8sGatewayClasses(config.Logger.Named("gatewayclasses"), config.Client),
+		gatewayValidator:      validator.NewGatewayValidator(config.Client),
+		routeValidator:        validator.NewRouteValidator(resolver, config.Client),
 		namespaceMap:          make(map[types.NamespacedName]string),
 		consulNamespaceMapper: config.ConsulNamespaceMapper,
 		deployer:              deployer,
@@ -190,7 +195,8 @@ func (m *GatewayReconcileManager) UpsertGateway(ctx context.Context, g *gwv1beta
 	// external references and set the statuses accordingly. Since we actually
 	// have other object updates triggering reconciliation loops, this is necessary
 	// prior to dirty-checking on upsert.
-	if err := gateway.Validate(ctx); err != nil {
+	err = m.gatewayValidator.Validate(ctx, gateway.GatewayState, g, m.deployer.Service(config, g))
+	if err != nil {
 		return err
 	}
 
@@ -219,8 +225,7 @@ func (m *GatewayReconcileManager) upsertRoute(ctx context.Context, r Route, id s
 	managed, err := m.deleteUnmanagedRoute(ctx, route, id)
 	if err != nil {
 		return err
-	}
-	if !managed {
+	} else if !managed {
 		return nil
 	}
 
@@ -228,9 +233,10 @@ func (m *GatewayReconcileManager) upsertRoute(ctx context.Context, r Route, id s
 	// external references and set the statuses accordingly. Since we actually
 	// have other object updates triggering reconciliation loops, this is necessary
 	// prior to dirty-checking on upsert.
-	if err := route.validate(ctx); err != nil {
+	if err = m.routeValidator.Validate(ctx, route.RouteState, route.Route); err != nil {
 		return err
 	}
+
 	return m.store.UpsertRoute(ctx, route, func(current store.Route) bool {
 		if current == nil {
 			return true
