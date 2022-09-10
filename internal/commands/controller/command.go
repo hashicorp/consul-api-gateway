@@ -69,7 +69,7 @@ type Command struct {
 	flagDebugMetricsPort   uint // Port for Prometheus metrics
 }
 
-func NewCommand(ctx context.Context, ui cli.Ui, logOutput io.Writer) *Command {
+func NewCommand(ctx context.Context, ui cli.Ui, logOutput io.Writer) cli.Command {
 	cmd := &Command{
 		CommonCLI: common.NewCommonCLI(ctx, help, synopsis, ui, logOutput, "controller"),
 	}

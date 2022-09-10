@@ -44,7 +44,7 @@ type Command struct {
 	flagEnvoyBinary string // Path to envoy binary
 }
 
-func NewCommand(ctx context.Context, ui cli.Ui, logOutput io.Writer) *Command {
+func NewCommand(ctx context.Context, ui cli.Ui, logOutput io.Writer) cli.Command {
 	cmd := &Command{
 		CommonCLI: common.NewCommonCLI(ctx, help, synopsis, ui, logOutput, "deployment"),
 	}

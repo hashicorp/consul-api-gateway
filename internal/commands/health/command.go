@@ -19,7 +19,7 @@ type Command struct {
 	*common.ClientCLI
 }
 
-func NewCommand(ctx context.Context, ui cli.Ui, logOutput io.Writer) *Command {
+func NewCommand(ctx context.Context, ui cli.Ui, logOutput io.Writer) cli.Command {
 	return &Command{
 		ClientCLI: common.NewClientCLI(ctx, help, synopsis, ui, logOutput, "health"),
 	}
