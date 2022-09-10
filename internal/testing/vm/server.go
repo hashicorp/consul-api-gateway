@@ -28,14 +28,28 @@ type Controller struct {
 
 	Client *api.Client
 	Port   int
+
+	ctx context.Context
 }
 
 func TestController(t *testing.T) *Controller {
 	t.Helper()
 
-	var wg sync.WaitGroup
+	consul := TestConsul(t, true)
+	vault := TestVault(t)
+	return runController(t, context.Background(), vault, consul)
+}
 
-	ctx, cancel := context.WithCancel(context.Background())
+func (c *Controller) PeerController(t *testing.T) *Controller {
+	t.Helper()
+
+	return runController(t, c.ctx, c.Vault, c.Consul)
+}
+
+func runController(t *testing.T, ctx context.Context, vault *Vault, consul *Consul) *Controller {
+	t.Helper()
+
+	ctx, cancel := context.WithCancel(ctx)
 	command := controller.NewCommand(ctx, cli.NewMockUi(), io.Discard)
 
 	ports := freeport.MustTake(4)
@@ -44,13 +58,7 @@ func TestController(t *testing.T) *Controller {
 	metricsPort := ports[2]
 	profPort := ports[3]
 
-	consul := TestConsul(t, true)
-	vault := TestVault(t)
-
-	wg.Add(1)
 	go func() {
-		defer wg.Done()
-
 		_ = command.Run([]string{
 			"-gateway-controller-port", strconv.Itoa(apiPort),
 			"-sds-port", strconv.Itoa(sdsPort),
@@ -67,7 +75,6 @@ func TestController(t *testing.T) *Controller {
 
 	t.Cleanup(func() {
 		cancel()
-		wg.Wait()
 	})
 
 	client, err := api.CreateClient(api.ClientConfig{
@@ -87,6 +94,7 @@ func TestController(t *testing.T) *Controller {
 		Vault:  vault,
 		Client: client,
 		Port:   apiPort,
+		ctx:    ctx,
 	}
 }
 
