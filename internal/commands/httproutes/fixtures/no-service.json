@@ -1,0 +1,12 @@
+{
+  "name": "test-no-service",
+  "gateways": [{
+    "name": "http-1",
+    "listener": "listener-2"
+  },{
+    "name": "http-2"
+  }],
+  "rules" : [{
+    "services": []
+  }]
+}

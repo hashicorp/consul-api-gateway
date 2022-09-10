@@ -16,7 +16,7 @@ type PutCommand struct {
 	*common.ClientCLI
 }
 
-func NewPutCommand(ctx context.Context, ui cli.Ui, logOutput io.Writer) *PutCommand {
+func NewPutCommand(ctx context.Context, ui cli.Ui, logOutput io.Writer) cli.Command {
 	return &PutCommand{
 		ClientCLI: common.NewClientCLI(ctx, putHelp, putSynopsis, ui, logOutput, "delete"),
 	}

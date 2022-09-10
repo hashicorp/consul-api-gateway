@@ -251,7 +251,7 @@ func TestValidateGateway(t *testing.T) {
 					Protocol: v1.ListenerProtocolHttp,
 					Tls: &v1.TLSConfiguration{
 						MinVersion:   apiTesting.StringPtr("TLSv1_3"),
-						MaxVersion:   apiTesting.tringPtr("TLS_FOO"),
+						MaxVersion:   apiTesting.StringPtr("TLS_FOO"),
 						CipherSuites: []string{"BAR"},
 					},
 				}},

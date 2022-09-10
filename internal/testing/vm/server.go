@@ -11,9 +11,11 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff"
+	"github.com/google/uuid"
 	"github.com/hashicorp/consul-api-gateway/internal/api"
 	"github.com/hashicorp/consul-api-gateway/internal/commands/controller"
 	"github.com/hashicorp/consul-api-gateway/internal/commands/deployment"
+	consulapi "github.com/hashicorp/consul/api"
 	"github.com/hashicorp/consul/sdk/freeport"
 	"github.com/mitchellh/cli"
 	"github.com/stretchr/testify/assert"
@@ -154,4 +156,72 @@ func (c *Controller) RunCLI(t *testing.T, tt CLITest) {
 	if tt.OutputCheck != nil {
 		tt.OutputCheck(t, buffer.String())
 	}
+}
+
+func (c *Controller) RegisterHTTPServiceTarget(t *testing.T) *ProxyTarget {
+	t.Helper()
+
+	return c.registerServiceTargetWithName(t, "http", uuid.New().String())
+}
+
+func (c *Controller) RegisterHTTPServiceTargetWithName(t *testing.T, name string) *ProxyTarget {
+	t.Helper()
+
+	return c.registerServiceTargetWithName(t, "http", name)
+}
+
+func (c *Controller) RegisterTCPServiceTarget(t *testing.T) *ProxyTarget {
+	t.Helper()
+
+	return c.registerServiceTargetWithName(t, "tcp", uuid.New().String())
+}
+
+func (c *Controller) RegisterTCPServiceTargetWithName(t *testing.T, name string) *ProxyTarget {
+	t.Helper()
+
+	return c.registerServiceTargetWithName(t, "tcp", name)
+}
+
+func (c *Controller) registerServiceTargetWithName(t *testing.T, protocol, name string) *ProxyTarget {
+	t.Helper()
+
+	template := httpBootstrapTemplate
+	if protocol == "tcp" {
+		template = tcpBootstrapTemplate
+	}
+
+	target := c.runProxyTarget(t, name, template)
+
+	client := c.Consul.Client
+
+	registration := &consulapi.AgentServiceRegistration{
+		ID:      target.Name,
+		Name:    target.Name,
+		Port:    target.Port,
+		Address: "127.0.0.1",
+	}
+	require.NoError(t, client.Agent().ServiceRegisterOpts(registration, consulapi.ServiceRegisterOpts{}))
+
+	_, _, err := client.ConfigEntries().Set(&consulapi.ServiceConfigEntry{
+		Kind:     consulapi.ServiceDefaults,
+		Name:     target.Name,
+		Protocol: protocol,
+	}, nil)
+	require.NoError(t, err)
+
+	proxyRegistration := &consulapi.AgentServiceRegistration{
+		Kind: consulapi.ServiceKindConnectProxy,
+		ID:   target.Name,
+		Name: target.Name,
+		Port: target.ProxyPort,
+		Proxy: &consulapi.AgentServiceConnectProxyConfig{
+			DestinationServiceName: target.Name,
+			LocalServiceAddress:    "127.0.0.1",
+			LocalServicePort:       target.Port,
+		},
+		Address: "127.0.0.1",
+	}
+	require.NoError(t, client.Agent().ServiceRegisterOpts(proxyRegistration, consulapi.ServiceRegisterOpts{}))
+
+	return target
 }

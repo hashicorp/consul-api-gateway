@@ -647,6 +647,8 @@ components:
         name:
           type: string
           minLength: 1
+        listener:
+          type: string
         namespace:
           type: string
     HTTPRoute:
@@ -654,6 +656,7 @@ components:
       required:
       - name
       - gateways
+      - rules
       properties:
         name:
           type: string
@@ -673,8 +676,11 @@ components:
           type: array
           items:
             "$ref": "#/components/schemas/HTTPRouteRule"
+          minItems: 1
     HTTPRouteRule:
       type: object
+      required:
+      - services
       properties:
         matches:
           type: array
@@ -686,6 +692,7 @@ components:
           type: array
           items:
             "$ref": "#/components/schemas/HTTPService"
+          minItems: 1
     HTTPService:
       type: object
       required:
@@ -693,6 +700,7 @@ components:
       properties:
         name:
           type: string
+          minLength: 1
         namespace:
           type: string
         weight:
@@ -812,6 +820,7 @@ components:
       required:
       - name
       - gateways
+      - services
       properties:
         name:
           type: string

@@ -1,0 +1,14 @@
+{
+  "name": "test-tcp-multiple-services",
+  "gateways": [{
+    "name": "tcp-1",
+    "listener": "listener-2"
+  },{
+    "name": "tcp-2"
+  }],
+  "services": [{
+    "name": "tcp-service-1"
+  },{
+    "name": "tcp-service-2"
+  }]
+}

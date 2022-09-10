@@ -1,0 +1,8 @@
+{
+  "name": "test-no-gateway",
+  "rules" : [{
+    "services": [{
+      "name": "http-service-1"
+    }]
+  }]
+}
