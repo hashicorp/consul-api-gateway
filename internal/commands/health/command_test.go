@@ -8,34 +8,32 @@ import (
 )
 
 func TestHealth(t *testing.T) {
+	t.Parallel()
+
+	controller := vm.TestController(t)
+
+	expectedOutput := "Successfully retrieved controller health"
+
+	controller.RunCLI(t, vm.CLITest{
+		Command: NewCommand,
+		OutputCheck: func(t *testing.T, output string) {
+			assert.Contains(t, output, expectedOutput)
+		},
+	})
+}
+
+func TestHealth_MultiControllers(t *testing.T) {
+	t.Parallel()
+
 	controller := vm.TestController(t)
 	_ = controller.PeerController(t)
 
-	for _, tt := range []struct {
-		name           string
-		failure        bool
-		expectedOutput string
-	}{{
-		name:           "success",
-		expectedOutput: "Successfully retrieved controller health",
-	}} {
-		tt := tt
+	expectedOutput := "Successfully retrieved controller health"
 
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			exitStatus := 0
-			if tt.failure {
-				exitStatus = 1
-			}
-
-			controller.RunCLI(t, vm.CLITest{
-				Command:    NewCommand,
-				ExitStatus: exitStatus,
-				OutputCheck: func(t *testing.T, output string) {
-					assert.Contains(t, output, tt.expectedOutput)
-				},
-			})
-		})
-	}
+	controller.RunCLI(t, vm.CLITest{
+		Command: NewCommand,
+		OutputCheck: func(t *testing.T, output string) {
+			assert.Contains(t, output, expectedOutput)
+		},
+	})
 }
