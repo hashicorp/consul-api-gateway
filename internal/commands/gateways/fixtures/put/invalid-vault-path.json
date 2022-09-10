@@ -1,0 +1,15 @@
+{
+  "name": "test-invalid-vault-path",
+  "listeners": [{
+    "protocol": "http",
+    "port": 8080,
+    "tls": {
+      "certificates": [{
+        "vault": {
+          "chainField": "server.cert",
+          "privateKeyField": "server.key"
+        }
+      }]
+    }
+  }]
+}

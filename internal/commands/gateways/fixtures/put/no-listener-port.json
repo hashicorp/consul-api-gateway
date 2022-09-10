@@ -1,0 +1,6 @@
+{
+  "name": "test-no-listener-port",
+  "listeners": [{
+    "protocol": "http"
+  }]
+}

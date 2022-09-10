@@ -1,0 +1,7 @@
+{
+  "name": "test-basic-success",
+  "listeners": [{
+    "protocol": "http",
+    "port": 8080
+  }]
+}

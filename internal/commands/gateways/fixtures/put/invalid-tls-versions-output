@@ -1,0 +1,7 @@
+There was an error sending the request:
+	server error - code: 400, message: 3 errors occurred:
+	* listener.0.tls.cipherSuites: configuring TLS cipher suites is only supported for TLS 1.2 and earlier
+	* listener.0.tls.maxVersion: invalid TLS version "TLS_FOO"
+	* listener.0.tls.cipherSuites.0: unsupported TLS cipher suite "BAR"
+
+

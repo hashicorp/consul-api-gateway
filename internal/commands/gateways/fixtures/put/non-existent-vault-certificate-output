@@ -1,0 +1,5 @@
+There was an error sending the request:
+	server error - code: 400, message: 1 error occurred:
+	* listener.0.tls.certificates.0: unable to retrieve Vault certificate
+
+

@@ -1,0 +1,16 @@
+{
+  "name": "test-non-existent-vault-chain-field",
+  "listeners": [{
+    "protocol": "http",
+    "port": 8080,
+    "tls": {
+      "certificates": [{
+        "vault": {
+          "path": "certificate",
+          "chainField": "non-existent",
+          "privateKeyField": "server.key"
+        }
+      }]
+    }
+  }]
+}

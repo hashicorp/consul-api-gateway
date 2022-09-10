@@ -1,0 +1,16 @@
+{
+  "name": "test-vault-certificate-success",
+  "listeners": [{
+    "protocol": "http",
+    "port": 8080,
+    "tls": {
+      "certificates": [{
+        "vault": {
+          "path": "certificate",
+          "chainField": "server.cert",
+          "privateKeyField": "server.key"
+        }
+      }]
+    }
+  }]
+}
