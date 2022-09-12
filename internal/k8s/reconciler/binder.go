@@ -28,7 +28,7 @@ type binder struct {
 	Client gatewayclient.Client
 }
 
-func newBinder(client gatewayclient.Client) *binder {
+func NewBinder(client gatewayclient.Client) *binder {
 	return &binder{Client: client}
 }
 

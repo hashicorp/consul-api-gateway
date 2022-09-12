@@ -10,8 +10,28 @@ import (
 
 type CompareResult int
 
+// StatusTrackingGateway is an optional extension
+// of Gateway. If supported by a Store, when
+// a Gateway is synced to an external location,
+// its corresponding callbacks should
+// be called.
+// TODO Remove
+type StatusTrackingGateway interface {
+	Gateway
+
+	TrackSync(ctx context.Context, sync func() (bool, error)) error
+}
+
 // Gateway describes a gateway.
 type Gateway interface {
+	ID() core.GatewayID
+	Bind(ctx context.Context, route Route) []string
+	Remove(ctx context.Context, id string) error
+	Resolve() core.ResolvedGateway
+	CanFetchSecrets(secrets []string) (bool, error)
+}
+
+type NewGateway interface {
 	ID() core.GatewayID
 	Resolve() core.ResolvedGateway
 	CanFetchSecrets(secrets []string) (bool, error)
@@ -37,7 +57,18 @@ type Route interface {
 }
 
 // Store is used for persisting and querying gateways and routes
+// TODO Remove
 type Store interface {
+	GetGateway(ctx context.Context, id core.GatewayID) (Gateway, error)
+	DeleteGateway(ctx context.Context, id core.GatewayID) error
+	UpsertGateway(ctx context.Context, gateway Gateway, updateConditionFn func(current Gateway) bool) error
+	DeleteRoute(ctx context.Context, id string) error
+	UpsertRoute(ctx context.Context, route Route, updateConditionFn func(current Route) bool) error
+	Sync(ctx context.Context) error
+}
+
+// NewStore is used for persisting and querying gateways and routes
+type NewStore interface {
 	GetGateway(ctx context.Context, id core.GatewayID) (Gateway, error)
 	ListGateways(ctx context.Context) ([]Gateway, error)
 	UpsertGateway(ctx context.Context, gateway Gateway, updateConditionFn func(current Gateway) bool) error

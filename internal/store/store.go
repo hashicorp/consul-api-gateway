@@ -10,10 +10,11 @@ import (
 	"golang.org/x/exp/maps"
 
 	"github.com/hashicorp/consul-api-gateway/internal/core"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 )
 
 var (
-	_ Store = (*lockingStore)(nil)
+	_ NewStore = (*lockingStore)(nil)
 
 	ErrNotFound = errors.New("not found")
 )
@@ -28,6 +29,7 @@ type lockingStore struct {
 type Config struct {
 	Adapter       core.SyncAdapter
 	Backend       Backend
+	Client        gatewayclient.Client
 	Binder        Binder
 	Logger        hclog.Logger
 	Marshaler     Marshaler
