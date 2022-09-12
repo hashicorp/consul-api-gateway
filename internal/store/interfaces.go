@@ -39,11 +39,14 @@ type Route interface {
 // Store is used for persisting and querying gateways and routes
 type Store interface {
 	GetGateway(ctx context.Context, id core.GatewayID) (Gateway, error)
-	DeleteGateway(ctx context.Context, id core.GatewayID) error
+	ListGateways(ctx context.Context) ([]Gateway, error)
 	UpsertGateway(ctx context.Context, gateway Gateway, updateConditionFn func(current Gateway) bool) error
-	DeleteRoute(ctx context.Context, id string) error
+	DeleteGateway(ctx context.Context, id core.GatewayID) error
+
+	GetRoute(ctx context.Context, id string) (Route, error)
+	ListRoutes(ctx context.Context) ([]Route, error)
 	UpsertRoute(ctx context.Context, route Route, updateConditionFn func(current Route) bool) error
-	Sync(ctx context.Context) error
+	DeleteRoute(ctx context.Context, id string) error
 }
 
 // Backend is used for persisting and querying gateways and routes
@@ -63,6 +66,16 @@ type Marshaler interface {
 	MarshalRoute(Route) ([]byte, error)
 	UnmarshalGateway(data []byte) (Gateway, error)
 	MarshalGateway(Gateway) ([]byte, error)
+}
+
+type Binder interface {
+	Bind(ctx context.Context, gateway Gateway, route Route) (bool, error)
+	Unbind(ctx context.Context, gateway Gateway, route Route) (bool, error)
+}
+
+type StatusUpdater interface {
+	UpdateGatewayStatusOnSync(ctx context.Context, gateway Gateway, sync func() (bool, error)) error
+	UpdateRouteStatus(ctx context.Context, route Route) error
 }
 
 // GatewayRecord represents a serialized Gateway
