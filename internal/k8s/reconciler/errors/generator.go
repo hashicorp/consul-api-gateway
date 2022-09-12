@@ -59,11 +59,11 @@ const (
 // GENERATED from errors.yaml, DO NOT EDIT DIRECTLY
 
 {{ range $error := $ -}}
-type {{ $error.Name }}ErrorType int
+type {{ $error.Name }}ErrorType string
 
 const (
 	{{- range $index, $value := $error.Types }}
-	{{ $error.Name }}ErrorType{{ $value }}{{ if (eq $index 0) }} {{ $error.Name }}ErrorType = iota{{end}}{{end}}
+	{{ $error.Name }}ErrorType{{ $value }} {{ $error.Name }}ErrorType = "{{ $value }}Error"{{end}}
 )
 	
 type {{ $error.Name }}Error struct {
