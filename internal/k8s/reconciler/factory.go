@@ -68,11 +68,22 @@ func (f *Factory) NewGateway(config NewGatewayConfig) *K8sGateway {
 	return gateway
 }
 
-func (f *Factory) NewRoute(route Route) *K8sRoute {
-	return newK8sRoute(route, K8sRouteConfig{
-		Logger:         f.logger.Named("route").With("name", route.GetName()),
+type NewRouteConfig struct {
+	Route Route
+	State *state.RouteState
+}
+
+func (f *Factory) NewRoute(config NewRouteConfig) *K8sRoute {
+	routeState := config.State
+	if routeState == nil {
+		routeState = state.NewRouteState()
+	}
+
+	return newK8sRoute(config.Route, K8sRouteConfig{
+		Logger:         f.logger.Named("route").With("name", config.Route.GetName()),
 		Client:         f.client,
 		ControllerName: f.controllerName,
 		Resolver:       f.resolver,
+		State:          routeState,
 	})
 }

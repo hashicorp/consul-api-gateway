@@ -52,12 +52,13 @@ type K8sRouteConfig struct {
 	Logger         hclog.Logger
 	Client         gatewayclient.Client
 	Resolver       service.BackendResolver
+	State          *state.RouteState
 }
 
 func newK8sRoute(route Route, config K8sRouteConfig) *K8sRoute {
 	return &K8sRoute{
 		Route:          route,
-		RouteState:     state.NewRouteState(),
+		RouteState:     config.State,
 		controllerName: config.ControllerName,
 		logger:         config.Logger.Named("route").With("name", route.GetName()),
 		client:         config.Client,
