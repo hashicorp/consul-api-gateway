@@ -18,7 +18,6 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/converter"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/state"
-	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/validator"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/service"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	"github.com/hashicorp/consul-api-gateway/internal/store"
@@ -38,7 +37,6 @@ type K8sRoute struct {
 	controllerName string
 	logger         hclog.Logger
 	client         gatewayclient.Client
-	validator      *validator.RouteValidator
 }
 
 type serializedRoute struct {
@@ -54,16 +52,16 @@ type K8sRouteConfig struct {
 	Logger         hclog.Logger
 	Client         gatewayclient.Client
 	Resolver       service.BackendResolver
+	State          *state.RouteState
 }
 
 func newK8sRoute(route Route, config K8sRouteConfig) *K8sRoute {
 	return &K8sRoute{
 		Route:          route,
-		RouteState:     state.NewRouteState(),
+		RouteState:     config.State,
 		controllerName: config.ControllerName,
 		logger:         config.Logger.Named("route").With("name", route.GetName()),
 		client:         config.Client,
-		validator:      validator.NewRouteValidator(config.Resolver, config.Client),
 	}
 }
 
@@ -184,10 +182,6 @@ func (r *K8sRoute) parents() []gwv1alpha2.ParentReference {
 		return route.Spec.ParentRefs
 	}
 	return nil
-}
-
-func (r *K8sRoute) validate(ctx context.Context) error {
-	return r.validator.Validate(ctx, r.RouteState, r.Route)
 }
 
 func (r *K8sRoute) OnGatewayRemoved(gateway store.Gateway) {

@@ -26,9 +26,8 @@ func TestRouteValidate(t *testing.T) {
 	resolver := mocks.NewMockBackendResolver(ctrl)
 	client := clientMocks.NewMockClient(ctrl)
 
-	routeState := state.NewRouteState()
 	validator := NewRouteValidator(resolver, client)
-	err := validator.Validate(context.Background(), routeState, &gwv1alpha2.HTTPRoute{})
+	routeState, err := validator.Validate(context.Background(), &gwv1alpha2.HTTPRoute{})
 	require.NoError(t, err)
 	require.True(t, routeState.ResolutionErrors.Empty())
 
@@ -41,8 +40,7 @@ func TestRouteValidate(t *testing.T) {
 	}
 	resolver.EXPECT().Resolve(gomock.Any(), gomock.Any(), reference).Return(resolved, nil)
 
-	routeState = state.NewRouteState()
-	err = validator.Validate(context.Background(), routeState, &gwv1alpha2.HTTPRoute{
+	routeState, err = validator.Validate(context.Background(), &gwv1alpha2.HTTPRoute{
 		Spec: gwv1alpha2.HTTPRouteSpec{
 			Rules: []gwv1alpha2.HTTPRouteRule{{
 				BackendRefs: []gwv1alpha2.HTTPBackendRef{{
@@ -56,10 +54,9 @@ func TestRouteValidate(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, routeState.ResolutionErrors.Empty())
 
-	routeState = state.NewRouteState()
 	expected := errors.New("expected")
 	resolver.EXPECT().Resolve(gomock.Any(), gomock.Any(), reference).Return(nil, expected)
-	err = validator.Validate(context.Background(), routeState, &gwv1alpha2.HTTPRoute{
+	routeState, err = validator.Validate(context.Background(), &gwv1alpha2.HTTPRoute{
 		Spec: gwv1alpha2.HTTPRouteSpec{
 			Rules: []gwv1alpha2.HTTPRouteRule{{
 				BackendRefs: []gwv1alpha2.HTTPBackendRef{{
@@ -75,7 +72,7 @@ func TestRouteValidate(t *testing.T) {
 	resolver.EXPECT().Resolve(gomock.Any(), gomock.Any(), reference).Return(nil, service.NewK8sResolutionError("error"))
 
 	routeState = state.NewRouteState()
-	err = validator.Validate(context.Background(), routeState, &gwv1alpha2.HTTPRoute{
+	routeState, err = validator.Validate(context.Background(), &gwv1alpha2.HTTPRoute{
 		Spec: gwv1alpha2.HTTPRouteSpec{
 			Rules: []gwv1alpha2.HTTPRouteRule{{
 				BackendRefs: []gwv1alpha2.HTTPBackendRef{{
@@ -119,9 +116,7 @@ func TestRouteValidateDontAllowCrossNamespace(t *testing.T) {
 		},
 	}
 
-	routeState := state.NewRouteState()
-
-	err := validator.Validate(context.Background(), routeState, &gwv1alpha2.HTTPRoute{
+	routeState, err := validator.Validate(context.Background(), &gwv1alpha2.HTTPRoute{
 		Spec: gwv1alpha2.HTTPRouteSpec{
 			Rules: []gwv1alpha2.HTTPRouteRule{{
 				BackendRefs: []gwv1alpha2.HTTPBackendRef{{
@@ -176,9 +171,7 @@ func TestRouteValidateAllowCrossNamespaceWithReferenceGrant(t *testing.T) {
 		Resolve(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(&service.ResolvedReference{Type: service.ConsulServiceReference, Reference: &service.BackendReference{}}, nil)
 
-	routeState := state.NewRouteState()
-
-	err := validator.Validate(context.Background(), routeState, &gwv1alpha2.HTTPRoute{
+	routeState, err := validator.Validate(context.Background(), &gwv1alpha2.HTTPRoute{
 		ObjectMeta: meta.ObjectMeta{Namespace: "namespace1"},
 		TypeMeta:   meta.TypeMeta{APIVersion: "gateway.networking.k8s.io/v1alpha2", Kind: "HTTPRoute"},
 		Spec: gwv1alpha2.HTTPRouteSpec{

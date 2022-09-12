@@ -12,7 +12,6 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/state"
 	rstatus "github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/status"
-	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/validator"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	"github.com/hashicorp/consul-api-gateway/internal/store"
 	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
@@ -26,11 +25,10 @@ type K8sGateway struct {
 	*gwv1beta1.Gateway
 	GatewayState *state.GatewayState
 
-	logger    hclog.Logger
-	client    gatewayclient.Client
-	config    apigwv1alpha1.GatewayClassConfig
-	validator *validator.GatewayValidator
-	deployer  *GatewayDeployer
+	logger   hclog.Logger
+	client   gatewayclient.Client
+	config   apigwv1alpha1.GatewayClassConfig
+	deployer *GatewayDeployer
 }
 
 var _ store.StatusTrackingGateway = &K8sGateway{}
@@ -52,15 +50,10 @@ func newK8sGateway(gateway *gwv1beta1.Gateway, config K8sGatewayConfig) *K8sGate
 		Gateway:      gateway,
 		GatewayState: config.State,
 		config:       config.Config,
-		validator:    validator.NewGatewayValidator(config.Client),
 		deployer:     config.Deployer,
 		logger:       config.Logger.Named("gateway").With("name", gateway.Name, "namespace", gateway.Namespace),
 		client:       config.Client,
 	}
-}
-
-func (g *K8sGateway) Validate(ctx context.Context) error {
-	return g.validator.Validate(ctx, g.GatewayState, g.Gateway, g.deployer.Service(g.config, g.Gateway))
 }
 
 func (g *K8sGateway) ID() core.GatewayID {

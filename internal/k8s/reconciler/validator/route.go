@@ -38,14 +38,21 @@ func NewRouteValidator(resolver service.BackendResolver, client gatewayclient.Cl
 	}
 }
 
-func (r *RouteValidator) Validate(ctx context.Context, state *state.RouteState, route Route) error {
+func (r *RouteValidator) Validate(ctx context.Context, route Route) (*state.RouteState, error) {
+	state := state.NewRouteState()
+
+	var err error
 	switch route := route.(type) {
 	case *gwv1alpha2.HTTPRoute:
-		return r.validateHTTPRoute(ctx, state, route)
+		err = r.validateHTTPRoute(ctx, state, route)
 	case *gwv1alpha2.TCPRoute:
-		return r.validateTCPRoute(ctx, state, route)
+		err = r.validateTCPRoute(ctx, state, route)
 	}
-	return nil
+	if err != nil {
+		return nil, err
+	}
+
+	return state, nil
 }
 
 func (r *RouteValidator) validateHTTPRoute(ctx context.Context, state *state.RouteState, route *gwv1alpha2.HTTPRoute) error {
@@ -128,7 +135,8 @@ func (r *RouteValidator) validateTCPRoute(ctx context.Context, state *state.Rout
 // an applicable ReferenceGrant in the same namespace as the backend.
 //
 // TODO This func is currently called once for each backendRef on a route and results
-//   in fetching ReferenceGrants more than we technically have to in some cases
+//
+//	in fetching ReferenceGrants more than we technically have to in some cases
 func routeAllowedForBackendRef(ctx context.Context, route Route, backendRef gwv1alpha2.BackendRef, c gatewayclient.Client) (bool, error) {
 	fromNS := route.GetNamespace()
 	fromGK := metav1.GroupKind{

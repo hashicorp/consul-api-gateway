@@ -390,7 +390,7 @@ func TestBinder(t *testing.T) {
 			binder := newBinder(client)
 			listeners := binder.Bind(context.Background(),
 				factory.NewGateway(NewGatewayConfig{Gateway: test.gateway, State: gatewayState}),
-				factory.NewRoute(test.route))
+				factory.NewRoute(NewRouteConfig{Route: test.route}))
 			if test.didBind {
 				require.NotEmpty(t, listeners)
 			} else {
@@ -418,9 +418,11 @@ func TestRouteAllowedForListenerNamespaces(t *testing.T) {
 		Namespaces: &gwv1beta1.RouteNamespaces{
 			From: &same,
 		},
-	}, factory.NewRoute(&gwv1alpha2.HTTPRoute{
-		ObjectMeta: meta.ObjectMeta{
-			Namespace: "expected",
+	}, factory.NewRoute(NewRouteConfig{
+		Route: &gwv1alpha2.HTTPRoute{
+			ObjectMeta: meta.ObjectMeta{
+				Namespace: "expected",
+			},
 		},
 	}), client)
 	require.NoError(t, err)
@@ -430,9 +432,11 @@ func TestRouteAllowedForListenerNamespaces(t *testing.T) {
 		Namespaces: &gwv1beta1.RouteNamespaces{
 			From: &same,
 		},
-	}, factory.NewRoute(&gwv1alpha2.HTTPRoute{
-		ObjectMeta: meta.ObjectMeta{
-			Namespace: "other",
+	}, factory.NewRoute(NewRouteConfig{
+		Route: &gwv1alpha2.HTTPRoute{
+			ObjectMeta: meta.ObjectMeta{
+				Namespace: "other",
+			},
 		},
 	}), client)
 	require.NoError(t, err)
@@ -444,9 +448,11 @@ func TestRouteAllowedForListenerNamespaces(t *testing.T) {
 		Namespaces: &gwv1beta1.RouteNamespaces{
 			From: &all,
 		},
-	}, factory.NewRoute(&gwv1alpha2.HTTPRoute{
-		ObjectMeta: meta.ObjectMeta{
-			Namespace: "other",
+	}, factory.NewRoute(NewRouteConfig{
+		Route: &gwv1alpha2.HTTPRoute{
+			ObjectMeta: meta.ObjectMeta{
+				Namespace: "other",
+			},
 		},
 	}), client)
 	require.NoError(t, err)
@@ -473,9 +479,11 @@ func TestRouteAllowedForListenerNamespaces(t *testing.T) {
 				},
 			},
 		},
-	}, factory.NewRoute(&gwv1alpha2.HTTPRoute{
-		ObjectMeta: meta.ObjectMeta{
-			Namespace: "expected",
+	}, factory.NewRoute(NewRouteConfig{
+		Route: &gwv1alpha2.HTTPRoute{
+			ObjectMeta: meta.ObjectMeta{
+				Namespace: "expected",
+			},
 		},
 	}), client)
 	require.NoError(t, err)
@@ -491,9 +499,11 @@ func TestRouteAllowedForListenerNamespaces(t *testing.T) {
 				},
 			},
 		},
-	}, factory.NewRoute(&gwv1alpha2.HTTPRoute{
-		ObjectMeta: meta.ObjectMeta{
-			Namespace: "expected",
+	}, factory.NewRoute(NewRouteConfig{
+		Route: &gwv1alpha2.HTTPRoute{
+			ObjectMeta: meta.ObjectMeta{
+				Namespace: "expected",
+			},
 		},
 	}), client)
 	require.NoError(t, err)
@@ -509,9 +519,11 @@ func TestRouteAllowedForListenerNamespaces(t *testing.T) {
 				}},
 			},
 		},
-	}, factory.NewRoute(&gwv1alpha2.HTTPRoute{
-		ObjectMeta: meta.ObjectMeta{
-			Namespace: "expected",
+	}, factory.NewRoute(NewRouteConfig{
+		Route: &gwv1alpha2.HTTPRoute{
+			ObjectMeta: meta.ObjectMeta{
+				Namespace: "expected",
+			},
 		},
 	}), client)
 	require.Error(t, err)
@@ -522,9 +534,11 @@ func TestRouteAllowedForListenerNamespaces(t *testing.T) {
 		Namespaces: &gwv1beta1.RouteNamespaces{
 			From: &unknown,
 		},
-	}, factory.NewRoute(&gwv1alpha2.HTTPRoute{
-		ObjectMeta: meta.ObjectMeta{
-			Namespace: "expected",
+	}, factory.NewRoute(NewRouteConfig{
+		Route: &gwv1alpha2.HTTPRoute{
+			ObjectMeta: meta.ObjectMeta{
+				Namespace: "expected",
+			},
 		},
 	}), client)
 	require.NoError(t, err)
@@ -547,14 +561,18 @@ func TestRouteKindIsAllowedForListener(t *testing.T) {
 	require.True(t, routeKindIsAllowedForListener([]gwv1beta1.RouteGroupKind{{
 		Group: (*gwv1beta1.Group)(&gwv1alpha2.GroupVersion.Group),
 		Kind:  "HTTPRoute",
-	}}, factory.NewRoute(&gwv1alpha2.HTTPRoute{
-		TypeMeta: routeMeta,
+	}}, factory.NewRoute(NewRouteConfig{
+		Route: &gwv1alpha2.HTTPRoute{
+			TypeMeta: routeMeta,
+		},
 	})))
 	require.False(t, routeKindIsAllowedForListener([]gwv1beta1.RouteGroupKind{{
 		Group: (*gwv1beta1.Group)(&gwv1alpha2.GroupVersion.Group),
 		Kind:  "TCPRoute",
-	}}, factory.NewRoute(&gwv1alpha2.HTTPRoute{
-		TypeMeta: routeMeta,
+	}}, factory.NewRoute(NewRouteConfig{
+		Route: &gwv1alpha2.HTTPRoute{
+			TypeMeta: routeMeta,
+		},
 	})))
 }
 
