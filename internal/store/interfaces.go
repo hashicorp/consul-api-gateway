@@ -10,24 +10,11 @@ import (
 
 type CompareResult int
 
-// StatusTrackingGateway is an optional extension
-// of Gateway. If supported by a Store, when
-// a Gateway is synced to an external location,
-// its corresponding callbacks should
-// be called.
-type StatusTrackingGateway interface {
-	Gateway
-
-	TrackSync(ctx context.Context, sync func() (bool, error)) error
-}
-
 // Gateway describes a gateway.
 type Gateway interface {
 	ID() core.GatewayID
-	Bind(ctx context.Context, route Route) []string
-	Remove(ctx context.Context, id string) error
 	Resolve() core.ResolvedGateway
-	CanFetchSecrets(ctx context.Context, secrets []string) (bool, error)
+	CanFetchSecrets(secrets []string) (bool, error)
 }
 
 // StatusTrackingRoute is an optional extension

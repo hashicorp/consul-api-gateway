@@ -13,114 +13,6 @@ import (
 	store "github.com/hashicorp/consul-api-gateway/internal/store"
 )
 
-// MockStatusTrackingGateway is a mock of StatusTrackingGateway interface.
-type MockStatusTrackingGateway struct {
-	ctrl     *gomock.Controller
-	recorder *MockStatusTrackingGatewayMockRecorder
-}
-
-// MockStatusTrackingGatewayMockRecorder is the mock recorder for MockStatusTrackingGateway.
-type MockStatusTrackingGatewayMockRecorder struct {
-	mock *MockStatusTrackingGateway
-}
-
-// NewMockStatusTrackingGateway creates a new mock instance.
-func NewMockStatusTrackingGateway(ctrl *gomock.Controller) *MockStatusTrackingGateway {
-	mock := &MockStatusTrackingGateway{ctrl: ctrl}
-	mock.recorder = &MockStatusTrackingGatewayMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockStatusTrackingGateway) EXPECT() *MockStatusTrackingGatewayMockRecorder {
-	return m.recorder
-}
-
-// Bind mocks base method.
-func (m *MockStatusTrackingGateway) Bind(ctx context.Context, route store.Route) []string {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Bind", ctx, route)
-	ret0, _ := ret[0].([]string)
-	return ret0
-}
-
-// Bind indicates an expected call of Bind.
-func (mr *MockStatusTrackingGatewayMockRecorder) Bind(ctx, route interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bind", reflect.TypeOf((*MockStatusTrackingGateway)(nil).Bind), ctx, route)
-}
-
-// CanFetchSecrets mocks base method.
-func (m *MockStatusTrackingGateway) CanFetchSecrets(ctx context.Context, secrets []string) (bool, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CanFetchSecrets", ctx, secrets)
-	ret0, _ := ret[0].(bool)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// CanFetchSecrets indicates an expected call of CanFetchSecrets.
-func (mr *MockStatusTrackingGatewayMockRecorder) CanFetchSecrets(ctx, secrets interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CanFetchSecrets", reflect.TypeOf((*MockStatusTrackingGateway)(nil).CanFetchSecrets), ctx, secrets)
-}
-
-// ID mocks base method.
-func (m *MockStatusTrackingGateway) ID() core.GatewayID {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ID")
-	ret0, _ := ret[0].(core.GatewayID)
-	return ret0
-}
-
-// ID indicates an expected call of ID.
-func (mr *MockStatusTrackingGatewayMockRecorder) ID() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ID", reflect.TypeOf((*MockStatusTrackingGateway)(nil).ID))
-}
-
-// Remove mocks base method.
-func (m *MockStatusTrackingGateway) Remove(ctx context.Context, id string) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Remove", ctx, id)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Remove indicates an expected call of Remove.
-func (mr *MockStatusTrackingGatewayMockRecorder) Remove(ctx, id interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Remove", reflect.TypeOf((*MockStatusTrackingGateway)(nil).Remove), ctx, id)
-}
-
-// Resolve mocks base method.
-func (m *MockStatusTrackingGateway) Resolve() core.ResolvedGateway {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Resolve")
-	ret0, _ := ret[0].(core.ResolvedGateway)
-	return ret0
-}
-
-// Resolve indicates an expected call of Resolve.
-func (mr *MockStatusTrackingGatewayMockRecorder) Resolve() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Resolve", reflect.TypeOf((*MockStatusTrackingGateway)(nil).Resolve))
-}
-
-// TrackSync mocks base method.
-func (m *MockStatusTrackingGateway) TrackSync(ctx context.Context, sync func() (bool, error)) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "TrackSync", ctx, sync)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// TrackSync indicates an expected call of TrackSync.
-func (mr *MockStatusTrackingGatewayMockRecorder) TrackSync(ctx, sync interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TrackSync", reflect.TypeOf((*MockStatusTrackingGateway)(nil).TrackSync), ctx, sync)
-}
-
 // MockGateway is a mock of Gateway interface.
 type MockGateway struct {
 	ctrl     *gomock.Controller
@@ -144,33 +36,19 @@ func (m *MockGateway) EXPECT() *MockGatewayMockRecorder {
 	return m.recorder
 }
 
-// Bind mocks base method.
-func (m *MockGateway) Bind(ctx context.Context, route store.Route) []string {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Bind", ctx, route)
-	ret0, _ := ret[0].([]string)
-	return ret0
-}
-
-// Bind indicates an expected call of Bind.
-func (mr *MockGatewayMockRecorder) Bind(ctx, route interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bind", reflect.TypeOf((*MockGateway)(nil).Bind), ctx, route)
-}
-
 // CanFetchSecrets mocks base method.
-func (m *MockGateway) CanFetchSecrets(ctx context.Context, secrets []string) (bool, error) {
+func (m *MockGateway) CanFetchSecrets(secrets []string) (bool, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CanFetchSecrets", ctx, secrets)
+	ret := m.ctrl.Call(m, "CanFetchSecrets", secrets)
 	ret0, _ := ret[0].(bool)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CanFetchSecrets indicates an expected call of CanFetchSecrets.
-func (mr *MockGatewayMockRecorder) CanFetchSecrets(ctx, secrets interface{}) *gomock.Call {
+func (mr *MockGatewayMockRecorder) CanFetchSecrets(secrets interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CanFetchSecrets", reflect.TypeOf((*MockGateway)(nil).CanFetchSecrets), ctx, secrets)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CanFetchSecrets", reflect.TypeOf((*MockGateway)(nil).CanFetchSecrets), secrets)
 }
 
 // ID mocks base method.
@@ -185,20 +63,6 @@ func (m *MockGateway) ID() core.GatewayID {
 func (mr *MockGatewayMockRecorder) ID() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ID", reflect.TypeOf((*MockGateway)(nil).ID))
-}
-
-// Remove mocks base method.
-func (m *MockGateway) Remove(ctx context.Context, id string) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Remove", ctx, id)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Remove indicates an expected call of Remove.
-func (mr *MockGatewayMockRecorder) Remove(ctx, id interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Remove", reflect.TypeOf((*MockGateway)(nil).Remove), ctx, id)
 }
 
 // Resolve mocks base method.

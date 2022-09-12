@@ -43,7 +43,7 @@ func TestSDSRunCertificateVerification(t *testing.T) {
 		store := storeMocks.NewMockStore(ctrl)
 		gateway := storeMocks.NewMockGateway(ctrl)
 		store.EXPECT().GetGateway(gomock.Any(), gomock.Any()).MinTimes(1).Return(gateway, nil)
-		gateway.EXPECT().CanFetchSecrets(gomock.Any(), gomock.Any()).MinTimes(1).Return(true, nil)
+		gateway.EXPECT().CanFetchSecrets(gomock.Any()).MinTimes(1).Return(true, nil)
 		return store
 	}, func(serverAddress string, fetcher *mocks.MockCertificateFetcher) {
 		fetcher.EXPECT().TLSCertificate().MinTimes(1).Return(&server.X509)
