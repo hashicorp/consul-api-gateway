@@ -19,6 +19,7 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/profiling"
 	"github.com/hashicorp/consul-api-gateway/internal/store/memory"
 	"github.com/hashicorp/consul-api-gateway/internal/vault"
+	"github.com/hashicorp/consul-api-gateway/internal/vm"
 	consulapi "github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
 	"github.com/mitchellh/cli"
@@ -171,6 +172,7 @@ func (c *Command) Run(args []string) (ret int) {
 		Name:            c.flagConsulRegistrationName,
 		Namespace:       c.flagConsulRegistrationNamespace,
 		ShutdownTimeout: 10 * time.Second,
+		Validator:       vm.NewValidator(client),
 		Bootstrap: apiinternal.BootstrapConfiguration{
 			Consul: apiinternal.ConsulConfiguration{
 				Server:  c.flagConsulAddress,

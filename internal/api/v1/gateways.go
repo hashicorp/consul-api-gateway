@@ -30,6 +30,11 @@ func (s *Server) CreateGateway(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err := s.validator.ValidateGateway(r.Context(), gateway); err != nil {
+		sendError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
 	s.logger.Info("adding gateway", "gateway", gateway)
 	// do the actual gateway persistence here
 

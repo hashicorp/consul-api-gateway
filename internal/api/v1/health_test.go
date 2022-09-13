@@ -10,7 +10,7 @@ import (
 )
 
 func TestServer_Health(t *testing.T) {
-	s := NewServer("", "foo", "", testConsul(t, false), hclog.NewNullLogger())
+	s := NewServer("", nil, "foo", "", testConsul(t, false), hclog.NewNullLogger())
 
 	testServer := httptest.NewServer(s)
 	defer testServer.Close()

@@ -11,3 +11,7 @@ func RandomString() string {
 	}
 	return string(s)
 }
+
+func StringPtr(val string) *string {
+	return &val
+}

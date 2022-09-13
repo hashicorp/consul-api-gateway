@@ -555,7 +555,6 @@ components:
       type: object
       required:
       - name
-      - namespace
       - listeners
       properties:
         name:
@@ -563,7 +562,6 @@ components:
           minLength: 1
         namespace:
           type: string
-          minLength: 1
         listeners:
           type: array
           items:
@@ -584,7 +582,9 @@ components:
           type: string
           default: "*"
         port:
-          type: number
+          type: integer
+          minimum: 1
+          maximum: 65535
         protocol:
           type: string
           enum:
@@ -614,6 +614,10 @@ components:
           "$ref": "#/components/schemas/VaultCertificate"
     VaultCertificate:
       type: object
+      required:
+        - path
+        - chainField
+        - privateKeyField
       properties:
         path:
           type: string
@@ -639,19 +643,16 @@ components:
       type: object
       required:
       - name
-      - namespace
       properties:
         name:
           type: string
           minLength: 1
         namespace:
           type: string
-          minLength: 1
     HTTPRoute:
       type: object
       required:
       - name
-      - namespace
       - gateways
       properties:
         name:
@@ -659,7 +660,6 @@ components:
           minLength: 1
         namespace:
           type: string
-          minLength: 1
         gateways:
           type: array
           items:
@@ -811,7 +811,6 @@ components:
       type: object
       required:
       - name
-      - namespace
       - gateways
       properties:
         name:
@@ -819,7 +818,6 @@ components:
           minLength: 1
         namespace:
           type: string
-          minLength: 1
         gateways:
           type: array
           items:
@@ -835,14 +833,12 @@ components:
       type: object
       required:
       - name
-      - namespace
       properties:
         name:
           type: string
           minLength: 1
         namespace:
           type: string
-          minLength: 1
         weight:
           type: number
     HealthStatus:
