@@ -121,18 +121,18 @@ func (c *ConsulBackend) UpsertRoutes(ctx context.Context, routes ...RouteRecord)
 }
 
 // this should eventually be used to construct paths like:
-//   v1/gateways/ns/default/foo-bar-baz
-//   v1/http-routes/ns/default/foo-bar-baz
-//   v1/tcp-routes/ns/default/foo-bar-baz
+//   v1/consul-api-gateway/gateways/ns/default/foo-bar-baz
+//   v1/consul-api-gateway/http-routes/ns/default/foo-bar-baz
+//   v1/consul-api-gateway/tcp-routes/ns/default/foo-bar-baz
 //
 // TODO: for this to be fully functional we need to make sure that our route IDs encode this information
 // via some compound identifier rather than by just a "string" as they do now
 func (c *ConsulBackend) storagePath(entity, namespace, id string) string {
-	return strings.Join([]string{c.pathPrefix, "v1", entity, "ns", namespace, id}, "/")
+	return strings.Join([]string{c.pathPrefix, "v1", c.id, entity, "ns", namespace, id}, "/")
 }
 
 func (c *ConsulBackend) listPath(entity string) string {
-	return strings.Join([]string{c.pathPrefix, "v1", entity}, "/")
+	return strings.Join([]string{c.pathPrefix, "v1", c.id, entity}, "/")
 }
 
 func (c *ConsulBackend) queryOptions(ctx context.Context) *consulapi.QueryOptions {
