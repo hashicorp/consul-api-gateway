@@ -18,7 +18,7 @@ type ListCommand struct {
 	flagAllNamespaces bool // list from all namespaces
 }
 
-func NewListCommand(ctx context.Context, ui cli.Ui, logOutput io.Writer) *ListCommand {
+func NewListCommand(ctx context.Context, ui cli.Ui, logOutput io.Writer) cli.Command {
 	cmd := &ListCommand{
 		ClientCLIWithNamespace: common.NewClientCLIWithNamespace(ctx, listHelp, listSynopsis, ui, logOutput, "get"),
 	}

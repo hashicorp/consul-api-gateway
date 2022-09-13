@@ -14,7 +14,7 @@ type GetCommand struct {
 	*common.ClientCLIWithNamespace
 }
 
-func NewGetCommand(ctx context.Context, ui cli.Ui, logOutput io.Writer) *GetCommand {
+func NewGetCommand(ctx context.Context, ui cli.Ui, logOutput io.Writer) cli.Command {
 	return &GetCommand{
 		ClientCLIWithNamespace: common.NewClientCLIWithNamespace(ctx, getHelp, getSynopsis, ui, logOutput, "get"),
 	}

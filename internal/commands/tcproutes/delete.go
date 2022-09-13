@@ -14,7 +14,7 @@ type DeleteCommand struct {
 	*common.ClientCLIWithNamespace
 }
 
-func NewDeleteCommand(ctx context.Context, ui cli.Ui, logOutput io.Writer) *DeleteCommand {
+func NewDeleteCommand(ctx context.Context, ui cli.Ui, logOutput io.Writer) cli.Command {
 	return &DeleteCommand{
 		ClientCLIWithNamespace: common.NewClientCLIWithNamespace(ctx, deleteHelp, deleteSynopsis, ui, logOutput, "delete"),
 	}

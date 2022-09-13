@@ -1,0 +1,8 @@
+{
+  "name": "invalid-tls",
+  "listeners": [{
+    "protocol": "http",
+    "port": 8080,
+    "tls": {}
+  }]
+}

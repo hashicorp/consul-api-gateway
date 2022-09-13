@@ -1,0 +1,19 @@
+{
+  "name": "test-invalid-tls-versions",
+  "listeners": [{
+    "protocol": "http",
+    "port": 8080,
+    "tls": {
+      "minVersion": "TLSv1_3",
+      "maxVersion": "TLS_FOO",
+      "cipherSuites": ["BAR"],
+      "certificates": [{
+        "vault": {
+          "path": "certificate",
+          "chainField": "server.cert",
+          "privateKeyField": "server.key"
+        }
+      }]
+    }
+  }]
+}
