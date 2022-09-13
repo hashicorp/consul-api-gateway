@@ -43,7 +43,7 @@ const (
 	healthHelp     = `
 Usage: consul-api-gateway controller health [options]
 
-  Gets Consul Gateway API controller health.
+  Gets Consul API Gateway controller health.
 
   Additional flags and more advanced use cases are detailed below.
 `
