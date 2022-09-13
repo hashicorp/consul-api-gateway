@@ -32,7 +32,7 @@ func TestOnStreamRequest(t *testing.T) {
 	store := storeMocks.NewMockStore(ctrl)
 	gateway := storeMocks.NewMockGateway(ctrl)
 	store.EXPECT().GetGateway(gomock.Any(), gomock.Any()).Return(gateway, nil)
-	gateway.EXPECT().CanFetchSecrets(gomock.Any(), gomock.Any()).Return(true, nil)
+	gateway.EXPECT().CanFetchSecrets(gomock.Any()).Return(true, nil)
 	handler := NewRequestHandler(hclog.NewNullLogger(), store, secrets)
 
 	request := &discovery.DiscoveryRequest{
@@ -64,7 +64,7 @@ func TestOnStreamRequest_PermissionError(t *testing.T) {
 	store := storeMocks.NewMockStore(ctrl)
 	gateway := storeMocks.NewMockGateway(ctrl)
 	store.EXPECT().GetGateway(gomock.Any(), gomock.Any()).Return(gateway, nil)
-	gateway.EXPECT().CanFetchSecrets(gomock.Any(), gomock.Any()).Return(false, nil)
+	gateway.EXPECT().CanFetchSecrets(gomock.Any()).Return(false, nil)
 	handler := NewRequestHandler(hclog.NewNullLogger(), store, secrets)
 
 	request := &discovery.DiscoveryRequest{
@@ -96,7 +96,7 @@ func TestOnStreamRequest_SetResourcesForNodeError(t *testing.T) {
 	store := storeMocks.NewMockStore(ctrl)
 	gateway := storeMocks.NewMockGateway(ctrl)
 	store.EXPECT().GetGateway(gomock.Any(), gomock.Any()).Return(gateway, nil)
-	gateway.EXPECT().CanFetchSecrets(gomock.Any(), gomock.Any()).Return(true, nil)
+	gateway.EXPECT().CanFetchSecrets(gomock.Any()).Return(true, nil)
 	handler := NewRequestHandler(hclog.NewNullLogger(), store, secrets)
 
 	request := &discovery.DiscoveryRequest{
@@ -128,7 +128,7 @@ func TestOnStreamRequest_Graceful(t *testing.T) {
 	store := storeMocks.NewMockStore(ctrl)
 	gateway := storeMocks.NewMockGateway(ctrl)
 	store.EXPECT().GetGateway(gomock.Any(), gomock.Any()).Return(gateway, nil)
-	gateway.EXPECT().CanFetchSecrets(gomock.Any(), gomock.Any()).Return(true, nil)
+	gateway.EXPECT().CanFetchSecrets(gomock.Any()).Return(true, nil)
 	handler := NewRequestHandler(hclog.NewNullLogger(), store, secrets)
 
 	request := &discovery.DiscoveryRequest{
@@ -159,7 +159,7 @@ func TestOnStreamClosed(t *testing.T) {
 	store := storeMocks.NewMockStore(ctrl)
 	gateway := storeMocks.NewMockGateway(ctrl)
 	store.EXPECT().GetGateway(gomock.Any(), gomock.Any()).Return(gateway, nil)
-	gateway.EXPECT().CanFetchSecrets(gomock.Any(), gomock.Any()).Return(true, nil)
+	gateway.EXPECT().CanFetchSecrets(gomock.Any()).Return(true, nil)
 	handler := NewRequestHandler(hclog.NewNullLogger(), store, secrets)
 
 	request := &discovery.DiscoveryRequest{

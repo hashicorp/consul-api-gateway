@@ -91,7 +91,7 @@ func (r *RequestHandler) OnStreamRequest(streamID int64, req *discovery.Discover
 		r.logger.Error("error fetching gateway", "error", err)
 		return err
 	}
-	allowed, err := gateway.CanFetchSecrets(ctx, resources)
+	allowed, err := gateway.CanFetchSecrets(resources)
 	if err != nil {
 		r.logger.Error("error checking gateway secrets", "error", err)
 		return err

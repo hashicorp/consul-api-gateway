@@ -21,7 +21,7 @@ func TestServer_Bootstrap(t *testing.T) {
 	}{
 		{
 			name:           "stub",
-			wantStatusCode: http.StatusNotImplemented,
+			wantStatusCode: http.StatusOK,
 		},
 	}
 	for _, tt := range tests {

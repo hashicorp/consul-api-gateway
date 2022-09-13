@@ -31,7 +31,7 @@ Supported features are marked with a grey checkbox
         - [x] HTTPS
         - [x] TCP
         - [ ] TLS
-        - [x] UDP *not supported*
+        - [ ] UDP
       - [ ] Hostname matching
         - [x] HTTP
         - [x] HTTPS *no SNI checks right now*

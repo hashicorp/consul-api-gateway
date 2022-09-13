@@ -29,6 +29,10 @@ func RegisterCommands(ctx context.Context, commands map[string]cli.CommandFactor
 	commands["controller"] = func() (cli.Command, error) {
 		return NewCommand(ctx, ui, logOutput), nil
 	}
+
+	commands["controller health"] = func() (cli.Command, error) {
+		return NewHealthCommand(ctx, ui, logOutput), nil
+	}
 }
 
 type Command struct {
