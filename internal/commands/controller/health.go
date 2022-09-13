@@ -39,7 +39,7 @@ func (c *HealthCommand) Run(args []string) int {
 }
 
 const (
-	healthSynopsis = "Gets the health of all registered Consul Gateway API controllers"
+	healthSynopsis = "Gets the health of all registered Consul API Gateway controllers"
 	healthHelp     = `
 Usage: consul-api-gateway controller health [options]
 
