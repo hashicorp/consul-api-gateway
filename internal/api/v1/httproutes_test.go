@@ -14,7 +14,7 @@ import (
 )
 
 func TestServer_ListHTTPRoutes(t *testing.T) {
-	s := NewServer("", testConsul(t, false), hclog.NewNullLogger())
+	s := NewServer("", "foo", "", testConsul(t, false), hclog.NewNullLogger())
 
 	testServer := httptest.NewServer(s)
 	defer testServer.Close()
@@ -39,7 +39,7 @@ func TestServer_ListHTTPRoutes(t *testing.T) {
 }
 
 func TestServer_GetNamespacedHTTPRoute(t *testing.T) {
-	s := NewServer("", testConsul(t, false), hclog.NewNullLogger())
+	s := NewServer("", "foo", "", testConsul(t, false), hclog.NewNullLogger())
 
 	testServer := httptest.NewServer(s)
 	defer testServer.Close()
@@ -68,7 +68,7 @@ func TestServer_GetNamespacedHTTPRoute(t *testing.T) {
 }
 
 func TestServer_CreateHTTPRoute(t *testing.T) {
-	s := NewServer("", testConsul(t, false), hclog.NewNullLogger())
+	s := NewServer("", "foo", "", testConsul(t, false), hclog.NewNullLogger())
 
 	testServer := httptest.NewServer(s)
 	defer testServer.Close()
@@ -150,7 +150,7 @@ func TestServer_CreateHTTPRoute(t *testing.T) {
 }
 
 func TestServer_DeleteNamespacedHTTPRoute(t *testing.T) {
-	s := NewServer("", testConsul(t, false), hclog.NewNullLogger())
+	s := NewServer("", "foo", "", testConsul(t, false), hclog.NewNullLogger())
 
 	testServer := httptest.NewServer(s)
 	defer testServer.Close()

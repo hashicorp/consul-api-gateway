@@ -12,6 +12,23 @@ info:
     name: Mozilla Public License 2.0
     url: https://www.mozilla.org/en-US/MPL/2.0/
 paths:
+  "/health":
+    get:
+      description: 'Returns health status of all registered Gateways and controllers.'
+      operationId: health
+      responses:
+        '200':
+          description: health response
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/HealthStatus"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Error"
   "/namespaces/{namespace}/gateways":
     get:
       description: 'Returns all configured gateways in the given namespace.'
@@ -828,6 +845,46 @@ components:
           minLength: 1
         weight:
           type: number
+    HealthStatus:
+      type: object
+      required:
+      - controllers
+      - gateways
+      properties:
+        controllers:
+          type: array
+          items:
+            "$ref": "#/components/schemas/ControllerHealth"
+        gateways:
+          type: array
+          items:
+            "$ref": "#/components/schemas/GatewayHealth"
+    ControllerHealth:
+      type: object
+      required:
+      - name
+      - id
+      - status
+      properties:
+        name:
+          type: string
+        id:
+          type: string
+        status:
+          type: string
+    GatewayHealth:
+      type: object
+      required:
+      - name
+      - id
+      - status
+      properties:
+        name:
+          type: string
+        id:
+          type: string
+        status:
+          type: string
     Error:
       type: object
       required:

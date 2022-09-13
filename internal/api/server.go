@@ -20,6 +20,9 @@ type ServerConfig struct {
 	KeyFile         string
 	ShutdownTimeout time.Duration
 
+	Name      string
+	Namespace string
+
 	// info for bootstrapping our deployments
 	Bootstrap apiinternal.BootstrapConfiguration
 }
@@ -34,7 +37,7 @@ type Server struct {
 
 func NewServer(config ServerConfig) *Server {
 	router := chi.NewRouter()
-	router.Mount("/api/v1", v1.NewServer("/api/v1", config.Consul, config.Logger))
+	router.Mount("/api/v1", v1.NewServer("/api/v1", config.Name, config.Namespace, config.Consul, config.Logger))
 	router.Mount("/api/internal", apiinternal.NewServer("/api/internal", config.Bootstrap, config.Consul, config.Logger))
 
 	return &Server{
