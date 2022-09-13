@@ -19,8 +19,10 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/profiling"
 	"github.com/hashicorp/consul-api-gateway/internal/store/memory"
 	"github.com/hashicorp/consul-api-gateway/internal/vault"
+	"github.com/hashicorp/consul-api-gateway/internal/vm"
 	consulapi "github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
+	vaultapi "github.com/hashicorp/vault/api"
 	"github.com/mitchellh/cli"
 	"golang.org/x/sync/errgroup"
 )
@@ -53,6 +55,10 @@ type Command struct {
 	flagConsulRegistrationNamespace string           // Namespace of service to register in Consul
 	flagConsulRegistrationTags      common.ArrayFlag // Tags for service to register in Consul
 
+	flagVaultAddress string // Vault address to use
+	flagVaultToken   string // Vault token to use
+	flagVaultMount   string // Vault KV mount to use
+
 	flagConsulStoragePath      string // Storage path for persistent data
 	flagConsulStorageNamespace string // Storage namespace for persistent data
 
@@ -63,7 +69,7 @@ type Command struct {
 	flagDebugMetricsPort   uint // Port for Prometheus metrics
 }
 
-func NewCommand(ctx context.Context, ui cli.Ui, logOutput io.Writer) *Command {
+func NewCommand(ctx context.Context, ui cli.Ui, logOutput io.Writer) cli.Command {
 	cmd := &Command{
 		CommonCLI: common.NewCommonCLI(ctx, help, synopsis, ui, logOutput, "controller"),
 	}
@@ -92,6 +98,10 @@ func (c *Command) init() {
 	c.Flags.StringVar(&c.flagConsulRegistrationName, "consul-registration-name", "api-gateway-controller", "Name to use for Consul service registration.")
 	c.Flags.Var(&c.flagConsulRegistrationTags, "consul-registration-tags", "Tags to add for Consul service registration.")
 
+	c.Flags.StringVar(&c.flagVaultAddress, "vault-address", "", "Vault address to use.")
+	c.Flags.StringVar(&c.flagVaultToken, "vault-token", "", "Vault token to use.")
+	c.Flags.StringVar(&c.flagVaultMount, "vault-mount", "", "Vault KV mount to use.")
+
 	c.Flags.StringVar(&c.flagConsulStoragePath, "consul-storage-path", "", "Storage path for Gateway data persisted in Consul.")
 	c.Flags.StringVar(&c.flagConsulStorageNamespace, "consul-storage-namespace", "", "Storage namespace for Gateway data persisted in Consul.")
 
@@ -109,6 +119,15 @@ func (c *Command) Run(args []string) (ret int) {
 
 	logger := c.Logger("controller")
 	address := fmt.Sprintf("%s:%d", c.flagControllerAddress, c.flagControllerPort)
+
+	vault, err := vaultapi.NewClient(&vaultapi.Config{
+		Address: c.flagVaultAddress,
+	})
+	if err != nil {
+		return c.Error("initializing Vault client", err)
+	}
+	vault.SetToken(c.flagVaultToken)
+	vaultKVClient := vault.KVv2(c.flagVaultMount)
 
 	client, err := consulapi.NewClient(c.ConsulConfig())
 	if err != nil {
@@ -171,6 +190,7 @@ func (c *Command) Run(args []string) (ret int) {
 		Name:            c.flagConsulRegistrationName,
 		Namespace:       c.flagConsulRegistrationNamespace,
 		ShutdownTimeout: 10 * time.Second,
+		Validator:       vm.NewValidator(logger.Named("validator"), vaultKVClient, client),
 		Bootstrap: apiinternal.BootstrapConfiguration{
 			Consul: apiinternal.ConsulConfiguration{
 				Server:  c.flagConsulAddress,

@@ -25,7 +25,12 @@ func (s *Server) CreateTCPRoute(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.logger.Info("adding http route", "route", route)
+	if err := s.validator.ValidateTCPRoute(r.Context(), route); err != nil {
+		sendError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	s.logger.Info("adding tcp route", "route", route)
 	// do the actual route persistence here
 
 	send(w, http.StatusCreated, route)

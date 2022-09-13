@@ -1,6 +1,7 @@
 package v1
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/getkin/kin-openapi/openapi3"
@@ -15,20 +16,28 @@ import (
 
 var _ ServerInterface = &Server{}
 
+//go:generate mockgen -source ./server.go -destination ./zz_mocks_test.go -package v1 Validator
+type Validator interface {
+	ValidateGateway(ctx context.Context, gateway *Gateway) error
+	ValidateHTTPRoute(ctx context.Context, route *HTTPRoute) error
+	ValidateTCPRoute(ctx context.Context, route *TCPRoute) error
+}
+
 type Server struct {
 	logger       hclog.Logger
 	consulClient *api.Client
+	validator    Validator
 	name         string
 	namespace    string
 }
 
 // TODO(andrew): most of this is boilerplate that should be generated
 
-func NewServer(url string, name, namespace string, consulClient *api.Client, logger hclog.Logger) http.Handler {
+func NewServer(url string, validator Validator, name, namespace string, consulClient *api.Client, logger hclog.Logger) http.Handler {
 	spec, _ := GetSwagger()
 	spec.Servers = openapi3.Servers{&openapi3.Server{URL: url}}
 
-	s := &Server{consulClient: consulClient, logger: logger, name: name, namespace: namespace}
+	s := &Server{consulClient: consulClient, logger: logger, name: name, namespace: namespace, validator: validator}
 	r := chi.NewRouter()
 	r.Use(middleware.JSONContentType, s.consulTokenMiddleware, middleware.OapiRequestValidator(spec, sendError))
 

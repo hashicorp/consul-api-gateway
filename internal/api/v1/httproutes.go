@@ -25,6 +25,11 @@ func (s *Server) CreateHTTPRoute(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err := s.validator.ValidateHTTPRoute(r.Context(), route); err != nil {
+		sendError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
 	s.logger.Info("adding http route", "route", route)
 	// do the actual route persistence here
 
