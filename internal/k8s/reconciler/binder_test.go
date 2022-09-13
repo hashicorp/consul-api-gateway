@@ -387,7 +387,7 @@ func TestBinder(t *testing.T) {
 				client.EXPECT().GetNamespace(gomock.Any(), gomock.Any()).Return(test.namespace, nil)
 			}
 
-			binder := newBinder(client)
+			binder := NewBinder(client)
 			listeners := binder.Bind(context.Background(),
 				factory.NewGateway(NewGatewayConfig{Gateway: test.gateway, State: gatewayState}),
 				factory.NewRoute(NewRouteConfig{Route: test.route}))

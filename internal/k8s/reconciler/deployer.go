@@ -44,16 +44,16 @@ func NewDeployer(config DeployerConfig) *GatewayDeployer {
 	}
 }
 
-func (d *GatewayDeployer) Deploy(ctx context.Context, namespace string, config apigwv1alpha1.GatewayClassConfig, gateway *gwv1beta1.Gateway) error {
-	if err := d.ensureServiceAccount(ctx, config, gateway); err != nil {
+func (d *GatewayDeployer) Deploy(ctx context.Context, gateway *K8sGateway) error {
+	if err := d.ensureServiceAccount(ctx, gateway.config, gateway.Gateway); err != nil {
 		return err
 	}
 
-	if err := d.ensureDeployment(ctx, namespace, config, gateway); err != nil {
+	if err := d.ensureDeployment(ctx, gateway.GatewayState.ConsulNamespace, gateway.config, gateway.Gateway); err != nil {
 		return err
 	}
 
-	return d.ensureService(ctx, config, gateway)
+	return d.ensureService(ctx, gateway.config, gateway.Gateway)
 }
 
 func (d *GatewayDeployer) ensureServiceAccount(ctx context.Context, config apigwv1alpha1.GatewayClassConfig, gateway *gwv1beta1.Gateway) error {

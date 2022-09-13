@@ -53,7 +53,7 @@ func (f *Factory) NewGateway(config NewGatewayConfig) *K8sGateway {
 		gwState.ConsulNamespace = config.ConsulNamespace
 	}
 
-	gateway := newK8sGateway(config.Gateway, K8sGatewayConfig{
+	return newK8sGateway(config.Gateway, K8sGatewayConfig{
 		ConsulNamespace: config.ConsulNamespace,
 		ConsulCA:        "",
 		SDSHost:         "",
@@ -64,8 +64,6 @@ func (f *Factory) NewGateway(config NewGatewayConfig) *K8sGateway {
 		Logger:          f.logger.Named("gateway").With("name", config.Gateway.Name, "namespace", config.Gateway.Namespace),
 		Client:          f.client,
 	})
-
-	return gateway
 }
 
 type NewRouteConfig struct {

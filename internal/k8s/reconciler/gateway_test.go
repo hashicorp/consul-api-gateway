@@ -44,27 +44,6 @@ func TestGatewayID(t *testing.T) {
 	require.Equal(t, internalCore.GatewayID{Service: "name", ConsulNamespace: "consul"}, gateway.ID())
 }
 
-func TestGatewayMeta(t *testing.T) {
-	t.Parallel()
-
-	factory := NewFactory(FactoryConfig{
-		Logger: hclog.NewNullLogger(),
-	})
-
-	gw := &gwv1beta1.Gateway{
-		ObjectMeta: meta.ObjectMeta{
-			Name:      "name",
-			Namespace: "namespace",
-		},
-	}
-	gateway := factory.NewGateway(NewGatewayConfig{
-		Gateway:         gw,
-		State:           state.InitialGatewayState(gw),
-		ConsulNamespace: "consul",
-	})
-	require.NotNil(t, gateway.Meta())
-}
-
 func TestGatewayTrackSync(t *testing.T) {
 	t.Parallel()
 
