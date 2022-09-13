@@ -57,7 +57,7 @@ func TestRegister(t *testing.T) {
 			registry.backoffInterval = 0
 			registry.id = id
 
-			err := registry.Register(context.Background())
+			err := registry.RegisterGateway(context.Background())
 			if test.fail {
 				require.Error(t, err)
 				return

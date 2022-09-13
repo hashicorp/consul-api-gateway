@@ -17,6 +17,7 @@ import (
 const (
 	serviceCheckName          = "consul-api-gateway Gateway Listener"
 	serviceCheckInterval      = "10s"
+	serviceCheckTTL           = "20s"
 	serviceDeregistrationTime = "1m"
 )
 
@@ -31,11 +32,13 @@ type ServiceRegistry struct {
 	name      string
 	namespace string
 	host      string
+	tags      []string
 
 	cancel                 context.CancelFunc
 	tries                  uint64
 	backoffInterval        time.Duration
 	reregistrationInterval time.Duration
+	updateTTLInterval      time.Duration
 }
 
 // NewServiceRegistry creates a new service registry instance
@@ -50,7 +53,14 @@ func NewServiceRegistry(logger hclog.Logger, consul *api.Client, service, namesp
 		tries:                  defaultMaxAttempts,
 		backoffInterval:        defaultBackoffInterval,
 		reregistrationInterval: 30 * time.Second,
+		updateTTLInterval:      10 * time.Second,
 	}
+}
+
+// WithTags adds tags to associate with the service being registered.
+func (s *ServiceRegistry) WithTags(tags []string) *ServiceRegistry {
+	s.tags = tags
+	return s
 }
 
 // WithTries tells the service registry to retry on any remote operations.
@@ -59,13 +69,56 @@ func (s *ServiceRegistry) WithTries(tries uint64) *ServiceRegistry {
 	return s
 }
 
+// Register registers a Gateway service with Consul.
+func (s *ServiceRegistry) RegisterGateway(ctx context.Context) error {
+	return s.register(ctx, &api.AgentServiceRegistration{
+		Kind:      api.ServiceKind(api.IngressGateway),
+		ID:        s.id,
+		Name:      s.name,
+		Namespace: s.namespace,
+		Address:   s.host,
+		Tags:      s.tags,
+		Meta: map[string]string{
+			"external-source": "consul-api-gateway",
+		},
+		Checks: api.AgentServiceChecks{{
+			Name:                           fmt.Sprintf("%s - Ready", serviceCheckName),
+			TCP:                            fmt.Sprintf("%s:%d", s.host, 20000),
+			Interval:                       serviceCheckInterval,
+			DeregisterCriticalServiceAfter: serviceDeregistrationTime,
+		}},
+	}, false)
+}
+
 // Register registers a service with Consul.
 func (s *ServiceRegistry) Register(ctx context.Context) error {
+	return s.register(ctx, &api.AgentServiceRegistration{
+		Kind:      api.ServiceKindTypical,
+		ID:        s.id,
+		Name:      s.name,
+		Namespace: s.namespace,
+		Address:   s.host,
+		Tags:      s.tags,
+		Checks: api.AgentServiceChecks{{
+			CheckID:                        s.id,
+			Name:                           fmt.Sprintf("%s - Health", s.name),
+			TTL:                            serviceCheckTTL,
+			DeregisterCriticalServiceAfter: serviceDeregistrationTime,
+		}},
+	}, true)
+}
+
+func (s *ServiceRegistry) updateTTL(ctx context.Context) error {
+	opts := &api.QueryOptions{}
+	return s.consul.Agent().UpdateTTLOpts(s.id, "service healthy", "pass", opts.WithContext(ctx))
+}
+
+func (s *ServiceRegistry) register(ctx context.Context, registration *api.AgentServiceRegistration, ttl bool) error {
 	if s.cancel != nil {
 		return nil
 	}
 
-	if err := s.retryRegistration(ctx); err != nil {
+	if err := s.retryRegistration(ctx, registration); err != nil {
 		return err
 	}
 	childCtx, cancel := context.WithCancel(ctx)
@@ -75,17 +128,30 @@ func (s *ServiceRegistry) Register(ctx context.Context) error {
 		for {
 			select {
 			case <-time.After(s.reregistrationInterval):
-				s.ensureRegistration(childCtx)
+				s.ensureRegistration(childCtx, registration)
 			case <-childCtx.Done():
 				return
 			}
 		}
 	}()
 
+	if ttl {
+		go func() {
+			for {
+				select {
+				case <-time.After(s.updateTTLInterval):
+					s.updateTTL(childCtx)
+				case <-childCtx.Done():
+					return
+				}
+			}
+		}()
+	}
+
 	return nil
 }
 
-func (s *ServiceRegistry) ensureRegistration(ctx context.Context) {
+func (s *ServiceRegistry) ensureRegistration(ctx context.Context, registration *api.AgentServiceRegistration) {
 	_, _, err := s.consul.Agent().Service(s.id, &api.QueryOptions{
 		Namespace: s.namespace,
 	})
@@ -96,7 +162,7 @@ func (s *ServiceRegistry) ensureRegistration(ctx context.Context) {
 	var statusError api.StatusError
 	if errors.As(err, &statusError) {
 		if statusError.Code == http.StatusNotFound {
-			if err := s.retryRegistration(ctx); err != nil {
+			if err := s.retryRegistration(ctx, registration); err != nil {
 				s.logger.Error("error registering service", "error", err)
 				return
 			}
@@ -109,9 +175,9 @@ func (s *ServiceRegistry) ensureRegistration(ctx context.Context) {
 	s.logger.Error("error fetching service", "error", err)
 }
 
-func (s *ServiceRegistry) retryRegistration(ctx context.Context) error {
+func (s *ServiceRegistry) retryRegistration(ctx context.Context, registration *api.AgentServiceRegistration) error {
 	return backoff.Retry(func() error {
-		err := s.register(ctx)
+		err := s.registerService(ctx, registration)
 		if err != nil {
 			s.logger.Error("error registering service", "error", err)
 		}
@@ -119,24 +185,7 @@ func (s *ServiceRegistry) retryRegistration(ctx context.Context) error {
 	}, backoff.WithContext(backoff.WithMaxRetries(backoff.NewConstantBackOff(s.backoffInterval), s.tries), ctx))
 }
 
-func (s *ServiceRegistry) register(ctx context.Context) error {
-	registration := &api.AgentServiceRegistration{
-		Kind:      api.ServiceKind(api.IngressGateway),
-		ID:        s.id,
-		Name:      s.name,
-		Namespace: s.namespace,
-		Address:   s.host,
-		Meta: map[string]string{
-			"external-source": "consul-api-gateway",
-		},
-		Checks: api.AgentServiceChecks{{
-			Name:                           fmt.Sprintf("%s - Ready", serviceCheckName),
-			TCP:                            fmt.Sprintf("%s:%d", s.host, 20000),
-			Interval:                       serviceCheckInterval,
-			DeregisterCriticalServiceAfter: serviceDeregistrationTime,
-		}},
-	}
-
+func (s *ServiceRegistry) registerService(ctx context.Context, registration *api.AgentServiceRegistration) error {
 	return s.consul.Agent().ServiceRegisterOpts(registration, (&api.ServiceRegisterOpts{}).WithContext(ctx))
 }
 
