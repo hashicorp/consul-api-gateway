@@ -44,11 +44,11 @@ func (c *Command) Run(args []string) int {
 }
 
 const (
-	synopsis = "Gets the health of all registered Consul Gateway API controllers and deployments"
+	synopsis = "Gets the health of all registered Consul API Gateway controllers and gateways"
 	help     = `
 Usage: consul-api-gateway health [options]
 
-  Gets Consul Gateway API controller and deployment health.
+  Gets Consul API Gateway controller and gateway health.
 
   Additional flags and more advanced use cases are detailed below.
 `
