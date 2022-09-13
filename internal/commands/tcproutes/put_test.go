@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	v1 "github.com/hashicorp/consul-api-gateway/internal/api/v1"
-	"github.com/hashicorp/consul-api-gateway/internal/common"
+	apiTesting "github.com/hashicorp/consul-api-gateway/internal/testing"
 	"github.com/hashicorp/consul-api-gateway/internal/testing/vm"
 	"github.com/stretchr/testify/require"
 )
@@ -24,11 +24,11 @@ func TestPut_Fixtures(t *testing.T) {
 			// create a couple of TCP-based gateways and HTTP-based gateways
 			_, err := controller.Client.V1().CreateGateway(context.Background(), v1.Gateway{
 				Listeners: []v1.Listener{{
-					Name:     common.StringPtr("listener-1"),
+					Name:     apiTesting.StringPtr("listener-1"),
 					Port:     9091,
 					Protocol: v1.ListenerProtocolHttp,
 				}, {
-					Name:     common.StringPtr("listener-2"),
+					Name:     apiTesting.StringPtr("listener-2"),
 					Port:     9092,
 					Protocol: v1.ListenerProtocolHttp,
 				}},
@@ -38,11 +38,11 @@ func TestPut_Fixtures(t *testing.T) {
 
 			_, err = controller.Client.V1().CreateGateway(context.Background(), v1.Gateway{
 				Listeners: []v1.Listener{{
-					Name:     common.StringPtr("listener-1"),
+					Name:     apiTesting.StringPtr("listener-1"),
 					Port:     9095,
 					Protocol: v1.ListenerProtocolTcp,
 				}, {
-					Name:     common.StringPtr("listener-2"),
+					Name:     apiTesting.StringPtr("listener-2"),
 					Port:     9096,
 					Protocol: v1.ListenerProtocolTcp,
 				}},
@@ -55,7 +55,7 @@ func TestPut_Fixtures(t *testing.T) {
 					Port:     9097,
 					Protocol: v1.ListenerProtocolTcp,
 				}, {
-					Name:     common.StringPtr("listener-2"),
+					Name:     apiTesting.StringPtr("listener-2"),
 					Port:     9098,
 					Protocol: v1.ListenerProtocolTcp,
 				}},
