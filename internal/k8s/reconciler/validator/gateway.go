@@ -34,15 +34,17 @@ func NewGatewayValidator(client gatewayclient.Client) *GatewayValidator {
 	}
 }
 
-func (g *GatewayValidator) Validate(ctx context.Context, state *state.GatewayState, gateway *gwv1beta1.Gateway, service *core.Service) error {
+func (g *GatewayValidator) Validate(ctx context.Context, gateway *gwv1beta1.Gateway, service *core.Service) (*state.GatewayState, error) {
+	state := state.InitialGatewayState(gateway)
+
 	g.validateListenerConflicts(state, gateway)
 
 	if err := g.validatePods(ctx, state, gateway); err != nil {
-		return err
+		return nil, err
 	}
 
 	if err := g.validateGatewayIP(ctx, state, gateway, service); err != nil {
-		return err
+		return nil, err
 	}
 
 	if len(gateway.Spec.Addresses) != 0 {
@@ -50,10 +52,10 @@ func (g *GatewayValidator) Validate(ctx context.Context, state *state.GatewaySta
 	}
 
 	if err := g.validateListeners(ctx, state, gateway); err != nil {
-		return err
+		return nil, err
 	}
 
-	return nil
+	return state, nil
 }
 
 func (g *GatewayValidator) validateListeners(ctx context.Context, state *state.GatewayState, gateway *gwv1beta1.Gateway) error {

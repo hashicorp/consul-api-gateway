@@ -11,7 +11,10 @@ import (
 
 	consulAdapters "github.com/hashicorp/consul-api-gateway/internal/adapters/consul"
 	"github.com/hashicorp/consul-api-gateway/internal/api"
+<<<<<<< HEAD
 	"github.com/hashicorp/consul-api-gateway/internal/api/apiinternal"
+=======
+>>>>>>> 303159c4572f1dfb6af0dbd55cdedc1e55a6e7f3
 	"github.com/hashicorp/consul-api-gateway/internal/common"
 	"github.com/hashicorp/consul-api-gateway/internal/consul"
 	"github.com/hashicorp/consul-api-gateway/internal/envoy"
@@ -45,7 +48,10 @@ type Command struct {
 	flagControllerKeyFile  string // Server TLS key file
 
 	flagConsulAddress           string // Consul server address
+<<<<<<< HEAD
 	flagConsulXDSPort           uint   // Consul xDS server port
+=======
+>>>>>>> 303159c4572f1dfb6af0dbd55cdedc1e55a6e7f3
 	flagConsulToken             string // Consul token
 	flagConsulScheme            string // Consul server scheme
 	flagConsulTLSCAFile         string // Consul TLS CA file for TLS verification
@@ -83,8 +89,12 @@ func (c *Command) init() {
 	c.Flags.StringVar(&c.flagControllerCertFile, "gateway-controller-cert-file", "", "Path to TLS certificate file for HTTPS connections.")
 	c.Flags.StringVar(&c.flagControllerKeyFile, "gateway-controller-key-file", "", "Path to TLS key file for HTTPS connections.")
 
+<<<<<<< HEAD
 	c.Flags.StringVar(&c.flagConsulAddress, "consul-address", "127.0.0.1:8500", "Consul Address.")
 	c.Flags.UintVar(&c.flagConsulXDSPort, "consul-xds-port", 8502, "Consul xDS port.")
+=======
+	c.Flags.StringVar(&c.flagConsulAddress, "consul-address", "", "Consul Address.")
+>>>>>>> 303159c4572f1dfb6af0dbd55cdedc1e55a6e7f3
 	c.Flags.StringVar(&c.flagConsulToken, "consul-token", "", "Token to use for Consul client.")
 	c.Flags.StringVar(&c.flagConsulScheme, "consul-scheme", "", "Scheme to use for Consul client.")
 	c.Flags.StringVar(&c.flagConsulTLSCAFile, "consul-tls-ca-file", "", "Path to CA for Consul server.")

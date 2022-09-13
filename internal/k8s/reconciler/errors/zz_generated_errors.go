@@ -2,12 +2,12 @@ package errors
 
 // GENERATED from errors.yaml, DO NOT EDIT DIRECTLY
 
-type CertificateResolutionErrorType int
+type CertificateResolutionErrorType string
 
 const (
-	CertificateResolutionErrorTypeNotFound CertificateResolutionErrorType = iota
-	CertificateResolutionErrorTypeNotPermitted
-	CertificateResolutionErrorTypeUnsupported
+	CertificateResolutionErrorTypeNotFound     CertificateResolutionErrorType = "NotFoundError"
+	CertificateResolutionErrorTypeNotPermitted CertificateResolutionErrorType = "NotPermittedError"
+	CertificateResolutionErrorTypeUnsupported  CertificateResolutionErrorType = "UnsupportedError"
 )
 
 type CertificateResolutionError struct {
@@ -33,13 +33,13 @@ func (r CertificateResolutionError) Kind() CertificateResolutionErrorType {
 	return r.errorType
 }
 
-type BindErrorType int
+type BindErrorType string
 
 const (
-	BindErrorTypeRouteKind BindErrorType = iota
-	BindErrorTypeListenerNamespacePolicy
-	BindErrorTypeHostnameMismatch
-	BindErrorTypeRouteInvalid
+	BindErrorTypeRouteKind               BindErrorType = "RouteKindError"
+	BindErrorTypeListenerNamespacePolicy BindErrorType = "ListenerNamespacePolicyError"
+	BindErrorTypeHostnameMismatch        BindErrorType = "HostnameMismatchError"
+	BindErrorTypeRouteInvalid            BindErrorType = "RouteInvalidError"
 )
 
 type BindError struct {

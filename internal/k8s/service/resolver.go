@@ -22,18 +22,18 @@ import (
 
 //go:generate mockgen -source ./resolver.go -destination ./mocks/resolver.go -package mocks BackendResolver
 
-type ResolvedReferenceType int
+type ResolvedReferenceType string
 
-type ServiceResolutionErrorType int
+type ServiceResolutionErrorType string
 
 const (
-	K8sServiceResolutionErrorType ServiceResolutionErrorType = iota
-	BackendNotFoundErrorType
-	ConsulServiceResolutionErrorType
-	GenericResolutionErrorType
-	InvalidKindErrorType
-	NoResolutionErrorType
-	RefNotPermittedErrorType
+	K8sServiceResolutionErrorType    ServiceResolutionErrorType = ""
+	BackendNotFoundErrorType         ServiceResolutionErrorType = "BackendNotFoundError"
+	ConsulServiceResolutionErrorType ServiceResolutionErrorType = "ConsulServiceResolutionError"
+	GenericResolutionErrorType       ServiceResolutionErrorType = "GenericResolutionError"
+	InvalidKindErrorType             ServiceResolutionErrorType = "InvalidKindError"
+	NoResolutionErrorType            ServiceResolutionErrorType = "NoResolutionError"
+	RefNotPermittedErrorType         ServiceResolutionErrorType = "RefNotPermittedError"
 )
 
 var errorTypePrefixMap = map[ServiceResolutionErrorType]string{
@@ -132,8 +132,8 @@ func (r *ResolutionErrors) Empty() bool {
 }
 
 const (
-	HTTPRouteReference ResolvedReferenceType = iota
-	ConsulServiceReference
+	HTTPRouteReference     ResolvedReferenceType = "HTTPRoute"
+	ConsulServiceReference ResolvedReferenceType = "ConsulService"
 
 	MetaKeyKubeServiceName = "k8s-service-name"
 	MetaKeyKubeNS          = "k8s-namespace"

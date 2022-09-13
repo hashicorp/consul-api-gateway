@@ -9,8 +9,8 @@ import (
 	reflect "reflect"
 
 	gomock "github.com/golang/mock/gomock"
-	reconciler "github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler"
 	types "k8s.io/apimachinery/pkg/types"
+	v1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 	v1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 )
 
@@ -122,7 +122,7 @@ func (mr *MockReconcileManagerMockRecorder) UpsertGatewayClass(ctx, gc interface
 }
 
 // UpsertHTTPRoute mocks base method.
-func (m *MockReconcileManager) UpsertHTTPRoute(ctx context.Context, r reconciler.Route) error {
+func (m *MockReconcileManager) UpsertHTTPRoute(ctx context.Context, r *v1alpha2.HTTPRoute) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpsertHTTPRoute", ctx, r)
 	ret0, _ := ret[0].(error)
@@ -136,7 +136,7 @@ func (mr *MockReconcileManagerMockRecorder) UpsertHTTPRoute(ctx, r interface{}) 
 }
 
 // UpsertTCPRoute mocks base method.
-func (m *MockReconcileManager) UpsertTCPRoute(ctx context.Context, r reconciler.Route) error {
+func (m *MockReconcileManager) UpsertTCPRoute(ctx context.Context, r *v1alpha2.TCPRoute) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpsertTCPRoute", ctx, r)
 	ret0, _ := ret[0].(error)

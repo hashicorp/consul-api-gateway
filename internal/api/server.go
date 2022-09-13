@@ -25,6 +25,7 @@ type ServerConfig struct {
 }
 
 type Server struct {
+	logger          hclog.Logger
 	server          *http.Server
 	certFile        string
 	keyFile         string
@@ -37,6 +38,7 @@ func NewServer(config ServerConfig) *Server {
 	router.Mount("/api/internal", apiinternal.NewServer("/api/internal", config.Bootstrap, config.Consul, config.Logger))
 
 	return &Server{
+		logger: config.Logger,
 		server: &http.Server{
 			Handler: router,
 			Addr:    config.Address,
@@ -52,8 +54,10 @@ func (s *Server) Run(ctx context.Context) error {
 	errs := make(chan error, 1)
 	go func() {
 		if s.certFile != "" && s.keyFile != "" {
+			s.logger.Info("Certificate file and private key file provided, serving API over HTTPS", "address", s.server.Addr)
 			errs <- s.server.ListenAndServeTLS(s.certFile, s.keyFile)
 		} else {
+			s.logger.Info("TLS certificate configuration not provided, serving API over HTTP", "address", s.server.Addr)
 			errs <- s.server.ListenAndServe()
 		}
 	}()

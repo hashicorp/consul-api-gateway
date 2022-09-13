@@ -59,8 +59,9 @@ func RunServer(config ServerConfig) int {
 		return 1
 	}
 
+	adapter := consulAdapters.NewSyncAdapter(config.Logger.Named("consul-adapter"), consulClient)
 	store := memory.NewStore(memory.StoreConfig{
-		Adapter: consulAdapters.NewSyncAdapter(config.Logger.Named("consul-adapter"), consulClient),
+		Adapter: adapter,
 		Logger:  config.Logger.Named("state"),
 	})
 	group.Go(func() error {

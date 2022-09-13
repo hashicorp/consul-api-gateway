@@ -3,6 +3,9 @@ package status
 // GENERATED from statuses.yaml, DO NOT EDIT DIRECTLY
 
 import (
+	"encoding/json"
+	"errors"
+
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -100,6 +103,39 @@ func (s GatewayClassAcceptedStatus) Condition(generation int64) meta.Condition {
 		ObservedGeneration: generation,
 		LastTransitionTime: meta.Now(),
 	}
+}
+
+// MarshalJSON marshals a GatewayClassAcceptedStatus value to JSON
+func (s GatewayClassAcceptedStatus) MarshalJSON() ([]byte, error) {
+	data := map[string]string{}
+
+	if s.InvalidParameters != nil {
+		data["InvalidParameters"] = s.InvalidParameters.Error()
+	}
+
+	if s.Waiting != nil {
+		data["Waiting"] = s.Waiting.Error()
+	}
+
+	return json.Marshal(data)
+}
+
+// UnmarshalJSON unmarshals a GatewayClassAcceptedStatus from JSON
+func (s *GatewayClassAcceptedStatus) UnmarshalJSON(b []byte) error {
+	data := map[string]string{}
+	if err := json.Unmarshal(b, &data); err != nil {
+		return err
+	}
+
+	if err, ok := data["InvalidParameters"]; ok {
+		s.InvalidParameters = errors.New(err)
+	}
+
+	if err, ok := data["Waiting"]; ok {
+		s.Waiting = errors.New(err)
+	}
+
+	return nil
 }
 
 // HasError returns whether any of the GatewayClassAcceptedStatus errors are
@@ -249,6 +285,47 @@ func (s GatewayReadyStatus) Condition(generation int64) meta.Condition {
 	}
 }
 
+// MarshalJSON marshals a GatewayReadyStatus value to JSON
+func (s GatewayReadyStatus) MarshalJSON() ([]byte, error) {
+	data := map[string]string{}
+
+	if s.ListenersNotValid != nil {
+		data["ListenersNotValid"] = s.ListenersNotValid.Error()
+	}
+
+	if s.ListenersNotReady != nil {
+		data["ListenersNotReady"] = s.ListenersNotReady.Error()
+	}
+
+	if s.AddressNotAssigned != nil {
+		data["AddressNotAssigned"] = s.AddressNotAssigned.Error()
+	}
+
+	return json.Marshal(data)
+}
+
+// UnmarshalJSON unmarshals a GatewayReadyStatus from JSON
+func (s *GatewayReadyStatus) UnmarshalJSON(b []byte) error {
+	data := map[string]string{}
+	if err := json.Unmarshal(b, &data); err != nil {
+		return err
+	}
+
+	if err, ok := data["ListenersNotValid"]; ok {
+		s.ListenersNotValid = errors.New(err)
+	}
+
+	if err, ok := data["ListenersNotReady"]; ok {
+		s.ListenersNotReady = errors.New(err)
+	}
+
+	if err, ok := data["AddressNotAssigned"]; ok {
+		s.AddressNotAssigned = errors.New(err)
+	}
+
+	return nil
+}
+
 // HasError returns whether any of the GatewayReadyStatus errors are set.
 func (s GatewayReadyStatus) HasError() bool {
 	return s.ListenersNotValid != nil || s.ListenersNotReady != nil || s.AddressNotAssigned != nil
@@ -372,6 +449,55 @@ func (s GatewayScheduledStatus) Condition(generation int64) meta.Condition {
 	}
 }
 
+// MarshalJSON marshals a GatewayScheduledStatus value to JSON
+func (s GatewayScheduledStatus) MarshalJSON() ([]byte, error) {
+	data := map[string]string{}
+
+	if s.NotReconciled != nil {
+		data["NotReconciled"] = s.NotReconciled.Error()
+	}
+
+	if s.PodFailed != nil {
+		data["PodFailed"] = s.PodFailed.Error()
+	}
+
+	if s.Unknown != nil {
+		data["Unknown"] = s.Unknown.Error()
+	}
+
+	if s.NoResources != nil {
+		data["NoResources"] = s.NoResources.Error()
+	}
+
+	return json.Marshal(data)
+}
+
+// UnmarshalJSON unmarshals a GatewayScheduledStatus from JSON
+func (s *GatewayScheduledStatus) UnmarshalJSON(b []byte) error {
+	data := map[string]string{}
+	if err := json.Unmarshal(b, &data); err != nil {
+		return err
+	}
+
+	if err, ok := data["NotReconciled"]; ok {
+		s.NotReconciled = errors.New(err)
+	}
+
+	if err, ok := data["PodFailed"]; ok {
+		s.PodFailed = errors.New(err)
+	}
+
+	if err, ok := data["Unknown"]; ok {
+		s.Unknown = errors.New(err)
+	}
+
+	if err, ok := data["NoResources"]; ok {
+		s.NoResources = errors.New(err)
+	}
+
+	return nil
+}
+
 // HasError returns whether any of the GatewayScheduledStatus errors are set.
 func (s GatewayScheduledStatus) HasError() bool {
 	return s.NotReconciled != nil || s.PodFailed != nil || s.Unknown != nil || s.NoResources != nil
@@ -429,6 +555,31 @@ func (s GatewayInSyncStatus) Condition(generation int64) meta.Condition {
 		ObservedGeneration: generation,
 		LastTransitionTime: meta.Now(),
 	}
+}
+
+// MarshalJSON marshals a GatewayInSyncStatus value to JSON
+func (s GatewayInSyncStatus) MarshalJSON() ([]byte, error) {
+	data := map[string]string{}
+
+	if s.SyncError != nil {
+		data["SyncError"] = s.SyncError.Error()
+	}
+
+	return json.Marshal(data)
+}
+
+// UnmarshalJSON unmarshals a GatewayInSyncStatus from JSON
+func (s *GatewayInSyncStatus) UnmarshalJSON(b []byte) error {
+	data := map[string]string{}
+	if err := json.Unmarshal(b, &data); err != nil {
+		return err
+	}
+
+	if err, ok := data["SyncError"]; ok {
+		s.SyncError = errors.New(err)
+	}
+
+	return nil
 }
 
 // HasError returns whether any of the GatewayInSyncStatus errors are set.
@@ -580,6 +731,55 @@ func (s RouteAcceptedStatus) Condition(generation int64) meta.Condition {
 		ObservedGeneration: generation,
 		LastTransitionTime: meta.Now(),
 	}
+}
+
+// MarshalJSON marshals a RouteAcceptedStatus value to JSON
+func (s RouteAcceptedStatus) MarshalJSON() ([]byte, error) {
+	data := map[string]string{}
+
+	if s.InvalidRouteKind != nil {
+		data["InvalidRouteKind"] = s.InvalidRouteKind.Error()
+	}
+
+	if s.ListenerNamespacePolicy != nil {
+		data["ListenerNamespacePolicy"] = s.ListenerNamespacePolicy.Error()
+	}
+
+	if s.ListenerHostnameMismatch != nil {
+		data["ListenerHostnameMismatch"] = s.ListenerHostnameMismatch.Error()
+	}
+
+	if s.BindError != nil {
+		data["BindError"] = s.BindError.Error()
+	}
+
+	return json.Marshal(data)
+}
+
+// UnmarshalJSON unmarshals a RouteAcceptedStatus from JSON
+func (s *RouteAcceptedStatus) UnmarshalJSON(b []byte) error {
+	data := map[string]string{}
+	if err := json.Unmarshal(b, &data); err != nil {
+		return err
+	}
+
+	if err, ok := data["InvalidRouteKind"]; ok {
+		s.InvalidRouteKind = errors.New(err)
+	}
+
+	if err, ok := data["ListenerNamespacePolicy"]; ok {
+		s.ListenerNamespacePolicy = errors.New(err)
+	}
+
+	if err, ok := data["ListenerHostnameMismatch"]; ok {
+		s.ListenerHostnameMismatch = errors.New(err)
+	}
+
+	if err, ok := data["BindError"]; ok {
+		s.BindError = errors.New(err)
+	}
+
+	return nil
 }
 
 // RouteResolvedRefsStatus - This condition indicates whether the controller was
@@ -746,6 +946,71 @@ func (s RouteResolvedRefsStatus) Condition(generation int64) meta.Condition {
 	}
 }
 
+// MarshalJSON marshals a RouteResolvedRefsStatus value to JSON
+func (s RouteResolvedRefsStatus) MarshalJSON() ([]byte, error) {
+	data := map[string]string{}
+
+	if s.Errors != nil {
+		data["Errors"] = s.Errors.Error()
+	}
+
+	if s.ServiceNotFound != nil {
+		data["ServiceNotFound"] = s.ServiceNotFound.Error()
+	}
+
+	if s.ConsulServiceNotFound != nil {
+		data["ConsulServiceNotFound"] = s.ConsulServiceNotFound.Error()
+	}
+
+	if s.RefNotPermitted != nil {
+		data["RefNotPermitted"] = s.RefNotPermitted.Error()
+	}
+
+	if s.InvalidKind != nil {
+		data["InvalidKind"] = s.InvalidKind.Error()
+	}
+
+	if s.BackendNotFound != nil {
+		data["BackendNotFound"] = s.BackendNotFound.Error()
+	}
+
+	return json.Marshal(data)
+}
+
+// UnmarshalJSON unmarshals a RouteResolvedRefsStatus from JSON
+func (s *RouteResolvedRefsStatus) UnmarshalJSON(b []byte) error {
+	data := map[string]string{}
+	if err := json.Unmarshal(b, &data); err != nil {
+		return err
+	}
+
+	if err, ok := data["Errors"]; ok {
+		s.Errors = errors.New(err)
+	}
+
+	if err, ok := data["ServiceNotFound"]; ok {
+		s.ServiceNotFound = errors.New(err)
+	}
+
+	if err, ok := data["ConsulServiceNotFound"]; ok {
+		s.ConsulServiceNotFound = errors.New(err)
+	}
+
+	if err, ok := data["RefNotPermitted"]; ok {
+		s.RefNotPermitted = errors.New(err)
+	}
+
+	if err, ok := data["InvalidKind"]; ok {
+		s.InvalidKind = errors.New(err)
+	}
+
+	if err, ok := data["BackendNotFound"]; ok {
+		s.BackendNotFound = errors.New(err)
+	}
+
+	return nil
+}
+
 // HasError returns whether any of the RouteResolvedRefsStatus errors are set.
 func (s RouteResolvedRefsStatus) HasError() bool {
 	return s.Errors != nil || s.ServiceNotFound != nil || s.ConsulServiceNotFound != nil || s.RefNotPermitted != nil || s.InvalidKind != nil || s.BackendNotFound != nil
@@ -880,6 +1145,47 @@ func (s ListenerConflictedStatus) Condition(generation int64) meta.Condition {
 		ObservedGeneration: generation,
 		LastTransitionTime: meta.Now(),
 	}
+}
+
+// MarshalJSON marshals a ListenerConflictedStatus value to JSON
+func (s ListenerConflictedStatus) MarshalJSON() ([]byte, error) {
+	data := map[string]string{}
+
+	if s.HostnameConflict != nil {
+		data["HostnameConflict"] = s.HostnameConflict.Error()
+	}
+
+	if s.ProtocolConflict != nil {
+		data["ProtocolConflict"] = s.ProtocolConflict.Error()
+	}
+
+	if s.RouteConflict != nil {
+		data["RouteConflict"] = s.RouteConflict.Error()
+	}
+
+	return json.Marshal(data)
+}
+
+// UnmarshalJSON unmarshals a ListenerConflictedStatus from JSON
+func (s *ListenerConflictedStatus) UnmarshalJSON(b []byte) error {
+	data := map[string]string{}
+	if err := json.Unmarshal(b, &data); err != nil {
+		return err
+	}
+
+	if err, ok := data["HostnameConflict"]; ok {
+		s.HostnameConflict = errors.New(err)
+	}
+
+	if err, ok := data["ProtocolConflict"]; ok {
+		s.ProtocolConflict = errors.New(err)
+	}
+
+	if err, ok := data["RouteConflict"]; ok {
+		s.RouteConflict = errors.New(err)
+	}
+
+	return nil
 }
 
 // HasError returns whether any of the ListenerConflictedStatus errors are set.
@@ -1042,6 +1348,55 @@ func (s ListenerDetachedStatus) Condition(generation int64) meta.Condition {
 	}
 }
 
+// MarshalJSON marshals a ListenerDetachedStatus value to JSON
+func (s ListenerDetachedStatus) MarshalJSON() ([]byte, error) {
+	data := map[string]string{}
+
+	if s.PortUnavailable != nil {
+		data["PortUnavailable"] = s.PortUnavailable.Error()
+	}
+
+	if s.UnsupportedExtension != nil {
+		data["UnsupportedExtension"] = s.UnsupportedExtension.Error()
+	}
+
+	if s.UnsupportedProtocol != nil {
+		data["UnsupportedProtocol"] = s.UnsupportedProtocol.Error()
+	}
+
+	if s.UnsupportedAddress != nil {
+		data["UnsupportedAddress"] = s.UnsupportedAddress.Error()
+	}
+
+	return json.Marshal(data)
+}
+
+// UnmarshalJSON unmarshals a ListenerDetachedStatus from JSON
+func (s *ListenerDetachedStatus) UnmarshalJSON(b []byte) error {
+	data := map[string]string{}
+	if err := json.Unmarshal(b, &data); err != nil {
+		return err
+	}
+
+	if err, ok := data["PortUnavailable"]; ok {
+		s.PortUnavailable = errors.New(err)
+	}
+
+	if err, ok := data["UnsupportedExtension"]; ok {
+		s.UnsupportedExtension = errors.New(err)
+	}
+
+	if err, ok := data["UnsupportedProtocol"]; ok {
+		s.UnsupportedProtocol = errors.New(err)
+	}
+
+	if err, ok := data["UnsupportedAddress"]; ok {
+		s.UnsupportedAddress = errors.New(err)
+	}
+
+	return nil
+}
+
 // HasError returns whether any of the ListenerDetachedStatus errors are set.
 func (s ListenerDetachedStatus) HasError() bool {
 	return s.PortUnavailable != nil || s.UnsupportedExtension != nil || s.UnsupportedProtocol != nil || s.UnsupportedAddress != nil
@@ -1121,6 +1476,39 @@ func (s ListenerReadyStatus) Condition(generation int64) meta.Condition {
 		ObservedGeneration: generation,
 		LastTransitionTime: meta.Now(),
 	}
+}
+
+// MarshalJSON marshals a ListenerReadyStatus value to JSON
+func (s ListenerReadyStatus) MarshalJSON() ([]byte, error) {
+	data := map[string]string{}
+
+	if s.Invalid != nil {
+		data["Invalid"] = s.Invalid.Error()
+	}
+
+	if s.Pending != nil {
+		data["Pending"] = s.Pending.Error()
+	}
+
+	return json.Marshal(data)
+}
+
+// UnmarshalJSON unmarshals a ListenerReadyStatus from JSON
+func (s *ListenerReadyStatus) UnmarshalJSON(b []byte) error {
+	data := map[string]string{}
+	if err := json.Unmarshal(b, &data); err != nil {
+		return err
+	}
+
+	if err, ok := data["Invalid"]; ok {
+		s.Invalid = errors.New(err)
+	}
+
+	if err, ok := data["Pending"]; ok {
+		s.Pending = errors.New(err)
+	}
+
+	return nil
 }
 
 // HasError returns whether any of the ListenerReadyStatus errors are set.
@@ -1229,6 +1617,47 @@ func (s ListenerResolvedRefsStatus) Condition(generation int64) meta.Condition {
 		ObservedGeneration: generation,
 		LastTransitionTime: meta.Now(),
 	}
+}
+
+// MarshalJSON marshals a ListenerResolvedRefsStatus value to JSON
+func (s ListenerResolvedRefsStatus) MarshalJSON() ([]byte, error) {
+	data := map[string]string{}
+
+	if s.InvalidCertificateRef != nil {
+		data["InvalidCertificateRef"] = s.InvalidCertificateRef.Error()
+	}
+
+	if s.InvalidRouteKinds != nil {
+		data["InvalidRouteKinds"] = s.InvalidRouteKinds.Error()
+	}
+
+	if s.RefNotPermitted != nil {
+		data["RefNotPermitted"] = s.RefNotPermitted.Error()
+	}
+
+	return json.Marshal(data)
+}
+
+// UnmarshalJSON unmarshals a ListenerResolvedRefsStatus from JSON
+func (s *ListenerResolvedRefsStatus) UnmarshalJSON(b []byte) error {
+	data := map[string]string{}
+	if err := json.Unmarshal(b, &data); err != nil {
+		return err
+	}
+
+	if err, ok := data["InvalidCertificateRef"]; ok {
+		s.InvalidCertificateRef = errors.New(err)
+	}
+
+	if err, ok := data["InvalidRouteKinds"]; ok {
+		s.InvalidRouteKinds = errors.New(err)
+	}
+
+	if err, ok := data["RefNotPermitted"]; ok {
+		s.RefNotPermitted = errors.New(err)
+	}
+
+	return nil
 }
 
 // HasError returns whether any of the ListenerResolvedRefsStatus errors are

@@ -1,12 +1,14 @@
 package reconciler
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 
 	"github.com/hashicorp/go-hclog"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	k8sjson "k8s.io/apimachinery/pkg/runtime/serializer/json"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gwv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
@@ -16,13 +18,13 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/converter"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/state"
-	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/validator"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/service"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	"github.com/hashicorp/consul-api-gateway/internal/store"
 )
 
-// all kubernetes routes implement the following two interfaces
+// Route represents any Kubernetes route type - currently v1alpha2.HTTPRoute
+// and v1alpha2.TCPRoute - as both implement client.Object and schema.ObjectKind
 type Route interface {
 	client.Object
 	schema.ObjectKind
@@ -35,7 +37,12 @@ type K8sRoute struct {
 	controllerName string
 	logger         hclog.Logger
 	client         gatewayclient.Client
-	validator      *validator.RouteValidator
+}
+
+type serializedRoute struct {
+	GVK        schema.GroupVersionKind
+	Route      []byte
+	RouteState *state.RouteState
 }
 
 var _ store.StatusTrackingRoute = &K8sRoute{}
@@ -45,16 +52,16 @@ type K8sRouteConfig struct {
 	Logger         hclog.Logger
 	Client         gatewayclient.Client
 	Resolver       service.BackendResolver
+	State          *state.RouteState
 }
 
 func newK8sRoute(route Route, config K8sRouteConfig) *K8sRoute {
 	return &K8sRoute{
 		Route:          route,
-		RouteState:     state.NewRouteState(),
+		RouteState:     config.State,
 		controllerName: config.ControllerName,
 		logger:         config.Logger.Named("route").With("name", route.GetName()),
 		client:         config.Client,
-		validator:      validator.NewRouteValidator(config.Resolver, config.Client),
 	}
 }
 
@@ -77,7 +84,7 @@ func (r *K8sRoute) matchesHostname(hostname *gwv1beta1.Hostname) bool {
 	}
 }
 
-func (r *K8sRoute) CommonRouteSpec() gwv1alpha2.CommonRouteSpec {
+func (r *K8sRoute) commonRouteSpec() gwv1alpha2.CommonRouteSpec {
 	switch route := r.Route.(type) {
 	case *gwv1alpha2.HTTPRoute:
 		return route.Spec.CommonRouteSpec
@@ -97,7 +104,7 @@ func (r *K8sRoute) routeStatus() gwv1alpha2.RouteStatus {
 	return gwv1alpha2.RouteStatus{}
 }
 
-func (r *K8sRoute) SetStatus(updated gwv1alpha2.RouteStatus) {
+func (r *K8sRoute) setStatus(updated gwv1alpha2.RouteStatus) {
 	switch route := r.Route.(type) {
 	case *gwv1alpha2.HTTPRoute:
 		route.Status.RouteStatus = updated
@@ -108,7 +115,7 @@ func (r *K8sRoute) SetStatus(updated gwv1alpha2.RouteStatus) {
 
 func (r *K8sRoute) SyncStatus(ctx context.Context) error {
 	if status, ok := r.RouteState.ParentStatuses.NeedsUpdate(r.routeStatus(), r.controllerName, r.GetGeneration()); ok {
-		r.SetStatus(status)
+		r.setStatus(status)
 
 		if r.logger.IsTrace() {
 			status, err := json.MarshalIndent(r.routeStatus(), "", "  ")
@@ -118,7 +125,7 @@ func (r *K8sRoute) SyncStatus(ctx context.Context) error {
 		}
 		if err := r.client.UpdateStatus(ctx, r.Route); err != nil {
 			// reset the status so we sync again on a retry
-			r.SetStatus(status)
+			r.setStatus(status)
 			return fmt.Errorf("error updating route status: %w", err)
 		}
 	}
@@ -166,7 +173,7 @@ func (r *K8sRoute) resolve(namespace string, gateway *gwv1beta1.Gateway, listene
 	}
 }
 
-func (r *K8sRoute) Parents() []gwv1alpha2.ParentReference {
+func (r *K8sRoute) parents() []gwv1alpha2.ParentReference {
 	// filter for this controller
 	switch route := r.Route.(type) {
 	case *gwv1alpha2.HTTPRoute:
@@ -177,15 +184,11 @@ func (r *K8sRoute) Parents() []gwv1alpha2.ParentReference {
 	return nil
 }
 
-func (r *K8sRoute) Validate(ctx context.Context) error {
-	return r.validator.Validate(ctx, r.RouteState, r.Route)
-}
-
 func (r *K8sRoute) OnGatewayRemoved(gateway store.Gateway) {
 	k8sGateway, ok := gateway.(*K8sGateway)
 	if ok {
 		parent := utils.NamespacedName(k8sGateway.Gateway)
-		for _, p := range r.Parents() {
+		for _, p := range r.parents() {
 			gatewayName, isGateway := utils.ReferencesGateway(r.GetNamespace(), p)
 			if isGateway && gatewayName == parent {
 				r.RouteState.Remove(p)
@@ -195,8 +198,43 @@ func (r *K8sRoute) OnGatewayRemoved(gateway store.Gateway) {
 	}
 }
 
-func (r *K8sRoute) IsValid() bool {
-	return r.RouteState.ResolutionErrors.Empty()
+func (r *K8sRoute) UnmarshalJSON(b []byte) error {
+	stored := &serializedRoute{}
+	if err := json.Unmarshal(b, stored); err != nil {
+		return err
+	}
+
+	var into Route
+	switch stored.GVK.Kind {
+	case "HTTPRoute":
+		into = &gwv1alpha2.HTTPRoute{}
+	case "TCPRoute":
+		into = &gwv1alpha2.TCPRoute{}
+	}
+
+	serializer := k8sjson.NewSerializer(k8sjson.DefaultMetaFactory, scheme, scheme, false)
+	if _, _, err := serializer.Decode(stored.Route, &stored.GVK, into); err != nil {
+		return err
+	}
+
+	r.Route = into
+	r.RouteState = stored.RouteState
+
+	return nil
+}
+
+func (r K8sRoute) MarshalJSON() ([]byte, error) {
+	var buffer bytes.Buffer
+	serializer := k8sjson.NewSerializer(k8sjson.DefaultMetaFactory, scheme, scheme, false)
+	if err := serializer.Encode(r.Route, &buffer); err != nil {
+		return nil, err
+	}
+
+	return json.Marshal(&serializedRoute{
+		GVK:        r.Route.GetObjectKind().GroupVersionKind(),
+		Route:      buffer.Bytes(),
+		RouteState: r.RouteState,
+	})
 }
 
 func HTTPRouteID(namespacedName types.NamespacedName) string {

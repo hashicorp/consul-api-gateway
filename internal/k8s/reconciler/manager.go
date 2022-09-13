@@ -15,6 +15,7 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/common"
 	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/validator"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/service"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	"github.com/hashicorp/consul-api-gateway/internal/store"
@@ -30,8 +31,8 @@ const (
 type ReconcileManager interface {
 	UpsertGatewayClass(ctx context.Context, gc *gwv1beta1.GatewayClass) error
 	UpsertGateway(ctx context.Context, g *gwv1beta1.Gateway) error
-	UpsertHTTPRoute(ctx context.Context, r Route) error
-	UpsertTCPRoute(ctx context.Context, r Route) error
+	UpsertHTTPRoute(ctx context.Context, r *gwv1alpha2.HTTPRoute) error
+	UpsertTCPRoute(ctx context.Context, r *gwv1alpha2.TCPRoute) error
 	DeleteGatewayClass(ctx context.Context, name string) error
 	DeleteGateway(ctx context.Context, name types.NamespacedName) error
 	DeleteHTTPRoute(ctx context.Context, name types.NamespacedName) error
@@ -49,10 +50,12 @@ type GatewayReconcileManager struct {
 	sdsHost        string
 	sdsPort        int
 
-	deployer       *GatewayDeployer
-	store          store.Store
-	gatewayClasses *K8sGatewayClasses
-	factory        *Factory
+	deployer         *GatewayDeployer
+	store            store.Store
+	gatewayClasses   *K8sGatewayClasses
+	gatewayValidator *validator.GatewayValidator
+	routeValidator   *validator.RouteValidator
+	factory          *Factory
 
 	consulNamespaceMapper common.ConsulNamespaceMapper
 
@@ -94,6 +97,8 @@ func NewReconcileManager(config ManagerConfig) *GatewayReconcileManager {
 		sdsHost:               config.SDSHost,
 		sdsPort:               config.SDSPort,
 		gatewayClasses:        NewK8sGatewayClasses(config.Logger.Named("gatewayclasses"), config.Client),
+		gatewayValidator:      validator.NewGatewayValidator(config.Client),
+		routeValidator:        validator.NewRouteValidator(resolver, config.Client),
 		namespaceMap:          make(map[types.NamespacedName]string),
 		consulNamespaceMapper: config.ConsulNamespaceMapper,
 		deployer:              deployer,
@@ -180,19 +185,23 @@ func (m *GatewayReconcileManager) UpsertGateway(ctx context.Context, g *gwv1beta
 	consulNamespace := m.consulNamespaceMapper(g.GetNamespace())
 
 	m.namespaceMap[utils.NamespacedName(g)] = consulNamespace
-	gateway := m.factory.NewGateway(NewGatewayConfig{
-		Gateway:         g,
-		Config:          config,
-		ConsulNamespace: consulNamespace,
-	})
 
 	// Calling validate outside of the upsert process allows us to re-resolve any
 	// external references and set the statuses accordingly. Since we actually
 	// have other object updates triggering reconciliation loops, this is necessary
 	// prior to dirty-checking on upsert.
-	if err := gateway.Validate(ctx); err != nil {
+	state, err := m.gatewayValidator.Validate(ctx, g, m.deployer.Service(config, g))
+	if err != nil {
 		return err
 	}
+	state.ConsulNamespace = consulNamespace
+
+	gateway := m.factory.NewGateway(NewGatewayConfig{
+		Gateway:         g,
+		State:           state,
+		Config:          config,
+		ConsulNamespace: consulNamespace,
+	})
 
 	return m.store.UpsertGateway(ctx, gateway, func(current store.Gateway) bool {
 		if current == nil {
@@ -202,25 +211,22 @@ func (m *GatewayReconcileManager) UpsertGateway(ctx context.Context, g *gwv1beta
 	})
 }
 
-func (m *GatewayReconcileManager) UpsertHTTPRoute(ctx context.Context, r Route) error {
-	return m.upsertRoute(ctx, r, HTTPRouteID(utils.NamespacedName(r)))
+func (m *GatewayReconcileManager) UpsertHTTPRoute(ctx context.Context, r *gwv1alpha2.HTTPRoute) error {
+	return m.upsertRoute(ctx, r, r.Spec.ParentRefs, HTTPRouteID(utils.NamespacedName(r)))
 }
 
-func (m *GatewayReconcileManager) UpsertTCPRoute(ctx context.Context, r Route) error {
-	return m.upsertRoute(ctx, r, TCPRouteID(utils.NamespacedName(r)))
+func (m *GatewayReconcileManager) UpsertTCPRoute(ctx context.Context, r *gwv1alpha2.TCPRoute) error {
+	return m.upsertRoute(ctx, r, r.Spec.ParentRefs, TCPRouteID(utils.NamespacedName(r)))
 }
 
-func (m *GatewayReconcileManager) upsertRoute(ctx context.Context, r Route, id string) error {
+func (m *GatewayReconcileManager) upsertRoute(ctx context.Context, r Route, parents []gwv1alpha2.ParentReference, id string) error {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 
-	route := m.factory.NewRoute(r)
-
-	managed, err := m.deleteUnmanagedRoute(ctx, route, id)
+	managed, err := m.deleteUnmanagedRoute(ctx, r.GetNamespace(), parents, id)
 	if err != nil {
 		return err
-	}
-	if !managed {
+	} else if !managed {
 		return nil
 	}
 
@@ -228,9 +234,16 @@ func (m *GatewayReconcileManager) upsertRoute(ctx context.Context, r Route, id s
 	// external references and set the statuses accordingly. Since we actually
 	// have other object updates triggering reconciliation loops, this is necessary
 	// prior to dirty-checking on upsert.
-	if err := route.Validate(ctx); err != nil {
+	state, err := m.routeValidator.Validate(ctx, r)
+	if err != nil {
 		return err
 	}
+
+	route := m.factory.NewRoute(NewRouteConfig{
+		Route: r,
+		State: state,
+	})
+
 	return m.store.UpsertRoute(ctx, route, func(current store.Route) bool {
 		if current == nil {
 			return true
@@ -268,13 +281,13 @@ func (m *GatewayReconcileManager) DeleteTCPRoute(ctx context.Context, name types
 	return m.store.DeleteRoute(ctx, TCPRouteID(name))
 }
 
-func (m *GatewayReconcileManager) deleteUnmanagedRoute(ctx context.Context, route *K8sRoute, id string) (bool, error) {
+func (m *GatewayReconcileManager) deleteUnmanagedRoute(ctx context.Context, namespace string, parents []gwv1alpha2.ParentReference, id string) (bool, error) {
 	// check our cache first
-	managed := m.managedByCachedGatewaysForRoute(route.GetNamespace(), route.Parents())
+	managed := m.managedByCachedGatewaysForRoute(namespace, parents)
 	if !managed {
 		var err error
 		// we might not yet have the gateway in our cache, check remotely
-		if managed, err = m.client.IsManagedRoute(ctx, route.GetNamespace(), route.Parents()); err != nil {
+		if managed, err = m.client.IsManagedRoute(ctx, namespace, parents); err != nil {
 			return false, err
 		}
 	}

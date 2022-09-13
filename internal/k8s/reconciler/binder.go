@@ -25,40 +25,34 @@ const (
 // binder wraps a Gateway and the corresponding GatewayState and encapsulates
 // the logic for binding new routes to that Gateway.
 type binder struct {
-	Client       gatewayclient.Client
-	Gateway      *gwv1beta1.Gateway
-	GatewayState *state.GatewayState
+	Client gatewayclient.Client
 }
 
-func newBinder(client gatewayclient.Client, gateway *gwv1beta1.Gateway, state *state.GatewayState) *binder {
-	return &binder{
-		Client:       client,
-		Gateway:      gateway,
-		GatewayState: state,
-	}
+func NewBinder(client gatewayclient.Client) *binder {
+	return &binder{Client: client}
 }
 
 // Bind will attempt to bind the provided route to all listeners on the Gateway and
 // remove the route from any listeners that the route should no longer be bound to.
 // The latter is important for scenarios such as the route's parent changing.
-func (b *binder) Bind(ctx context.Context, route *K8sRoute) []string {
+func (b *binder) Bind(ctx context.Context, gateway *K8sGateway, route *K8sRoute) []string {
 	var boundListeners []string
 
 	// If the route doesn't reference this Gateway, remove the route
 	// from any listeners that it may have previously bound to
-	if !b.routeReferencesThisGateway(route) {
-		for _, listenerState := range b.GatewayState.Listeners {
+	if !b.routeReferencesGateway(route, gateway) {
+		for _, listenerState := range gateway.GatewayState.Listeners {
 			delete(listenerState.Routes, route.ID())
 		}
 		return boundListeners
 	}
 
 	// The route does reference this Gateway, so attempt to bind to each listener
-	for _, ref := range route.CommonRouteSpec().ParentRefs {
-		for i, listener := range b.Gateway.Spec.Listeners {
-			listenerState := b.GatewayState.Listeners[i]
-			if b.canBind(ctx, listener, listenerState, ref, route) {
-				listenerState.Routes[route.ID()] = route.resolve(b.GatewayState.ConsulNamespace, b.Gateway, listener)
+	for _, ref := range route.commonRouteSpec().ParentRefs {
+		for i, listener := range gateway.Spec.Listeners {
+			listenerState := gateway.GatewayState.Listeners[i]
+			if b.canBind(ctx, gateway.Namespace, listener, listenerState, ref, route) {
+				listenerState.Routes[route.ID()] = route.resolve(gateway.GatewayState.ConsulNamespace, gateway.Gateway, listener)
 				boundListeners = append(boundListeners, string(listener.Name))
 			} else {
 				// If the route cannot bind to this listener, remove the route
@@ -71,9 +65,9 @@ func (b *binder) Bind(ctx context.Context, route *K8sRoute) []string {
 	return boundListeners
 }
 
-func (b *binder) routeReferencesThisGateway(route *K8sRoute) bool {
-	thisGateway := utils.NamespacedName(b.Gateway)
-	for _, ref := range route.CommonRouteSpec().ParentRefs {
+func (b *binder) routeReferencesGateway(route *K8sRoute, gateway *K8sGateway) bool {
+	thisGateway := utils.NamespacedName(gateway)
+	for _, ref := range route.commonRouteSpec().ParentRefs {
 		gatewayReferenced, isGatewayTypeRef := utils.ReferencesGateway(route.GetNamespace(), ref)
 		if isGatewayTypeRef && gatewayReferenced == thisGateway {
 			return true
@@ -82,7 +76,7 @@ func (b *binder) routeReferencesThisGateway(route *K8sRoute) bool {
 	return false
 }
 
-func (b *binder) canBind(ctx context.Context, listener gwv1beta1.Listener, state *state.ListenerState, ref gwv1alpha2.ParentReference, route *K8sRoute) bool {
+func (b *binder) canBind(ctx context.Context, namespace string, listener gwv1beta1.Listener, state *state.ListenerState, ref gwv1alpha2.ParentReference, route *K8sRoute) bool {
 	if state.Status.Ready.HasError() {
 		return false
 	}
@@ -101,7 +95,7 @@ func (b *binder) canBind(ctx context.Context, listener gwv1beta1.Listener, state
 		return false
 	}
 
-	allowed, err := routeAllowedForListenerNamespaces(ctx, b.Gateway.Namespace, listener.AllowedRoutes, route, b.Client)
+	allowed, err := routeAllowedForListenerNamespaces(ctx, namespace, listener.AllowedRoutes, route, b.Client)
 	if err != nil {
 		route.RouteState.BindFailed(fmt.Errorf("error checking listener namespaces: %w", err), ref)
 		return false

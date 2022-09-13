@@ -16,6 +16,7 @@ import (
 	gwv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	clientMocks "github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient/mocks"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/state"
 )
 
 func TestRouteID(t *testing.T) {
@@ -70,13 +71,13 @@ func TestRouteCommonRouteSpec(t *testing.T) {
 		Spec: gwv1alpha2.HTTPRouteSpec{
 			CommonRouteSpec: expected,
 		},
-	}, config).CommonRouteSpec())
+	}, config).commonRouteSpec())
 	require.Equal(t, expected, newK8sRoute(&gwv1alpha2.TCPRoute{
 		Spec: gwv1alpha2.TCPRouteSpec{
 			CommonRouteSpec: expected,
 		},
-	}, config).CommonRouteSpec())
-	require.Equal(t, gwv1alpha2.CommonRouteSpec{}, newK8sRoute(&core.Pod{}, config).CommonRouteSpec())
+	}, config).commonRouteSpec())
+	require.Equal(t, gwv1alpha2.CommonRouteSpec{}, newK8sRoute(&core.Pod{}, config).commonRouteSpec())
 }
 
 func TestRouteSetStatus(t *testing.T) {
@@ -96,18 +97,18 @@ func TestRouteSetStatus(t *testing.T) {
 
 	httpRoute := &gwv1alpha2.HTTPRoute{}
 	route := newK8sRoute(httpRoute, config)
-	route.SetStatus(expected)
+	route.setStatus(expected)
 	require.Equal(t, expected, httpRoute.Status.RouteStatus)
 	require.Equal(t, expected, route.routeStatus())
 
 	tcpRoute := &gwv1alpha2.TCPRoute{}
 	route = newK8sRoute(tcpRoute, config)
-	route.SetStatus(expected)
+	route.setStatus(expected)
 	require.Equal(t, expected, tcpRoute.Status.RouteStatus)
 	require.Equal(t, expected, route.routeStatus())
 
 	route = newK8sRoute(&core.Pod{}, config)
-	route.SetStatus(expected)
+	route.setStatus(expected)
 	require.Equal(t, gwv1alpha2.RouteStatus{}, route.routeStatus())
 }
 
@@ -124,13 +125,13 @@ func TestRouteParents(t *testing.T) {
 		}},
 	}
 
-	parents := newK8sRoute(&gwv1alpha2.HTTPRoute{Spec: gwv1alpha2.HTTPRouteSpec{CommonRouteSpec: expected}}, config).Parents()
+	parents := newK8sRoute(&gwv1alpha2.HTTPRoute{Spec: gwv1alpha2.HTTPRouteSpec{CommonRouteSpec: expected}}, config).parents()
 	require.Equal(t, expected.ParentRefs, parents)
 
-	parents = newK8sRoute(&gwv1alpha2.TCPRoute{Spec: gwv1alpha2.TCPRouteSpec{CommonRouteSpec: expected}}, config).Parents()
+	parents = newK8sRoute(&gwv1alpha2.TCPRoute{Spec: gwv1alpha2.TCPRouteSpec{CommonRouteSpec: expected}}, config).parents()
 	require.Equal(t, expected.ParentRefs, parents)
 
-	require.Nil(t, newK8sRoute(&core.Pod{}, config).Parents())
+	require.Nil(t, newK8sRoute(&core.Pod{}, config).parents())
 }
 
 func TestRouteMatchesHostname(t *testing.T) {
@@ -175,9 +176,9 @@ func TestRouteResolve(t *testing.T) {
 	}
 	listener := gwv1beta1.Listener{}
 
-	require.Nil(t, factory.NewRoute(&core.Pod{}).resolve("", gateway, listener))
+	require.Nil(t, factory.NewRoute(NewRouteConfig{Route: &core.Pod{}}).resolve("", gateway, listener))
 
-	require.NotNil(t, factory.NewRoute(&gwv1alpha2.HTTPRoute{}).resolve("", gateway, listener))
+	require.NotNil(t, factory.NewRoute(NewRouteConfig{Route: &gwv1alpha2.HTTPRoute{}}).resolve("", gateway, listener))
 }
 
 func TestRouteSyncStatus(t *testing.T) {
@@ -226,6 +227,7 @@ func TestRouteSyncStatus(t *testing.T) {
 		ControllerName: "expected",
 		Logger:         logger,
 		Client:         client,
+		State:          state.NewRouteState(),
 	})
 	route.RouteState.Bound(gwv1alpha2.ParentReference{Name: "expected"})
 
