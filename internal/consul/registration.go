@@ -70,7 +70,22 @@ func (s *ServiceRegistry) WithTries(tries uint64) *ServiceRegistry {
 }
 
 // Register registers a Gateway service with Consul.
-func (s *ServiceRegistry) RegisterGateway(ctx context.Context) error {
+func (s *ServiceRegistry) RegisterGateway(ctx context.Context, ttl bool) error {
+	serviceChecks := api.AgentServiceChecks{{
+		Name:                           fmt.Sprintf("%s - Ready", serviceCheckName),
+		TCP:                            fmt.Sprintf("%s:%d", s.host, 20000),
+		Interval:                       serviceCheckInterval,
+		DeregisterCriticalServiceAfter: serviceDeregistrationTime,
+	}}
+	if ttl {
+		serviceChecks = api.AgentServiceChecks{{
+			CheckID:                        s.id,
+			Name:                           fmt.Sprintf("%s - Health", s.name),
+			TTL:                            serviceCheckTTL,
+			DeregisterCriticalServiceAfter: serviceDeregistrationTime,
+		}}
+	}
+
 	return s.register(ctx, &api.AgentServiceRegistration{
 		Kind:      api.ServiceKind(api.IngressGateway),
 		ID:        s.id,
@@ -81,13 +96,8 @@ func (s *ServiceRegistry) RegisterGateway(ctx context.Context) error {
 		Meta: map[string]string{
 			"external-source": "consul-api-gateway",
 		},
-		Checks: api.AgentServiceChecks{{
-			Name:                           fmt.Sprintf("%s - Ready", serviceCheckName),
-			TCP:                            fmt.Sprintf("%s:%d", s.host, 20000),
-			Interval:                       serviceCheckInterval,
-			DeregisterCriticalServiceAfter: serviceDeregistrationTime,
-		}},
-	}, false)
+		Checks: serviceChecks,
+	}, ttl)
 }
 
 // Register registers a service with Consul.

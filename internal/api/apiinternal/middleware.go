@@ -1,4 +1,4 @@
-package internal
+package apiinternal
 
 import "net/http"
 

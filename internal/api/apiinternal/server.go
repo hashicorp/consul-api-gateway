@@ -1,4 +1,4 @@
-package internal
+package apiinternal
 
 import (
 	"net/http"
@@ -11,22 +11,21 @@ import (
 )
 
 //go:generate oapi-codegen -config ../schemas/internal.config.yaml ../schemas/internal.yaml
-//go:generate oapi-codegen -old-config-style -package internal -generate client -templates ../templates -o zz_generated_extensions.go ../schemas/internal.yaml
+//go:generate oapi-codegen -old-config-style -package apiinternal -generate client -templates ../templates -o zz_generated_extensions.go ../schemas/internal.yaml
 
 var _ ServerInterface = &Server{}
 
 type Server struct {
+	bootstrap    BootstrapConfiguration
 	logger       hclog.Logger
 	consulClient *api.Client
 }
 
-// TODO(andrew): most of this is boilerplate that should be generated
-
-func NewServer(url string, consulClient *api.Client, logger hclog.Logger) http.Handler {
+func NewServer(url string, bootstrap BootstrapConfiguration, consulClient *api.Client, logger hclog.Logger) http.Handler {
 	spec, _ := GetSwagger()
 	spec.Servers = openapi3.Servers{&openapi3.Server{URL: url}}
 
-	s := &Server{consulClient: consulClient, logger: logger}
+	s := &Server{bootstrap: bootstrap, consulClient: consulClient, logger: logger}
 	r := chi.NewRouter()
 	r.Use(middleware.JSONContentType, s.gatewayTokenMiddleware, middleware.OapiRequestValidator(spec, sendError))
 

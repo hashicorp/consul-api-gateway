@@ -1,6 +1,7 @@
-package internal
+package apiinternal
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -9,8 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestServer_Bootstrap(t *testing.T) {
-	s := NewServer("", nil, hclog.NewNullLogger())
+func TestClient_Bootstrap(t *testing.T) {
+	s := NewServer("", BootstrapConfiguration{}, nil, hclog.NewNullLogger())
 
 	testServer := httptest.NewServer(s)
 	defer testServer.Close()
@@ -21,15 +22,18 @@ func TestServer_Bootstrap(t *testing.T) {
 	}{
 		{
 			name:           "stub",
-			wantStatusCode: http.StatusNotImplemented,
+			wantStatusCode: http.StatusOK,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			resp, err := http.Get(testServer.URL + "/bootstrap")
+			client, err := CreateClient(ClientConfig{
+				Server:  testServer.URL,
+				BaseURL: "/",
+			})
 			require.NoError(t, err)
-			require.Equal(t, "application/json", resp.Header.Get("Content-Type"))
-			require.Equal(t, tt.wantStatusCode, resp.StatusCode)
+			_, err = client.Bootstrap(context.Background())
+			require.NoError(t, err)
 		})
 	}
 }

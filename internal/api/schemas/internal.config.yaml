@@ -1,4 +1,4 @@
-package: internal
+package: apiinternal
 generate:
   models: true
   embedded-spec: true
@@ -6,4 +6,4 @@ generate:
   client: true
 compatibility:
   always-prefix-enum-values: true
-output: ../internal/zz_generated.go
+output: ../apiinternal/zz_generated.go

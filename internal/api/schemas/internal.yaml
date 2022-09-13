@@ -38,15 +38,47 @@ components:
     BootstrapConfiguration:
       type: object
       required:
-      - server
-      - token
+      - consul
+      - namespace
+      - name
+      - sdsPort
       properties:
+        name:
+          type: string
+        namespace:
+          type: string
+        sdsPort:
+          type: integer
+        consul:
+          "$ref": "#/components/schemas/ConsulConfiguration"
+    ConsulConfiguration:
+      type: object
+      required:
+      - server
+      - scheme
+      - token
+      - ca
+      - clientCertificate
+      - clientKey
+      - skipVerify
+      - xdsPort
+      properties:
+        scheme:
+          type: string
         server:
           type: string
         ca:
           type: string
         token:
           type: string
+        clientCertificate:
+          type: string
+        clientKey:
+          type: string
+        skipVerify:
+          type: boolean
+        xdsPort:
+          type: integer
     Error:
       type: object
       required:
