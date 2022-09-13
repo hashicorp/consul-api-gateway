@@ -22,7 +22,7 @@ func TestClient_Bootstrap(t *testing.T) {
 	}{
 		{
 			name:           "stub",
-			wantStatusCode: http.StatusNotImplemented,
+			wantStatusCode: http.StatusOK,
 		},
 	}
 	for _, tt := range tests {
@@ -33,7 +33,7 @@ func TestClient_Bootstrap(t *testing.T) {
 			})
 			require.NoError(t, err)
 			_, err = client.Bootstrap(context.Background())
-			require.Error(t, err)
+			require.NoError(t, err)
 		})
 	}
 }
