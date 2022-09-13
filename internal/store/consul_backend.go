@@ -12,9 +12,9 @@ import (
 type ConsulBackend struct {
 	client *consulapi.Client
 
-	id         string
-	namespace  string
-	pathPrefix string
+	id         string // this maps to a unique id for the controller deployment so we don't co-mingle multiple controller storage
+	namespace  string // this is the namespace that the storage actually uses for storing KV pairs
+	pathPrefix string // this is an arbitrary path prefix to append on all storage that is user-configurable
 }
 
 var _ Backend = &ConsulBackend{}
