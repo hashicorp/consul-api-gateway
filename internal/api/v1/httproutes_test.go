@@ -87,20 +87,7 @@ func TestServer_CreateHTTPRoute(t *testing.T) {
 		runtimeValidationError string
 		wantStatusCode         int
 		wantError              string
-	}{
-		{
-			name:           "validate-gateways",
-			route:          &HTTPRoute{Name: "a"},
-			wantStatusCode: http.StatusBadRequest,
-			wantError:      "gateways",
-		},
-		{
-			name:           "validate-gateways-length",
-			route:          &HTTPRoute{Gateways: []GatewayReference{}, Name: "a"},
-			wantStatusCode: http.StatusBadRequest,
-			wantError:      "gateways",
-		},
-	}
+	}{}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// set up expectations
