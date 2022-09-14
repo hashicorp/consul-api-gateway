@@ -36,12 +36,9 @@ jobs:
     strategy:
       matrix:
         consul-version:
-        - 1.11.8
-        - 1.11.8+ent
-        - 1.12.4
-        - 1.12.4+ent
         - 1.13.1
-        - 1.13.1+ent
+        vault:
+
     runs-on: ubuntu-latest
     env:
       TEST_RESULTS_DIR: /tmp/test-results/consul@${{ matrix.consul-version }}
@@ -61,6 +58,30 @@ jobs:
           unzip "${FILENAME}" -d /usr/local/bin && \
           rm "${FILENAME}"
         consul version
+
+    - name: Install Vault
+      shell: bash
+      run: |
+        VAULT_VERSION="1.11.3"
+        FILENAME="vault_${VAULT_VERSION}_linux_amd64.zip"
+        curl -sSLO "https://releases.hashicorp.com/vault/${VAULT_VERSION}/${FILENAME}" && \
+          unzip "${FILENAME}" -d /usr/local/bin && \
+          rm "${FILENAME}"
+        vault version
+
+    - name: Install Envoy
+      shell: bash
+      run: |
+        ENVOY_VERSION="1.23.1"
+        ENVOY_SHA="274b19f370e43bf1a9100139d294f526e3ddda8f055d10c87dab1fce95f1b4b3"
+        curl -sSLO "https://github.com/pomerium/envoy-binaries/releases/download/v${ENVOY_VERSION}/envoy-linux-amd64 && \
+          mv envoy-linux-amd64 envoy && \
+          echo "${ENVOY_SHA} envoy" > envoy.sha256 && \
+          sha256sum -c envoy.sha256 && \
+          mv envoy /usr/local/bin/envoy && \
+          rm envoy.sha256 && \
+          chmod +x /usr/local/bin/envoy
+        envoy --version
 
     - name: Clean Generate
       run: |
