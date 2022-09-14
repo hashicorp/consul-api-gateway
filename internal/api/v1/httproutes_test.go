@@ -100,35 +100,6 @@ func TestServer_CreateHTTPRoute(t *testing.T) {
 			wantStatusCode: http.StatusBadRequest,
 			wantError:      "gateways",
 		},
-		{
-			name:           "validate-gateways-name",
-			route:          &HTTPRoute{Gateways: []GatewayReference{{}}, Name: "a"},
-			wantStatusCode: http.StatusBadRequest,
-			wantError:      "gateways.0.name",
-		},
-		{
-			name: "validate-name",
-			route: &HTTPRoute{Gateways: []GatewayReference{
-				{Name: "a"},
-			}},
-			wantStatusCode: http.StatusBadRequest,
-			wantError:      "name",
-		},
-		{
-			name: "pass-validation",
-			route: &HTTPRoute{Gateways: []GatewayReference{
-				{Name: "a"},
-			}, Name: "a"},
-			wantStatusCode: http.StatusCreated,
-		},
-		{
-			name: "runtime-validation-error",
-			route: &HTTPRoute{Gateways: []GatewayReference{
-				{Name: "a"},
-			}, Name: "a"},
-			wantStatusCode:         http.StatusBadRequest,
-			runtimeValidationError: "foobar",
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
