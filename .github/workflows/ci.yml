@@ -73,7 +73,7 @@ jobs:
       run: |
         ENVOY_VERSION="1.23.1"
         ENVOY_SHA="274b19f370e43bf1a9100139d294f526e3ddda8f055d10c87dab1fce95f1b4b3"
-        curl -sSLO "https://github.com/pomerium/envoy-binaries/releases/download/v${ENVOY_VERSION}/envoy-linux-amd64 && \
+        curl -sSLO "https://github.com/pomerium/envoy-binaries/releases/download/v${ENVOY_VERSION}/envoy-linux-amd64" && \
           mv envoy-linux-amd64 envoy && \
           echo "${ENVOY_SHA} envoy" > envoy.sha256 && \
           sha256sum -c envoy.sha256 && \
