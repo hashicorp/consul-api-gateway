@@ -1,40 +1,39 @@
-package memory
+package store
 
 import (
 	"context"
 	"sync"
 
 	"github.com/hashicorp/consul-api-gateway/internal/core"
-	"github.com/hashicorp/consul-api-gateway/internal/store"
 )
 
-type Backend struct {
+type memoryBackend struct {
 	gateways map[core.GatewayID][]byte
 	routes   map[string][]byte
 
 	mutex sync.RWMutex
 }
 
-var _ store.Backend = &Backend{}
+var _ Backend = &memoryBackend{}
 
-func NewBackend() *Backend {
-	return &Backend{
+func NewMemoryBackend() *memoryBackend {
+	return &memoryBackend{
 		gateways: make(map[core.GatewayID][]byte),
 		routes:   make(map[string][]byte),
 	}
 }
 
-func (b *Backend) GetGateway(_ context.Context, id core.GatewayID) ([]byte, error) {
+func (b *memoryBackend) GetGateway(_ context.Context, id core.GatewayID) ([]byte, error) {
 	b.mutex.RLock()
 	defer b.mutex.RUnlock()
 
 	if data, found := b.gateways[id]; found {
 		return data, nil
 	}
-	return nil, store.ErrNotFound
+	return nil, ErrNotFound
 }
 
-func (b *Backend) ListGateways(_ context.Context) ([][]byte, error) {
+func (b *memoryBackend) ListGateways(_ context.Context) ([][]byte, error) {
 	b.mutex.RLock()
 	defer b.mutex.RUnlock()
 
@@ -45,7 +44,7 @@ func (b *Backend) ListGateways(_ context.Context) ([][]byte, error) {
 	return gateways, nil
 }
 
-func (b *Backend) DeleteGateway(_ context.Context, id core.GatewayID) error {
+func (b *memoryBackend) DeleteGateway(_ context.Context, id core.GatewayID) error {
 	b.mutex.Lock()
 	defer b.mutex.Unlock()
 
@@ -53,7 +52,7 @@ func (b *Backend) DeleteGateway(_ context.Context, id core.GatewayID) error {
 	return nil
 }
 
-func (b *Backend) UpsertGateways(_ context.Context, gateways ...store.GatewayRecord) error {
+func (b *memoryBackend) UpsertGateways(_ context.Context, gateways ...GatewayRecord) error {
 	b.mutex.Lock()
 	defer b.mutex.Unlock()
 
@@ -63,17 +62,17 @@ func (b *Backend) UpsertGateways(_ context.Context, gateways ...store.GatewayRec
 	return nil
 }
 
-func (b *Backend) GetRoute(_ context.Context, id string) ([]byte, error) {
+func (b *memoryBackend) GetRoute(_ context.Context, id string) ([]byte, error) {
 	b.mutex.RLock()
 	defer b.mutex.RUnlock()
 
 	if data, found := b.routes[id]; found {
 		return data, nil
 	}
-	return nil, store.ErrNotFound
+	return nil, ErrNotFound
 }
 
-func (b *Backend) ListRoutes(_ context.Context) ([][]byte, error) {
+func (b *memoryBackend) ListRoutes(_ context.Context) ([][]byte, error) {
 	b.mutex.RLock()
 	defer b.mutex.RUnlock()
 
@@ -84,7 +83,7 @@ func (b *Backend) ListRoutes(_ context.Context) ([][]byte, error) {
 	return routes, nil
 }
 
-func (b *Backend) DeleteRoute(_ context.Context, id string) error {
+func (b *memoryBackend) DeleteRoute(_ context.Context, id string) error {
 	b.mutex.Lock()
 	defer b.mutex.Unlock()
 
@@ -92,7 +91,7 @@ func (b *Backend) DeleteRoute(_ context.Context, id string) error {
 	return nil
 }
 
-func (b *Backend) UpsertRoutes(_ context.Context, routes ...store.RouteRecord) error {
+func (b *memoryBackend) UpsertRoutes(_ context.Context, routes ...RouteRecord) error {
 	b.mutex.Lock()
 	defer b.mutex.Unlock()
 
