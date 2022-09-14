@@ -37,7 +37,6 @@ jobs:
       matrix:
         consul-version:
         - 1.13.1
-        vault:
 
     runs-on: ubuntu-latest
     env:
