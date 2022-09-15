@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/go-chi/chi"
+	"github.com/go-chi/chi/v5"
 	"github.com/hashicorp/consul-api-gateway/internal/api/apiinternal"
 	v1 "github.com/hashicorp/consul-api-gateway/internal/api/v1"
 	consul "github.com/hashicorp/consul/api"
