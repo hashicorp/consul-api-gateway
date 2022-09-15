@@ -1,0 +1,3 @@
+```release-note:bug
+Fix failing root certificate watch for controller when deployed in secondary federated datacenter.
+```
