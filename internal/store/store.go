@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"errors"
+	"log"
 	"sync"
 
 	"github.com/hashicorp/go-hclog"
@@ -69,7 +70,7 @@ func (s *lockingStore) UpsertGateway(ctx context.Context, gateway Gateway, updat
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	current, err := s.GetGateway(ctx, gateway.ID())
+	current, err := s.getGateway(ctx, gateway.ID())
 	if err != nil {
 		return err
 	}
@@ -78,6 +79,8 @@ func (s *lockingStore) UpsertGateway(ctx context.Context, gateway Gateway, updat
 		// No-op
 		return nil
 	}
+
+	log.Println("checking modified gateways")
 
 	routes, err := s.listRoutes(ctx)
 	if err != nil {
@@ -185,6 +188,8 @@ func (s *lockingStore) UpsertRoute(ctx context.Context, route Route, updateCondi
 		return err
 	}
 
+	log.Println("checking modified gateways")
+
 	modifiedGateways, _, err := s.bindAll(ctx, gateways, []Route{route})
 	if err != nil {
 		return err
@@ -248,10 +253,12 @@ func (s *store) getGateway(ctx context.Context, id core.GatewayID) (Gateway, err
 	data, err := s.backend.GetGateway(ctx, id)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
+			log.Println("not found")
 			return nil, nil
 		}
 		return nil, err
 	}
+	log.Printf("retrieved data: %s", string(data))
 
 	return s.marshaler.UnmarshalGateway(data)
 }

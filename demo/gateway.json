@@ -1,0 +1,7 @@
+{
+  "name": "stub-deployment",
+  "listeners": [{
+    "protocol": "http",
+    "port": 8080
+  }]
+}

@@ -12,12 +12,13 @@ import (
 	consulAdapters "github.com/hashicorp/consul-api-gateway/internal/adapters/consul"
 	"github.com/hashicorp/consul-api-gateway/internal/api"
 	"github.com/hashicorp/consul-api-gateway/internal/api/apiinternal"
-	"github.com/hashicorp/consul-api-gateway/internal/common"
+	v1 "github.com/hashicorp/consul-api-gateway/internal/api/v1"
+	commonCLI "github.com/hashicorp/consul-api-gateway/internal/cli"
 	"github.com/hashicorp/consul-api-gateway/internal/consul"
 	"github.com/hashicorp/consul-api-gateway/internal/envoy"
 	"github.com/hashicorp/consul-api-gateway/internal/metrics"
 	"github.com/hashicorp/consul-api-gateway/internal/profiling"
-	"github.com/hashicorp/consul-api-gateway/internal/store/memory"
+	"github.com/hashicorp/consul-api-gateway/internal/store"
 	"github.com/hashicorp/consul-api-gateway/internal/vault"
 	"github.com/hashicorp/consul-api-gateway/internal/vm"
 	consulapi "github.com/hashicorp/consul/api"
@@ -34,7 +35,7 @@ func RegisterCommands(ctx context.Context, commands map[string]cli.CommandFactor
 }
 
 type Command struct {
-	*common.CommonCLI
+	*commonCLI.CommonCLI
 	help string
 
 	flagControllerAddress  string // Server address for requests
@@ -51,9 +52,9 @@ type Command struct {
 	flagConsulTLSClientKeyFile  string // Consul client mTLS key
 	flagConsulTLSSkipVerify     bool   // Skip Consul TLS verification
 
-	flagConsulRegistrationName      string           // Name of service to register in Consul
-	flagConsulRegistrationNamespace string           // Namespace of service to register in Consul
-	flagConsulRegistrationTags      common.ArrayFlag // Tags for service to register in Consul
+	flagConsulRegistrationName      string              // Name of service to register in Consul
+	flagConsulRegistrationNamespace string              // Namespace of service to register in Consul
+	flagConsulRegistrationTags      commonCLI.ArrayFlag // Tags for service to register in Consul
 
 	flagVaultAddress string // Vault address to use
 	flagVaultToken   string // Vault token to use
@@ -71,10 +72,10 @@ type Command struct {
 
 func NewCommand(ctx context.Context, ui cli.Ui, logOutput io.Writer) cli.Command {
 	cmd := &Command{
-		CommonCLI: common.NewCommonCLI(ctx, help, synopsis, ui, logOutput, "controller"),
+		CommonCLI: commonCLI.NewCommonCLI(ctx, help, synopsis, ui, logOutput, "controller"),
 	}
 	cmd.init()
-	cmd.help = common.FlagUsage(help, cmd.Flags)
+	cmd.help = commonCLI.FlagUsage(help, cmd.Flags)
 
 	return cmd
 }
@@ -161,14 +162,14 @@ func (c *Command) Run(args []string) (ret int) {
 		return c.Error("timeout waiting for certs to be written", err)
 	}
 
+	backend := store.NewConsulBackend(c.flagConsulRegistrationName, client, c.flagConsulStorageNamespace, c.flagConsulStoragePath)
 	// replace this with the Consul store
-	store := memory.NewStore(memory.StoreConfig{
-		Adapter: consulAdapters.NewSyncAdapter(logger.Named("consul-adapter"), client),
-		Logger:  logger.Named("state"),
-	})
-	group.Go(func() error {
-		store.SyncAtInterval(groupCtx)
-		return nil
+	store := store.New(store.Config{
+		Adapter:   consulAdapters.NewSyncAdapter(logger.Named("consul-adapter"), client),
+		Backend:   backend,
+		Binder:    &v1.Binder{},
+		Logger:    logger.Named("store"),
+		Marshaler: &v1.Marshaler{},
 	})
 
 	sds := envoy.NewSDSServer(
@@ -191,6 +192,7 @@ func (c *Command) Run(args []string) (ret int) {
 		Namespace:       c.flagConsulRegistrationNamespace,
 		ShutdownTimeout: 10 * time.Second,
 		Validator:       vm.NewValidator(logger.Named("validator"), vaultKVClient, client),
+		Store:           store,
 		Bootstrap: apiinternal.BootstrapConfiguration{
 			Consul: apiinternal.ConsulConfiguration{
 				Server:  c.flagConsulAddress,

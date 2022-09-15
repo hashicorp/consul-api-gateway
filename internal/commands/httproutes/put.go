@@ -8,17 +8,17 @@ import (
 	"os"
 
 	v1 "github.com/hashicorp/consul-api-gateway/internal/api/v1"
-	"github.com/hashicorp/consul-api-gateway/internal/common"
+	commonCLI "github.com/hashicorp/consul-api-gateway/internal/cli"
 	"github.com/mitchellh/cli"
 )
 
 type PutCommand struct {
-	*common.ClientCLI
+	*commonCLI.ClientCLI
 }
 
 func NewPutCommand(ctx context.Context, ui cli.Ui, logOutput io.Writer) cli.Command {
 	return &PutCommand{
-		ClientCLI: common.NewClientCLI(ctx, putHelp, putSynopsis, ui, logOutput, "delete"),
+		ClientCLI: commonCLI.NewClientCLI(ctx, putHelp, putSynopsis, ui, logOutput, "delete"),
 	}
 }
 

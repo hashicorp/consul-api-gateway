@@ -24,6 +24,7 @@ var (
 
 type bootstrapArgs struct {
 	ID            string
+	Name          string
 	Namespace     string
 	ConsulCA      string
 	ConsulAddress string
@@ -43,6 +44,7 @@ func init() {
 // ManagerConfig configures a Manager
 type ManagerConfig struct {
 	ID                string
+	Name              string
 	Namespace         string
 	ConsulCA          string
 	ConsulAddress     string
@@ -108,9 +110,14 @@ func (m *Manager) CommandArgs() (string, []string) {
 // RenderBootstrap persists a bootstrapped envoy template to disk
 func (m *Manager) RenderBootstrap(sdsConfig string) error {
 	var bootstrapConfig bytes.Buffer
+	name := m.Name
+	if name == "" {
+		name = m.ID
+	}
 	if err := bootstrapTemplate.Execute(&bootstrapConfig, &bootstrapArgs{
 		SDSCluster:    sdsConfig,
 		ID:            m.ID,
+		Name:          name,
 		Namespace:     m.Namespace,
 		ConsulCA:      m.ConsulCA,
 		ConsulAddress: m.ConsulAddress,
@@ -130,7 +137,7 @@ const bootstrapJSONTemplate = `{
     "address": {
       "socket_address": {
         "address": "127.0.0.1",
-        "port_value": 19000
+        "port_value": 19001
       }
     }
   },
@@ -138,7 +145,8 @@ const bootstrapJSONTemplate = `{
     "cluster": "{{ .ID }}",
     "id": "{{ .ID }}",
     "metadata": {
-      "namespace": "{{if ne .Namespace ""}}{{ .Namespace }}{{else}}default{{end}}"
+      "namespace": "{{if ne .Namespace ""}}{{ .Namespace }}{{else}}default{{end}}",
+      "partition": "default"
     }
   },
   "static_resources": {
@@ -159,7 +167,7 @@ const bootstrapJSONTemplate = `{
                     "address": {
                       "socket_address": {
                         "address": "127.0.0.1",
-                        "port_value": 19000
+                        "port_value": 19001
                       }
                     }
                   }
@@ -219,7 +227,7 @@ const bootstrapJSONTemplate = `{
         "address": {
           "socket_address": {
             "address": "0.0.0.0",
-            "port_value": 20000
+            "port_value": 20001
           }
         },
         "filter_chains": [

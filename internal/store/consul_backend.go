@@ -2,6 +2,8 @@ package store
 
 import (
 	"context"
+	"fmt"
+	"log"
 	"strings"
 
 	consulapi "github.com/hashicorp/consul/api"
@@ -29,6 +31,9 @@ func NewConsulBackend(id string, client *consulapi.Client, namespace, pathPrefix
 }
 
 func (c *ConsulBackend) GetGateway(ctx context.Context, id core.GatewayID) ([]byte, error) {
+	// path
+	fmt.Println(c.storagePath("gateways", id.ConsulNamespace, id.Service))
+
 	pair, _, err := c.client.KV().Get(c.storagePath("gateways", id.ConsulNamespace, id.Service), c.queryOptions(ctx))
 	if err != nil {
 		return nil, err
@@ -70,6 +75,7 @@ func (c *ConsulBackend) UpsertGateways(ctx context.Context, gateways ...GatewayR
 		})
 	}
 
+	log.Printf("upserting gateways: %+v", operations)
 	_, _, _, err := c.client.Txn().Txn(operations, c.queryOptions(ctx))
 	return err
 }
@@ -128,11 +134,16 @@ func (c *ConsulBackend) UpsertRoutes(ctx context.Context, routes ...RouteRecord)
 // TODO: for this to be fully functional we need to make sure that our route IDs encode this information
 // via some compound identifier rather than by just a "string" as they do now
 func (c *ConsulBackend) storagePath(entity, namespace, id string) string {
-	return strings.Join([]string{c.pathPrefix, "v1", c.id, entity, "ns", namespace, id}, "/")
+	if namespace == "" {
+		namespace = "default"
+	}
+	path := strings.Join([]string{c.pathPrefix, "v1", c.id, entity, "ns", namespace, id}, "/")
+	return strings.TrimPrefix(path, "/")
 }
 
 func (c *ConsulBackend) listPath(entity string) string {
-	return strings.Join([]string{c.pathPrefix, "v1", c.id, entity}, "/")
+	path := strings.Join([]string{c.pathPrefix, "v1", c.id, entity}, "/")
+	return strings.TrimPrefix(path, "/")
 }
 
 func (c *ConsulBackend) queryOptions(ctx context.Context) *consulapi.QueryOptions {

@@ -8,6 +8,7 @@ import (
 	"github.com/go-chi/chi"
 	"github.com/hashicorp/consul-api-gateway/internal/api/apiinternal"
 	v1 "github.com/hashicorp/consul-api-gateway/internal/api/v1"
+	"github.com/hashicorp/consul-api-gateway/internal/store"
 	consul "github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
 )
@@ -21,6 +22,7 @@ type ServerConfig struct {
 	ShutdownTimeout time.Duration
 
 	Validator v1.Validator
+	Store     store.NewStore
 	Name      string
 	Namespace string
 
@@ -38,8 +40,8 @@ type Server struct {
 
 func NewServer(config ServerConfig) *Server {
 	router := chi.NewRouter()
-	router.Mount("/api/v1", v1.NewServer("/api/v1", config.Validator, config.Name, config.Namespace, config.Consul, config.Logger))
-	router.Mount("/api/internal", apiinternal.NewServer("/api/internal", config.Bootstrap, config.Consul, config.Logger))
+	router.Mount("/api/v1", v1.NewServer("/api/v1", config.Store, config.Validator, config.Name, config.Namespace, config.Consul, config.Logger))
+	router.Mount("/api/internal", apiinternal.NewServer("/api/internal", config.Store, config.Bootstrap, config.Consul, config.Logger))
 
 	return &Server{
 		logger: config.Logger,

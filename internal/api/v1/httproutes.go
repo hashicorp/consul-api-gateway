@@ -6,8 +6,22 @@ import (
 )
 
 func (s *Server) ListHTTPRoutesInNamespace(w http.ResponseWriter, r *http.Request, namespace string) {
-	// do the actual route listing here
-	sendEmpty(w, http.StatusNotImplemented)
+	stored, err := s.store.ListRoutes(r.Context())
+	if err != nil {
+		sendError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	routes := []HTTPRoute{}
+	for _, s := range stored {
+		switch route := s.(type) {
+		case *HTTPRoute:
+			routes = append(routes, *route)
+		}
+	}
+
+	send(w, http.StatusOK, &HTTPRoutePage{
+		Routes: routes,
+	})
 }
 
 func (s *Server) ListHTTPRoutes(w http.ResponseWriter, r *http.Request, params ListHTTPRoutesParams) {
@@ -31,7 +45,11 @@ func (s *Server) CreateHTTPRoute(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.logger.Info("adding http route", "route", route)
-	// do the actual route persistence here
+
+	if err := s.store.UpsertRoute(r.Context(), route, nil); err != nil {
+		sendError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 
 	send(w, http.StatusCreated, route)
 }
@@ -47,7 +65,11 @@ func (s *Server) GetHTTPRoute(w http.ResponseWriter, r *http.Request, name strin
 
 func (s *Server) DeleteHTTPRouteInNamespace(w http.ResponseWriter, r *http.Request, namespace, name string) {
 	s.logger.Info("deleting http route", "namespace", namespace, "name", name)
-	// do the actual route deletion here
+
+	if err := s.store.DeleteRoute(r.Context(), "httpRoute/"+name); err != nil {
+		sendError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 
 	sendEmpty(w, http.StatusAccepted)
 }

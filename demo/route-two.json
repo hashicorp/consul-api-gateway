@@ -1,0 +1,18 @@
+{
+  "name": "route-two",
+  "gateways": [{
+    "name": "stub-deployment"
+  }],
+  "rules" : [{
+    "services": [{
+      "name": "three"
+    }],
+    "matches": [{
+      "query": [{
+        "matchOn": "exact",
+        "name": "param",
+        "value": "3"
+      }]
+    }]
+  }]
+}

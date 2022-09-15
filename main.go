@@ -14,7 +14,6 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/commands/gateways"
 	"github.com/hashicorp/consul-api-gateway/internal/commands/health"
 	"github.com/hashicorp/consul-api-gateway/internal/commands/httproutes"
-	cmdServer "github.com/hashicorp/consul-api-gateway/internal/commands/server"
 	"github.com/hashicorp/consul-api-gateway/internal/commands/tcproutes"
 	cmdVersion "github.com/hashicorp/consul-api-gateway/internal/commands/version"
 
@@ -42,9 +41,6 @@ func run(args []string, ui cli.Ui, logOutput io.Writer) int {
 
 func initializeCommands(ui cli.Ui, logOutput io.Writer) map[string]cli.CommandFactory {
 	commands := map[string]cli.CommandFactory{
-		"server": func() (cli.Command, error) {
-			return cmdServer.New(context.Background(), ui, logOutput), nil
-		},
 		"exec": func() (cli.Command, error) {
 			return cmdExec.New(context.Background(), ui, logOutput), nil
 		},

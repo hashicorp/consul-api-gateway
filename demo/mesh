@@ -1,0 +1,32 @@
+#!/bin/bash
+
+cleanup() {
+  echo "shutting down upstreams"
+}
+
+trap 'trap " " SIGTERM; kill 0; wait; cleanup' SIGINT SIGTERM
+
+consul services register demo/service-one.hcl
+consul services register demo/service-one-proxy.hcl
+consul config write demo/service-one-defaults.hcl
+consul services register demo/service-two.hcl
+consul services register demo/service-two-proxy.hcl
+consul config write demo/service-two-defaults.hcl
+consul services register demo/service-three.hcl
+consul services register demo/service-three-proxy.hcl
+consul config write demo/service-three-defaults.hcl
+
+rm -rf server1 server2 server3
+mkdir -p server1 && touch server1/server1
+mkdir -p server2 && touch server2/server2
+mkdir -p server3 && touch server3/server3
+
+python3 -m http.server --directory server1 9090 &
+python3 -m http.server --directory server2 9092 &
+python3 -m http.server --directory server3 9094 &
+consul connect envoy -proxy-id proxy-one -service one -admin-bind 127.0.0.1:19002 &
+consul connect envoy -proxy-id proxy-two -service two -admin-bind 127.0.0.1:19003 &
+consul connect envoy -proxy-id proxy-three -service three -admin-bind 127.0.0.1:19004 &
+
+
+wait

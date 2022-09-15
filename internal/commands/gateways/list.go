@@ -6,12 +6,12 @@ import (
 	"io"
 
 	v1 "github.com/hashicorp/consul-api-gateway/internal/api/v1"
-	"github.com/hashicorp/consul-api-gateway/internal/common"
+	commonCLI "github.com/hashicorp/consul-api-gateway/internal/cli"
 	"github.com/mitchellh/cli"
 )
 
 type ListCommand struct {
-	*common.ClientCLIWithNamespace
+	*commonCLI.ClientCLIWithNamespace
 
 	help string
 
@@ -20,10 +20,10 @@ type ListCommand struct {
 
 func NewListCommand(ctx context.Context, ui cli.Ui, logOutput io.Writer) cli.Command {
 	cmd := &ListCommand{
-		ClientCLIWithNamespace: common.NewClientCLIWithNamespace(ctx, listHelp, listSynopsis, ui, logOutput, "get"),
+		ClientCLIWithNamespace: commonCLI.NewClientCLIWithNamespace(ctx, listHelp, listSynopsis, ui, logOutput, "get"),
 	}
 	cmd.Flags.BoolVar(&cmd.flagAllNamespaces, "all-namespaces", false, "List gateways in all namespaces.")
-	cmd.help = common.FlagUsage(help, cmd.Flags)
+	cmd.help = commonCLI.FlagUsage(help, cmd.Flags)
 
 	return cmd
 }

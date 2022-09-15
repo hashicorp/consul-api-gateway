@@ -704,7 +704,7 @@ components:
         namespace:
           type: string
         weight:
-          type: number
+          type: integer
         filters:
           "$ref": "#/components/schemas/HTTPFilters"
     HTTPFilters:
@@ -785,6 +785,7 @@ components:
           - regularExpression
         name:
           type: string
+          default: exact
         value:
           type: string
     HTTPQueryMatch:
@@ -849,7 +850,7 @@ components:
         namespace:
           type: string
         weight:
-          type: number
+          type: integer
     HealthStatus:
       type: object
       required:

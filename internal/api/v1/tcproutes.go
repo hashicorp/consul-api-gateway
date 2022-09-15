@@ -31,7 +31,10 @@ func (s *Server) CreateTCPRoute(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.logger.Info("adding tcp route", "route", route)
-	// do the actual route persistence here
+	if err := s.store.UpsertRoute(r.Context(), route, nil); err != nil {
+		sendError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 
 	send(w, http.StatusCreated, route)
 }

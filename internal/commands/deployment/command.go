@@ -14,7 +14,7 @@ import (
 
 	"github.com/hashicorp/consul-api-gateway/internal/api"
 	"github.com/hashicorp/consul-api-gateway/internal/api/apiinternal"
-	"github.com/hashicorp/consul-api-gateway/internal/common"
+	commonCLI "github.com/hashicorp/consul-api-gateway/internal/cli"
 	"github.com/hashicorp/consul-api-gateway/internal/consul"
 	"github.com/hashicorp/consul-api-gateway/internal/envoy"
 	consulapi "github.com/hashicorp/consul/api"
@@ -30,7 +30,7 @@ func RegisterCommands(ctx context.Context, commands map[string]cli.CommandFactor
 }
 
 type Command struct {
-	*common.CommonCLI
+	*commonCLI.CommonCLI
 	help string
 
 	flagServiceIP string // IP Address to register for the Gateway service
@@ -46,10 +46,10 @@ type Command struct {
 
 func NewCommand(ctx context.Context, ui cli.Ui, logOutput io.Writer) cli.Command {
 	cmd := &Command{
-		CommonCLI: common.NewCommonCLI(ctx, help, synopsis, ui, logOutput, "deployment"),
+		CommonCLI: commonCLI.NewCommonCLI(ctx, help, synopsis, ui, logOutput, "deployment"),
 	}
 	cmd.init()
-	cmd.help = common.FlagUsage(help, cmd.Flags)
+	cmd.help = commonCLI.FlagUsage(help, cmd.Flags)
 
 	return cmd
 }
@@ -148,7 +148,8 @@ func (c *Command) Run(args []string) (ret int) {
 	envoyManager := envoy.NewManager(
 		logger.Named("envoy-manager"),
 		envoy.ManagerConfig{
-			ID:                registry.ID(),
+			ID: registry.ID(),
+			// ID:                configuration.Name,
 			Namespace:         registry.Namespace(),
 			ConsulCA:          caFilePath,
 			ConsulAddress:     consulBaseAddress(configuration.Consul.Server),

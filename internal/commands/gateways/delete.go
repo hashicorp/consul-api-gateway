@@ -6,17 +6,17 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/hashicorp/consul-api-gateway/internal/common"
+	commonCLI "github.com/hashicorp/consul-api-gateway/internal/cli"
 	"github.com/mitchellh/cli"
 )
 
 type DeleteCommand struct {
-	*common.ClientCLIWithNamespace
+	*commonCLI.ClientCLIWithNamespace
 }
 
 func NewDeleteCommand(ctx context.Context, ui cli.Ui, logOutput io.Writer) cli.Command {
 	return &DeleteCommand{
-		ClientCLIWithNamespace: common.NewClientCLIWithNamespace(ctx, deleteHelp, deleteSynopsis, ui, logOutput, "delete"),
+		ClientCLIWithNamespace: commonCLI.NewClientCLIWithNamespace(ctx, deleteHelp, deleteSynopsis, ui, logOutput, "delete"),
 	}
 }
 

@@ -7,6 +7,7 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/go-chi/chi/v5"
 	"github.com/hashicorp/consul-api-gateway/internal/api/middleware"
+	"github.com/hashicorp/consul-api-gateway/internal/store"
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
 )
@@ -24,6 +25,7 @@ type Validator interface {
 }
 
 type Server struct {
+	store        store.NewStore
 	logger       hclog.Logger
 	consulClient *api.Client
 	validator    Validator
@@ -33,11 +35,11 @@ type Server struct {
 
 // TODO(andrew): most of this is boilerplate that should be generated
 
-func NewServer(url string, validator Validator, name, namespace string, consulClient *api.Client, logger hclog.Logger) http.Handler {
+func NewServer(url string, store store.NewStore, validator Validator, name, namespace string, consulClient *api.Client, logger hclog.Logger) http.Handler {
 	spec, _ := GetSwagger()
 	spec.Servers = openapi3.Servers{&openapi3.Server{URL: url}}
 
-	s := &Server{consulClient: consulClient, logger: logger, name: name, namespace: namespace, validator: validator}
+	s := &Server{store: store, consulClient: consulClient, logger: logger, name: name, namespace: namespace, validator: validator}
 	r := chi.NewRouter()
 	r.Use(middleware.JSONContentType, s.consulTokenMiddleware, middleware.OapiRequestValidator(spec, sendError))
 

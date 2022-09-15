@@ -1,0 +1,26 @@
+consul agent -dev
+./demo/mesh
+
+./consul-api-gateway controller --log-level trace
+
+./consul-api-gateway gateways put demo/gateway.json
+./consul-api-gateway http-routes put demo/route-one.json
+./consul-api-gateway http-routes put demo/route-two.json
+# ./consul-api-gateway gateways token create 
+./consul-api-gateway deployment -gateway-controller-token "cab6f60f-0383-4701-a5f2-49f37bc3f7cc" -gateway-ip 127.0.0.1
+
+curl localhost:9090 -vvv |& grep -i server:
+curl localhost:8080 -vvv |& grep -i server:
+curl localhost:8080 |& grep server
+curl localhost:8080 -H "x-testing: true" |& grep server
+curl localhost:8080\?param=3 |& grep server
+
+./consul-api-gateway gateways get stub-deployment
+./consul-api-gateway gateways list
+./consul-api-gateway http-routes get route-one
+./consul-api-gateway http-routes get route-two
+./consul-api-gateway http-routes list
+./consul-api-gateway http-routes delete route-one
+./consul-api-gateway http-routes delete route-two
+./consul-api-gateway gateways delete stub-deployment
+curl localhost:8080

@@ -1,0 +1,22 @@
+{
+  "name": "route-one",
+  "gateways": [{
+    "name": "stub-deployment"
+  }],
+  "rules" : [{
+    "services": [{
+      "name": "one"
+    }]
+  }, {
+    "services": [{
+        "name": "two"
+    }],
+    "matches": [{
+      "headers": [{
+        "matchOn": "exact",
+        "name": "x-testing",
+        "value": "true"
+      }]
+    }]
+  }]
+}

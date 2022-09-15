@@ -6,17 +6,17 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/hashicorp/consul-api-gateway/internal/common"
+	commonCLI "github.com/hashicorp/consul-api-gateway/internal/cli"
 	"github.com/mitchellh/cli"
 )
 
 type GetCommand struct {
-	*common.ClientCLIWithNamespace
+	*commonCLI.ClientCLIWithNamespace
 }
 
 func NewGetCommand(ctx context.Context, ui cli.Ui, logOutput io.Writer) cli.Command {
 	return &GetCommand{
-		ClientCLIWithNamespace: common.NewClientCLIWithNamespace(ctx, getHelp, getSynopsis, ui, logOutput, "get"),
+		ClientCLIWithNamespace: commonCLI.NewClientCLIWithNamespace(ctx, getHelp, getSynopsis, ui, logOutput, "get"),
 	}
 }
 

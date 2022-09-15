@@ -58,7 +58,7 @@ type SDSServer struct {
 }
 
 // NEWSDSServer initializes an SDSServer instance
-func NewSDSServer(logger hclog.Logger, fetcher CertificateFetcher, client SecretClient, store store.Store) *SDSServer {
+func NewSDSServer(logger hclog.Logger, fetcher CertificateFetcher, client SecretClient, store store.NewStore) *SDSServer {
 	return &SDSServer{
 		logger:                       logger,
 		fetcher:                      fetcher,

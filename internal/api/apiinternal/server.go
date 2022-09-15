@@ -6,6 +6,7 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/go-chi/chi/v5"
 	"github.com/hashicorp/consul-api-gateway/internal/api/middleware"
+	"github.com/hashicorp/consul-api-gateway/internal/store"
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
 )
@@ -17,15 +18,16 @@ var _ ServerInterface = &Server{}
 
 type Server struct {
 	bootstrap    BootstrapConfiguration
+	store        store.Store
 	logger       hclog.Logger
 	consulClient *api.Client
 }
 
-func NewServer(url string, bootstrap BootstrapConfiguration, consulClient *api.Client, logger hclog.Logger) http.Handler {
+func NewServer(url string, store store.Store, bootstrap BootstrapConfiguration, consulClient *api.Client, logger hclog.Logger) http.Handler {
 	spec, _ := GetSwagger()
 	spec.Servers = openapi3.Servers{&openapi3.Server{URL: url}}
 
-	s := &Server{bootstrap: bootstrap, consulClient: consulClient, logger: logger}
+	s := &Server{store: store, bootstrap: bootstrap, consulClient: consulClient, logger: logger}
 	r := chi.NewRouter()
 	r.Use(middleware.JSONContentType, middleware.OapiRequestValidator(spec, sendError))
 

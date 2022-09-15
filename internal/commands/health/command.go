@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/hashicorp/consul-api-gateway/internal/common"
+	commonCLI "github.com/hashicorp/consul-api-gateway/internal/cli"
 	"github.com/mitchellh/cli"
 )
 
@@ -16,12 +16,12 @@ func RegisterCommands(ctx context.Context, commands map[string]cli.CommandFactor
 }
 
 type Command struct {
-	*common.ClientCLI
+	*commonCLI.ClientCLI
 }
 
 func NewCommand(ctx context.Context, ui cli.Ui, logOutput io.Writer) cli.Command {
 	return &Command{
-		ClientCLI: common.NewClientCLI(ctx, help, synopsis, ui, logOutput, "health"),
+		ClientCLI: commonCLI.NewClientCLI(ctx, help, synopsis, ui, logOutput, "health"),
 	}
 }
 

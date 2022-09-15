@@ -25,8 +25,6 @@ type StatusTrackingGateway interface {
 // Gateway describes a gateway.
 type Gateway interface {
 	ID() core.GatewayID
-	Bind(ctx context.Context, route Route) []string
-	Remove(ctx context.Context, id string) error
 	Resolve() core.ResolvedGateway
 	CanFetchSecrets(secrets []string) (bool, error)
 }
@@ -64,7 +62,6 @@ type Store interface {
 	UpsertGateway(ctx context.Context, gateway Gateway, updateConditionFn func(current Gateway) bool) error
 	DeleteRoute(ctx context.Context, id string) error
 	UpsertRoute(ctx context.Context, route Route, updateConditionFn func(current Route) bool) error
-	Sync(ctx context.Context) error
 }
 
 // NewStore is used for persisting and querying gateways and routes
