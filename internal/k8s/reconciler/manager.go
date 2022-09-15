@@ -71,6 +71,7 @@ type ManagerConfig struct {
 	Client                gatewayclient.Client
 	Consul                *api.Client
 	ConsulCA              string
+	PrimaryDatacenter     string
 	SDSHost               string
 	SDSPort               int
 	Store                 store.Store
@@ -81,11 +82,12 @@ type ManagerConfig struct {
 func NewReconcileManager(config ManagerConfig) *GatewayReconcileManager {
 	resolver := service.NewBackendResolver(config.Logger, config.ConsulNamespaceMapper, config.Client, config.Consul)
 	deployer := NewDeployer(DeployerConfig{
-		ConsulCA: config.ConsulCA,
-		SDSHost:  config.SDSHost,
-		SDSPort:  config.SDSPort,
-		Logger:   config.Logger,
-		Client:   config.Client,
+		ConsulCA:          config.ConsulCA,
+		PrimaryDatacenter: config.PrimaryDatacenter,
+		SDSHost:           config.SDSHost,
+		SDSPort:           config.SDSPort,
+		Logger:            config.Logger,
+		Client:            config.Client,
 	})
 
 	return &GatewayReconcileManager{

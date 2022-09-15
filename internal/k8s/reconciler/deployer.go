@@ -18,29 +18,32 @@ import (
 
 // GatewayDeployer creates gateway deployments and services and ensures that they exist
 type GatewayDeployer struct {
-	client   gatewayclient.Client
-	consulCA string
-	sdsHost  string
-	sdsPort  int
+	client            gatewayclient.Client
+	consulCA          string
+	primaryDatacenter string
+	sdsHost           string
+	sdsPort           int
 
 	logger hclog.Logger
 }
 
 type DeployerConfig struct {
-	ConsulCA string
-	SDSHost  string
-	SDSPort  int
-	Logger   hclog.Logger
-	Client   gatewayclient.Client
+	ConsulCA          string
+	PrimaryDatacenter string
+	SDSHost           string
+	SDSPort           int
+	Logger            hclog.Logger
+	Client            gatewayclient.Client
 }
 
 func NewDeployer(config DeployerConfig) *GatewayDeployer {
 	return &GatewayDeployer{
-		client:   config.Client,
-		consulCA: config.ConsulCA,
-		sdsHost:  config.SDSHost,
-		sdsPort:  config.SDSPort,
-		logger:   config.Logger,
+		client:            config.Client,
+		consulCA:          config.ConsulCA,
+		primaryDatacenter: config.PrimaryDatacenter,
+		sdsHost:           config.SDSHost,
+		sdsPort:           config.SDSPort,
+		logger:            config.Logger,
 	}
 }
 
@@ -129,6 +132,7 @@ func (d *GatewayDeployer) Deployment(namespace string, config apigwv1alpha1.Gate
 	deploymentBuilder.WithClassConfig(config)
 	deploymentBuilder.WithConsulCA(d.consulCA)
 	deploymentBuilder.WithConsulGatewayNamespace(namespace)
+	deploymentBuilder.WithPrimaryConsulDatacenter(d.primaryDatacenter)
 	return deploymentBuilder.Build(currentReplicas)
 }
 

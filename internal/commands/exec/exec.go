@@ -11,10 +11,11 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	"github.com/hashicorp/consul-api-gateway/internal/consul"
-	"github.com/hashicorp/consul-api-gateway/internal/envoy"
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
+
+	"github.com/hashicorp/consul-api-gateway/internal/consul"
+	"github.com/hashicorp/consul-api-gateway/internal/envoy"
 )
 
 type AuthConfig struct {
@@ -43,14 +44,15 @@ type EnvoyConfig struct {
 }
 
 type ExecConfig struct {
-	Context       context.Context
-	Logger        hclog.Logger
-	LogLevel      string
-	ConsulClient  *api.Client
-	ConsulConfig  api.Config
-	AuthConfig    AuthConfig
-	GatewayConfig GatewayConfig
-	EnvoyConfig   EnvoyConfig
+	Context           context.Context
+	Logger            hclog.Logger
+	LogLevel          string
+	ConsulClient      *api.Client
+	ConsulConfig      api.Config
+	AuthConfig        AuthConfig
+	GatewayConfig     GatewayConfig
+	EnvoyConfig       EnvoyConfig
+	PrimaryDatacenter string
 
 	// for testing only
 	isTest bool
@@ -140,6 +142,7 @@ func RunExec(config ExecConfig) (ret int) {
 		},
 	)
 	options := consul.DefaultCertManagerOptions()
+	options.PrimaryDatacenter = config.PrimaryDatacenter
 	options.SDSAddress = config.EnvoyConfig.SDSAddress
 	options.SDSPort = config.EnvoyConfig.SDSPort
 	options.Directory = "/certs"
