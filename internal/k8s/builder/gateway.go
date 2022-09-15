@@ -394,7 +394,7 @@ exec /bootstrap/consul-api-gateway exec -log-json \
   -acl-auth-method {{ .ACLAuthMethod }} \
 {{- end }}
 {{- if .PrimaryDatacenter }}
-  -primary-datacenter {{ .PrimaryDatacenter }}
+  -consul-primary-datacenter {{ .PrimaryDatacenter }} \
 {{- end }}
   -envoy-bootstrap-path /bootstrap/envoy.json \
   -envoy-sds-address {{ .SDSHost }} \

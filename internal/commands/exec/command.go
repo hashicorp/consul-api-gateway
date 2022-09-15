@@ -14,9 +14,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/mitchellh/cli"
 
-	"github.com/hashicorp/consul-api-gateway/internal/common"
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
+
+	"github.com/hashicorp/consul-api-gateway/internal/common"
 )
 
 // https://github.com/hashicorp/consul-k8s/blob/24be51c58461e71365ca39f113dae0379f7a1b7c/control-plane/connect-inject/container_init.go#L272-L306
@@ -39,10 +40,11 @@ type Command struct {
 	isTest bool
 
 	// Consul params
-	flagConsulHTTPAddress string // Address for Consul HTTP API.
-	flagConsulHTTPPort    int    // Port for Consul HTTP communication
-	flagConsulCACertFile  string // Root CA file for Consul
-	flagConsulXDSPort     int    // Port for Consul xDS communication
+	flagConsulHTTPAddress       string // Address for Consul HTTP API.
+	flagConsulHTTPPort          int    // Port for Consul HTTP communication
+	flagConsulCACertFile        string // Root CA file for Consul
+	flagConsulXDSPort           int    // Port for Consul xDS communication
+	flagConsulPrimaryDatacenter string // Name of the primary datacenter if deploying into a secondary datacenter
 
 	// Gateway params
 	flagGatewayID        string // Gateway iD.
@@ -86,6 +88,7 @@ func (c *Command) init() {
 		c.flagSet.IntVar(&c.flagConsulHTTPPort, "consul-http-port", 8500, "Port of Consul HTTP server.")
 		c.flagSet.IntVar(&c.flagConsulXDSPort, "consul-xds-port", 8502, "Port of Consul xDS server.")
 		c.flagSet.StringVar(&c.flagConsulCACertFile, "consul-ca-cert-file", "", "CA Root file for Consul.")
+		c.flagSet.StringVar(&c.flagConsulPrimaryDatacenter, "consul-primary-datacenter", "", "Primary datacenter if deploying into a secondary datacenter.")
 	}
 	{
 		// Envoy
@@ -163,11 +166,12 @@ func (c *Command) Run(args []string) (ret int) {
 	}
 
 	return RunExec(ExecConfig{
-		Context:      c.ctx,
-		Logger:       logger,
-		LogLevel:     c.flagLogLevel,
-		ConsulClient: consulClient,
-		ConsulConfig: *cfg,
+		Context:           c.ctx,
+		Logger:            logger,
+		LogLevel:          c.flagLogLevel,
+		ConsulClient:      consulClient,
+		ConsulConfig:      *cfg,
+		PrimaryDatacenter: c.flagConsulPrimaryDatacenter,
 		AuthConfig: AuthConfig{
 			Method:    c.flagACLAuthMethod,
 			Namespace: c.flagAuthMethodNamespace,
