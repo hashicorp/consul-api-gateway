@@ -123,6 +123,13 @@ func RunExec(config ExecConfig) (ret int) {
 			config.Logger.Error("error deregistering service", "error", err)
 			ret = 1
 		}
+		// clean up the ACL token that was provisioned via acl.login
+		if config.AuthConfig.Method != "" {
+			if err := logout(config, token); err != nil {
+				config.Logger.Error("error deleting acl token", "error", err)
+				ret = 1
+			}
+		}
 	}()
 
 	envoyManager := envoy.NewManager(
@@ -223,4 +230,13 @@ func login(config ExecConfig) (*api.Client, string, error) {
 		return nil, "", fmt.Errorf("error updating client connection with token: %w", err)
 	}
 	return newClient, token, nil
+}
+
+func logout(config ExecConfig, token string) error {
+	config.Logger.Info("deleting acl token")
+	_, err := config.ConsulClient.ACL().Logout(&api.WriteOptions{Token: token})
+	if err != nil {
+		return fmt.Errorf("error deleting acl token: %w", err)
+	}
+	return nil
 }

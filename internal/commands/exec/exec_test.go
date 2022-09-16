@@ -322,8 +322,65 @@ func TestRunExecShutdown(t *testing.T) {
 	require.Contains(t, buffer.String(), "shutting down")
 }
 
+// TestRunExecShutdownACLs test that if ACLs are enabled we logout and report error if this fails.
+func TestRunExecShutdownACLs(t *testing.T) {
+	t.Parallel()
+
+	directory, err := os.MkdirTemp("", "exec-test")
+	require.NoError(t, err)
+	defer os.RemoveAll(directory)
+
+	var buffer gwTesting.Buffer
+	logger := hclog.New(&hclog.LoggerOptions{
+		Output: &buffer,
+	})
+	consul := runMockConsulServer(t, mockConsulOptions{
+		loginFail:  false,
+		logoutFail: true,
+	})
+	require.Equal(t, 1, RunExec(ExecConfig{
+		Context:      context.Background(),
+		Logger:       logger,
+		ConsulClient: consul.client,
+		ConsulConfig: *consul.config,
+		AuthConfig: AuthConfig{
+			Method: "nonexistent",
+			Token:  "token",
+		},
+		isTest: true,
+	}))
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	output := gwTesting.RandomString()
+	require.Equal(t, 1, RunExec(ExecConfig{
+		Context:      ctx,
+		Logger:       logger,
+		ConsulClient: consul.client,
+		ConsulConfig: *consul.config,
+		AuthConfig: AuthConfig{
+			Method: "nonexistent",
+			Token:  "token",
+		},
+		GatewayConfig: GatewayConfig{
+			Name: "test",
+		},
+		EnvoyConfig: EnvoyConfig{
+			CertificateDirectory: directory,
+			BootstrapFile:        path.Join(directory, "boostrap.json"),
+			Binary:               "echo",
+			ExtraArgs:            []string{output},
+			Output:               &buffer,
+		},
+		isTest: true,
+	}))
+
+	require.Contains(t, buffer.String(), output)
+	require.Contains(t, buffer.String(), "error deleting acl token")
+}
+
 type mockConsulOptions struct {
 	loginFail      bool
+	logoutFail     bool
 	registerFail   bool
 	deregisterFail bool
 	leafCertFail   bool
@@ -352,6 +409,7 @@ func runMockConsulServer(t *testing.T, opts mockConsulOptions) *mockConsulServer
 	}
 
 	loginPath := "/v1/acl/login"
+	logoutPath := "/v1/acl/logout"
 	registerPath := "/v1/agent/service/register"
 	deregisterPath := "/v1/agent/service/deregister"
 	leafPath := "/v1/agent/connect/ca/leaf"
@@ -361,6 +419,15 @@ func runMockConsulServer(t *testing.T, opts mockConsulOptions) *mockConsulServer
 	consulServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r != nil && r.URL.Path == loginPath && r.Method == "POST" {
 			if opts.loginFail {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			_, err := w.Write([]byte(fmt.Sprintf(`{"SecretID": "%s"}`, server.token)))
+			require.NoError(t, err)
+			return
+		}
+		if r != nil && r.URL.Path == logoutPath && r.Method == "POST" {
+			if opts.logoutFail {
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
