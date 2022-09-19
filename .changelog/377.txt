@@ -1,0 +1,3 @@
+```release-note:bug
+Delete gateway ACL tokens on shutdown so they are not orphaned after being provisioned at startup.
+```
