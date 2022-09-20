@@ -25,7 +25,7 @@ const (
 
 var _ store.Binder = (*binder)(nil)
 
-// binder wraps encapsulates the logic for binding new Route(s) to a Gateway.
+// binder encapsulates the logic for binding new Route(s) to a Gateway.
 type binder struct {
 	Client gatewayclient.Client
 }
