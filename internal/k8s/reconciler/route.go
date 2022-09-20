@@ -2,7 +2,6 @@ package reconciler
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 
@@ -45,7 +44,7 @@ type serializedRoute struct {
 	RouteState *state.RouteState
 }
 
-var _ store.StatusTrackingRoute = &K8sRoute{}
+var _ store.Route = &K8sRoute{}
 
 type K8sRouteConfig struct {
 	ControllerName string
@@ -113,26 +112,6 @@ func (r *K8sRoute) setStatus(updated gwv1alpha2.RouteStatus) {
 	}
 }
 
-func (r *K8sRoute) SyncStatus(ctx context.Context) error {
-	if status, ok := r.RouteState.ParentStatuses.NeedsUpdate(r.routeStatus(), r.controllerName, r.GetGeneration()); ok {
-		r.setStatus(status)
-
-		if r.logger.IsTrace() {
-			status, err := json.MarshalIndent(r.routeStatus(), "", "  ")
-			if err == nil {
-				r.logger.Trace("syncing route status", "status", string(status))
-			}
-		}
-		if err := r.client.UpdateStatus(ctx, r.Route); err != nil {
-			// reset the status so we sync again on a retry
-			r.setStatus(status)
-			return fmt.Errorf("error updating route status: %w", err)
-		}
-	}
-
-	return nil
-}
-
 func (r *K8sRoute) resolve(namespace string, gateway *gwv1beta1.Gateway, listener gwv1beta1.Listener) core.ResolvedRoute {
 	hostname := listenerHostname(listener)
 
@@ -170,31 +149,6 @@ func (r *K8sRoute) resolve(namespace string, gateway *gwv1beta1.Gateway, listene
 	default:
 		// TODO: add other route types
 		return nil
-	}
-}
-
-func (r *K8sRoute) parents() []gwv1alpha2.ParentReference {
-	// filter for this controller
-	switch route := r.Route.(type) {
-	case *gwv1alpha2.HTTPRoute:
-		return route.Spec.ParentRefs
-	case *gwv1alpha2.TCPRoute:
-		return route.Spec.ParentRefs
-	}
-	return nil
-}
-
-func (r *K8sRoute) OnGatewayRemoved(gateway store.Gateway) {
-	k8sGateway, ok := gateway.(*K8sGateway)
-	if ok {
-		parent := utils.NamespacedName(k8sGateway.Gateway)
-		for _, p := range r.parents() {
-			gatewayName, isGateway := utils.ReferencesGateway(r.GetNamespace(), p)
-			if isGateway && gatewayName == parent {
-				r.RouteState.Remove(p)
-				return
-			}
-		}
 	}
 }
 

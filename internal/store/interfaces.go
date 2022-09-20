@@ -10,44 +10,11 @@ import (
 
 type CompareResult int
 
-// StatusTrackingGateway is an optional extension
-// of Gateway. If supported by a Store, when
-// a Gateway is synced to an external location,
-// its corresponding callbacks should
-// be called.
-// TODO Remove
-type StatusTrackingGateway interface {
-	Gateway
-
-	TrackSync(ctx context.Context, sync func() (bool, error)) error
-}
-
 // Gateway describes a gateway.
 type Gateway interface {
 	ID() core.GatewayID
-	Bind(ctx context.Context, route Route) []string
-	Remove(ctx context.Context, id string) error
 	Resolve() core.ResolvedGateway
 	CanFetchSecrets(secrets []string) (bool, error)
-}
-
-type NewGateway interface {
-	ID() core.GatewayID
-	Resolve() core.ResolvedGateway
-	CanFetchSecrets(secrets []string) (bool, error)
-}
-
-// StatusTrackingRoute is an optional extension
-// of Route. If supported by a Store, when
-// a Route is bound or fails to be bound to
-// a gateway, its corresponding callbacks should
-// be called. At the end of any methods affecting
-// the route's binding, SyncStatus should be called.
-type StatusTrackingRoute interface {
-	Route
-
-	SyncStatus(ctx context.Context) error
-	OnGatewayRemoved(gateway Gateway)
 }
 
 // Route should be implemented by all route
@@ -56,30 +23,28 @@ type Route interface {
 	ID() string
 }
 
-// Store is used for persisting and querying gateways and routes
-// TODO Remove
-type Store interface {
-	GetGateway(ctx context.Context, id core.GatewayID) (Gateway, error)
-	DeleteGateway(ctx context.Context, id core.GatewayID) error
-	UpsertGateway(ctx context.Context, gateway Gateway, updateConditionFn func(current Gateway) bool) error
-	DeleteRoute(ctx context.Context, id string) error
-	UpsertRoute(ctx context.Context, route Route, updateConditionFn func(current Route) bool) error
-	Sync(ctx context.Context) error
-}
-
-// NewStore is used for persisting and querying gateways and routes
-type NewStore interface {
+type ReadStore interface {
 	GetGateway(ctx context.Context, id core.GatewayID) (Gateway, error)
 	ListGateways(ctx context.Context) ([]Gateway, error)
-	UpsertGateway(ctx context.Context, gateway Gateway, updateConditionFn func(current Gateway) bool) error
-	DeleteGateway(ctx context.Context, id core.GatewayID) error
 
 	GetRoute(ctx context.Context, id string) (Route, error)
 	ListRoutes(ctx context.Context) ([]Route, error)
+}
+
+type WriteStore interface {
+	UpsertGateway(ctx context.Context, gateway Gateway, updateConditionFn func(current Gateway) bool) error
+	DeleteGateway(ctx context.Context, id core.GatewayID) error
+
 	UpsertRoute(ctx context.Context, route Route, updateConditionFn func(current Route) bool) error
 	DeleteRoute(ctx context.Context, id string) error
 
 	SyncAllAtInterval(ctx context.Context)
+}
+
+// Store is used for persisting and querying gateways and routes
+type Store interface {
+	ReadStore
+	WriteStore
 }
 
 // Backend is used for persisting and querying gateways and routes
@@ -102,8 +67,8 @@ type Marshaler interface {
 }
 
 type Binder interface {
-	Bind(ctx context.Context, gateway Gateway, route Route) (bool, error)
-	Unbind(ctx context.Context, gateway Gateway, route Route) (bool, error)
+	Bind(ctx context.Context, gateway Gateway, route Route) bool
+	Unbind(ctx context.Context, gateway Gateway, route Route) bool
 }
 
 type StatusUpdater interface {

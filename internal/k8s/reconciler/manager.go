@@ -42,13 +42,12 @@ type ReconcileManager interface {
 // GatewayReconcileManager manages a GatewayReconciler for each Gateway and is the interface by which Consul operations
 // should be invoked in a kubernetes controller.
 type GatewayReconcileManager struct {
-	controllerName string
-	logger         hclog.Logger
-	client         gatewayclient.Client
-	consul         *api.Client
-	consulCA       string
-	sdsHost        string
-	sdsPort        int
+	logger   hclog.Logger
+	client   gatewayclient.Client
+	consul   *api.Client
+	consulCA string
+	sdsHost  string
+	sdsPort  int
 
 	deployer         *GatewayDeployer
 	store            store.Store
@@ -91,20 +90,11 @@ func NewReconcileManager(config ManagerConfig) *GatewayReconcileManager {
 	})
 
 	return &GatewayReconcileManager{
-		controllerName:        config.ControllerName,
-		logger:                config.Logger,
 		client:                config.Client,
 		consul:                config.Consul,
 		consulCA:              config.ConsulCA,
-		sdsHost:               config.SDSHost,
-		sdsPort:               config.SDSPort,
-		gatewayClasses:        NewK8sGatewayClasses(config.Logger.Named("gatewayclasses"), config.Client),
-		gatewayValidator:      validator.NewGatewayValidator(config.Client),
-		routeValidator:        validator.NewRouteValidator(resolver, config.Client),
-		namespaceMap:          make(map[types.NamespacedName]string),
 		consulNamespaceMapper: config.ConsulNamespaceMapper,
 		deployer:              deployer,
-		store:                 config.Store,
 		factory: NewFactory(FactoryConfig{
 			ControllerName: config.ControllerName,
 			Logger:         config.Logger,
@@ -112,6 +102,14 @@ func NewReconcileManager(config ManagerConfig) *GatewayReconcileManager {
 			Deployer:       deployer,
 			Resolver:       resolver,
 		}),
+		logger:           config.Logger,
+		gatewayClasses:   NewK8sGatewayClasses(config.Logger.Named("gatewayclasses"), config.Client),
+		gatewayValidator: validator.NewGatewayValidator(config.Client),
+		namespaceMap:     make(map[types.NamespacedName]string),
+		routeValidator:   validator.NewRouteValidator(resolver, config.Client),
+		sdsHost:          config.SDSHost,
+		sdsPort:          config.SDSPort,
+		store:            config.Store,
 	}
 }
 

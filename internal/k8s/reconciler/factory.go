@@ -10,6 +10,7 @@ import (
 	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 )
 
+// TODO Remove Factory as it's no longer necessarygithub
 type Factory struct {
 	controllerName string
 	logger         hclog.Logger
@@ -53,17 +54,7 @@ func (f *Factory) NewGateway(config NewGatewayConfig) *K8sGateway {
 		gwState.ConsulNamespace = config.ConsulNamespace
 	}
 
-	return newK8sGateway(config.Gateway, K8sGatewayConfig{
-		ConsulNamespace: config.ConsulNamespace,
-		ConsulCA:        "",
-		SDSHost:         "",
-		SDSPort:         0,
-		State:           gwState,
-		Config:          config.Config,
-		Deployer:        f.deployer,
-		Logger:          f.logger.Named("gateway").With("name", config.Gateway.Name, "namespace", config.Gateway.Namespace),
-		Client:          f.client,
-	})
+	return newK8sGateway(config.Config, config.Gateway, gwState)
 }
 
 type NewRouteConfig struct {

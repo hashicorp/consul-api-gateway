@@ -9,6 +9,12 @@ import (
 	"syscall"
 	"time"
 
+	consulapi "github.com/hashicorp/consul/api"
+	"github.com/hashicorp/go-hclog"
+	vaultapi "github.com/hashicorp/vault/api"
+	"github.com/mitchellh/cli"
+	"golang.org/x/sync/errgroup"
+
 	consulAdapters "github.com/hashicorp/consul-api-gateway/internal/adapters/consul"
 	"github.com/hashicorp/consul-api-gateway/internal/api"
 	"github.com/hashicorp/consul-api-gateway/internal/api/apiinternal"
@@ -17,14 +23,9 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/envoy"
 	"github.com/hashicorp/consul-api-gateway/internal/metrics"
 	"github.com/hashicorp/consul-api-gateway/internal/profiling"
-	"github.com/hashicorp/consul-api-gateway/internal/store/memory"
+	"github.com/hashicorp/consul-api-gateway/internal/store"
 	"github.com/hashicorp/consul-api-gateway/internal/vault"
 	"github.com/hashicorp/consul-api-gateway/internal/vm"
-	consulapi "github.com/hashicorp/consul/api"
-	"github.com/hashicorp/go-hclog"
-	vaultapi "github.com/hashicorp/vault/api"
-	"github.com/mitchellh/cli"
-	"golang.org/x/sync/errgroup"
 )
 
 func RegisterCommands(ctx context.Context, commands map[string]cli.CommandFactory, ui cli.Ui, logOutput io.Writer) {
@@ -161,24 +162,20 @@ func (c *Command) Run(args []string) (ret int) {
 		return c.Error("timeout waiting for certs to be written", err)
 	}
 
-	// replace this with the Consul store
-	store := memory.NewStore(memory.StoreConfig{
-		Adapter: consulAdapters.NewSyncAdapter(logger.Named("consul-adapter"), client),
-		Logger:  logger.Named("state"),
-	})
-	group.Go(func() error {
-		store.SyncAtInterval(groupCtx)
-		return nil
+	store := store.New(store.Config{
+		Adapter:       consulAdapters.NewSyncAdapter(logger.Named("consul-adapter"), client),
+		Backend:       store.NewMemoryBackend(),
+		Binder:        nil, // TODO VM runtime implementation
+		Logger:        logger.Named("store"),
+		Marshaler:     nil, // TODO VM runtime implementation
+		StatusUpdater: nil, // TODO VM runtime implementation
 	})
 
-	sds := envoy.NewSDSServer(
-		logger.Named("sds-server"),
-		certManager,
-		secretClient,
-		store,
-	).WithAddress(c.flagSDSAddress, c.flagSDSPort)
 	group.Go(func() error {
-		return sds.Run(groupCtx)
+		return envoy.
+			NewSDSServer(logger.Named("sds-server"), certManager, secretClient, store).
+			WithAddress(c.flagSDSAddress, c.flagSDSPort).
+			Run(groupCtx)
 	})
 
 	server := api.NewServer(api.ServerConfig{
