@@ -179,20 +179,14 @@ type ResolvedReference struct {
 	Type      ResolvedReferenceType
 	Reference *BackendReference
 	Consul    *ConsulService
-	object    client.Object
 }
 
-func NewConsulServiceReference(object client.Object, consul *ConsulService) *ResolvedReference {
+func NewConsulServiceReference(consul *ConsulService) *ResolvedReference {
 	return &ResolvedReference{
 		Type:      ConsulServiceReference,
 		Reference: &BackendReference{},
 		Consul:    consul,
-		object:    object,
 	}
-}
-
-func (r *ResolvedReference) Item() client.Object {
-	return r.object
 }
 
 type BackendResolver interface {
@@ -276,7 +270,7 @@ func (r *backendResolver) consulServiceForK8SService(ctx context.Context, namesp
 	return resolved, nil
 }
 
-func validateAgentConsulReference(services map[string]*api.AgentService, object client.Object) (*ResolvedReference, error) {
+func validateAgentConsulReference(services map[string]*api.AgentService) (*ResolvedReference, error) {
 	serviceName := ""
 	serviceNamespace := ""
 	for _, service := range services {
@@ -294,7 +288,7 @@ func validateAgentConsulReference(services map[string]*api.AgentService, object 
 				))
 		}
 	}
-	return NewConsulServiceReference(object, &ConsulService{
+	return NewConsulServiceReference(&ConsulService{
 		Name:      serviceName,
 		Namespace: serviceNamespace,
 	}), nil
@@ -341,7 +335,7 @@ func (r *backendResolver) findGlobalCatalogService(service *corev1.Service) (*Re
 			if len(nodeWithServices.Services) == 0 {
 				continue
 			}
-			resolved, err := validateAgentConsulReference(nodeWithServices.Services, service)
+			resolved, err := validateAgentConsulReference(nodeWithServices.Services)
 			if err != nil {
 				r.logger.Trace("error validating node services", "error", err, "node", node.Node)
 				return nil, err
@@ -426,7 +420,7 @@ func validateCatalogConsulReference(services []*api.CatalogService, object clien
 				))
 		}
 	}
-	return NewConsulServiceReference(object, &ConsulService{
+	return NewConsulServiceReference(&ConsulService{
 		Name:      serviceName,
 		Namespace: serviceNamespace,
 	}), nil
