@@ -65,11 +65,7 @@ jobs:
     - name: Clean Generate
       run: |
         echo "Checking that code generation is up-to-date"
-        go install github.com/golang/mock/mockgen@v1.6.0
-        go install github.com/andrewstucki/oapi-codegen/cmd/oapi-codegen@indirection
-        go generate ./...
-        make ctrl-generate
-        make ctrl-manifests
+        make gen
         git diff --quiet || (echo 'Working tree is dirty' && git --no-pager diff && exit 1)
 
     - name: Test
