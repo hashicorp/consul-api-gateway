@@ -29,9 +29,9 @@ require (
 	golang.org/x/net v0.0.0-20220909164309-bea034e7d591
 	golang.org/x/sync v0.0.0-20220722155255-886fb9371eb4
 	google.golang.org/grpc v1.49.0
-	k8s.io/api v0.25.0
+	k8s.io/api v0.25.1
 	k8s.io/apiextensions-apiserver v0.25.0
-	k8s.io/apimachinery v0.25.0
+	k8s.io/apimachinery v0.25.1
 	k8s.io/client-go v0.25.0
 	k8s.io/klog/v2 v2.80.1
 	k8s.io/utils v0.0.0-20220728103510-ee6ede2d64ed
