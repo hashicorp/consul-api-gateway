@@ -825,6 +825,14 @@ components:
           minLength: 1
         namespace:
           type: string
+    BootstrapToken:
+      type: object
+      required:
+      - token
+      properties:
+        token:
+          type: string
+          minLength: 1
     HTTPRoute:
       type: object
       required:
