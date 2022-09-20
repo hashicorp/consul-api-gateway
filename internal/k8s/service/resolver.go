@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -129,6 +130,19 @@ func (r *ResolutionErrors) Flatten() (ServiceResolutionErrorType, error) {
 
 func (r *ResolutionErrors) Empty() bool {
 	return len(r.errors) == 0
+}
+
+func (r *ResolutionErrors) UnmarshalJSON(b []byte) error {
+	errs := make(map[ServiceResolutionErrorType][]ResolutionError)
+	if err := json.Unmarshal(b, &errs); err != nil {
+		return err
+	}
+	r.errors = errs
+	return nil
+}
+
+func (r ResolutionErrors) MarshalJSON() ([]byte, error) {
+	return json.Marshal(r.errors)
 }
 
 const (
