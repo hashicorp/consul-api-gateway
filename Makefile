@@ -76,9 +76,7 @@ endif
 .PHONY: changelog-check
 changelog-check:
 ifeq (, $(shell which changelog-check))
-	@rm -rf go-changelog
-	@git clone -b changelog-check https://github.com/mikemorris/go-changelog
-	@cd go-changelog && go install ./cmd/changelog-check
+	@go install github.com/hashicorp/go-changelog/cmd/changelog-check@latest
 endif
 	@changelog-check
 
