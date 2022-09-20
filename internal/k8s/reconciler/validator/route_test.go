@@ -13,7 +13,6 @@ import (
 	gwv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	clientMocks "github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient/mocks"
-	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/state"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/service"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/service/mocks"
 )
@@ -52,7 +51,8 @@ func TestRouteValidate(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.True(t, routeState.ResolutionErrors.Empty())
+	require.NotNil(t, routeState)
+	assert.True(t, routeState.ResolutionErrors.Empty())
 
 	expected := errors.New("expected")
 	resolver.EXPECT().Resolve(gomock.Any(), gomock.Any(), reference).Return(nil, expected)
@@ -68,10 +68,10 @@ func TestRouteValidate(t *testing.T) {
 		},
 	})
 	require.Equal(t, expected, err)
+	assert.Nil(t, routeState)
 
 	resolver.EXPECT().Resolve(gomock.Any(), gomock.Any(), reference).Return(nil, service.NewK8sResolutionError("error"))
 
-	routeState = state.NewRouteState()
 	routeState, err = validator.Validate(context.Background(), &gwv1alpha2.HTTPRoute{
 		Spec: gwv1alpha2.HTTPRouteSpec{
 			Rules: []gwv1alpha2.HTTPRouteRule{{
@@ -84,7 +84,8 @@ func TestRouteValidate(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.False(t, routeState.ResolutionErrors.Empty())
+	require.NotNil(t, routeState)
+	assert.False(t, routeState.ResolutionErrors.Empty())
 }
 
 func TestRouteValidateDontAllowCrossNamespace(t *testing.T) {

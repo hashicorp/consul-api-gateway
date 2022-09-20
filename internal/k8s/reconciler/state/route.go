@@ -10,7 +10,6 @@ import (
 
 // RouteState holds ephemeral state for routes
 type RouteState struct {
-	// TODO: make this able to be marshaled
 	References       service.RouteRuleReferenceMap
 	ResolutionErrors *service.ResolutionErrors
 	ParentStatuses   status.RouteStatuses

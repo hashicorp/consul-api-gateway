@@ -104,7 +104,7 @@ func (s *SDSServer) Run(ctx context.Context) error {
 			},
 			ClientAuth: tls.RequireAndVerifyClientCert,
 		})),
-		grpc.StreamInterceptor(SPIFFEStreamMiddleware(s.logger, s.fetcher, s.store)),
+		grpc.StreamInterceptor(SPIFFEStreamMiddleware(s.logger, s.store)),
 	}
 	s.server = grpc.NewServer(opts...)
 

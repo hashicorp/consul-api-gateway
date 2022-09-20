@@ -4,11 +4,10 @@ import (
 	"context"
 	"testing"
 
+	"github.com/hashicorp/go-hclog"
 	"github.com/stretchr/testify/require"
 
 	"github.com/hashicorp/consul-api-gateway/internal/k8s"
-	"github.com/hashicorp/go-hclog"
-
 	gwTesting "github.com/hashicorp/consul-api-gateway/internal/testing"
 )
 

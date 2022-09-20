@@ -1,6 +1,7 @@
 package state
 
 import (
+	"encoding/json"
 	"errors"
 
 	gwv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
@@ -68,9 +69,44 @@ func (g *GatewayState) GetStatus(gateway *gwv1beta1.Gateway) gwv1beta1.GatewaySt
 	}
 }
 
+type ResolvedRoutes map[string]core.ResolvedRoute
+
+// TODO Is this the best location for this func?
+func (r *ResolvedRoutes) UnmarshalJSON(b []byte) error {
+	*r = map[string]core.ResolvedRoute{}
+
+	stored := map[string][]byte{}
+	if err := json.Unmarshal(b, &stored); err != nil {
+		return err
+	}
+
+	for k, v := range stored {
+		route, err := core.UnmarshalRoute(v)
+		if err != nil {
+			return err
+		}
+		(*r)[k] = route
+	}
+
+	return nil
+}
+
+// TODO Is this the best location for this func?
+func (r ResolvedRoutes) MarshalJSON() ([]byte, error) {
+	stored := map[string][]byte{}
+	for k, v := range r {
+		route, err := core.MarshalRoute(v)
+		if err != nil {
+			return nil, err
+		}
+		stored[k] = route
+	}
+	return json.Marshal(stored)
+}
+
 // ListenerState holds ephemeral state for listeners
 type ListenerState struct {
-	Routes   map[string]core.ResolvedRoute
+	Routes   ResolvedRoutes
 	Protocol gwv1beta1.ProtocolType
 	Name     gwv1beta1.SectionName
 	TLS      core.TLSParams
