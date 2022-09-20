@@ -40,8 +40,6 @@ func NewBinder(client gatewayclient.Client) *binder {
 func (b *binder) Bind(ctx context.Context, gateway store.Gateway, route store.Route) bool {
 	k8sGateway, k8sRoute := gateway.(*K8sGateway), route.(*K8sRoute)
 
-	var boundListeners []string
-
 	// If the route doesn't reference this Gateway, remove the route
 	// from any listeners that it may have previously bound to
 	if !b.routeReferencesGateway(k8sRoute, k8sGateway) {
@@ -57,7 +55,6 @@ func (b *binder) Bind(ctx context.Context, gateway store.Gateway, route store.Ro
 			if b.canBind(ctx, k8sGateway.Namespace, listener, listenerState, ref, k8sRoute) {
 				modified = true
 				listenerState.Routes[route.ID()] = k8sRoute.resolve(k8sGateway.GatewayState.ConsulNamespace, k8sGateway.Gateway, listener)
-				boundListeners = append(boundListeners, string(listener.Name))
 			} else {
 				// If the route cannot bind to this listener, remove the route in
 				// case it was previously bound.
