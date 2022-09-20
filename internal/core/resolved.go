@@ -17,6 +17,7 @@ const (
 	ResolvedTCPRouteType  ResolvedRouteType = "TCPRoute"
 )
 
+// TODO Determine if Marshal needs to be here
 type ResolvedRoute interface {
 	GetType() ResolvedRouteType
 	GetMeta() map[string]string
