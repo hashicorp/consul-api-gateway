@@ -56,7 +56,7 @@ generate-golden-files:
 	GENERATE=true go test ./internal/k8s/builder
 
 .PHONY: gen
-gen:
+gen: generate-golden-files
 ifeq (, $(shell which oapi-codegen))
 	@go install github.com/deepmap/oapi-codegen/cmd/oapi-codegen
 endif
