@@ -78,6 +78,8 @@ type NewStore interface {
 	ListRoutes(ctx context.Context) ([]Route, error)
 	UpsertRoute(ctx context.Context, route Route, updateConditionFn func(current Route) bool) error
 	DeleteRoute(ctx context.Context, id string) error
+
+	SyncAllAtInterval(ctx context.Context)
 }
 
 // Backend is used for persisting and querying gateways and routes

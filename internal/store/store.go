@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"time"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-multierror"
@@ -17,6 +18,9 @@ var (
 	_ NewStore = (*lockingStore)(nil)
 
 	ErrNotFound = errors.New("not found")
+
+	consulSyncInterval = 60 * time.Second
+	startSyncLoopOnce  sync.Once
 )
 
 // lockingStore is a wrapper around store that synchronizes reads + writes
@@ -230,6 +234,32 @@ func (s *lockingStore) DeleteRoute(ctx context.Context, id string) error {
 	return s.syncGateways(ctx, modifiedGateways)
 }
 
+// SyncAllAtInterval syncs all known Gateway(s) and Route(s) into Consul
+// at a regular interval. This function is blocking.
+func (s *lockingStore) SyncAllAtInterval(ctx context.Context) {
+	startSyncLoopOnce.Do(func() {
+		ticker := time.NewTicker(consulSyncInterval)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				s.mutex.Lock()
+
+				if err := s.syncAll(ctx); err != nil {
+					s.logger.Warn("An error occurred during background sync, some changes may be out of sync", "error", err)
+				} else {
+					s.logger.Trace("Synced store in background")
+				}
+
+				s.mutex.Unlock()
+			}
+		}
+	})
+}
+
 // store is an orchestration layer over the persistent Backend that
 // handles additional business logic required for CRUD operations.
 //
@@ -370,6 +400,30 @@ func bindOrUnbindAll(ctx context.Context, gateways []Gateway, routes []Route, f 
 	}
 
 	return maps.Values(modifiedGateways), maps.Values(modifiedRoutes), nil
+}
+
+// syncAll updates the Gateway and Route statuses for all Gateway(s) and Route(s)
+// in the store and sync all Gateway(s) using the adapter.
+func (s *store) syncAll(ctx context.Context) error {
+	var eg multierror.Group
+
+	eg.Go(func() error {
+		gateways, err := s.listGateways(ctx)
+		if err != nil {
+			return err
+		}
+		return s.syncGateways(ctx, gateways)
+	})
+
+	eg.Go(func() error {
+		routes, err := s.listRoutes(ctx)
+		if err != nil {
+			return err
+		}
+		return s.syncRouteStatuses(ctx, routes)
+	})
+
+	return eg.Wait().ErrorOrNil()
 }
 
 // syncGatewaysAndRoutes updates the Gateway and Route statuses and syncs Gateways using the adapter.
