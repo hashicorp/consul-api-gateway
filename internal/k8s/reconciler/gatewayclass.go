@@ -126,7 +126,7 @@ func (c *K8sGatewayClass) Validate(ctx context.Context) error {
 func (c *K8sGatewayClass) SyncStatus(ctx context.Context) error {
 	current := c.class.Status.Conditions
 	conditions := c.status.Conditions(c.class.Generation)
-	if !conditionsEqual(conditions, current) {
+	if !rstatus.ConditionsEqual(conditions, current) {
 		c.class.Status.Conditions = conditions
 		if err := c.client.UpdateStatus(ctx, c.class); err != nil {
 			// unset to sync on next retry
