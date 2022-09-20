@@ -600,6 +600,18 @@ func (mr *MockNewStoreMockRecorder) ListRoutes(ctx interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListRoutes", reflect.TypeOf((*MockNewStore)(nil).ListRoutes), ctx)
 }
 
+// SyncAllAtInterval mocks base method.
+func (m *MockNewStore) SyncAllAtInterval(ctx context.Context) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SyncAllAtInterval", ctx)
+}
+
+// SyncAllAtInterval indicates an expected call of SyncAllAtInterval.
+func (mr *MockNewStoreMockRecorder) SyncAllAtInterval(ctx interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SyncAllAtInterval", reflect.TypeOf((*MockNewStore)(nil).SyncAllAtInterval), ctx)
+}
+
 // UpsertGateway mocks base method.
 func (m *MockNewStore) UpsertGateway(ctx context.Context, gateway store.Gateway, updateConditionFn func(store.Gateway) bool) error {
 	m.ctrl.T.Helper()
