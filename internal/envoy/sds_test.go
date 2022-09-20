@@ -29,7 +29,6 @@ import (
 
 	"github.com/hashicorp/consul-api-gateway/internal/envoy/mocks"
 	"github.com/hashicorp/consul-api-gateway/internal/store"
-	"github.com/hashicorp/consul-api-gateway/internal/store/memory"
 	storeMocks "github.com/hashicorp/consul-api-gateway/internal/store/mocks"
 	gwTesting "github.com/hashicorp/consul-api-gateway/internal/testing"
 )
@@ -121,7 +120,11 @@ func TestSDSSPIFFEHostMismatch(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = runTestServer(t, ca.CertBytes, nil, func(serverAddress string, fetcher *mocks.MockCertificateFetcher) {
+	err = runTestServer(t, ca.CertBytes, func(ctrl *gomock.Controller) store.Store {
+		store := storeMocks.NewMockStore(ctrl)
+		store.EXPECT().GetGateway(gomock.Any(), gomock.Any()).MinTimes(1).Return(nil, nil)
+		return store
+	}, func(serverAddress string, fetcher *mocks.MockCertificateFetcher) {
 		fetcher.EXPECT().TLSCertificate().Return(&server.X509)
 		err := testClientSDS(t, serverAddress, client, ca.CertBytes)
 		require.Error(t, err)
@@ -259,12 +262,13 @@ func runTestServer(t *testing.T, ca []byte, registryFn func(*gomock.Controller) 
 		Name: "test",
 	}, time.Now(), nil)
 
-	sds := NewSDSServer(hclog.NewNullLogger(), fetcher, secretClient, memory.NewStore(memory.StoreConfig{}))
+	var store store.Store = storeMocks.NewMockStore(ctrl)
+	if registryFn != nil {
+		store = registryFn(ctrl)
+	}
+	sds := NewSDSServer(hclog.NewNullLogger(), fetcher, secretClient, store)
 	sds.bindAddress = serverAddress
 	sds.protocol = "unix"
-	if registryFn != nil {
-		sds.store = registryFn(ctrl)
-	}
 
 	errEarlyTestTermination := errors.New("early termination")
 	done := make(chan error, 1)

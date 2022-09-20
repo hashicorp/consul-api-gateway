@@ -15,6 +15,7 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/errors"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/state"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
+	"github.com/hashicorp/consul-api-gateway/internal/store"
 )
 
 const (
@@ -22,8 +23,9 @@ const (
 	NamespaceNameLabel = "kubernetes.io/metadata.name"
 )
 
-// binder wraps a Gateway and the corresponding GatewayState and encapsulates
-// the logic for binding new routes to that Gateway.
+var _ store.Binder = (*binder)(nil)
+
+// binder wraps encapsulates the logic for binding new Route(s) to a Gateway.
 type binder struct {
 	Client gatewayclient.Client
 }
@@ -35,34 +37,65 @@ func NewBinder(client gatewayclient.Client) *binder {
 // Bind will attempt to bind the provided route to all listeners on the Gateway and
 // remove the route from any listeners that the route should no longer be bound to.
 // The latter is important for scenarios such as the route's parent changing.
-func (b *binder) Bind(ctx context.Context, gateway *K8sGateway, route *K8sRoute) []string {
+func (b *binder) Bind(ctx context.Context, gateway store.Gateway, route store.Route) bool {
+	k8sGateway, k8sRoute := gateway.(*K8sGateway), route.(*K8sRoute)
+
 	var boundListeners []string
 
 	// If the route doesn't reference this Gateway, remove the route
 	// from any listeners that it may have previously bound to
-	if !b.routeReferencesGateway(route, gateway) {
-		for _, listenerState := range gateway.GatewayState.Listeners {
-			delete(listenerState.Routes, route.ID())
-		}
-		return boundListeners
+	if !b.routeReferencesGateway(k8sRoute, k8sGateway) {
+		return b.Unbind(ctx, gateway, route)
 	}
 
+	modified := false
+
 	// The route does reference this Gateway, so attempt to bind to each listener
-	for _, ref := range route.commonRouteSpec().ParentRefs {
-		for i, listener := range gateway.Spec.Listeners {
-			listenerState := gateway.GatewayState.Listeners[i]
-			if b.canBind(ctx, gateway.Namespace, listener, listenerState, ref, route) {
-				listenerState.Routes[route.ID()] = route.resolve(gateway.GatewayState.ConsulNamespace, gateway.Gateway, listener)
+	for _, ref := range k8sRoute.commonRouteSpec().ParentRefs {
+		for i, listener := range k8sGateway.Spec.Listeners {
+			listenerState := k8sGateway.GatewayState.Listeners[i]
+			if b.canBind(ctx, k8sGateway.Namespace, listener, listenerState, ref, k8sRoute) {
+				modified = true
+				listenerState.Routes[route.ID()] = k8sRoute.resolve(k8sGateway.GatewayState.ConsulNamespace, k8sGateway.Gateway, listener)
 				boundListeners = append(boundListeners, string(listener.Name))
 			} else {
-				// If the route cannot bind to this listener, remove the route
-				// in case it was previously bound
-				delete(listenerState.Routes, route.ID())
+				// If the route cannot bind to this listener, remove the route in
+				// case it was previously bound.
+				if _, present := listenerState.Routes[route.ID()]; present {
+					modified = true
+					delete(listenerState.Routes, route.ID())
+				}
 			}
 		}
 	}
 
-	return boundListeners
+	return modified
+}
+
+func (b *binder) Unbind(_ context.Context, gateway store.Gateway, route store.Route) bool {
+	k8sGateway, k8sRoute := gateway.(*K8sGateway), route.(*K8sRoute)
+
+	removed := false
+	for _, listenerState := range k8sGateway.GatewayState.Listeners {
+		if _, ok := listenerState.Routes[k8sRoute.ID()]; ok {
+			removed = true
+			b.removeGatewayStatus(k8sRoute, k8sGateway)
+			delete(listenerState.Routes, k8sRoute.ID())
+		}
+	}
+
+	return removed
+}
+
+func (b *binder) removeGatewayStatus(route *K8sRoute, gateway *K8sGateway) {
+	thisGateway := utils.NamespacedName(gateway)
+	for _, ref := range route.commonRouteSpec().ParentRefs {
+		gatewayReferenced, isGatewayTypeRef := utils.ReferencesGateway(route.GetNamespace(), ref)
+		if isGatewayTypeRef && gatewayReferenced == thisGateway {
+			route.RouteState.Remove(ref)
+			return
+		}
+	}
 }
 
 func (b *binder) routeReferencesGateway(route *K8sRoute, gateway *K8sGateway) bool {

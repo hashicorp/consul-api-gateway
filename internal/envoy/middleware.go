@@ -54,7 +54,7 @@ func GatewayFromContext(ctx context.Context) core.GatewayID {
 // and sets the client identidy on the request context. If no
 // spiffe information is detected, or if the service is unknown,
 // the request is rejected.
-func SPIFFEStreamMiddleware(logger hclog.Logger, store store.Store) grpc.StreamServerInterceptor {
+func SPIFFEStreamMiddleware(logger hclog.Logger, store store.ReadStore) grpc.StreamServerInterceptor {
 	return func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 		if info, ok := verifySPIFFE(ss.Context(), logger, store); ok {
 			return handler(srv, wrapStream(ss, info))
@@ -63,7 +63,7 @@ func SPIFFEStreamMiddleware(logger hclog.Logger, store store.Store) grpc.StreamS
 	}
 }
 
-func verifySPIFFE(ctx context.Context, logger hclog.Logger, store store.Store) (core.GatewayID, bool) {
+func verifySPIFFE(ctx context.Context, logger hclog.Logger, store store.ReadStore) (core.GatewayID, bool) {
 	if p, ok := peer.FromContext(ctx); ok {
 		if mtls, ok := p.AuthInfo.(credentials.TLSInfo); ok {
 			// grab the peer certificate info

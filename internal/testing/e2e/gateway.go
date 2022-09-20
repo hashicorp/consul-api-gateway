@@ -17,7 +17,7 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/envoy"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
-	"github.com/hashicorp/consul-api-gateway/internal/store/memory"
+	"github.com/hashicorp/consul-api-gateway/internal/store"
 )
 
 type gatewayTestContext struct{}
@@ -54,23 +54,23 @@ func (p *gatewayTestEnvironment) run(ctx context.Context, namespace string, cfg 
 
 	secretClient.Register(utils.K8sSecretScheme, k8sSecretClient)
 
-	controller, err := k8s.New(nullLogger, &k8s.Config{
+	k8sConfig := &k8s.Config{
 		SDSServerHost: HostRoute(ctx),
 		SDSServerPort: 9090,
 		RestConfig:    serviceAccountClient.RESTConfig(),
-		CACert:        string(ConsulCA(ctx)),
+		CACert:        ConsulCA(ctx),
 		ConsulNamespaceConfig: k8s.ConsulNamespaceConfig{
 			ConsulDestinationNamespace: ConsulNamespace(ctx),
 		},
-	})
+	}
+
+	controller, err := k8s.New(nullLogger, k8sConfig)
 	if err != nil {
 		return err
 	}
 
-	store := memory.NewStore(memory.StoreConfig{
-		Adapter: consulAdapters.NewSyncAdapter(nullLogger, consulClient),
-		Logger:  nullLogger,
-	})
+	adapter := consulAdapters.NewSyncAdapter(nullLogger, consulClient)
+	store := store.New(k8s.StoreConfig(adapter, controller.Client(), nullLogger, *k8sConfig))
 
 	controller.SetConsul(consulClient)
 	controller.SetStore(store)
@@ -108,7 +108,7 @@ func (p *gatewayTestEnvironment) run(ctx context.Context, namespace string, cfg 
 		return controller.Start(groupCtx)
 	})
 	group.Go(func() error {
-		store.SyncAtInterval(groupCtx)
+		store.SyncAllAtInterval(groupCtx)
 		return nil
 	})
 	p.cancel = cancel

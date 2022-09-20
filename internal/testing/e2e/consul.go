@@ -423,8 +423,8 @@ func ConsulClient(ctx context.Context) *api.Client {
 	return mustGetTestEnvironment(ctx).consulClient
 }
 
-func ConsulCA(ctx context.Context) []byte {
-	return mustGetTestEnvironment(ctx).ca
+func ConsulCA(ctx context.Context) string {
+	return string(mustGetTestEnvironment(ctx).ca)
 
 }
 

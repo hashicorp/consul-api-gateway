@@ -1,12 +1,8 @@
 package reconciler
 
 import (
-	"context"
-	"errors"
-	"io"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/hashicorp/go-hclog"
 	"github.com/stretchr/testify/require"
 	core "k8s.io/api/core/v1"
@@ -14,9 +10,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	gwv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 	gwv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
-
-	clientMocks "github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient/mocks"
-	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/state"
 )
 
 func TestRouteID(t *testing.T) {
@@ -112,28 +105,6 @@ func TestRouteSetStatus(t *testing.T) {
 	require.Equal(t, gwv1alpha2.RouteStatus{}, route.routeStatus())
 }
 
-func TestRouteParents(t *testing.T) {
-	t.Parallel()
-
-	config := K8sRouteConfig{
-		Logger: hclog.NewNullLogger(),
-	}
-
-	expected := gwv1alpha2.CommonRouteSpec{
-		ParentRefs: []gwv1alpha2.ParentReference{{
-			Name: "expected",
-		}},
-	}
-
-	parents := newK8sRoute(&gwv1alpha2.HTTPRoute{Spec: gwv1alpha2.HTTPRouteSpec{CommonRouteSpec: expected}}, config).parents()
-	require.Equal(t, expected.ParentRefs, parents)
-
-	parents = newK8sRoute(&gwv1alpha2.TCPRoute{Spec: gwv1alpha2.TCPRouteSpec{CommonRouteSpec: expected}}, config).parents()
-	require.Equal(t, expected.ParentRefs, parents)
-
-	require.Nil(t, newK8sRoute(&core.Pod{}, config).parents())
-}
-
 func TestRouteMatchesHostname(t *testing.T) {
 	t.Parallel()
 
@@ -179,61 +150,4 @@ func TestRouteResolve(t *testing.T) {
 	require.Nil(t, factory.NewRoute(NewRouteConfig{Route: &core.Pod{}}).resolve("", gateway, listener))
 
 	require.NotNil(t, factory.NewRoute(NewRouteConfig{Route: &gwv1alpha2.HTTPRoute{}}).resolve("", gateway, listener))
-}
-
-func TestRouteSyncStatus(t *testing.T) {
-	t.Parallel()
-
-	inner := &gwv1alpha2.HTTPRoute{
-		Spec: gwv1alpha2.HTTPRouteSpec{
-			CommonRouteSpec: gwv1alpha2.CommonRouteSpec{
-				ParentRefs: []gwv1alpha2.ParentReference{{
-					Name: "expected",
-				}, {
-					Name: "other",
-				}},
-			},
-		},
-		Status: gwv1alpha2.HTTPRouteStatus{
-			RouteStatus: gwv1alpha2.RouteStatus{
-				Parents: []gwv1alpha2.RouteParentStatus{{
-					ParentRef: gwv1alpha2.ParentReference{
-						Name: "expected",
-					},
-					ControllerName: "expected",
-				}, {
-					ParentRef: gwv1alpha2.ParentReference{
-						Name: "expected",
-					},
-					ControllerName: "other",
-				}, {
-					ParentRef: gwv1alpha2.ParentReference{
-						Name: "other",
-					},
-					ControllerName: "other",
-				}},
-			},
-		},
-	}
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-	client := clientMocks.NewMockClient(ctrl)
-
-	logger := hclog.New(&hclog.LoggerOptions{
-		Output: io.Discard,
-	})
-	logger.SetLevel(hclog.Trace)
-	route := newK8sRoute(inner, K8sRouteConfig{
-		ControllerName: "expected",
-		Logger:         logger,
-		Client:         client,
-		State:          state.NewRouteState(),
-	})
-	route.RouteState.Bound(gwv1alpha2.ParentReference{Name: "expected"})
-
-	expected := errors.New("expected")
-	client.EXPECT().UpdateStatus(gomock.Any(), inner).Return(expected)
-	require.True(t, errors.Is(route.SyncStatus(context.Background()), expected))
-
-	require.NoError(t, route.SyncStatus(context.Background()))
 }

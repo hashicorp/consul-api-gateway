@@ -19,7 +19,7 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	"github.com/hashicorp/consul-api-gateway/internal/metrics"
 	"github.com/hashicorp/consul-api-gateway/internal/profiling"
-	"github.com/hashicorp/consul-api-gateway/internal/store/memory"
+	"github.com/hashicorp/consul-api-gateway/internal/store"
 	"github.com/hashicorp/consul-api-gateway/internal/vault"
 )
 
@@ -61,12 +61,10 @@ func RunServer(config ServerConfig) int {
 	}
 
 	adapter := consulAdapters.NewSyncAdapter(config.Logger.Named("consul-adapter"), consulClient)
-	store := memory.NewStore(memory.StoreConfig{
-		Adapter: adapter,
-		Logger:  config.Logger.Named("state"),
-	})
+	store := store.New(k8s.StoreConfig(adapter, controller.Client(), config.Logger, *config.K8sConfig))
+
 	group.Go(func() error {
-		store.SyncAtInterval(groupCtx)
+		store.SyncAllAtInterval(groupCtx)
 		return nil
 	})
 

@@ -11,11 +11,10 @@ import (
 	"golang.org/x/exp/maps"
 
 	"github.com/hashicorp/consul-api-gateway/internal/core"
-	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 )
 
 var (
-	_ NewStore = (*lockingStore)(nil)
+	_ Store = (*lockingStore)(nil)
 
 	ErrNotFound = errors.New("not found")
 
@@ -33,7 +32,6 @@ type lockingStore struct {
 type Config struct {
 	Adapter       core.SyncAdapter
 	Backend       Backend
-	Client        gatewayclient.Client
 	Binder        Binder
 	Logger        hclog.Logger
 	Marshaler     Marshaler
@@ -73,7 +71,7 @@ func (s *lockingStore) UpsertGateway(ctx context.Context, gateway Gateway, updat
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	current, err := s.GetGateway(ctx, gateway.ID())
+	current, err := s.getGateway(ctx, gateway.ID())
 	if err != nil {
 		return err
 	}
@@ -89,10 +87,7 @@ func (s *lockingStore) UpsertGateway(ctx context.Context, gateway Gateway, updat
 	}
 
 	// Attempt to bind all Route(s) to the Gateway in case any are newly-able to bind
-	_, boundRoutes, err := s.bindAll(ctx, []Gateway{gateway}, routes)
-	if err != nil {
-		return err
-	}
+	_, boundRoutes := s.bindAll(ctx, []Gateway{gateway}, routes)
 
 	if err := s.upsertGatewaysAndRoutes(ctx, []Gateway{gateway}, boundRoutes); err != nil {
 		return err
@@ -124,10 +119,7 @@ func (s *lockingStore) DeleteGateway(ctx context.Context, id core.GatewayID) err
 	}
 
 	// Unbind any Route(s) that are bound to the Gateway
-	_, modifiedRoutes, err := s.unbindAll(ctx, []Gateway{gateway}, routes)
-	if err != nil {
-		return err
-	}
+	_, modifiedRoutes := s.unbindAll(ctx, []Gateway{gateway}, routes)
 
 	if err = s.backend.DeleteGateway(ctx, id); err != nil {
 		return err
@@ -189,10 +181,7 @@ func (s *lockingStore) UpsertRoute(ctx context.Context, route Route, updateCondi
 		return err
 	}
 
-	modifiedGateways, _, err := s.bindAll(ctx, gateways, []Route{route})
-	if err != nil {
-		return err
-	}
+	modifiedGateways, _ := s.bindAll(ctx, gateways, []Route{route})
 
 	if err = s.upsertGatewaysAndRoutes(ctx, modifiedGateways, []Route{route}); err != nil {
 		return err
@@ -218,10 +207,7 @@ func (s *lockingStore) DeleteRoute(ctx context.Context, id string) error {
 	}
 
 	// Unbind this Route from any Gateways it's bound to
-	modifiedGateways, _, err := s.unbindAll(ctx, gateways, []Route{route})
-	if err != nil {
-		return err
-	}
+	modifiedGateways, _ := s.unbindAll(ctx, gateways, []Route{route})
 
 	if err = s.backend.DeleteRoute(ctx, id); err != nil {
 		return err
@@ -368,30 +354,26 @@ func (s *store) upsertRoutes(ctx context.Context, routes []Route) error {
 }
 
 // bindAll will bind all Route(s) to all Gateway(s)
-func (s *store) bindAll(ctx context.Context, gateways []Gateway, routes []Route) ([]Gateway, []Route, error) {
+func (s *store) bindAll(ctx context.Context, gateways []Gateway, routes []Route) ([]Gateway, []Route) {
 	return bindOrUnbindAll(ctx, gateways, routes, s.binder.Bind)
 }
 
 // unbindAll will unbind all Route(s) from all Gateway(s)
-func (s *store) unbindAll(ctx context.Context, gateways []Gateway, routes []Route) ([]Gateway, []Route, error) {
+func (s *store) unbindAll(ctx context.Context, gateways []Gateway, routes []Route) ([]Gateway, []Route) {
 	return bindOrUnbindAll(ctx, gateways, routes, s.binder.Unbind)
 }
 
-type bindUnbindFunc func(context.Context, Gateway, Route) (bool, error)
+type bindUnbindFunc func(context.Context, Gateway, Route) bool
 
 // bindOrUnbindAll will call the bindUnbindFunc for all Route(s) on all Gateway(s)
 // and return the list of modified Gateway(s) and list of modified Route(s).
-func bindOrUnbindAll(ctx context.Context, gateways []Gateway, routes []Route, f bindUnbindFunc) ([]Gateway, []Route, error) {
+func bindOrUnbindAll(ctx context.Context, gateways []Gateway, routes []Route, f bindUnbindFunc) ([]Gateway, []Route) {
 	modifiedGateways := map[core.GatewayID]Gateway{}
 	modifiedRoutes := map[string]Route{}
 
 	for _, gateway := range gateways {
 		for _, route := range routes {
-			modified, err := f(ctx, gateway, route)
-			if err != nil {
-				return nil, nil, err
-			}
-
+			modified := f(ctx, gateway, route)
 			if modified {
 				modifiedGateways[gateway.ID()] = gateway
 				modifiedRoutes[route.ID()] = route
@@ -399,7 +381,7 @@ func bindOrUnbindAll(ctx context.Context, gateways []Gateway, routes []Route, f 
 		}
 	}
 
-	return maps.Values(modifiedGateways), maps.Values(modifiedRoutes), nil
+	return maps.Values(modifiedGateways), maps.Values(modifiedRoutes)
 }
 
 // syncAll updates the Gateway and Route statuses for all Gateway(s) and Route(s)
@@ -467,12 +449,7 @@ func (s *store) syncGateway(ctx context.Context, gateway Gateway) error {
 	}
 
 	_, err := s.adapter.Sync(ctx, gateway.Resolve())
-	if err != nil {
-		s.logger.Error("Failed to syncGatewaysAndRoutes gateway", "error", err)
-		return err
-	}
-
-	return nil
+	return err
 }
 
 func (s *store) syncRouteStatuses(ctx context.Context, routes []Route) error {

@@ -141,14 +141,18 @@ func (k *Kubernetes) SetStore(store store.Store) {
 	k.store = store
 }
 
+func (k *Kubernetes) Client() gatewayclient.Client {
+	scheme := k.k8sManager.GetScheme()
+	apigwv1alpha1.RegisterTypes(scheme)
+
+	return gatewayclient.New(k.k8sManager.GetClient(), scheme, ControllerName)
+}
+
 // Start will run the kubernetes controllers and return a startup error if occurred
 func (k *Kubernetes) Start(ctx context.Context) error {
 	k.logger.Trace("running controller")
 
-	scheme := k.k8sManager.GetScheme()
-	apigwv1alpha1.RegisterTypes(scheme)
-
-	gwClient := gatewayclient.New(k.k8sManager.GetClient(), scheme, ControllerName)
+	gwClient := k.Client()
 
 	reconcileManager := reconciler.NewReconcileManager(reconciler.ManagerConfig{
 		ControllerName:        ControllerName,

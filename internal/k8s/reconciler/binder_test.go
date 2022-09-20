@@ -388,14 +388,10 @@ func TestBinder(t *testing.T) {
 			}
 
 			binder := NewBinder(client)
-			listeners := binder.Bind(context.Background(),
+			bound := binder.Bind(context.Background(),
 				factory.NewGateway(NewGatewayConfig{Gateway: test.gateway, State: gatewayState}),
 				factory.NewRoute(NewRouteConfig{Route: test.route}))
-			if test.didBind {
-				require.NotEmpty(t, listeners)
-			} else {
-				require.Empty(t, listeners)
-			}
+			assert.Equal(t, test.didBind, bound)
 		})
 	}
 }
