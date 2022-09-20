@@ -3,11 +3,12 @@ package reconciler
 import (
 	"testing"
 
-	"github.com/hashicorp/go-hclog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	gwv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
+
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/state"
 )
 
 func TestMarshalRoute(t *testing.T) {
@@ -16,9 +17,7 @@ func TestMarshalRoute(t *testing.T) {
 		Kind: "HTTPRoute",
 	})
 
-	route := newK8sRoute(r, K8sRouteConfig{
-		Logger: hclog.NewNullLogger(),
-	})
+	route := newK8sRoute(r, state.NewRouteState())
 
 	data, err := route.MarshalJSON()
 	require.NoError(t, err)

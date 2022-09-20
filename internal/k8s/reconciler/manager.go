@@ -54,7 +54,6 @@ type GatewayReconcileManager struct {
 	gatewayClasses   *K8sGatewayClasses
 	gatewayValidator *validator.GatewayValidator
 	routeValidator   *validator.RouteValidator
-	factory          *Factory
 
 	consulNamespaceMapper common.ConsulNamespaceMapper
 
@@ -95,21 +94,14 @@ func NewReconcileManager(config ManagerConfig) *GatewayReconcileManager {
 		consulCA:              config.ConsulCA,
 		consulNamespaceMapper: config.ConsulNamespaceMapper,
 		deployer:              deployer,
-		factory: NewFactory(FactoryConfig{
-			ControllerName: config.ControllerName,
-			Logger:         config.Logger,
-			Client:         config.Client,
-			Deployer:       deployer,
-			Resolver:       resolver,
-		}),
-		logger:           config.Logger,
-		gatewayClasses:   NewK8sGatewayClasses(config.Logger.Named("gatewayclasses"), config.Client),
-		gatewayValidator: validator.NewGatewayValidator(config.Client),
-		namespaceMap:     make(map[types.NamespacedName]string),
-		routeValidator:   validator.NewRouteValidator(resolver, config.Client),
-		sdsHost:          config.SDSHost,
-		sdsPort:          config.SDSPort,
-		store:            config.Store,
+		logger:                config.Logger,
+		gatewayClasses:        NewK8sGatewayClasses(config.Logger.Named("gatewayclasses"), config.Client),
+		gatewayValidator:      validator.NewGatewayValidator(config.Client),
+		namespaceMap:          make(map[types.NamespacedName]string),
+		routeValidator:        validator.NewRouteValidator(resolver, config.Client),
+		sdsHost:               config.SDSHost,
+		sdsPort:               config.SDSPort,
+		store:                 config.Store,
 	}
 }
 
@@ -196,12 +188,7 @@ func (m *GatewayReconcileManager) UpsertGateway(ctx context.Context, g *gwv1beta
 	}
 	state.ConsulNamespace = consulNamespace
 
-	gateway := m.factory.NewGateway(NewGatewayConfig{
-		Gateway:         g,
-		State:           state,
-		Config:          config,
-		ConsulNamespace: consulNamespace,
-	})
+	gateway := newK8sGateway(config, g, state)
 
 	return m.store.UpsertGateway(ctx, gateway, func(current store.Gateway) bool {
 		if current == nil {
@@ -239,10 +226,7 @@ func (m *GatewayReconcileManager) upsertRoute(ctx context.Context, r Route, pare
 		return err
 	}
 
-	route := m.factory.NewRoute(NewRouteConfig{
-		Route: r,
-		State: state,
-	})
+	route := newK8sRoute(r, state)
 
 	return m.store.UpsertRoute(ctx, route, func(current store.Route) bool {
 		if current == nil {

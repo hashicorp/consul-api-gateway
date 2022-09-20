@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/hashicorp/go-hclog"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	k8sjson "k8s.io/apimachinery/pkg/runtime/serializer/json"
 	"k8s.io/apimachinery/pkg/types"
@@ -17,7 +16,6 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/converter"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/state"
-	"github.com/hashicorp/consul-api-gateway/internal/k8s/service"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	"github.com/hashicorp/consul-api-gateway/internal/store"
 )
@@ -32,10 +30,6 @@ type Route interface {
 type K8sRoute struct {
 	Route
 	RouteState *state.RouteState
-
-	controllerName string
-	logger         hclog.Logger
-	client         gatewayclient.Client
 }
 
 type serializedRoute struct {
@@ -48,19 +42,14 @@ var _ store.Route = &K8sRoute{}
 
 type K8sRouteConfig struct {
 	ControllerName string
-	Logger         hclog.Logger
 	Client         gatewayclient.Client
-	Resolver       service.BackendResolver
 	State          *state.RouteState
 }
 
-func newK8sRoute(route Route, config K8sRouteConfig) *K8sRoute {
+func newK8sRoute(route Route, routeState *state.RouteState) *K8sRoute {
 	return &K8sRoute{
-		Route:          route,
-		RouteState:     config.State,
-		controllerName: config.ControllerName,
-		logger:         config.Logger.Named("route").With("name", route.GetName()),
-		client:         config.Client,
+		Route:      route,
+		RouteState: routeState,
 	}
 }
 
