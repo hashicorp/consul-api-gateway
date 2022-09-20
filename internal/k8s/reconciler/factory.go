@@ -10,6 +10,7 @@ import (
 	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 )
 
+// TODO Remove Factory as it's no longer necessarygithub
 type Factory struct {
 	controllerName string
 	logger         hclog.Logger
