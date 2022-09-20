@@ -56,7 +56,10 @@ generate-golden-files:
 	GENERATE=true go test ./internal/k8s/builder
 
 .PHONY: gen
-gen: generate-golden-files
+gen: generate-golden-files ctrl-generate ctrl-manifests
+ifeq (, $(shell which mockgen))
+	@go install github.com/golang/mock/mockgen
+endif
 ifeq (, $(shell which oapi-codegen))
 	@go install github.com/deepmap/oapi-codegen/cmd/oapi-codegen
 endif
