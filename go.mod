@@ -8,7 +8,7 @@ require (
 	github.com/deepmap/oapi-codegen v1.11.0
 	github.com/docker/docker v20.10.18+incompatible
 	github.com/envoyproxy/go-control-plane v0.10.2-0.20220325020618-49ff273808a1
-	github.com/getkin/kin-openapi v0.102.0
+	github.com/getkin/kin-openapi v0.103.0
 	github.com/go-chi/chi/v5 v5.0.7
 	github.com/go-logr/logr v1.2.3
 	github.com/golang/mock v1.6.0
