@@ -9,7 +9,6 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"k8s.io/utils/pointer"
 	gwv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 	gwv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
@@ -30,22 +29,9 @@ func TestStatuses_GatewayTrackSync(t *testing.T) {
 		Logger: hclog.NewNullLogger(),
 	}), "")
 
-	factory := NewFactory(FactoryConfig{
-		Logger: hclog.NewNullLogger(),
-		Client: client,
-		Deployer: NewDeployer(DeployerConfig{
-			Logger: hclog.NewNullLogger(),
-			Client: client,
-		}),
-	})
-
 	gw := &gwv1beta1.Gateway{}
 
-	gateway := factory.NewGateway(NewGatewayConfig{
-		Gateway:         gw,
-		State:           state.InitialGatewayState(gw),
-		ConsulNamespace: "consul",
-	})
+	gateway := newK8sGateway(apigwv1alpha1.GatewayClassConfig{}, gw, state.InitialGatewayState(gw))
 	gateway.Gateway.Status = gateway.GatewayState.GetStatus(gw)
 	client.EXPECT().GetDeployment(gomock.Any(), gomock.Any()).Return(nil, nil)
 	client.EXPECT().CreateOrUpdateDeployment(gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil)
@@ -55,18 +41,7 @@ func TestStatuses_GatewayTrackSync(t *testing.T) {
 
 	gw = &gwv1beta1.Gateway{}
 
-	gateway = factory.NewGateway(NewGatewayConfig{
-		Config: apigwv1alpha1.GatewayClassConfig{
-			Spec: apigwv1alpha1.GatewayClassConfigSpec{
-				DeploymentSpec: apigwv1alpha1.DeploymentSpec{
-					DefaultInstances: pointer.Int32(2),
-				},
-			},
-		},
-		Gateway:         gw,
-		State:           state.InitialGatewayState(gw),
-		ConsulNamespace: "consul",
-	})
+	gateway = newK8sGateway(apigwv1alpha1.GatewayClassConfig{}, gw, state.InitialGatewayState(gw))
 
 	client.EXPECT().GetDeployment(gomock.Any(), gomock.Any()).Return(nil, nil)
 	client.EXPECT().CreateOrUpdateDeployment(gomock.Any(), gomock.Any(), gomock.Any()).Return(false, nil)
@@ -78,11 +53,7 @@ func TestStatuses_GatewayTrackSync(t *testing.T) {
 	expected := errors.New("expected")
 
 	gw = &gwv1beta1.Gateway{}
-	gateway = factory.NewGateway(NewGatewayConfig{
-		Gateway:         gw,
-		State:           state.InitialGatewayState(gw),
-		ConsulNamespace: "consul",
-	})
+	gateway = newK8sGateway(apigwv1alpha1.GatewayClassConfig{}, gw, state.InitialGatewayState(gw))
 	client.EXPECT().GetDeployment(gomock.Any(), gomock.Any()).Return(nil, nil)
 	client.EXPECT().CreateOrUpdateDeployment(gomock.Any(), gomock.Any(), gomock.Any()).Return(false, expected)
 	assert.True(t, errors.Is(updater.UpdateGatewayStatusOnSync(context.Background(), gateway, func() (bool, error) {
@@ -90,11 +61,7 @@ func TestStatuses_GatewayTrackSync(t *testing.T) {
 	}), expected))
 
 	gw = &gwv1beta1.Gateway{}
-	gateway = factory.NewGateway(NewGatewayConfig{
-		Gateway:         gw,
-		State:           state.InitialGatewayState(gw),
-		ConsulNamespace: "consul",
-	})
+	gateway = newK8sGateway(apigwv1alpha1.GatewayClassConfig{}, gw, state.InitialGatewayState(gw))
 	client.EXPECT().GetDeployment(gomock.Any(), gomock.Any()).Return(nil, nil)
 	client.EXPECT().CreateOrUpdateDeployment(gomock.Any(), gomock.Any(), gomock.Any()).Return(false, nil)
 	client.EXPECT().UpdateStatus(gomock.Any(), gateway.Gateway).Return(expected)
@@ -103,11 +70,7 @@ func TestStatuses_GatewayTrackSync(t *testing.T) {
 	}))
 
 	gw = &gwv1beta1.Gateway{}
-	gateway = factory.NewGateway(NewGatewayConfig{
-		Gateway:         gw,
-		State:           state.InitialGatewayState(gw),
-		ConsulNamespace: "consul",
-	})
+	gateway = newK8sGateway(apigwv1alpha1.GatewayClassConfig{}, gw, state.InitialGatewayState(gw))
 	client.EXPECT().GetDeployment(gomock.Any(), gomock.Any()).Return(nil, nil)
 	client.EXPECT().CreateOrUpdateDeployment(gomock.Any(), gomock.Any(), gomock.Any()).Return(false, nil)
 	client.EXPECT().UpdateStatus(gomock.Any(), gateway.Gateway).Return(nil)
@@ -116,11 +79,7 @@ func TestStatuses_GatewayTrackSync(t *testing.T) {
 	}))
 
 	gw = &gwv1beta1.Gateway{}
-	gateway = factory.NewGateway(NewGatewayConfig{
-		Gateway:         gw,
-		State:           state.InitialGatewayState(gw),
-		ConsulNamespace: "consul",
-	})
+	gateway = newK8sGateway(apigwv1alpha1.GatewayClassConfig{}, gw, state.InitialGatewayState(gw))
 	client.EXPECT().GetDeployment(gomock.Any(), gomock.Any()).Return(nil, nil)
 	client.EXPECT().CreateOrUpdateDeployment(gomock.Any(), gomock.Any(), gomock.Any()).Return(false, nil)
 	client.EXPECT().UpdateStatus(gomock.Any(), gateway.Gateway).Return(nil)
@@ -173,7 +132,7 @@ func TestStatuses_RouteSyncStatus(t *testing.T) {
 		},
 	}
 
-	route := newK8sRoute(inner, K8sRouteConfig{Logger: hclog.NewNullLogger(), State: state.NewRouteState()})
+	route := newK8sRoute(inner, state.NewRouteState())
 	route.RouteState.Bound(gwv1alpha2.ParentReference{
 		Name: "expected",
 	})

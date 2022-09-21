@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -152,7 +152,7 @@ func TestServer_CreateGateway(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, "application/json", resp.Header.Get("Content-Type"))
 			require.Equal(t, tt.wantStatusCode, resp.StatusCode)
-			body, err := ioutil.ReadAll(resp.Body)
+			body, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
 			resp.Body.Close()
 

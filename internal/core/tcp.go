@@ -1,7 +1,5 @@
 package core
 
-import "encoding/json"
-
 type TCPRoute struct {
 	CommonRoute
 	Service ResolvedService
@@ -9,10 +7,6 @@ type TCPRoute struct {
 
 func (r TCPRoute) GetType() ResolvedRouteType {
 	return ResolvedTCPRouteType
-}
-
-func (r TCPRoute) Marshal() ([]byte, error) {
-	return json.Marshal(r)
 }
 
 type TCPRouteBuilder struct {

@@ -13,7 +13,6 @@ import (
 	"github.com/hashicorp/go-hclog"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	gwv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	"github.com/hashicorp/consul-api-gateway/internal/common"
@@ -394,7 +393,7 @@ func (r *backendResolver) findCatalogService(service *apigwv1alpha1.MeshService)
 	if len(services) == 0 {
 		return nil, NewBackendNotFoundError(fmt.Sprintf("consul service (%s, %s) not found", consulNamespace, consulName))
 	}
-	resolved, err := validateCatalogConsulReference(services, service)
+	resolved, err := validateCatalogConsulReference(services)
 	if err != nil {
 		r.logger.Trace("error validating consul services", "error", err)
 		return nil, err
@@ -402,7 +401,7 @@ func (r *backendResolver) findCatalogService(service *apigwv1alpha1.MeshService)
 	return resolved, nil
 }
 
-func validateCatalogConsulReference(services []*api.CatalogService, object client.Object) (*ResolvedReference, error) {
+func validateCatalogConsulReference(services []*api.CatalogService) (*ResolvedReference, error) {
 	serviceName := ""
 	serviceNamespace := ""
 	for _, service := range services {

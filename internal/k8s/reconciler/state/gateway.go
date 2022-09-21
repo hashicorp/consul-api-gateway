@@ -71,7 +71,6 @@ func (g *GatewayState) GetStatus(gateway *gwv1beta1.Gateway) gwv1beta1.GatewaySt
 
 type ResolvedRoutes map[string]core.ResolvedRoute
 
-// TODO Is this the best location for this func?
 func (r *ResolvedRoutes) UnmarshalJSON(b []byte) error {
 	*r = map[string]core.ResolvedRoute{}
 
@@ -80,26 +79,25 @@ func (r *ResolvedRoutes) UnmarshalJSON(b []byte) error {
 		return err
 	}
 
-	for k, v := range stored {
-		route, err := core.UnmarshalRoute(v)
+	for routeID, route := range stored {
+		resolvedRoute, err := core.UnmarshalResolvedRoute(route)
 		if err != nil {
 			return err
 		}
-		(*r)[k] = route
+		(*r)[routeID] = resolvedRoute
 	}
 
 	return nil
 }
 
-// TODO Is this the best location for this func?
 func (r ResolvedRoutes) MarshalJSON() ([]byte, error) {
 	stored := map[string][]byte{}
-	for k, v := range r {
-		route, err := core.MarshalRoute(v)
+	for routeID, resolvedRoute := range r {
+		route, err := core.MarshalResolvedRoute(resolvedRoute)
 		if err != nil {
 			return nil, err
 		}
-		stored[k] = route
+		stored[routeID] = route
 	}
 	return json.Marshal(stored)
 }

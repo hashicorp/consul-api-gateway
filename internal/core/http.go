@@ -1,7 +1,5 @@
 package core
 
-import "encoding/json"
-
 type HTTPService struct {
 	Service ResolvedService
 	Weight  int32
@@ -129,10 +127,6 @@ type HTTPRoute struct {
 
 func (r HTTPRoute) GetType() ResolvedRouteType {
 	return ResolvedHTTPRouteType
-}
-
-func (r HTTPRoute) Marshal() ([]byte, error) {
-	return json.Marshal(r)
 }
 
 type HTTPRouteBuilder struct {

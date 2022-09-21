@@ -15,10 +15,9 @@ import (
 	gwv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 	gwv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
-	"github.com/hashicorp/go-hclog"
-
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient/mocks"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/state"
+	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 )
 
 func TestBinder(t *testing.T) {
@@ -376,9 +375,6 @@ func TestBinder(t *testing.T) {
 			defer ctrl.Finish()
 			client := mocks.NewMockClient(ctrl)
 
-			factory := NewFactory(FactoryConfig{
-				Logger: hclog.NewNullLogger(),
-			})
 			gatewayState := state.InitialGatewayState(test.gateway)
 			if test.listenerError != nil {
 				gatewayState.Listeners[0].Status.Ready.Invalid = test.listenerError
@@ -389,8 +385,9 @@ func TestBinder(t *testing.T) {
 
 			binder := NewBinder(client)
 			bound := binder.Bind(context.Background(),
-				factory.NewGateway(NewGatewayConfig{Gateway: test.gateway, State: gatewayState}),
-				factory.NewRoute(NewRouteConfig{Route: test.route}))
+				newK8sGateway(apigwv1alpha1.GatewayClassConfig{}, test.gateway, gatewayState),
+				newK8sRoute(test.route, state.NewRouteState()),
+			)
 			assert.Equal(t, test.didBind, bound)
 		})
 	}
@@ -398,10 +395,6 @@ func TestBinder(t *testing.T) {
 
 func TestRouteAllowedForListenerNamespaces(t *testing.T) {
 	t.Parallel()
-
-	factory := NewFactory(FactoryConfig{
-		Logger: hclog.NewNullLogger(),
-	})
 
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -411,48 +404,24 @@ func TestRouteAllowedForListenerNamespaces(t *testing.T) {
 	same := gwv1beta1.NamespacesFromSame
 
 	allowed, err := routeAllowedForListenerNamespaces(context.Background(), "expected", &gwv1beta1.AllowedRoutes{
-		Namespaces: &gwv1beta1.RouteNamespaces{
-			From: &same,
-		},
-	}, factory.NewRoute(NewRouteConfig{
-		Route: &gwv1alpha2.HTTPRoute{
-			ObjectMeta: meta.ObjectMeta{
-				Namespace: "expected",
-			},
-		},
-	}), client)
+		Namespaces: &gwv1beta1.RouteNamespaces{From: &same}},
+		newK8sRoute(&gwv1alpha2.HTTPRoute{ObjectMeta: meta.ObjectMeta{Namespace: "expected"}}, state.NewRouteState()), client)
 	require.NoError(t, err)
-	require.True(t, allowed)
+	assert.True(t, allowed)
 
 	allowed, err = routeAllowedForListenerNamespaces(context.Background(), "expected", &gwv1beta1.AllowedRoutes{
-		Namespaces: &gwv1beta1.RouteNamespaces{
-			From: &same,
-		},
-	}, factory.NewRoute(NewRouteConfig{
-		Route: &gwv1alpha2.HTTPRoute{
-			ObjectMeta: meta.ObjectMeta{
-				Namespace: "other",
-			},
-		},
-	}), client)
+		Namespaces: &gwv1beta1.RouteNamespaces{From: &same}},
+		newK8sRoute(&gwv1alpha2.HTTPRoute{ObjectMeta: meta.ObjectMeta{Namespace: "other"}}, state.NewRouteState()), client)
 	require.NoError(t, err)
-	require.False(t, allowed)
+	assert.False(t, allowed)
 
 	// all
 	all := gwv1beta1.NamespacesFromAll
 	allowed, err = routeAllowedForListenerNamespaces(context.Background(), "expected", &gwv1beta1.AllowedRoutes{
-		Namespaces: &gwv1beta1.RouteNamespaces{
-			From: &all,
-		},
-	}, factory.NewRoute(NewRouteConfig{
-		Route: &gwv1alpha2.HTTPRoute{
-			ObjectMeta: meta.ObjectMeta{
-				Namespace: "other",
-			},
-		},
-	}), client)
+		Namespaces: &gwv1beta1.RouteNamespaces{From: &all}},
+		newK8sRoute(&gwv1alpha2.HTTPRoute{ObjectMeta: meta.ObjectMeta{Namespace: "other"}}, state.NewRouteState()), client)
 	require.NoError(t, err)
-	require.True(t, allowed)
+	assert.True(t, allowed)
 
 	// selector
 	selector := gwv1beta1.NamespacesFromSelector
@@ -466,24 +435,12 @@ func TestRouteAllowedForListenerNamespaces(t *testing.T) {
 	invalidNamespace := &core.Namespace{ObjectMeta: meta.ObjectMeta{Labels: map[string]string{}}}
 
 	client.EXPECT().GetNamespace(context.Background(), types.NamespacedName{Name: "expected"}).Return(invalidNamespace, nil).Times(1)
+
 	allowed, err = routeAllowedForListenerNamespaces(context.Background(), "expected", &gwv1beta1.AllowedRoutes{
-		Namespaces: &gwv1beta1.RouteNamespaces{
-			From: &selector,
-			Selector: &meta.LabelSelector{
-				MatchLabels: map[string]string{
-					"label": "test",
-				},
-			},
-		},
-	}, factory.NewRoute(NewRouteConfig{
-		Route: &gwv1alpha2.HTTPRoute{
-			ObjectMeta: meta.ObjectMeta{
-				Namespace: "expected",
-			},
-		},
-	}), client)
+		Namespaces: &gwv1beta1.RouteNamespaces{From: &selector, Selector: &meta.LabelSelector{MatchLabels: map[string]string{"label": "test"}}}},
+		newK8sRoute(&gwv1alpha2.HTTPRoute{ObjectMeta: meta.ObjectMeta{Namespace: "expected"}}, state.NewRouteState()), client)
 	require.NoError(t, err)
-	require.False(t, allowed)
+	assert.False(t, allowed)
 
 	client.EXPECT().GetNamespace(context.Background(), types.NamespacedName{Name: "expected"}).Return(matchingNamespace, nil).Times(1)
 	allowed, err = routeAllowedForListenerNamespaces(context.Background(), "expected", &gwv1beta1.AllowedRoutes{
@@ -495,58 +452,31 @@ func TestRouteAllowedForListenerNamespaces(t *testing.T) {
 				},
 			},
 		},
-	}, factory.NewRoute(NewRouteConfig{
-		Route: &gwv1alpha2.HTTPRoute{
-			ObjectMeta: meta.ObjectMeta{
-				Namespace: "expected",
-			},
-		},
-	}), client)
+	},
+		newK8sRoute(&gwv1alpha2.HTTPRoute{ObjectMeta: meta.ObjectMeta{Namespace: "expected"}}, state.NewRouteState()), client)
 	require.NoError(t, err)
-	require.True(t, allowed)
+	assert.True(t, allowed)
 
 	_, err = routeAllowedForListenerNamespaces(context.Background(), "expected", &gwv1beta1.AllowedRoutes{
 		Namespaces: &gwv1beta1.RouteNamespaces{
-			From: &selector,
-			Selector: &meta.LabelSelector{
-				MatchExpressions: []meta.LabelSelectorRequirement{{
-					Key:      "test",
-					Operator: meta.LabelSelectorOperator("invalid"),
-				}},
-			},
+			From:     &selector,
+			Selector: &meta.LabelSelector{MatchExpressions: []meta.LabelSelectorRequirement{{Key: "test", Operator: "invalid"}}},
 		},
-	}, factory.NewRoute(NewRouteConfig{
-		Route: &gwv1alpha2.HTTPRoute{
-			ObjectMeta: meta.ObjectMeta{
-				Namespace: "expected",
-			},
-		},
-	}), client)
-	require.Error(t, err)
+	},
+		newK8sRoute(&gwv1alpha2.HTTPRoute{ObjectMeta: meta.ObjectMeta{Namespace: "expected"}}, state.NewRouteState()), client)
+	assert.Error(t, err)
 
 	// unknown
 	unknown := gwv1beta1.FromNamespaces("unknown")
 	allowed, err = routeAllowedForListenerNamespaces(context.Background(), "expected", &gwv1beta1.AllowedRoutes{
-		Namespaces: &gwv1beta1.RouteNamespaces{
-			From: &unknown,
-		},
-	}, factory.NewRoute(NewRouteConfig{
-		Route: &gwv1alpha2.HTTPRoute{
-			ObjectMeta: meta.ObjectMeta{
-				Namespace: "expected",
-			},
-		},
-	}), client)
+		Namespaces: &gwv1beta1.RouteNamespaces{From: &unknown}},
+		newK8sRoute(&gwv1alpha2.HTTPRoute{ObjectMeta: meta.ObjectMeta{Namespace: "expected"}}, state.NewRouteState()), client)
 	require.NoError(t, err)
-	require.False(t, allowed)
+	assert.False(t, allowed)
 }
 
 func TestRouteKindIsAllowedForListener(t *testing.T) {
 	t.Parallel()
-
-	factory := NewFactory(FactoryConfig{
-		Logger: hclog.NewNullLogger(),
-	})
 
 	routeMeta := meta.TypeMeta{}
 	routeMeta.SetGroupVersionKind(schema.GroupVersionKind{
@@ -554,22 +484,13 @@ func TestRouteKindIsAllowedForListener(t *testing.T) {
 		Version: gwv1alpha2.GroupVersion.Version,
 		Kind:    "HTTPRoute",
 	})
-	require.True(t, routeKindIsAllowedForListener([]gwv1beta1.RouteGroupKind{{
-		Group: (*gwv1beta1.Group)(&gwv1alpha2.GroupVersion.Group),
-		Kind:  "HTTPRoute",
-	}}, factory.NewRoute(NewRouteConfig{
-		Route: &gwv1alpha2.HTTPRoute{
-			TypeMeta: routeMeta,
-		},
-	})))
-	require.False(t, routeKindIsAllowedForListener([]gwv1beta1.RouteGroupKind{{
-		Group: (*gwv1beta1.Group)(&gwv1alpha2.GroupVersion.Group),
-		Kind:  "TCPRoute",
-	}}, factory.NewRoute(NewRouteConfig{
-		Route: &gwv1alpha2.HTTPRoute{
-			TypeMeta: routeMeta,
-		},
-	})))
+	assert.True(t, routeKindIsAllowedForListener(
+		[]gwv1beta1.RouteGroupKind{{Group: (*gwv1beta1.Group)(&gwv1alpha2.GroupVersion.Group), Kind: "HTTPRoute"}},
+		newK8sRoute(&gwv1alpha2.HTTPRoute{TypeMeta: routeMeta}, state.NewRouteState())))
+
+	assert.False(t, routeKindIsAllowedForListener(
+		[]gwv1beta1.RouteGroupKind{{Group: (*gwv1beta1.Group)(&gwv1alpha2.GroupVersion.Group), Kind: "TCPRoute"}},
+		newK8sRoute(&gwv1alpha2.HTTPRoute{TypeMeta: routeMeta}, state.NewRouteState())))
 }
 
 func TestRouteMatchesListener(t *testing.T) {

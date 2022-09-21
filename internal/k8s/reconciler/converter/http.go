@@ -162,7 +162,6 @@ func httpReferencesToRules(referenceMap service.RouteRuleReferenceMap) []core.HT
 					Filters: convertHTTPRouteFilters(reference.Reference.HTTPRef.Filters),
 				})
 			default:
-				// TODO: support other reference types
 				continue
 			}
 		}

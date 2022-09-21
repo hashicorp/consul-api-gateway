@@ -58,7 +58,6 @@ func tcpReferencesToService(referenceMap service.RouteRuleReferenceMap) core.Res
 					Service:         reference.Consul.Name,
 				}
 			default:
-				// TODO: support other reference types
 				continue
 			}
 		}
