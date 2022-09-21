@@ -136,7 +136,6 @@ func (r *K8sRoute) resolve(namespace string, gateway *gwv1beta1.Gateway, listene
 			State: r.RouteState,
 		}).Convert()
 	default:
-		// TODO: add other route types
 		return nil
 	}
 }
