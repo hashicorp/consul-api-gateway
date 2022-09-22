@@ -6,10 +6,12 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/hashicorp/consul/api"
 	v1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/utils/pointer"
 	gwv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
@@ -36,6 +38,7 @@ func (b *GatewayServiceBuilder) Validate() error {
 
 	return nil
 }
+
 func (b *GatewayServiceBuilder) Build() *corev1.Service {
 	if b.gwConfig.Spec.ServiceType == nil {
 		return nil
@@ -249,6 +252,10 @@ func (b *GatewayDeploymentBuilder) podSpec() corev1.PodSpec {
 						},
 					},
 				},
+				{
+					Name:  api.HTTPCAFile,
+					Value: consulCALocalFile,
+				},
 			},
 			Command: b.execCommand(),
 			ReadinessProbe: &corev1.Probe{
@@ -319,7 +326,17 @@ func (b *GatewayDeploymentBuilder) volumes() ([]corev1.Volume, []corev1.VolumeMo
 		volumes = append(volumes, corev1.Volume{
 			Name: "ca",
 			VolumeSource: corev1.VolumeSource{
-				EmptyDir: &corev1.EmptyDirVolumeSource{},
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: "consul-api-gateway-controller-files",
+					Items: []corev1.KeyToPath{
+						{
+							Key:  "ca-pem",
+							Path: consulCAFilename,
+						},
+					},
+					DefaultMode: nil,
+					Optional:    pointer.Bool(false),
+				},
 			},
 		})
 		mounts = append(mounts, corev1.VolumeMount{
@@ -373,13 +390,6 @@ type gwContainerCommandData struct {
 // gwContainerCommandTpl is the template for the command executed by
 // the exec container.
 const gwContainerCommandTpl = `
-{{- if .ConsulCAFile}}
-export CONSUL_CACERT={{ .ConsulCAFile }}
-cat <<EOF >{{ .ConsulCAFile }}
-{{ .ConsulCAData }}
-EOF
-{{- end}}
-
 exec /bootstrap/consul-api-gateway exec -log-json \
   -log-level {{ .LogLevel }} \
   -gateway-host "{{ .GatewayHost }}" \
