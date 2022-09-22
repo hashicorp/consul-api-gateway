@@ -257,7 +257,8 @@ func (b *GatewayDeploymentBuilder) podSpec() corev1.PodSpec {
 					Value: consulCALocalFile,
 				},
 			},
-			Command: b.execCommand(),
+			Command: []string{"/bootstrap/consul-api-gateway", "exec"},
+			Args:    b.execArgs(),
 			ReadinessProbe: &corev1.Probe{
 				ProbeHandler: corev1.ProbeHandler{
 					HTTPGet: &corev1.HTTPGetAction{
@@ -271,7 +272,7 @@ func (b *GatewayDeploymentBuilder) podSpec() corev1.PodSpec {
 	}
 }
 
-func (b *GatewayDeploymentBuilder) execCommand() []string {
+func (b *GatewayDeploymentBuilder) execArgs() []string {
 	// Render the command
 	data := gwContainerCommandData{
 		ACLAuthMethod:     b.gwConfig.Spec.ConsulSpec.AuthSpec.Method,
@@ -294,13 +295,14 @@ func (b *GatewayDeploymentBuilder) execCommand() []string {
 		data.ACLAuthMethod = method
 	}
 	var buf bytes.Buffer
-	err := template.Must(template.New("root").Parse(strings.TrimSpace(
-		gwContainerCommandTpl))).Execute(&buf, &data)
+	err := template.Must(template.New("root").
+		Parse(strings.TrimSpace(gwContainerArgsTpl))).
+		Execute(&buf, &data)
 	if err != nil {
 		return nil
 	}
 
-	return []string{"/bin/sh", "-ec", buf.String()}
+	return strings.Split(buf.String(), "\n")
 }
 
 func (b *GatewayDeploymentBuilder) volumes() ([]corev1.Volume, []corev1.VolumeMount) {
@@ -387,26 +389,39 @@ type gwContainerCommandData struct {
 	SDSPort           int
 }
 
-// gwContainerCommandTpl is the template for the command executed by
-// the exec container.
-const gwContainerCommandTpl = `
-exec /bootstrap/consul-api-gateway exec -log-json \
-  -log-level {{ .LogLevel }} \
-  -gateway-host "{{ .GatewayHost }}" \
-  -gateway-name {{ .GatewayName }} \
+// gwContainerArgsTpl is the template for the command arguments executed in the Envoy container.
+// The resulting args are split on \n to obtain a []string for the pod spec's args.
+// Note: Make sure not to leave whitespace at the beginning or end of any line.
+const gwContainerArgsTpl = `
+-log-json
+-log-level
+{{ .LogLevel }}
+-gateway-host
+"{{ .GatewayHost }}"
+-gateway-name
+{{ .GatewayName }}
 {{- if .GatewayNamespace }}
-  -gateway-namespace {{ .GatewayNamespace }} \
+-gateway-namespace
+{{ .GatewayNamespace }}
 {{- end }}
-  -consul-http-address {{ .ConsulHTTPAddr }} \
-  -consul-http-port {{ .ConsulHTTPPort }} \
-  -consul-xds-port  {{ .ConsulGRPCPort }} \
+-consul-http-address
+{{ .ConsulHTTPAddr }}
+-consul-http-port
+{{ .ConsulHTTPPort }}
+-consul-xds-port
+{{ .ConsulGRPCPort }}
 {{- if .ACLAuthMethod }}
-  -acl-auth-method {{ .ACLAuthMethod }} \
+-acl-auth-method
+{{ .ACLAuthMethod }}
 {{- end }}
 {{- if .PrimaryDatacenter }}
-  -consul-primary-datacenter {{ .PrimaryDatacenter }} \
+-consul-primary-datacenter
+{{ .PrimaryDatacenter }}
 {{- end }}
-  -envoy-bootstrap-path /bootstrap/envoy.json \
-  -envoy-sds-address {{ .SDSHost }} \
-  -envoy-sds-port {{ .SDSPort }}
+-envoy-bootstrap-path
+/bootstrap/envoy.json
+-envoy-sds-address
+{{ .SDSHost }}
+-envoy-sds-port
+{{ .SDSPort }}
 `
