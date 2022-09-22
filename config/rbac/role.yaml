@@ -95,9 +95,9 @@ rules:
   - secrets
   verbs:
   - create
-  - update
   - get
   - list
+  - update
   - watch
 - apiGroups:
   - ""
