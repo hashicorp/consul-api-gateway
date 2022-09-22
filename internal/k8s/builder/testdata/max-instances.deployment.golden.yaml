@@ -39,23 +39,31 @@ spec:
               topologyKey: kubernetes.io/hostname
             weight: 1
       containers:
-      - command:
-        - /bin/sh
-        - -ec
-        - |2-
-
-
-          exec /bootstrap/consul-api-gateway exec -log-json \
-            -log-level info \
-            -gateway-host "$(IP)" \
-            -gateway-name test-max-instances \
-            -gateway-namespace test \
-            -consul-http-address $(HOST_IP) \
-            -consul-http-port 8500 \
-            -consul-xds-port  8502 \
-            -envoy-bootstrap-path /bootstrap/envoy.json \
-            -envoy-sds-address consul-api-gateway-controller.default.svc.cluster.local \
-            -envoy-sds-port 9090
+      - args:
+        - -log-json
+        - -log-level
+        - info
+        - -gateway-host
+        - '"$(IP)"'
+        - -gateway-name
+        - test-max-instances
+        - -gateway-namespace
+        - test
+        - -consul-http-address
+        - $(HOST_IP)
+        - -consul-http-port
+        - "8500"
+        - -consul-xds-port
+        - "8502"
+        - -envoy-bootstrap-path
+        - /bootstrap/envoy.json
+        - -envoy-sds-address
+        - consul-api-gateway-controller.default.svc.cluster.local
+        - -envoy-sds-port
+        - "9090"
+        command:
+        - /bootstrap/consul-api-gateway
+        - exec
         env:
         - name: IP
           valueFrom:
@@ -65,6 +73,8 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: status.hostIP
+        - name: CONSUL_CACERT
+          value: /consul/tls/ca.pem
         image: envoyproxy/envoy:v1.20-latest
         name: consul-api-gateway
         ports:
