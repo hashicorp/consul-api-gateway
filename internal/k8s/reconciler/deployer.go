@@ -84,13 +84,26 @@ func (d *GatewayDeployer) ensureSecret(ctx context.Context, gateway *gwv1beta1.G
 			Namespace: gateway.Namespace,
 			Labels:    utils.LabelsForGateway(gateway),
 		},
-		StringData: map[string]string{
-			"ca-pem": d.consulCA,
+		Data: map[string][]byte{
+			"consul-ca-cert": []byte(d.consulCA),
 		},
 	}
 
-	// TODO Consider CreateOrUpdateSecret in case d.consulCA changes over time
-	return d.client.EnsureSecret(ctx, gateway, secret)
+	mutated := secret.DeepCopy()
+
+	updated, err := d.client.CreateOrUpdateSecret(ctx, secret, func() error {
+		mutated = apigwv1alpha1.MergeSecret(secret, mutated)
+		return d.client.SetControllerOwnership(gateway, mutated)
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create or update gateway secret: %w", err)
+	}
+
+	if updated && d.logger.IsTrace() {
+		d.logger.Trace("created or updated gateway secret")
+	}
+
+	return nil
 }
 
 func (d *GatewayDeployer) ensureDeployment(ctx context.Context, namespace string, config apigwv1alpha1.GatewayClassConfig, gateway *gwv1beta1.Gateway) error {

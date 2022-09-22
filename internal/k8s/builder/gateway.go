@@ -332,7 +332,7 @@ func (b *GatewayDeploymentBuilder) volumes() ([]corev1.Volume, []corev1.VolumeMo
 					SecretName: b.gateway.Name,
 					Items: []corev1.KeyToPath{
 						{
-							Key:  "ca-pem",
+							Key:  "consul-ca-cert",
 							Path: consulCAFilename,
 						},
 					},

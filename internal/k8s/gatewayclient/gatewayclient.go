@@ -75,9 +75,9 @@ type Client interface {
 	// deployments
 
 	CreateOrUpdateDeployment(ctx context.Context, deployment *apps.Deployment, mutators ...func() error) (bool, error)
+	CreateOrUpdateSecret(ctx context.Context, secret *core.Secret, mutators ...func() error) (bool, error)
 	CreateOrUpdateService(ctx context.Context, service *core.Service, mutators ...func() error) (bool, error)
 	DeleteService(ctx context.Context, service *core.Service) error
-	EnsureSecret(ctx context.Context, owner *gwv1beta1.Gateway, secret *core.Secret) error
 	EnsureServiceAccount(ctx context.Context, owner *gwv1beta1.Gateway, serviceAccount *core.ServiceAccount) error
 
 	//referencepolicy
@@ -389,15 +389,19 @@ func (g *gatewayClient) Update(ctx context.Context, obj client.Object) error {
 	return nil
 }
 
-func (g *gatewayClient) CreateOrUpdateDeployment(ctx context.Context, deployment *apps.Deployment, mutators ...func() error) (bool, error) {
-	operation, err := controllerutil.CreateOrUpdate(ctx, g.Client, deployment, func() error {
+func multiMutatorFn(mutators []func() error) func() error {
+	return func() error {
 		for _, mutate := range mutators {
 			if err := mutate(); err != nil {
 				return err
 			}
 		}
 		return nil
-	})
+	}
+}
+
+func (g *gatewayClient) CreateOrUpdateDeployment(ctx context.Context, deployment *apps.Deployment, mutators ...func() error) (bool, error) {
+	operation, err := controllerutil.CreateOrUpdate(ctx, g.Client, deployment, multiMutatorFn(mutators))
 	if err != nil {
 		return false, NewK8sError(err)
 	}
@@ -407,15 +411,16 @@ func (g *gatewayClient) CreateOrUpdateDeployment(ctx context.Context, deployment
 	return operation != controllerutil.OperationResultNone, nil
 }
 
+func (g *gatewayClient) CreateOrUpdateSecret(ctx context.Context, secret *core.Secret, mutators ...func() error) (bool, error) {
+	op, err := controllerutil.CreateOrUpdate(ctx, g.Client, secret, multiMutatorFn(mutators))
+	if err != nil {
+		return false, NewK8sError(err)
+	}
+	return op != controllerutil.OperationResultNone, nil
+}
+
 func (g *gatewayClient) CreateOrUpdateService(ctx context.Context, service *core.Service, mutators ...func() error) (bool, error) {
-	op, err := controllerutil.CreateOrUpdate(ctx, g.Client, service, func() error {
-		for _, mutate := range mutators {
-			if err := mutate(); err != nil {
-				return err
-			}
-		}
-		return nil
-	})
+	op, err := controllerutil.CreateOrUpdate(ctx, g.Client, service, multiMutatorFn(mutators))
 	if err != nil {
 		return false, NewK8sError(err)
 	}
@@ -430,31 +435,6 @@ func (g *gatewayClient) DeleteService(ctx context.Context, service *core.Service
 		return NewK8sError(err)
 	}
 	return nil
-}
-
-func (g *gatewayClient) EnsureSecret(ctx context.Context, owner *gwv1beta1.Gateway, secret *core.Secret) error {
-	created := &core.Secret{}
-	key := types.NamespacedName{Name: secret.Name, Namespace: secret.Namespace}
-	if err := g.Client.Get(ctx, key, created); err != nil {
-		if k8serrors.IsNotFound(err) {
-			if err := g.SetControllerOwnership(owner, secret); err != nil {
-				return err
-			}
-			if err := g.Client.Create(ctx, secret); err != nil {
-				return err
-			}
-			return nil
-		}
-		return NewK8sError(err)
-	}
-	for _, ref := range created.GetOwnerReferences() {
-		if ref.UID == owner.GetUID() && ref.Name == owner.GetName() {
-			// we found proper ownership
-			return nil
-		}
-	}
-	// we found the object, but we're not the owner of it, return an error
-	return errors.New("secret not owned by the gateway")
 }
 
 func (g *gatewayClient) EnsureServiceAccount(ctx context.Context, owner *gwv1beta1.Gateway, serviceAccount *core.ServiceAccount) error {
