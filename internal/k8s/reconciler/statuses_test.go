@@ -33,6 +33,7 @@ func TestStatuses_GatewayTrackSync(t *testing.T) {
 
 	gateway := newK8sGateway(apigwv1alpha1.GatewayClassConfig{}, gw, state.InitialGatewayState(gw))
 	gateway.Gateway.Status = gateway.GatewayState.GetStatus(gw)
+	client.EXPECT().CreateOrUpdateSecret(gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil)
 	client.EXPECT().GetDeployment(gomock.Any(), gomock.Any()).Return(nil, nil)
 	client.EXPECT().CreateOrUpdateDeployment(gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil)
 	assert.NoError(t, updater.UpdateGatewayStatusOnSync(context.Background(), gateway, func() (bool, error) {
@@ -40,9 +41,18 @@ func TestStatuses_GatewayTrackSync(t *testing.T) {
 	}))
 
 	gw = &gwv1beta1.Gateway{}
-
 	gateway = newK8sGateway(apigwv1alpha1.GatewayClassConfig{}, gw, state.InitialGatewayState(gw))
+	client.EXPECT().CreateOrUpdateSecret(gomock.Any(), gomock.Any(), gomock.Any()).Return(false, nil)
+	client.EXPECT().GetDeployment(gomock.Any(), gomock.Any()).Return(nil, nil)
+	client.EXPECT().CreateOrUpdateDeployment(gomock.Any(), gomock.Any(), gomock.Any()).Return(false, nil)
+	client.EXPECT().UpdateStatus(gomock.Any(), gateway.Gateway).Return(nil)
+	assert.NoError(t, updater.UpdateGatewayStatusOnSync(context.Background(), gateway, func() (bool, error) {
+		return false, nil
+	}))
 
+	gw = &gwv1beta1.Gateway{}
+	gateway = newK8sGateway(apigwv1alpha1.GatewayClassConfig{}, gw, state.InitialGatewayState(gw))
+	client.EXPECT().CreateOrUpdateSecret(gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil)
 	client.EXPECT().GetDeployment(gomock.Any(), gomock.Any()).Return(nil, nil)
 	client.EXPECT().CreateOrUpdateDeployment(gomock.Any(), gomock.Any(), gomock.Any()).Return(false, nil)
 	client.EXPECT().UpdateStatus(gomock.Any(), gateway.Gateway).Return(nil)
@@ -54,6 +64,14 @@ func TestStatuses_GatewayTrackSync(t *testing.T) {
 
 	gw = &gwv1beta1.Gateway{}
 	gateway = newK8sGateway(apigwv1alpha1.GatewayClassConfig{}, gw, state.InitialGatewayState(gw))
+	client.EXPECT().CreateOrUpdateSecret(gomock.Any(), gomock.Any(), gomock.Any()).Return(false, expected)
+	assert.True(t, errors.Is(updater.UpdateGatewayStatusOnSync(context.Background(), gateway, func() (bool, error) {
+		return false, nil
+	}), expected))
+
+	gw = &gwv1beta1.Gateway{}
+	gateway = newK8sGateway(apigwv1alpha1.GatewayClassConfig{}, gw, state.InitialGatewayState(gw))
+	client.EXPECT().CreateOrUpdateSecret(gomock.Any(), gomock.Any(), gomock.Any()).Return(false, nil)
 	client.EXPECT().GetDeployment(gomock.Any(), gomock.Any()).Return(nil, nil)
 	client.EXPECT().CreateOrUpdateDeployment(gomock.Any(), gomock.Any(), gomock.Any()).Return(false, expected)
 	assert.True(t, errors.Is(updater.UpdateGatewayStatusOnSync(context.Background(), gateway, func() (bool, error) {
@@ -62,6 +80,7 @@ func TestStatuses_GatewayTrackSync(t *testing.T) {
 
 	gw = &gwv1beta1.Gateway{}
 	gateway = newK8sGateway(apigwv1alpha1.GatewayClassConfig{}, gw, state.InitialGatewayState(gw))
+	client.EXPECT().CreateOrUpdateSecret(gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil)
 	client.EXPECT().GetDeployment(gomock.Any(), gomock.Any()).Return(nil, nil)
 	client.EXPECT().CreateOrUpdateDeployment(gomock.Any(), gomock.Any(), gomock.Any()).Return(false, nil)
 	client.EXPECT().UpdateStatus(gomock.Any(), gateway.Gateway).Return(expected)
@@ -71,6 +90,7 @@ func TestStatuses_GatewayTrackSync(t *testing.T) {
 
 	gw = &gwv1beta1.Gateway{}
 	gateway = newK8sGateway(apigwv1alpha1.GatewayClassConfig{}, gw, state.InitialGatewayState(gw))
+	client.EXPECT().CreateOrUpdateSecret(gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil)
 	client.EXPECT().GetDeployment(gomock.Any(), gomock.Any()).Return(nil, nil)
 	client.EXPECT().CreateOrUpdateDeployment(gomock.Any(), gomock.Any(), gomock.Any()).Return(false, nil)
 	client.EXPECT().UpdateStatus(gomock.Any(), gateway.Gateway).Return(nil)
@@ -80,6 +100,7 @@ func TestStatuses_GatewayTrackSync(t *testing.T) {
 
 	gw = &gwv1beta1.Gateway{}
 	gateway = newK8sGateway(apigwv1alpha1.GatewayClassConfig{}, gw, state.InitialGatewayState(gw))
+	client.EXPECT().CreateOrUpdateSecret(gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil)
 	client.EXPECT().GetDeployment(gomock.Any(), gomock.Any()).Return(nil, nil)
 	client.EXPECT().CreateOrUpdateDeployment(gomock.Any(), gomock.Any(), gomock.Any()).Return(false, nil)
 	client.EXPECT().UpdateStatus(gomock.Any(), gateway.Gateway).Return(nil)
