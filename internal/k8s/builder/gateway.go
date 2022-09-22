@@ -329,7 +329,7 @@ func (b *GatewayDeploymentBuilder) volumes() ([]corev1.Volume, []corev1.VolumeMo
 			Name: "ca",
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
-					SecretName: "consul-api-gateway-controller-files",
+					SecretName: b.gateway.Name,
 					Items: []corev1.KeyToPath{
 						{
 							Key:  "ca-pem",

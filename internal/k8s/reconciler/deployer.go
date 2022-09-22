@@ -8,11 +8,13 @@ import (
 	"github.com/hashicorp/go-hclog"
 	apps "k8s.io/api/apps/v1"
 	core "k8s.io/api/core/v1"
+	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	gwv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/builder"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
+	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 )
 
@@ -52,6 +54,10 @@ func (d *GatewayDeployer) Deploy(ctx context.Context, gateway *K8sGateway) error
 		return err
 	}
 
+	if err := d.ensureSecret(ctx, gateway.Gateway); err != nil {
+		return err
+	}
+
 	if err := d.ensureDeployment(ctx, gateway.GatewayState.ConsulNamespace, gateway.config, gateway.Gateway); err != nil {
 		return err
 	}
@@ -67,6 +73,24 @@ func (d *GatewayDeployer) ensureServiceAccount(ctx context.Context, config apigw
 	}
 
 	return d.client.EnsureServiceAccount(ctx, gateway, serviceAccount)
+}
+
+// ensureSecret makes sure there is a Secret in the same namespace as the Gateway
+// containing the Consul CA certificate for the Gateway pod(s) to mount as a volume.
+func (d *GatewayDeployer) ensureSecret(ctx context.Context, gateway *gwv1beta1.Gateway) error {
+	secret := &core.Secret{
+		ObjectMeta: meta.ObjectMeta{
+			Name:      gateway.Name,
+			Namespace: gateway.Namespace,
+			Labels:    utils.LabelsForGateway(gateway),
+		},
+		StringData: map[string]string{
+			"ca-pem": d.consulCA,
+		},
+	}
+
+	// TODO Consider CreateOrUpdateSecret in case d.consulCA changes over time
+	return d.client.EnsureSecret(ctx, gateway, secret)
 }
 
 func (d *GatewayDeployer) ensureDeployment(ctx context.Context, namespace string, config apigwv1alpha1.GatewayClassConfig, gateway *gwv1beta1.Gateway) error {
