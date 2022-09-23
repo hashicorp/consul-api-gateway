@@ -397,7 +397,7 @@ const gwContainerArgsTpl = `
 -log-level
 {{ .LogLevel }}
 -gateway-host
-"{{ .GatewayHost }}"
+{{ .GatewayHost }}
 -gateway-name
 {{ .GatewayName }}
 {{- if .GatewayNamespace }}
