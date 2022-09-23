@@ -44,7 +44,7 @@ spec:
         - -log-level
         - info
         - -gateway-host
-        - '"$(IP)"'
+        - $(IP)
         - -gateway-name
         - test-loadbalancer
         - -gateway-namespace
