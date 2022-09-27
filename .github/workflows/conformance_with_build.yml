@@ -25,8 +25,8 @@ env:
 
 jobs:
   run-on-kind:
-    # Run on PR only if there is a `pr/run-conformance` label
-    if: "github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'pr/run-conformance')"
+    # Run on PR only if there is a `pr/conformance` label
+    if: "github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'pr/conformance')"
     runs-on: ubuntu-latest
     strategy:
       matrix:
