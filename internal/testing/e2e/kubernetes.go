@@ -10,6 +10,7 @@ import (
 	"os"
 	"path"
 
+	"github.com/cenkalti/backoff"
 	core "k8s.io/api/core/v1"
 	rbac "k8s.io/api/rbac/v1"
 	api "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -109,12 +110,26 @@ func CreateServiceAccount(namespace, accountName, clusterRolePath string) env.Fu
 			return nil, errors.New("failed to create secret w/ service account token")
 		}
 
-		secret := &core.Secret{}
-		if err := cfg.Client().Resources().Get(ctx, accountName, namespace, secret); err != nil {
+		var token string
+		err = backoff.Retry(func() error {
+			secret := &core.Secret{}
+			err = cfg.Client().Resources().Get(ctx, accountName, namespace, secret)
+			if err != nil {
+				return err
+			}
+
+			token = string(secret.Data[core.ServiceAccountTokenKey])
+			if token == "" {
+				return errors.New("service account token not added to Secret")
+			}
+
+			return nil
+		}, backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 5), ctx))
+		if err != nil {
 			return nil, err
 		}
 
-		return context.WithValue(ctx, k8sTokenContextKey, string(secret.Data["token"])), nil
+		return context.WithValue(ctx, k8sTokenContextKey, token), nil
 	}
 }
 
