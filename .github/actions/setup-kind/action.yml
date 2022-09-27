@@ -16,10 +16,10 @@ runs:
   using: composite
   steps:
     - name: Create Kind cluster
-      uses: helm/kind-action@2a525709fd0874b75d7ae842d257981b0e0f557d
+      uses: helm/kind-action@9e8295d178de23cbfbd8fa16cf844eec1d773a07
       with:
         cluster_name: ${{ inputs.cluster-name }}
-        kubectl_version: "v1.21.0"
+        kubectl_version: "v1.22.0"
 
     - name: Install MetalLB
       shell: bash
