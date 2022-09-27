@@ -20,6 +20,7 @@ runs:
       with:
         cluster_name: ${{ inputs.cluster-name }}
         kubectl_version: "v1.22.0"
+        node_image: "kindest/node:v1.24.6@sha256:97e8d00bc37a7598a0b32d1fabd155a96355c49fa0d4d4790aab0f161bf31be1"
 
     - name: Install MetalLB
       shell: bash
