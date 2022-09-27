@@ -11,7 +11,6 @@ import (
 	"path"
 
 	"github.com/cenkalti/backoff"
-	consulapigw "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 	core "k8s.io/api/core/v1"
 	rbac "k8s.io/api/rbac/v1"
 	api "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -25,6 +24,8 @@ import (
 	"sigs.k8s.io/e2e-framework/pkg/envconf"
 	gwv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 	gwv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
+
+	consulapigw "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 )
 
 type k8sTokenContext struct{}
@@ -95,28 +96,40 @@ func CreateServiceAccount(namespace, accountName, clusterRolePath string) env.Fu
 			return nil, err
 		}
 
-		var secretName string
+		// As of K8s 1.24, ServiceAccounts no longer implicitly create a Secret w/ token,
+		// so we create the token Secret directly using the proper annotations.
+		// https://kubernetes.io/docs/reference/access-authn-authz/service-accounts-admin/#to-create-additional-api-tokens
+		if err := cfg.Client().Resources().Create(ctx, &core.Secret{
+			Type: core.SecretTypeServiceAccountToken,
+			ObjectMeta: meta.ObjectMeta{
+				Name:        accountName,
+				Namespace:   namespace,
+				Annotations: map[string]string{core.ServiceAccountNameKey: accountName},
+			},
+		}); err != nil {
+			return nil, errors.New("failed to create secret w/ service account token")
+		}
+
+		var token string
 		err = backoff.Retry(func() error {
-			account := &core.ServiceAccount{}
-			if err := cfg.Client().Resources().Get(ctx, accountName, namespace, account); err != nil {
+			secret := &core.Secret{}
+			err = cfg.Client().Resources().Get(ctx, accountName, namespace, secret)
+			if err != nil {
 				return err
 			}
-			if len(account.Secrets) == 0 {
-				return errors.New("invalid account secrets")
+
+			token = string(secret.Data[core.ServiceAccountTokenKey])
+			if token == "" {
+				return errors.New("service account token not added to Secret")
 			}
-			secretName = account.Secrets[0].Name
+
 			return nil
 		}, backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 5), ctx))
 		if err != nil {
 			return nil, err
 		}
 
-		secret := &core.Secret{}
-		if err := cfg.Client().Resources().Get(ctx, secretName, namespace, secret); err != nil {
-			return nil, err
-		}
-
-		return context.WithValue(ctx, k8sTokenContextKey, string(secret.Data["token"])), nil
+		return context.WithValue(ctx, k8sTokenContextKey, token), nil
 	}
 }
 
@@ -257,28 +270,11 @@ func readCRDs(data []byte) ([]*api.CustomResourceDefinition, error) {
 }
 
 func serviceAccountClient(ctx context.Context, client klient.Client, account, namespace string) (klient.Client, error) {
-	serviceAccount := core.ServiceAccount{}
-	if err := client.Resources().Get(ctx, account, namespace, &serviceAccount); err != nil {
-		return nil, err
-	}
-	if len(serviceAccount.Secrets) == 0 {
-		return nil, errors.New("can't find secret")
-	}
-	secretName := serviceAccount.Secrets[0].Name
-	token := core.Secret{}
-	if err := client.Resources().Get(ctx, secretName, namespace, &token); err != nil {
-		return nil, err
-	}
-	tokenData, found := token.Data["token"]
-	if !found {
-		return nil, errors.New("token not found")
-	}
-
 	config := rest.CopyConfig(client.RESTConfig())
-	tlsConfig := client.RESTConfig().TLSClientConfig
+	config.BearerToken = K8sServiceToken(ctx)
 
-	config.BearerToken = string(tokenData)
 	// overwrite the TLS config so we're not using cert-based auth
+	tlsConfig := client.RESTConfig().TLSClientConfig
 	config.TLSClientConfig = rest.TLSClientConfig{
 		ServerName: tlsConfig.ServerName,
 		CAFile:     tlsConfig.CAFile,
