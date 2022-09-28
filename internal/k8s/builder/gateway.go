@@ -272,8 +272,10 @@ func (b *GatewayDeploymentBuilder) podSpec() corev1.PodSpec {
 	}
 }
 
+// execArgs renders a template containing all necessary args for the container
+// command. Due to the format expected by the K8s API/SDK, this template is then
+// split into a []string where each line of the template is its own item.
 func (b *GatewayDeploymentBuilder) execArgs() []string {
-	// Render the command
 	data := gwContainerCommandData{
 		ACLAuthMethod:     b.gwConfig.Spec.ConsulSpec.AuthSpec.Method,
 		ConsulHTTPAddr:    orDefault(b.gwConfig.Spec.ConsulSpec.Address, defaultConsulAddress),
