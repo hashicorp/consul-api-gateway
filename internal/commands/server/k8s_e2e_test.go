@@ -255,6 +255,36 @@ func TestGatewayWithReplicasRespectMinMax(t *testing.T) {
 	testenv.Test(t, feature.Feature())
 }
 
+func TestGatewayWithConsulNamespaceDoesntExist(t *testing.T) {
+	feature := features.New("gateway class in k8s namespace where consul namespace not created yet").
+		Assess("gateway is created with appropriate number of replicas set", func(ctx context.Context, t *testing.T, cfg *envconf.Config) context.Context {
+			namespace := "net-new-namespace"
+			resources := cfg.Client().Resources(namespace)
+
+			var numberOfReplicas int32 = 3
+
+			useHostPorts := false
+			gcc, gc := createGatewayClassWithParams(ctx, t, resources, GatewayClassConfigParams{
+				UseHostPorts:     &useHostPorts,
+				DefaultInstances: &numberOfReplicas,
+			})
+			require.Eventually(t, gatewayClassStatusCheck(ctx, resources, gc.Name, namespace, conditionAccepted), checkTimeout, checkInterval, "gatewayclass not accepted in the allotted time")
+
+			// Create a Gateway and wait for it to be ready
+			gatewayName := envconf.RandomName("gw", 16)
+			gw := createGateway(ctx, t, resources, gatewayName, namespace, gc, []gwv1beta1.Listener{createHTTPSListener(ctx, t, 443)})
+			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionReady), checkTimeout, checkInterval, "no gateway found in the allotted time")
+			checkGatewayConfigAnnotation(ctx, t, resources, gatewayName, namespace, gcc)
+
+			// Cleanup
+			assert.NoError(t, resources.Delete(ctx, gw))
+
+			return ctx
+		})
+
+	testenv.Test(t, feature.Feature())
+}
+
 func TestGatewayBasic(t *testing.T) {
 	feature := features.New("gateway admission").
 		Assess("basic admission and status updates", func(ctx context.Context, t *testing.T, cfg *envconf.Config) context.Context {
