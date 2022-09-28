@@ -1,3 +1,3 @@
 ```release-note:enhancement
-Support distroless Envoy images
+Support distroless Envoy images (with continued support for distroful images)
 ```
