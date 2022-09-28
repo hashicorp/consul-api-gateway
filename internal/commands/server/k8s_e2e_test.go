@@ -22,7 +22,6 @@ import (
 	apps "k8s.io/api/apps/v1"
 	core "k8s.io/api/core/v1"
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
-	k8sapi "k8s.io/kubernetes/pkg/api/v1"
 	"sigs.k8s.io/e2e-framework/klient/k8s/resources"
 	"sigs.k8s.io/e2e-framework/pkg/env"
 	"sigs.k8s.io/e2e-framework/pkg/envconf"
@@ -261,13 +260,12 @@ func TestGatewayWithConsulNamespaceDoesntExist(t *testing.T) {
 		Assess("gateway is created with appropriate number of replicas set", func(ctx context.Context, t *testing.T, cfg *envconf.Config) context.Context {
 			namespace := "net-new-namespace"
 			resources := cfg.Client().Resources(namespace)
-			nsSpec := &k8sapi.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}}
+			nsSpec := &core.Namespace{ObjectMeta: meta.ObjectMeta{Name: namespace}}
 			assert.NoError(t, resources.Create(ctx, nsSpec))
 
 			useHostPorts := false
 			gcc, gc := createGatewayClassWithParams(ctx, t, resources, GatewayClassConfigParams{
-				UseHostPorts:     &useHostPorts,
-				DefaultInstances: &numberOfReplicas,
+				UseHostPorts: &useHostPorts,
 			})
 			require.Eventually(t, gatewayClassStatusCheck(ctx, resources, gc.Name, namespace, conditionAccepted), checkTimeout, checkInterval, "gatewayclass not accepted in the allotted time")
 
