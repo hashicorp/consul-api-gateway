@@ -112,7 +112,7 @@ jobs:
 
     - name: Install Dependencies
       run: |
-        curl -L https://kind.sigs.k8s.io/dl/v0.11.1/kind-linux-amd64 -o ./kind
+        curl -L https://kind.sigs.k8s.io/dl/v0.16.0/kind-linux-amd64 -o ./kind
         chmod +x ./kind
         mv ./kind /usr/local/bin/kind
         curl -L https://dl.k8s.io/release/v1.22.0/bin/linux/amd64/kubectl -o ./kubectl
