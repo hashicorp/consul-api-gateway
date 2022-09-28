@@ -1,0 +1,6 @@
+{
+  "name": "test-no-listener-protocol",
+  "listeners": [{
+    "port": 8080
+  }]
+}

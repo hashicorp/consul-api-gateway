@@ -86,49 +86,7 @@ func TestServer_CreateTCPRoute(t *testing.T) {
 		runtimeValidationError string
 		wantStatusCode         int
 		wantError              string
-	}{
-		{
-			name:           "validate-gateways",
-			route:          &TCPRoute{Name: "a"},
-			wantStatusCode: http.StatusBadRequest,
-			wantError:      "gateways",
-		},
-		{
-			name:           "validate-gateways-length",
-			route:          &TCPRoute{Gateways: []GatewayReference{}, Name: "a"},
-			wantStatusCode: http.StatusBadRequest,
-			wantError:      "gateways",
-		},
-		{
-			name:           "validate-gateways-name",
-			route:          &TCPRoute{Gateways: []GatewayReference{{}}, Name: "a"},
-			wantStatusCode: http.StatusBadRequest,
-			wantError:      "gateways.0.name",
-		},
-		{
-			name: "validate-name",
-			route: &TCPRoute{Gateways: []GatewayReference{
-				{Name: "a"},
-			}},
-			wantStatusCode: http.StatusBadRequest,
-			wantError:      "name",
-		},
-		{
-			name: "pass-validation",
-			route: &TCPRoute{Gateways: []GatewayReference{
-				{Name: "a"},
-			}, Name: "a"},
-			wantStatusCode: http.StatusCreated,
-		},
-		{
-			name: "runtime-validation-error",
-			route: &TCPRoute{Gateways: []GatewayReference{
-				{Name: "a"},
-			}, Name: "a"},
-			wantStatusCode:         http.StatusBadRequest,
-			runtimeValidationError: "foobar",
-		},
-	}
+	}{}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// set up expectations

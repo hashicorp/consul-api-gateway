@@ -1,0 +1,10 @@
+{
+  "name": "test-conflicting-listeners",
+  "listeners": [{
+    "protocol": "http",
+    "port": 8080
+  },{
+    "protocol": "http",
+    "port": 8080
+  }]
+}

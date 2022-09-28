@@ -1,0 +1,9 @@
+{
+  "name": "test-no-rules",
+  "gateways": [{
+    "name": "http-1",
+    "listener": "listener-2"
+  },{
+    "name": "http-2"
+  }]
+}

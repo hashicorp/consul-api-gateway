@@ -29,7 +29,7 @@ func RegisterCommands(ctx context.Context, commands map[string]cli.CommandFactor
 	}
 }
 
-func NewCommand() *Command {
+func NewCommand() cli.Command {
 	return &Command{}
 }
 

@@ -1,0 +1,6 @@
+{
+  "name": "test-no-gateway",
+  "services": [{
+    "name": "tcp-service-1"
+  }]
+}

@@ -1,0 +1,12 @@
+{
+  "name": "test-tcp-basic-success",
+  "gateways": [{
+    "name": "tcp-1",
+    "listener": "listener-2"
+  },{
+    "name": "tcp-2"
+  }],
+  "services": [{
+    "name": "tcp-service-1"
+  }]
+}

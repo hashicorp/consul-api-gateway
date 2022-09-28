@@ -1,0 +1,2 @@
+There was an error sending the request:
+	server error - code: 400, message: listeners.0.protocol: value is not one of the allowed values; allowed values: [http, tcp]; current value: ""
