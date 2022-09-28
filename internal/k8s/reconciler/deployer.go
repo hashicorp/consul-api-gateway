@@ -91,7 +91,7 @@ func (d *GatewayDeployer) ensureSecret(ctx context.Context, gateway *gwv1beta1.G
 
 	mutated := secret.DeepCopy()
 
-	updated, err := d.client.CreateOrUpdateSecret(ctx, secret, func() error {
+	updated, err := d.client.CreateOrUpdateSecret(ctx, mutated, func() error {
 		mutated = apigwv1alpha1.MergeSecret(secret, mutated)
 		return d.client.SetControllerOwnership(gateway, mutated)
 	})
