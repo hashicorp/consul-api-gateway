@@ -1,0 +1,48 @@
+name: "Setup GKE"
+description: "Installs terraform, configures GCP credentials in the workflow's environment and sets up an EKS cluster."
+inputs:
+  access_key_id:
+    description: "The AWS access key ID to use for creating the EKS cluster"
+    required: true
+  account_id:
+    description: "The ID of the account to create the EKS cluster in"
+    required: true
+  cluster_name:
+    description: "The name to assign to the EKS cluster"
+    required: false
+    default: "consul-api-gateway-test"
+  region:
+    description: "The AWS region to create the cluster in"
+    required: false
+    default: us-west-2
+  secret_access_key:
+    description: "The AWS secret access key to use for creating the EKS cluster"
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Install Terraform
+      uses: hashicorp/setup-terraform@v2
+
+    - name: GCP Auth
+      uses: 'google-github-actions/auth@v0'
+      with:
+        credentials_json: '${{ secrets.GCP_CREDENTIALS }}'
+
+    - name: Set up Google Cloud SDK
+      uses: 'google-github-actions/setup-gcloud@v0'
+
+    - name: Create EKS cluster
+      shell: bash
+      env:
+        TF_VAR_cluster_name: ${{ inputs.cluster_name }}
+        TF_VAR_region: ${{ inputs.region }}
+      run: |
+        terraform -chdir=$GITHUB_ACTION_PATH init
+        terraform -chdir=$GITHUB_ACTION_PATH apply --auto-approve
+
+    - name: Update kubeconfig
+      shell: bash
+      run: aws eks --region ${{ inputs.region }} update-kubeconfig --name ${{ inputs.cluster_name }}
+      run: gcloud container clusters get-credentials --region=${var.zone} ${google_container_cluster.cluster[count.index].name}

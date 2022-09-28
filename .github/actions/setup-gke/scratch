@@ -1,0 +1,21 @@
+gcloud iam workload-identity-pools create "ci-pool" \
+  --project="hc-2c30b9da450f4759aeed173f2ac" \
+  --location="global" \
+  --display-name="CI Identity Pool"
+
+gcloud iam workload-identity-pools providers create-oidc "github-actions" \
+    --project="hc-2c30b9da450f4759aeed173f2ac" \
+    --location="global" \
+    --workload-identity-pool="ci-pool" \
+    --display-name="Github Actions" \
+    --attribute-mapping="google.subject=assertion.sub,attribute.actor=assertion.actor,attribute.aud=assertion.aud" \
+    --issuer-uri="https://token.actions.githubusercontent.com"
+
+gcloud iam service-accounts add-iam-policy-binding "consul-api-gateway-ci@hc-2c30b9da450f4759aeed173f2ac.iam.gserviceaccount.com" \
+  --project="hc-2c30b9da450f4759aeed173f2ac" \
+  --role="roles/iam.workloadIdentityUser" \
+  --member="principalSet://iam.googleapis.com/projects/959555569117/locations/global/workloadIdentityPools/ci-pool/attribute.repository/hashicorp/consul-api-gateway"
+
+
+
+
