@@ -25,8 +25,8 @@ env:
 
 jobs:
   run-on-kind:
-    # Run on PR only if there is a `pr/run-conformance` label
-    if: "github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'pr/run-conformance')"
+    # Run on PR only if there is a `pr/conformance` label
+    if: "github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'pr/conformance')"
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -35,22 +35,22 @@ jobs:
             api-gateway-image: "consul-api-gateway:local-build"
             consul-image: "hashicorp/consul:1.11"
             envoy-image: "envoyproxy/envoy:v1.20-latest"
-            consul-k8s-version: "apigw-create-update-secrets"
+            consul-k8s-version: "v0.48.0"
           - name: "consul@v1.12 + consul-k8s@v0.48.0"
             api-gateway-image: "consul-api-gateway:local-build"
             consul-image: "hashicorp/consul:1.12"
             envoy-image: "envoyproxy/envoy:v1.22-latest"
-            consul-k8s-version: "apigw-create-update-secrets"
+            consul-k8s-version: "v0.48.0"
           - name: "consul@v1.13 + consul-k8s@v0.48.0"
             api-gateway-image: "hashicorppreview/consul-api-gateway:0.4-dev"
             consul-image: "hashicorp/consul:1.13"
             envoy-image: "envoyproxy/envoy:v1.22-latest"
-            consul-k8s-version: "apigw-create-update-secrets"
+            consul-k8s-version: "v0.48.0"
           - name: "consul@v1.14-dev + consul-k8s@v0.48.0"
             api-gateway-image: "hashicorppreview/consul-api-gateway:0.4-dev"
             consul-image: "hashicorppreview/consul:1.14-dev"
             envoy-image: "envoyproxy/envoy:v1.22-latest"
-            consul-k8s-version: "apigw-create-update-secrets"
+            consul-k8s-version: "v0.48.0"
       fail-fast: true
     name: "${{ matrix.config.name }}"
 
