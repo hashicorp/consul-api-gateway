@@ -2,7 +2,6 @@ package builder
 
 import (
 	"bytes"
-	"fmt"
 	"strings"
 	"text/template"
 
@@ -30,13 +29,6 @@ func (b *GatewayServiceBuilder) WithClassConfig(cfg v1alpha1.GatewayClassConfig)
 	return b
 }
 
-func (b *GatewayServiceBuilder) Validate() error {
-	if b.gwConfig == nil {
-		return fmt.Errorf("GatewayClassConfig must be set")
-	}
-
-	return nil
-}
 func (b *GatewayServiceBuilder) Build() *corev1.Service {
 	if b.gwConfig.Spec.ServiceType == nil {
 		return nil
@@ -118,21 +110,6 @@ func (b *GatewayDeploymentBuilder) WithConsulGatewayNamespace(namespace string) 
 func (b *GatewayDeploymentBuilder) WithPrimaryConsulDatacenter(datacenter string) *GatewayDeploymentBuilder {
 	b.consulPrimaryDatacenter = datacenter
 	return b
-}
-
-func (b *GatewayDeploymentBuilder) Validate() error {
-	if b.gwConfig == nil {
-		return fmt.Errorf("GatewayClassConfig must be set")
-	}
-
-	if b.sdsHost == "" || b.sdsPort == 0 {
-		return fmt.Errorf("SDS must be set")
-	}
-
-	if b.requiresCA() && b.consulCAData == "" {
-		return fmt.Errorf("ConsulCA must be set")
-	}
-	return nil
 }
 
 func (b *GatewayDeploymentBuilder) Build(currentReplicas *int32) *v1.Deployment {
