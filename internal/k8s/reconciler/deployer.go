@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/hashicorp/consul-api-gateway/internal/consul"
+	capi "github.com/hashicorp/consul/api"
 
 	"github.com/hashicorp/go-hclog"
 	apps "k8s.io/api/apps/v1"
@@ -23,6 +25,7 @@ type GatewayDeployer struct {
 	primaryDatacenter string
 	sdsHost           string
 	sdsPort           int
+	consul            *capi.Client
 
 	logger hclog.Logger
 }
@@ -34,6 +37,7 @@ type DeployerConfig struct {
 	SDSPort           int
 	Logger            hclog.Logger
 	Client            gatewayclient.Client
+	Consul            *capi.Client
 }
 
 func NewDeployer(config DeployerConfig) *GatewayDeployer {
@@ -44,11 +48,17 @@ func NewDeployer(config DeployerConfig) *GatewayDeployer {
 		sdsHost:           config.SDSHost,
 		sdsPort:           config.SDSPort,
 		logger:            config.Logger,
+		consul:            config.Consul,
 	}
 }
 
 func (d *GatewayDeployer) Deploy(ctx context.Context, gateway *K8sGateway) error {
-	if err := d.ensureServiceAccount(ctx, gateway.config, gateway.Gateway); err != nil {
+	_, err := consul.EnsureNamespaceExists(d.consul, gateway.Namespace, "")
+	if err != nil {
+		return err
+	}
+
+	if err = d.ensureServiceAccount(ctx, gateway.config, gateway.Gateway); err != nil {
 		return err
 	}
 

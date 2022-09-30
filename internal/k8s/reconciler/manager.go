@@ -86,6 +86,7 @@ func NewReconcileManager(config ManagerConfig) *GatewayReconcileManager {
 		SDSPort:           config.SDSPort,
 		Logger:            config.Logger,
 		Client:            config.Client,
+		Consul:            config.Consul,
 	})
 
 	return &GatewayReconcileManager{
