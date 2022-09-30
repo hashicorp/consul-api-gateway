@@ -235,30 +235,9 @@ func (b *GatewayDeploymentBuilder) podSpec() corev1.PodSpec {
 			Name:         "consul-api-gateway",
 			VolumeMounts: mounts,
 			Ports:        b.containerPorts(),
-			Env: []corev1.EnvVar{
-				{
-					Name: "IP",
-					ValueFrom: &corev1.EnvVarSource{
-						FieldRef: &corev1.ObjectFieldSelector{
-							FieldPath: "status.podIP",
-						},
-					},
-				},
-				{
-					Name: "HOST_IP",
-					ValueFrom: &corev1.EnvVarSource{
-						FieldRef: &corev1.ObjectFieldSelector{
-							FieldPath: "status.hostIP",
-						},
-					},
-				},
-				{
-					Name:  api.HTTPCAFile,
-					Value: consulCALocalFile,
-				},
-			},
-			Command: []string{"/bootstrap/consul-api-gateway", "exec"},
-			Args:    b.execArgs(),
+			Env:          b.envVars(),
+			Command:      []string{"/bootstrap/consul-api-gateway", "exec"},
+			Args:         b.execArgs(),
 			ReadinessProbe: &corev1.Probe{
 				ProbeHandler: corev1.ProbeHandler{
 					HTTPGet: &corev1.HTTPGetAction{
@@ -305,6 +284,36 @@ func (b *GatewayDeploymentBuilder) execArgs() []string {
 	}
 
 	return strings.Split(buf.String(), "\n")
+}
+
+func (b *GatewayDeploymentBuilder) envVars() []corev1.EnvVar {
+	envVars := []corev1.EnvVar{
+		{
+			Name: "IP",
+			ValueFrom: &corev1.EnvVarSource{
+				FieldRef: &corev1.ObjectFieldSelector{
+					FieldPath: "status.podIP",
+				},
+			},
+		},
+		{
+			Name: "HOST_IP",
+			ValueFrom: &corev1.EnvVarSource{
+				FieldRef: &corev1.ObjectFieldSelector{
+					FieldPath: "status.hostIP",
+				},
+			},
+		},
+	}
+
+	if b.requiresCA() {
+		envVars = append(envVars, corev1.EnvVar{
+			Name:  api.HTTPCAFile,
+			Value: consulCALocalFile,
+		})
+	}
+
+	return envVars
 }
 
 func (b *GatewayDeploymentBuilder) volumes() ([]corev1.Volume, []corev1.VolumeMount) {
