@@ -25,8 +25,9 @@ func NewGatewayService(gw *gwv1beta1.Gateway) *GatewayServiceBuilder {
 	return &GatewayServiceBuilder{gateway: gw}
 }
 
-func (b *GatewayServiceBuilder) WithClassConfig(cfg v1alpha1.GatewayClassConfig) {
+func (b *GatewayServiceBuilder) WithClassConfig(cfg v1alpha1.GatewayClassConfig) *GatewayServiceBuilder {
 	b.gwConfig = &cfg
+	return b
 }
 
 func (b *GatewayServiceBuilder) Validate() error {
@@ -93,25 +94,30 @@ func NewGatewayDeployment(gw *gwv1beta1.Gateway) *GatewayDeploymentBuilder {
 	return &GatewayDeploymentBuilder{gateway: gw}
 }
 
-func (b *GatewayDeploymentBuilder) WithClassConfig(cfg v1alpha1.GatewayClassConfig) {
+func (b *GatewayDeploymentBuilder) WithClassConfig(cfg v1alpha1.GatewayClassConfig) *GatewayDeploymentBuilder {
 	b.gwConfig = &cfg
+	return b
 }
 
-func (b *GatewayDeploymentBuilder) WithSDS(host string, port int) {
+func (b *GatewayDeploymentBuilder) WithSDS(host string, port int) *GatewayDeploymentBuilder {
 	b.sdsHost = host
 	b.sdsPort = port
+	return b
 }
 
-func (b *GatewayDeploymentBuilder) WithConsulCA(caData string) {
+func (b *GatewayDeploymentBuilder) WithConsulCA(caData string) *GatewayDeploymentBuilder {
 	b.consulCAData = caData
+	return b
 }
 
-func (b *GatewayDeploymentBuilder) WithConsulGatewayNamespace(namespace string) {
+func (b *GatewayDeploymentBuilder) WithConsulGatewayNamespace(namespace string) *GatewayDeploymentBuilder {
 	b.consulGatewayNamespace = namespace
+	return b
 }
 
-func (b *GatewayDeploymentBuilder) WithPrimaryConsulDatacenter(datacenter string) {
+func (b *GatewayDeploymentBuilder) WithPrimaryConsulDatacenter(datacenter string) *GatewayDeploymentBuilder {
 	b.consulPrimaryDatacenter = datacenter
+	return b
 }
 
 func (b *GatewayDeploymentBuilder) Validate() error {
