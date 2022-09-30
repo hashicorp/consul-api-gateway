@@ -54,7 +54,7 @@ func (d *GatewayDeployer) Deploy(ctx context.Context, gateway *K8sGateway) error
 		return err
 	}
 
-	if err := d.ensureSecret(ctx, gateway.Gateway); err != nil {
+	if err := d.ensureSecret(ctx, gateway.config, gateway.Gateway); err != nil {
 		return err
 	}
 
@@ -77,7 +77,12 @@ func (d *GatewayDeployer) ensureServiceAccount(ctx context.Context, config apigw
 
 // ensureSecret makes sure there is a Secret in the same namespace as the Gateway
 // containing the Consul CA certificate for the Gateway pod(s) to mount as a volume.
-func (d *GatewayDeployer) ensureSecret(ctx context.Context, gateway *gwv1beta1.Gateway) error {
+func (d *GatewayDeployer) ensureSecret(ctx context.Context, config apigwv1alpha1.GatewayClassConfig, gateway *gwv1beta1.Gateway) error {
+	// Only deploy the Secret if the config requires CA
+	if config.Spec.ConsulSpec.Scheme != "https" {
+		return nil
+	}
+
 	secret := &core.Secret{
 		ObjectMeta: meta.ObjectMeta{
 			Name:      gateway.Name,
