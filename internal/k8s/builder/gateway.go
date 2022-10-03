@@ -5,10 +5,12 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/hashicorp/consul/api"
 	v1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/utils/pointer"
 	gwv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
@@ -215,25 +217,9 @@ func (b *GatewayDeploymentBuilder) podSpec() corev1.PodSpec {
 			Name:         "consul-api-gateway",
 			VolumeMounts: mounts,
 			Ports:        b.containerPorts(),
-			Env: []corev1.EnvVar{
-				{
-					Name: "IP",
-					ValueFrom: &corev1.EnvVarSource{
-						FieldRef: &corev1.ObjectFieldSelector{
-							FieldPath: "status.podIP",
-						},
-					},
-				},
-				{
-					Name: "HOST_IP",
-					ValueFrom: &corev1.EnvVarSource{
-						FieldRef: &corev1.ObjectFieldSelector{
-							FieldPath: "status.hostIP",
-						},
-					},
-				},
-			},
-			Command: b.execCommand(),
+			Env:          b.envVars(),
+			Command:      []string{"/bootstrap/consul-api-gateway", "exec"},
+			Args:         b.execArgs(),
 			ReadinessProbe: &corev1.Probe{
 				ProbeHandler: corev1.ProbeHandler{
 					HTTPGet: &corev1.HTTPGetAction{
@@ -247,8 +233,10 @@ func (b *GatewayDeploymentBuilder) podSpec() corev1.PodSpec {
 	}
 }
 
-func (b *GatewayDeploymentBuilder) execCommand() []string {
-	// Render the command
+// execArgs renders a template containing all necessary args for the container
+// command. Due to the format expected by the K8s API/SDK, this template is then
+// split into a []string where each line of the template is its own item.
+func (b *GatewayDeploymentBuilder) execArgs() []string {
 	data := gwContainerCommandData{
 		ACLAuthMethod:     b.gwConfig.Spec.ConsulSpec.AuthSpec.Method,
 		ConsulHTTPAddr:    orDefault(b.gwConfig.Spec.ConsulSpec.Address, defaultConsulAddress),
@@ -270,13 +258,44 @@ func (b *GatewayDeploymentBuilder) execCommand() []string {
 		data.ACLAuthMethod = method
 	}
 	var buf bytes.Buffer
-	err := template.Must(template.New("root").Parse(strings.TrimSpace(
-		gwContainerCommandTpl))).Execute(&buf, &data)
+	err := template.Must(template.New("root").
+		Parse(strings.TrimSpace(gwContainerArgsTpl))).
+		Execute(&buf, &data)
 	if err != nil {
 		return nil
 	}
 
-	return []string{"/bin/sh", "-ec", buf.String()}
+	return strings.Split(buf.String(), "\n")
+}
+
+func (b *GatewayDeploymentBuilder) envVars() []corev1.EnvVar {
+	envVars := []corev1.EnvVar{
+		{
+			Name: "IP",
+			ValueFrom: &corev1.EnvVarSource{
+				FieldRef: &corev1.ObjectFieldSelector{
+					FieldPath: "status.podIP",
+				},
+			},
+		},
+		{
+			Name: "HOST_IP",
+			ValueFrom: &corev1.EnvVarSource{
+				FieldRef: &corev1.ObjectFieldSelector{
+					FieldPath: "status.hostIP",
+				},
+			},
+		},
+	}
+
+	if b.requiresCA() {
+		envVars = append(envVars, corev1.EnvVar{
+			Name:  api.HTTPCAFile,
+			Value: consulCALocalFile,
+		})
+	}
+
+	return envVars
 }
 
 func (b *GatewayDeploymentBuilder) volumes() ([]corev1.Volume, []corev1.VolumeMount) {
@@ -302,7 +321,17 @@ func (b *GatewayDeploymentBuilder) volumes() ([]corev1.Volume, []corev1.VolumeMo
 		volumes = append(volumes, corev1.Volume{
 			Name: "ca",
 			VolumeSource: corev1.VolumeSource{
-				EmptyDir: &corev1.EmptyDirVolumeSource{},
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: b.gateway.Name,
+					Items: []corev1.KeyToPath{
+						{
+							Key:  "consul-ca-cert",
+							Path: consulCAFilename,
+						},
+					},
+					DefaultMode: nil,
+					Optional:    pointer.Bool(false),
+				},
 			},
 		})
 		mounts = append(mounts, corev1.VolumeMount{
@@ -353,33 +382,39 @@ type gwContainerCommandData struct {
 	SDSPort           int
 }
 
-// gwContainerCommandTpl is the template for the command executed by
-// the exec container.
-const gwContainerCommandTpl = `
-{{- if .ConsulCAFile}}
-export CONSUL_CACERT={{ .ConsulCAFile }}
-cat <<EOF >{{ .ConsulCAFile }}
-{{ .ConsulCAData }}
-EOF
-{{- end}}
-
-exec /bootstrap/consul-api-gateway exec -log-json \
-  -log-level {{ .LogLevel }} \
-  -gateway-host "{{ .GatewayHost }}" \
-  -gateway-name {{ .GatewayName }} \
+// gwContainerArgsTpl is the template for the command arguments executed in the Envoy container.
+// The resulting args are split on \n to obtain a []string for the pod spec's args.
+// Note: Make sure not to leave whitespace at the beginning or end of any line.
+const gwContainerArgsTpl = `
+-log-json
+-log-level
+{{ .LogLevel }}
+-gateway-host
+{{ .GatewayHost }}
+-gateway-name
+{{ .GatewayName }}
 {{- if .GatewayNamespace }}
-  -gateway-namespace {{ .GatewayNamespace }} \
+-gateway-namespace
+{{ .GatewayNamespace }}
 {{- end }}
-  -consul-http-address {{ .ConsulHTTPAddr }} \
-  -consul-http-port {{ .ConsulHTTPPort }} \
-  -consul-xds-port  {{ .ConsulGRPCPort }} \
+-consul-http-address
+{{ .ConsulHTTPAddr }}
+-consul-http-port
+{{ .ConsulHTTPPort }}
+-consul-xds-port
+{{ .ConsulGRPCPort }}
 {{- if .ACLAuthMethod }}
-  -acl-auth-method {{ .ACLAuthMethod }} \
+-acl-auth-method
+{{ .ACLAuthMethod }}
 {{- end }}
 {{- if .PrimaryDatacenter }}
-  -consul-primary-datacenter {{ .PrimaryDatacenter }} \
+-consul-primary-datacenter
+{{ .PrimaryDatacenter }}
 {{- end }}
-  -envoy-bootstrap-path /bootstrap/envoy.json \
-  -envoy-sds-address {{ .SDSHost }} \
-  -envoy-sds-port {{ .SDSPort }}
+-envoy-bootstrap-path
+/bootstrap/envoy.json
+-envoy-sds-address
+{{ .SDSHost }}
+-envoy-sds-port
+{{ .SDSPort }}
 `

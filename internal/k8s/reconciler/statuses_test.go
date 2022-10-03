@@ -40,9 +40,16 @@ func TestStatuses_GatewayTrackSync(t *testing.T) {
 	}))
 
 	gw = &gwv1beta1.Gateway{}
-
 	gateway = newK8sGateway(apigwv1alpha1.GatewayClassConfig{}, gw, state.InitialGatewayState(gw))
+	client.EXPECT().GetDeployment(gomock.Any(), gomock.Any()).Return(nil, nil)
+	client.EXPECT().CreateOrUpdateDeployment(gomock.Any(), gomock.Any(), gomock.Any()).Return(false, nil)
+	client.EXPECT().UpdateStatus(gomock.Any(), gateway.Gateway).Return(nil)
+	assert.NoError(t, updater.UpdateGatewayStatusOnSync(context.Background(), gateway, func() (bool, error) {
+		return false, nil
+	}))
 
+	gw = &gwv1beta1.Gateway{}
+	gateway = newK8sGateway(apigwv1alpha1.GatewayClassConfig{}, gw, state.InitialGatewayState(gw))
 	client.EXPECT().GetDeployment(gomock.Any(), gomock.Any()).Return(nil, nil)
 	client.EXPECT().CreateOrUpdateDeployment(gomock.Any(), gomock.Any(), gomock.Any()).Return(false, nil)
 	client.EXPECT().UpdateStatus(gomock.Any(), gateway.Gateway).Return(nil)
@@ -73,6 +80,18 @@ func TestStatuses_GatewayTrackSync(t *testing.T) {
 	gateway = newK8sGateway(apigwv1alpha1.GatewayClassConfig{}, gw, state.InitialGatewayState(gw))
 	client.EXPECT().GetDeployment(gomock.Any(), gomock.Any()).Return(nil, nil)
 	client.EXPECT().CreateOrUpdateDeployment(gomock.Any(), gomock.Any(), gomock.Any()).Return(false, nil)
+	client.EXPECT().UpdateStatus(gomock.Any(), gateway.Gateway).Return(nil)
+	assert.NoError(t, updater.UpdateGatewayStatusOnSync(context.Background(), gateway, func() (bool, error) {
+		return true, nil
+	}))
+
+	gw = &gwv1beta1.Gateway{}
+	gateway = newK8sGateway(
+		apigwv1alpha1.GatewayClassConfig{Spec: apigwv1alpha1.GatewayClassConfigSpec{ConsulSpec: apigwv1alpha1.ConsulSpec{Scheme: "https"}}},
+		gw, state.InitialGatewayState(gw))
+	client.EXPECT().CreateOrUpdateSecret(gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil)
+	client.EXPECT().GetDeployment(gomock.Any(), gomock.Any()).Return(nil, nil)
+	client.EXPECT().CreateOrUpdateDeployment(gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil)
 	client.EXPECT().UpdateStatus(gomock.Any(), gateway.Gateway).Return(nil)
 	assert.NoError(t, updater.UpdateGatewayStatusOnSync(context.Background(), gateway, func() (bool, error) {
 		return true, nil

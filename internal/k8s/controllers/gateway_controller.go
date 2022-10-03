@@ -46,7 +46,7 @@ type GatewayReconciler struct {
 //+kubebuilder:rbac:groups=apps,resources=deployments,verbs=list;get;create;update;watch
 //+kubebuilder:rbac:groups=core,resources=services,verbs=list;get;create;update;watch
 //+kubebuilder:rbac:groups=core,resources=serviceaccounts,verbs=list;get;create;watch
-//+kubebuilder:rbac:groups=core,resources=secrets,verbs=get;list;watch
+//+kubebuilder:rbac:groups=core,resources=secrets,verbs=create;update;get;list;watch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -91,6 +91,7 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&appsv1.Deployment{}).
 		Owns(&corev1.Service{}).
 		Owns(&corev1.ServiceAccount{}).
+		Owns(&corev1.Secret{}).
 		Watches(
 			&source.Kind{Type: &corev1.Pod{}},
 			handler.EnqueueRequestsFromMapFunc(podToGatewayRequest),
