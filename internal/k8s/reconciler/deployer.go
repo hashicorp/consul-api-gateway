@@ -169,17 +169,17 @@ func (d *GatewayDeployer) ensureService(ctx context.Context, config apigwv1alpha
 }
 
 func (d *GatewayDeployer) Deployment(namespace string, config apigwv1alpha1.GatewayClassConfig, gateway *gwv1beta1.Gateway, currentReplicas *int32) *apps.Deployment {
-	deploymentBuilder := builder.NewGatewayDeployment(gateway)
-	deploymentBuilder.WithSDS(d.sdsHost, d.sdsPort)
-	deploymentBuilder.WithClassConfig(config)
-	deploymentBuilder.WithConsulCA(d.consulCA)
-	deploymentBuilder.WithConsulGatewayNamespace(namespace)
-	deploymentBuilder.WithPrimaryConsulDatacenter(d.primaryDatacenter)
-	return deploymentBuilder.Build(currentReplicas)
+	return builder.NewGatewayDeployment(gateway).
+		WithSDS(d.sdsHost, d.sdsPort).
+		WithClassConfig(config).
+		WithConsulCA(d.consulCA).
+		WithConsulGatewayNamespace(namespace).
+		WithPrimaryConsulDatacenter(d.primaryDatacenter).
+		Build(currentReplicas)
 }
 
 func (d *GatewayDeployer) Service(config apigwv1alpha1.GatewayClassConfig, gateway *gwv1beta1.Gateway) *core.Service {
-	serviceBuilder := builder.NewGatewayService(gateway)
-	serviceBuilder.WithClassConfig(config)
-	return serviceBuilder.Build()
+	return builder.NewGatewayService(gateway).
+		WithClassConfig(config).
+		Build()
 }

@@ -2,7 +2,6 @@ package builder
 
 import (
 	"bytes"
-	"fmt"
 	"strings"
 	"text/template"
 
@@ -27,16 +26,9 @@ func NewGatewayService(gw *gwv1beta1.Gateway) *GatewayServiceBuilder {
 	return &GatewayServiceBuilder{gateway: gw}
 }
 
-func (b *GatewayServiceBuilder) WithClassConfig(cfg v1alpha1.GatewayClassConfig) {
+func (b *GatewayServiceBuilder) WithClassConfig(cfg v1alpha1.GatewayClassConfig) *GatewayServiceBuilder {
 	b.gwConfig = &cfg
-}
-
-func (b *GatewayServiceBuilder) Validate() error {
-	if b.gwConfig == nil {
-		return fmt.Errorf("GatewayClassConfig must be set")
-	}
-
-	return nil
+	return b
 }
 
 func (b *GatewayServiceBuilder) Build() *corev1.Service {
@@ -96,40 +88,30 @@ func NewGatewayDeployment(gw *gwv1beta1.Gateway) *GatewayDeploymentBuilder {
 	return &GatewayDeploymentBuilder{gateway: gw}
 }
 
-func (b *GatewayDeploymentBuilder) WithClassConfig(cfg v1alpha1.GatewayClassConfig) {
+func (b *GatewayDeploymentBuilder) WithClassConfig(cfg v1alpha1.GatewayClassConfig) *GatewayDeploymentBuilder {
 	b.gwConfig = &cfg
+	return b
 }
 
-func (b *GatewayDeploymentBuilder) WithSDS(host string, port int) {
+func (b *GatewayDeploymentBuilder) WithSDS(host string, port int) *GatewayDeploymentBuilder {
 	b.sdsHost = host
 	b.sdsPort = port
+	return b
 }
 
-func (b *GatewayDeploymentBuilder) WithConsulCA(caData string) {
+func (b *GatewayDeploymentBuilder) WithConsulCA(caData string) *GatewayDeploymentBuilder {
 	b.consulCAData = caData
+	return b
 }
 
-func (b *GatewayDeploymentBuilder) WithConsulGatewayNamespace(namespace string) {
+func (b *GatewayDeploymentBuilder) WithConsulGatewayNamespace(namespace string) *GatewayDeploymentBuilder {
 	b.consulGatewayNamespace = namespace
+	return b
 }
 
-func (b *GatewayDeploymentBuilder) WithPrimaryConsulDatacenter(datacenter string) {
+func (b *GatewayDeploymentBuilder) WithPrimaryConsulDatacenter(datacenter string) *GatewayDeploymentBuilder {
 	b.consulPrimaryDatacenter = datacenter
-}
-
-func (b *GatewayDeploymentBuilder) Validate() error {
-	if b.gwConfig == nil {
-		return fmt.Errorf("GatewayClassConfig must be set")
-	}
-
-	if b.sdsHost == "" || b.sdsPort == 0 {
-		return fmt.Errorf("SDS must be set")
-	}
-
-	if b.requiresCA() && b.consulCAData == "" {
-		return fmt.Errorf("ConsulCA must be set")
-	}
-	return nil
+	return b
 }
 
 func (b *GatewayDeploymentBuilder) Build(currentReplicas *int32) *v1.Deployment {
