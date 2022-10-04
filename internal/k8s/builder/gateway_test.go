@@ -50,18 +50,18 @@ func newGatewayTestConfig() *gatewayTestConfig {
 }
 
 func (g *gatewayTestConfig) EncodeDeployment() runtime.Object {
-	b := NewGatewayDeployment(g.gateway)
-	b.WithSDS("consul-api-gateway-controller.default.svc.cluster.local", 9090)
-	b.WithClassConfig(*g.gatewayClassConfig)
-	b.WithConsulCA("CONSUL_CA_MOCKED")
-	b.WithConsulGatewayNamespace("test")
-	return b.Build(nil)
+	return NewGatewayDeployment(g.gateway).
+		WithSDS("consul-api-gateway-controller.default.svc.cluster.local", 9090).
+		WithClassConfig(*g.gatewayClassConfig).
+		WithConsulCA("CONSUL_CA_MOCKED").
+		WithConsulGatewayNamespace("test").
+		Build(nil)
 }
 
 func (g *gatewayTestConfig) EncodeService() runtime.Object {
-	b := NewGatewayService(g.gateway)
-	b.WithClassConfig(*g.gatewayClassConfig)
-	return b.Build()
+	return NewGatewayService(g.gateway).
+		WithClassConfig(*g.gatewayClassConfig).
+		Build()
 }
 
 func TestGatewayDeploymentBuilder(t *testing.T) {

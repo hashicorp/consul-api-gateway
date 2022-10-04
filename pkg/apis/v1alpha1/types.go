@@ -177,12 +177,39 @@ type MeshServiceList struct {
 	Items []MeshService `json:"items"`
 }
 
+func MergeSecret(a, b *corev1.Secret) *corev1.Secret {
+	if !compareSecrets(a, b) {
+		b.Annotations = a.Annotations
+		b.Data = a.Data
+	}
+
+	return b
+}
+
+func compareSecrets(a, b *corev1.Secret) bool {
+	if !equality.Semantic.DeepEqual(a.Annotations, b.Annotations) {
+		return false
+	}
+
+	if len(b.Data) != len(a.Data) {
+		return false
+	}
+
+	for k, v := range a.Data {
+		otherV, ok := b.Data[k]
+		if !ok || string(v) != string(otherV) {
+			return false
+		}
+	}
+	return true
+}
+
 // MergeService merges a gateway service a onto b and returns b, overriding all of
 // the fields that we'd normally set for a service deployment. It does not attempt
 // to change the service type
 func MergeService(a, b *corev1.Service) *corev1.Service {
 	if !compareServices(a, b) {
-		a.Annotations = b.Annotations
+		b.Annotations = a.Annotations
 		b.Spec.Ports = a.Spec.Ports
 	}
 

@@ -154,6 +154,103 @@ paths:
             application/json:
               schema:
                 "$ref": "#/components/schemas/Error"
+  "/namespaces/{namespace}/gateways/{name}/tokens":
+    post:
+      description: Creates a new bootstrap token for a gateway based off of its unique name.
+      operationId: createTokenForGatewayInNamespace
+      parameters:
+      - name: namespace
+        in: path
+        description: Namespace of gateway for token to be created
+        required: true
+        schema:
+          type: string
+      - name: name
+        in: path
+        description: Name of gateway for token to be created
+        required: true
+        schema:
+          type: string
+      responses:
+        '201':
+          description: token response
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/BootstrapToken"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Error"
+  "/namespaces/{namespace}/gateways/{name}/tokens/{id}":
+    get:
+      description: Returns a bootstrap token based on the token ID and gateway name supplied
+      operationId: getTokenForGatewayInNamespace
+      parameters:
+      - name: namespace
+        in: path
+        description: Namespace of gateway for token to fetch
+        required: true
+        schema:
+          type: string
+      - name: name
+        in: path
+        description: Name of gateway for token to fetch
+        required: true
+        schema:
+          type: string
+      - name: id
+        in: path
+        description: ID of token to fetch
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: token response
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/BootstrapToken"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Error"
+    delete:
+      description: Deletes a single bootstrap token based on the token ID and gateway name supplied
+      operationId: deleteTokenForGatewayInNamespace
+      parameters:
+      - name: namespace
+        in: path
+        description: Namespace of gateway for token to fetch
+        required: true
+        schema:
+          type: string
+      - name: name
+        in: path
+        description: Name of gateway for token to delete
+        required: true
+        schema:
+          type: string
+      - name: id
+        in: path
+        description: ID of token to delete
+        required: true
+        schema:
+          type: string
+      responses:
+        '204':
+          description: token deleted
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Error"
   "/gateways/{name}":
     get:
       description: Returns a gateway in the `"default"` namespace based off of its unique name.
@@ -191,6 +288,85 @@ paths:
       responses:
         '204':
           description: gateway deleted
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Error"
+  "/gateways/{name}/tokens":
+    post:
+      description: Creates a new bootstrap token for a gateway in the `"default"` namespace based off of its unique name.
+      operationId: createTokenForGateway
+      parameters:
+      - name: name
+        in: path
+        description: Name of gateway for token to be created
+        required: true
+        schema:
+          type: string
+      responses:
+        '201':
+          description: token response
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/BootstrapToken"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Error"
+  "/gateways/{name}/tokens/{id}":
+    get:
+      description: Returns a bootstrap token for a gateway in the `"default"` namespace based off of its unique name.
+      operationId: getTokenForGateway
+      parameters:
+      - name: name
+        in: path
+        description: Name of gateway for token to fetch
+        required: true
+        schema:
+          type: string
+      - name: id
+        in: path
+        description: ID of token to fetch
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: token response
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/BootstrapToken"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Error"
+    delete:
+      description: deletes a single bootstrap token for a gateway in the `"default"` namespace based on the gateway name and token ID supplied
+      operationId: deleteTokenForGateway
+      parameters:
+      - name: name
+        in: path
+        description: Name of gateway for token to delete
+        required: true
+        schema:
+          type: string
+      - name: id
+        in: path
+        description: ID of token to delete
+        required: true
+        schema:
+          type: string
+      responses:
+        '204':
+          description: token deleted
         default:
           description: unexpected error
           content:
@@ -649,6 +825,14 @@ components:
           minLength: 1
         namespace:
           type: string
+    BootstrapToken:
+      type: object
+      required:
+      - token
+      properties:
+        token:
+          type: string
+          minLength: 1
     HTTPRoute:
       type: object
       required:

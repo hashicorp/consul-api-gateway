@@ -39,24 +39,33 @@ spec:
               topologyKey: kubernetes.io/hostname
             weight: 1
       containers:
-      - command:
-        - /bin/sh
-        - -ec
-        - |2-
-
-
-          exec /bootstrap/consul-api-gateway exec -log-json \
-            -log-level info \
-            -gateway-host "$(IP)" \
-            -gateway-name test-static-mapping \
-            -gateway-namespace test \
-            -consul-http-address host.docker.internal \
-            -consul-http-port 443 \
-            -consul-xds-port  8502 \
-            -acl-auth-method consul-api-gateway \
-            -envoy-bootstrap-path /bootstrap/envoy.json \
-            -envoy-sds-address consul-api-gateway-controller.default.svc.cluster.local \
-            -envoy-sds-port 9090
+      - args:
+        - -log-json
+        - -log-level
+        - info
+        - -gateway-host
+        - $(IP)
+        - -gateway-name
+        - test-static-mapping
+        - -gateway-namespace
+        - test
+        - -consul-http-address
+        - host.docker.internal
+        - -consul-http-port
+        - "443"
+        - -consul-xds-port
+        - "8502"
+        - -acl-auth-method
+        - consul-api-gateway
+        - -envoy-bootstrap-path
+        - /bootstrap/envoy.json
+        - -envoy-sds-address
+        - consul-api-gateway-controller.default.svc.cluster.local
+        - -envoy-sds-port
+        - "9090"
+        command:
+        - /bootstrap/consul-api-gateway
+        - exec
         env:
         - name: IP
           valueFrom:

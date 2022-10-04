@@ -41,6 +41,15 @@ func (s *Server) CreateGateway(w http.ResponseWriter, r *http.Request) {
 	send(w, http.StatusCreated, gateway)
 }
 
+func (s *Server) CreateTokenForGatewayInNamespace(w http.ResponseWriter, r *http.Request, namespace, name string) {
+	// TODO: do the actual token creation here
+	sendError(w, http.StatusNotImplemented, "Not implemented")
+}
+
+func (s *Server) CreateTokenForGateway(w http.ResponseWriter, r *http.Request, name string) {
+	s.CreateTokenForGatewayInNamespace(w, r, defaultNamespace, name)
+}
+
 func (s *Server) GetGatewayInNamespace(w http.ResponseWriter, r *http.Request, namespace, name string) {
 	// do the actual gateway retrieval here
 	sendError(w, http.StatusNotImplemented, "Not implemented")
@@ -48,6 +57,15 @@ func (s *Server) GetGatewayInNamespace(w http.ResponseWriter, r *http.Request, n
 
 func (s *Server) GetGateway(w http.ResponseWriter, r *http.Request, name string) {
 	s.GetGatewayInNamespace(w, r, defaultNamespace, name)
+}
+
+func (s *Server) GetTokenForGatewayInNamespace(w http.ResponseWriter, r *http.Request, namespace, name, tokenId string) {
+	// TODO: do the actual token retrieval here
+	sendError(w, http.StatusNotImplemented, "Not implemented")
+}
+
+func (s *Server) GetTokenForGateway(w http.ResponseWriter, r *http.Request, name, tokenId string) {
+	s.GetTokenForGatewayInNamespace(w, r, defaultNamespace, name, tokenId)
 }
 
 func (s *Server) DeleteGatewayInNamespace(w http.ResponseWriter, r *http.Request, namespace, name string) {
@@ -59,4 +77,15 @@ func (s *Server) DeleteGatewayInNamespace(w http.ResponseWriter, r *http.Request
 
 func (s *Server) DeleteGateway(w http.ResponseWriter, r *http.Request, name string) {
 	s.DeleteGatewayInNamespace(w, r, defaultNamespace, name)
+}
+
+func (s *Server) DeleteTokenForGatewayInNamespace(w http.ResponseWriter, r *http.Request, namespace, name, tokenId string) {
+	s.logger.Info("deleting token", tokenId, "namespace", namespace, "gateway name", name)
+	// TODO: do the actual gateway deletion here
+
+	sendEmpty(w, http.StatusAccepted)
+}
+
+func (s *Server) DeleteTokenForGateway(w http.ResponseWriter, r *http.Request, name, tokenId string) {
+	s.DeleteTokenForGatewayInNamespace(w, r, defaultNamespace, name, tokenId)
 }
