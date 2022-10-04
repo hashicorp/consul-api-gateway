@@ -20,7 +20,7 @@ type K8sGateway struct {
 	*gwv1beta1.Gateway
 	GatewayState *state.GatewayState
 
-	config apigwv1alpha1.GatewayClassConfig
+	Config apigwv1alpha1.GatewayClassConfig
 }
 
 // newK8sGateway
@@ -28,7 +28,7 @@ func newK8sGateway(config apigwv1alpha1.GatewayClassConfig, gateway *gwv1beta1.G
 	return &K8sGateway{
 		Gateway:      gateway,
 		GatewayState: gatewayState,
-		config:       config,
+		Config:       config,
 	}
 }
 
@@ -40,14 +40,15 @@ func (g *K8sGateway) ID() core.GatewayID {
 }
 
 func (g *K8sGateway) Resolve() core.ResolvedGateway {
-	listeners := []core.ResolvedListener{}
+	var listeners []core.ResolvedListener
 	for i, listener := range g.Gateway.Spec.Listeners {
 		state := g.GatewayState.Listeners[i]
 		if state.Valid() {
 			listeners = append(listeners, g.resolveListener(state, listener))
 		}
 	}
-	return core.ResolvedGateway{
+
+	rgw := core.ResolvedGateway{
 		ID: g.ID(),
 		Meta: map[string]string{
 			"external-source":                          "consul-api-gateway",
@@ -56,6 +57,13 @@ func (g *K8sGateway) Resolve() core.ResolvedGateway {
 		},
 		Listeners: listeners,
 	}
+
+	if g.Config.Spec.ConnectionManagement.MaxConnections != nil {
+		maxConns := uint32(*g.Config.Spec.ConnectionManagement.MaxConnections)
+		rgw.MaxConnections = &maxConns
+	}
+
+	return rgw
 }
 
 func (g *K8sGateway) resolveListener(state *state.ListenerState, listener gwv1beta1.Listener) core.ResolvedListener {
