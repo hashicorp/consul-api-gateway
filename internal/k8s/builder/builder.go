@@ -2,6 +2,7 @@ package builder
 
 import (
 	"fmt"
+	"path/filepath"
 	"strconv"
 
 	v1 "k8s.io/api/apps/v1"
@@ -34,10 +35,12 @@ const (
 	defaultInstances      int32 = 1
 
 	consulCALocalPath = "/consul/tls"
-	consulCALocalFile = consulCALocalPath + "/ca.pem"
+	consulCAFilename  = "ca.pem"
 
 	k8sHostnameTopologyKey = "kubernetes.io/hostname"
 )
+
+var consulCALocalFile = filepath.Join(consulCALocalPath, consulCAFilename)
 
 type Builder interface {
 	Validate() error

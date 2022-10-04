@@ -61,6 +61,26 @@ func (mr *MockClientMockRecorder) CreateOrUpdateDeployment(ctx, deployment inter
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateOrUpdateDeployment", reflect.TypeOf((*MockClient)(nil).CreateOrUpdateDeployment), varargs...)
 }
 
+// CreateOrUpdateSecret mocks base method.
+func (m *MockClient) CreateOrUpdateSecret(ctx context.Context, secret *v10.Secret, mutators ...func() error) (bool, error) {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{ctx, secret}
+	for _, a := range mutators {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "CreateOrUpdateSecret", varargs...)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CreateOrUpdateSecret indicates an expected call of CreateOrUpdateSecret.
+func (mr *MockClientMockRecorder) CreateOrUpdateSecret(ctx, secret interface{}, mutators ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{ctx, secret}, mutators...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateOrUpdateSecret", reflect.TypeOf((*MockClient)(nil).CreateOrUpdateSecret), varargs...)
+}
+
 // CreateOrUpdateService mocks base method.
 func (m *MockClient) CreateOrUpdateService(ctx context.Context, service *v10.Service, mutators ...func() error) (bool, error) {
 	m.ctrl.T.Helper()
