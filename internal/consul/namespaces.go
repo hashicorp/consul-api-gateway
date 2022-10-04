@@ -16,6 +16,7 @@ func EnsureNamespaceExists(client *capi.Client, ns string, crossNSAClPolicy stri
 	if ns == WildcardNamespace || ns == DefaultNamespace {
 		return false, nil
 	}
+	
 	// Check if the Consul namespace exists.
 	namespaceInfo, _, err := client.Namespaces().Read(ns, nil)
 	if err != nil {

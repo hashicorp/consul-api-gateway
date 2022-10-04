@@ -53,12 +53,14 @@ func NewDeployer(config DeployerConfig) *GatewayDeployer {
 }
 
 func (d *GatewayDeployer) Deploy(ctx context.Context, gateway *K8sGateway) error {
-	_, err := consul.EnsureNamespaceExists(d.consul, gateway.Namespace, "")
-	if err != nil {
-		return err
+	if d.consul != nil {
+		_, err := consul.EnsureNamespaceExists(d.consul, gateway.Namespace, "")
+		if err != nil {
+			return err
+		}
 	}
 
-	if err = d.ensureServiceAccount(ctx, gateway.config, gateway.Gateway); err != nil {
+	if err := d.ensureServiceAccount(ctx, gateway.config, gateway.Gateway); err != nil {
 		return err
 	}
 
