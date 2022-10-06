@@ -1,0 +1,3 @@
+```release-note:bug
+When a gateway is created in a namespace that doesn't exist in consul, and namespace mirrioring is enabled, the namespace will be created in consul. 
+```
