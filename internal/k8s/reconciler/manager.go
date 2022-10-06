@@ -65,16 +65,17 @@ type GatewayReconcileManager struct {
 var _ ReconcileManager = &GatewayReconcileManager{}
 
 type ManagerConfig struct {
-	ControllerName        string
-	Client                gatewayclient.Client
-	Consul                *api.Client
-	ConsulCA              string
-	PrimaryDatacenter     string
-	SDSHost               string
-	SDSPort               int
-	Store                 store.Store
-	Logger                hclog.Logger
-	ConsulNamespaceMapper common.ConsulNamespaceMapper
+	ControllerName            string
+	Client                    gatewayclient.Client
+	Consul                    *api.Client
+	ConsulCA                  string
+	PrimaryDatacenter         string
+	SDSHost                   string
+	SDSPort                   int
+	Store                     store.Store
+	Logger                    hclog.Logger
+	ConsulNamespaceMapper     common.ConsulNamespaceMapper
+	ConsulNamespaceMirrioring bool
 }
 
 func NewReconcileManager(config ManagerConfig) *GatewayReconcileManager {
