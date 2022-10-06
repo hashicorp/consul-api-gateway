@@ -271,7 +271,7 @@ func TestGatewayWithConsulNamespaceDoesntExist(t *testing.T) {
 
 			// Create a Gateway and wait for it to be ready
 			gatewayName := envconf.RandomName("gw", 16)
-			gw := createGateway(ctx, t, resources, gatewayName, namespace, gc, []gwv1beta1.Listener{createHTTPSListener(ctx, t, 443)})
+			gw := createGateway(ctx, t, resources, gatewayName, namespace, gc, []gwv1beta1.Listener{createHTTPListener(ctx, t, 80)})
 			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionReady), checkTimeout, checkInterval, "no gateway found in the allotted time")
 			checkGatewayConfigAnnotation(ctx, t, resources, gatewayName, namespace, gcc)
 
@@ -2243,6 +2243,16 @@ func createHTTPSListener(ctx context.Context, t *testing.T, port gwv1beta1.PortN
 				Namespace: &gatewayNamespace,
 			}},
 		},
+	}
+}
+
+func createHTTPListener(ctx context.Context, t *testing.T, port gwv1beta1.PortNumber) gwv1beta1.Listener {
+	t.Helper()
+
+	return gwv1beta1.Listener{
+		Name:     "http",
+		Port:     port,
+		Protocol: gwv1beta1.HTTPProtocolType,
 	}
 }
 
