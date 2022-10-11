@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/go-hclog"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/pointer"
 	gwv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	"github.com/hashicorp/consul-api-gateway/internal/common"
@@ -364,14 +365,14 @@ func (r *backendResolver) consulServiceForMeshService(ctx context.Context, names
 	err = backoff.Retry(func() error {
 		r.logger.Trace("attempting to resolve global catalog service")
 
-		if service.Spec.PeerName != nil && *service.Spec.PeerName != "" {
+		if pointer.StringDeref(service.Spec.Peer, "") != "" {
 			resolved, err = r.findPeerService(ctx, service)
 			if err != nil {
 				r.logger.Trace("error resolving imported service reference")
 				return err
 			} else if resolved == nil {
 				return NewConsulResolutionError(
-					fmt.Sprintf("imported consul service %s from peer %s not found", namespacedName, *service.Spec.PeerName))
+					fmt.Sprintf("imported consul service %s from peer %s not found", namespacedName, *service.Spec.Peer))
 			}
 		} else {
 			resolved, err = r.findCatalogService(service)
@@ -393,13 +394,13 @@ func (r *backendResolver) consulServiceForMeshService(ctx context.Context, names
 }
 
 func (r *backendResolver) findPeerService(ctx context.Context, service *apigwv1alpha1.MeshService) (*ResolvedReference, error) {
-	if service.Spec.PeerName == nil || *service.Spec.PeerName == "" {
+	if pointer.StringDeref(service.Spec.Peer, "") == "" {
 		return nil, NewConsulResolutionError("peer name expected but not provided")
 	}
 
 	consulNamespace := r.mapper(service.Namespace)
 	consulName := service.Spec.Name
-	consulPeer := *service.Spec.PeerName
+	consulPeer := *service.Spec.Peer
 
 	peer, _, err := r.consul.Peerings().Read(ctx, consulPeer, &api.QueryOptions{Namespace: consulNamespace})
 	if err != nil {

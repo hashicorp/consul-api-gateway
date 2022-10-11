@@ -39,8 +39,8 @@ spec:
               name:
                 description: Name holds the service name for a Consul service.
                 type: string
-              peerName:
-                description: PeerName optionally specifies the name of the peer exporting
+              peer:
+                description: Peer optionally specifies the name of the peer exporting
                   the Consul service. If not specified, the Consul service is assumed
                   to be in the local datacenter.
                 type: string
