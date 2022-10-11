@@ -178,6 +178,9 @@ type MeshService struct {
 type MeshServiceSpec struct {
 	// Name holds the service name for a Consul service.
 	Name string `json:"name,omitempty"`
+	// PeerName optionally specifies the name of the peer exporting the Consul service.
+	// If not specified, the Consul service is assumed to be in the local datacenter.
+	PeerName *string `json:"peerName,omitempty"`
 }
 
 // +kubebuilder:object:root=true

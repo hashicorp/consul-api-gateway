@@ -363,14 +363,26 @@ func (r *backendResolver) consulServiceForMeshService(ctx context.Context, names
 	// we do an inner retry since consul may take some time to sync
 	err = backoff.Retry(func() error {
 		r.logger.Trace("attempting to resolve global catalog service")
-		resolved, err = r.findCatalogService(service)
-		if err != nil {
-			r.logger.Trace("error resolving global catalog reference", "error", err)
-			return err
+
+		if service.Spec.PeerName != nil && *service.Spec.PeerName != "" {
+			resolved, err = r.findPeerService(ctx, service)
+			if err != nil {
+				r.logger.Trace("error resolving imported service reference")
+				return err
+			} else if resolved == nil {
+				return NewConsulResolutionError(
+					fmt.Sprintf("imported consul service %s from peer %s not found", namespacedName, *service.Spec.PeerName))
+			}
+		} else {
+			resolved, err = r.findCatalogService(service)
+			if err != nil {
+				r.logger.Trace("error resolving global catalog reference", "error", err)
+				return err
+			} else if resolved == nil {
+				return NewConsulResolutionError(fmt.Sprintf("consul service %s not found", namespacedName))
+			}
 		}
-		if resolved == nil {
-			return NewConsulResolutionError(fmt.Sprintf("consul service %s not found", namespacedName))
-		}
+
 		return nil
 	}, backoff.WithContext(backoff.WithMaxRetries(backoff.NewConstantBackOff(1*time.Second), 30), ctx))
 	if err != nil {
@@ -381,9 +393,13 @@ func (r *backendResolver) consulServiceForMeshService(ctx context.Context, names
 }
 
 func (r *backendResolver) findPeerService(ctx context.Context, service *apigwv1alpha1.MeshService) (*ResolvedReference, error) {
+	if service.Spec.PeerName == nil || *service.Spec.PeerName == "" {
+		return nil, NewConsulResolutionError("peer name expected but not provided")
+	}
+
 	consulNamespace := r.mapper(service.Namespace)
 	consulName := service.Spec.Name
-	consulPeer := "TODO" // TODO service.Spec.PeerName
+	consulPeer := *service.Spec.PeerName
 
 	peer, _, err := r.consul.Peerings().Read(ctx, consulPeer, &api.QueryOptions{Namespace: consulNamespace})
 	if err != nil {
