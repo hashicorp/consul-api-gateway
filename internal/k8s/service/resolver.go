@@ -380,6 +380,30 @@ func (r *backendResolver) consulServiceForMeshService(ctx context.Context, names
 	return resolved, nil
 }
 
+func (r *backendResolver) findPeerService(ctx context.Context, service *apigwv1alpha1.MeshService) (*ResolvedReference, error) {
+	consulNamespace := r.mapper(service.Namespace)
+	consulName := service.Spec.Name
+	consulPeer := "TODO" // TODO service.Spec.PeerName
+
+	peer, _, err := r.consul.Peerings().Read(ctx, consulPeer, &api.QueryOptions{Namespace: consulNamespace})
+	if err != nil {
+		r.logger.Trace("error resolving imported consul service reference", "error", err)
+		return nil, err
+	}
+
+	for _, importedService := range peer.StreamStatus.ImportedServices {
+		if importedService == consulName {
+			return NewConsulServiceReference(&ConsulService{
+				Namespace: consulNamespace,
+				Name:      consulName,
+			}), nil
+		}
+	}
+
+	// TODO Consider BackendNotFound vs. ConsulResolutionError
+	return nil, NewBackendNotFoundError(fmt.Sprintf("no service %s found on peer %s", consulName, consulPeer))
+}
+
 func (r *backendResolver) findCatalogService(service *apigwv1alpha1.MeshService) (*ResolvedReference, error) {
 	consulNamespace := r.mapper(service.Namespace)
 	consulName := service.Spec.Name
