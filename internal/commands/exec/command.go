@@ -40,7 +40,7 @@ type Command struct {
 	isTest bool
 
 	// Consul params
-	flagConsulHTTPAddress       string // Address for Consul HTTP API.
+	flagConsulHTTPAddress       string // DNS name, address or exec command for go-netaddrs for Consul HTTP API.
 	flagConsulHTTPPort          int    // Port for Consul HTTP communication
 	flagConsulCACertFile        string // Root CA file for Consul
 	flagConsulXDSPort           int    // Port for Consul xDS communication
@@ -149,12 +149,6 @@ func (c *Command) Run(args []string) (ret int) {
 	if cfg.TLSConfig.CAFile != "" {
 		cfg.Scheme = "https"
 	}
-	consulClient, err := api.NewClient(cfg)
-	if err != nil {
-		logger.Error("error creating consul client", "error", err)
-		return 1
-	}
-
 	var bearerToken string
 	if c.flagACLAuthMethod != "" {
 		data, err := os.ReadFile(c.flagBearerTokenFile)
@@ -169,8 +163,10 @@ func (c *Command) Run(args []string) (ret int) {
 		Context:           c.ctx,
 		Logger:            logger,
 		LogLevel:          c.flagLogLevel,
-		ConsulClient:      consulClient,
 		ConsulConfig:      *cfg,
+		ConsulHTTPAddress: c.flagConsulHTTPAddress,
+		ConsulHTTPPort:    c.flagConsulHTTPPort,
+		ConsulGRPCPort:    c.flagConsulXDSPort,
 		PrimaryDatacenter: c.flagConsulPrimaryDatacenter,
 		AuthConfig: AuthConfig{
 			Method:    c.flagACLAuthMethod,

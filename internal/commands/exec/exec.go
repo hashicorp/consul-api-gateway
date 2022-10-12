@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -11,6 +12,7 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
+	"github.com/hashicorp/consul-server-connection-manager/discovery"
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
 
@@ -49,6 +51,9 @@ type ExecConfig struct {
 	LogLevel          string
 	ConsulClient      *api.Client
 	ConsulConfig      api.Config
+	ConsulHTTPAddress string
+	ConsulHTTPPort    int
+	ConsulGRPCPort    int
 	AuthConfig        AuthConfig
 	GatewayConfig     GatewayConfig
 	EnvoyConfig       EnvoyConfig
@@ -76,10 +81,71 @@ func RunExec(config ExecConfig) (ret int) {
 		}
 	}()
 
+	// ConsulServerConnMgr is the watcher for the Consul server addresses.
+	consulServerConnMgr, err := discovery.NewWatcher(ctx, discovery.Config{
+		Addresses: config.ConsulHTTPAddress,
+		GRPCPort:  config.ConsulGRPCPort,
+		// TLS:       config.ConsulConfig.TLSConfig,
+		Credentials: discovery.Credentials{
+			Type: discovery.CredentialsTypeLogin,
+			Login: discovery.LoginCredential{
+				AuthMethod: config.AuthConfig.Method,
+				Namespace:  config.AuthConfig.Method,
+				// Partition:   "",
+				// Datacenter:  "",
+				BearerToken: config.AuthConfig.Token,
+			},
+		},
+	}, config.Logger)
+	if err != nil {
+		config.Logger.Error("failed to start Consul server connection manager", err)
+		return 1
+	}
+
+	// Start ConsulServerConnMgr watcher
+	go consulServerConnMgr.Run()
+	defer consulServerConnMgr.Stop()
+
+	// Create Consul client for this reconcile.
+	serverState, err := consulServerConnMgr.State()
+	if err != nil {
+		config.Logger.Error("failed to get Consul server state", err)
+		return 1
+	}
+	config.Logger.Trace("%#v", serverState)
+
+	ipAddress := serverState.Address.IP
+	config.ConsulConfig.Address = fmt.Sprintf("%s:%d", ipAddress.String(), config.ConsulHTTPPort)
+	if serverState.Token != "" {
+		config.ConsulConfig.Token = serverState.Token
+	}
+
+	// TODO: is this necessary?
+	if config.ConsulConfig.Transport == nil {
+		tlsClientConfig, err := api.SetupTLSConfig(&config.ConsulConfig.TLSConfig)
+
+		if err != nil {
+			config.Logger.Error("failed to configure TLS transport", err)
+			return 1
+		}
+
+		config.ConsulConfig.Transport = &http.Transport{TLSClientConfig: tlsClientConfig}
+	} else if config.ConsulConfig.Transport.TLSClientConfig == nil {
+		tlsClientConfig, err := api.SetupTLSConfig(&config.ConsulConfig.TLSConfig)
+
+		if err != nil {
+			config.Logger.Error("failed to configure TLS transport", err)
+			return 1
+		}
+
+		config.ConsulConfig.Transport.TLSClientConfig = tlsClientConfig
+	}
+	config.ConsulConfig.HttpClient.Transport = config.ConsulConfig.Transport
+
 	// First do the ACL Login, if necessary.
 	var consulClient *api.Client
 	var token string
-	var err error
+
 	if config.AuthConfig.Method != "" {
 		config.Logger.Trace("logging in to consul")
 		consulClient, token, err = login(config)
@@ -93,7 +159,7 @@ func RunExec(config ExecConfig) (ret int) {
 		consulConfig.Namespace = config.GatewayConfig.Namespace
 		consulClient, err = api.NewClient(consulConfig)
 		if err != nil {
-			config.Logger.Error("error reinitializing consul client", "error", err)
+			config.Logger.Error("error initializing consul client", "error", err)
 			return 1
 		}
 	}
@@ -125,7 +191,7 @@ func RunExec(config ExecConfig) (ret int) {
 		}
 		// clean up the ACL token that was provisioned via acl.login
 		if config.AuthConfig.Method != "" {
-			if err := logout(config, token); err != nil {
+			if err := logout(consulClient, config, token); err != nil {
 				config.Logger.Error("error deleting acl token", "error", err)
 				ret = 1
 			}
@@ -207,9 +273,14 @@ func RunExec(config ExecConfig) (ret int) {
 }
 
 func login(config ExecConfig) (*api.Client, string, error) {
+	consulClient, err := api.NewClient(&config.ConsulConfig)
+	if err != nil {
+		return nil, "", fmt.Errorf("error creating consul client: %w", err)
+	}
+
 	authenticator := consul.NewAuthenticator(
 		config.Logger.Named("authenticator"),
-		config.ConsulClient,
+		consulClient,
 		config.AuthConfig.Method,
 		config.AuthConfig.Namespace,
 	)
@@ -232,9 +303,9 @@ func login(config ExecConfig) (*api.Client, string, error) {
 	return newClient, token, nil
 }
 
-func logout(config ExecConfig, token string) error {
+func logout(consulClient *api.Client, config ExecConfig, token string) error {
 	config.Logger.Info("deleting acl token")
-	_, err := config.ConsulClient.ACL().Logout(&api.WriteOptions{Token: token})
+	_, err := consulClient.ACL().Logout(&api.WriteOptions{Token: token})
 	if err != nil {
 		return fmt.Errorf("error deleting acl token: %w", err)
 	}
