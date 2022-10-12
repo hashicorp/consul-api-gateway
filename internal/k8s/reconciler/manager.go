@@ -81,13 +81,14 @@ type ManagerConfig struct {
 func NewReconcileManager(config ManagerConfig) *GatewayReconcileManager {
 	resolver := service.NewBackendResolver(config.Logger, config.ConsulNamespaceMapper, config.Client, config.Consul)
 	deployer := NewDeployer(DeployerConfig{
-		ConsulCA:          config.ConsulCA,
-		PrimaryDatacenter: config.PrimaryDatacenter,
-		SDSHost:           config.SDSHost,
-		SDSPort:           config.SDSPort,
-		Logger:            config.Logger,
-		Client:            config.Client,
-		Consul:            config.Consul,
+		ConsulCA:                  config.ConsulCA,
+		PrimaryDatacenter:         config.PrimaryDatacenter,
+		SDSHost:                   config.SDSHost,
+		SDSPort:                   config.SDSPort,
+		Logger:                    config.Logger,
+		Client:                    config.Client,
+		Consul:                    config.Consul,
+		ConsulNamespaceMirrioring: config.ConsulNamespaceMirrioring,
 	})
 
 	return &GatewayReconcileManager{
