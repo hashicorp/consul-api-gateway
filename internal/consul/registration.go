@@ -57,6 +57,12 @@ func NewServiceRegistry(logger hclog.Logger, consul *api.Client, service, namesp
 	}
 }
 
+// WithClient updates the Consul API client for the service registry.
+func (s *ServiceRegistry) WithClient(consul *api.Client) *ServiceRegistry {
+	s.consul = consul
+	return s
+}
+
 // WithTags adds tags to associate with the service being registered.
 func (s *ServiceRegistry) WithTags(tags []string) *ServiceRegistry {
 	s.tags = tags
@@ -219,6 +225,15 @@ func (s *ServiceRegistry) deregister(ctx context.Context) error {
 	return s.consul.Agent().ServiceDeregisterOpts(s.id, (&api.QueryOptions{
 		Namespace: s.namespace,
 	}).WithContext(ctx))
+}
+
+func (s *ServiceRegistry) Logout(ctx context.Context, token string) error {
+	s.logger.Error("deleting acl token")
+	_, err := s.consul.ACL().Logout(&api.WriteOptions{Token: token})
+	if err != nil {
+		return fmt.Errorf("error deleting acl token: %w", err)
+	}
+	return nil
 }
 
 func (s *ServiceRegistry) ID() string {
