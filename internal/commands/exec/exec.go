@@ -69,8 +69,29 @@ func RunExec(config ExecConfig) (ret int) {
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt, syscall.SIGTERM)
 
+	// Configure signal handlers to shut down cleanly
+	defer func() {
+		signal.Stop(interrupt)
+		cancel()
+	}()
+	go func() {
+		select {
+		case <-interrupt:
+			config.Logger.Debug("received shutdown signal")
+			cancel()
+		case <-ctx.Done():
+		}
+	}()
+
 	// ConsulServerConnMgr is the watcher for the Consul server addresses.
-	consulServerConnMgr, err := discovery.NewWatcher(ctx, discovery.Config{
+	wctx, wcancel := context.WithTimeout(ctx, 3*time.Second)
+
+	// Release resources if consulServerConnMgr completes before timeout elapses
+	defer wcancel()
+
+	// fmt.Fprintf(os.Stderr, "%+v \n", config)
+
+	consulServerConnMgr, err := discovery.NewWatcher(wctx, discovery.Config{
 		Addresses: config.ConsulHTTPAddress,
 		GRPCPort:  config.ConsulGRPCPort,
 		// TLS:       config.ConsulConfig.TLSConfig,
@@ -94,30 +115,13 @@ func RunExec(config ExecConfig) (ret int) {
 	go consulServerConnMgr.Run()
 	defer consulServerConnMgr.Stop()
 
-	// Configure signal handlers to shut down cleanly
-	defer func() {
-		signal.Stop(interrupt)
-		cancel()
-	}()
-	go func() {
-		select {
-		case <-interrupt:
-			config.Logger.Debug("received shutdown signal")
-			cancel()
-		case <-ctx.Done():
-		}
-	}()
-
 	// Wait for initial state.
 	serverState, err := consulServerConnMgr.State()
 	if err != nil {
 		config.Logger.Error("failed to get Consul server state", err)
-		// FIXME: why does this not exit here?
-		// cancel()
-		// consulServerConnMgr.Stop()
 		return 1
 	}
-	config.Logger.Trace("BOOP: %#v", serverState)
+	config.Logger.Trace("%#v", serverState)
 
 	// First do the ACL Login, if necessary, and create a client the first time.
 	var consulClient *api.Client
