@@ -380,7 +380,7 @@ func (g *GatewayValidator) validateTLS(ctx context.Context, state *state.Listene
 	} else if !allowed {
 		nsName := getNamespacedName(ref.Name, ref.Namespace, gateway.Namespace)
 		//g.logger.Warn("Cross-namespace listener certificate not allowed without matching ReferenceGrant", "refName", nsName.Name, "refNamespace", nsName.Namespace)
-		state.Status.ResolvedRefs.InvalidCertificateRef = rerrors.NewCertificateResolutionErrorNotPermitted(
+		state.Status.ResolvedRefs.RefNotPermitted = rerrors.NewCertificateResolutionErrorNotPermitted(
 			fmt.Sprintf("Cross-namespace listener certificate not allowed without matching ReferenceGrant for Secret %q", nsName))
 		return nil
 	}
@@ -391,7 +391,7 @@ func (g *GatewayValidator) validateTLS(ctx context.Context, state *state.Listene
 		if !errors.As(err, &certificateErr) {
 			return err
 		}
-		state.Status.ResolvedRefs.InvalidCertificateRef = certificateErr
+		state.Status.ResolvedRefs.RefNotPermitted = certificateErr
 		return nil
 	}
 
