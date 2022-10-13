@@ -21,6 +21,27 @@ import (
 	gwTesting "github.com/hashicorp/consul-api-gateway/internal/testing"
 )
 
+func TestRunExecServerDiscoveryError(t *testing.T) {
+	t.Parallel()
+
+	var buffer gwTesting.Buffer
+	logger := hclog.New(&hclog.LoggerOptions{
+		Output: &buffer,
+	})
+	consul := runMockConsulServer(t, mockConsulOptions{
+		loginFail: true,
+	})
+	require.Equal(t, 1, RunExec(ExecConfig{
+		Context: context.Background(),
+		Logger:  logger,
+		// ConsulClient: consul.client,
+		ConsulConfig: *consul.config,
+		isTest:       true,
+	}))
+	require.Contains(t, buffer.String(), "failed to get Consul server state")
+	require.Contains(t, buffer.String(), "BOOP")
+}
+
 func TestRunExecLoginError(t *testing.T) {
 	t.Parallel()
 
@@ -32,9 +53,9 @@ func TestRunExecLoginError(t *testing.T) {
 		loginFail: true,
 	})
 	require.Equal(t, 1, RunExec(ExecConfig{
-		Context:      context.Background(),
-		Logger:       logger,
-		ConsulClient: consul.client,
+		Context: context.Background(),
+		Logger:  logger,
+		// ConsulClient: consul.client,
 		ConsulConfig: *consul.config,
 		AuthConfig: AuthConfig{
 			Method: "nonexistent",
@@ -56,9 +77,9 @@ func TestRunExecLoginSuccessRegistrationFail(t *testing.T) {
 		registerFail: true,
 	})
 	require.Equal(t, 1, RunExec(ExecConfig{
-		Context:      context.Background(),
-		Logger:       logger,
-		ConsulClient: consul.client,
+		Context: context.Background(),
+		Logger:  logger,
+		// ConsulClient: consul.client,
 		ConsulConfig: *consul.config,
 		AuthConfig: AuthConfig{
 			Method: "nonexistent",
@@ -89,9 +110,9 @@ func TestRunExecDeregisterFail(t *testing.T) {
 		leafCertFail: true,
 	})
 	require.Equal(t, 1, RunExec(ExecConfig{
-		Context:      context.Background(),
-		Logger:       logger,
-		ConsulClient: consul.client,
+		Context: context.Background(),
+		Logger:  logger,
+		// ConsulClient: consul.client,
 		ConsulConfig: *consul.config,
 		AuthConfig: AuthConfig{
 			Method: "nonexistent",
@@ -124,9 +145,9 @@ func TestRunExecCertFail(t *testing.T) {
 		leafCertFail: true,
 	})
 	require.Equal(t, 1, RunExec(ExecConfig{
-		Context:      context.Background(),
-		Logger:       logger,
-		ConsulClient: consul.client,
+		Context: context.Background(),
+		Logger:  logger,
+		// ConsulClient: consul.client,
 		ConsulConfig: *consul.config,
 		AuthConfig: AuthConfig{
 			Method: "nonexistent",
@@ -159,9 +180,9 @@ func TestRunExecRootCertFail(t *testing.T) {
 		rootCertFail: true,
 	})
 	require.Equal(t, 1, RunExec(ExecConfig{
-		Context:      context.Background(),
-		Logger:       logger,
-		ConsulClient: consul.client,
+		Context: context.Background(),
+		Logger:  logger,
+		// ConsulClient: consul.client,
 		ConsulConfig: *consul.config,
 		AuthConfig: AuthConfig{
 			Method: "nonexistent",
@@ -192,9 +213,9 @@ func TestRunExecSDSRenderFail(t *testing.T) {
 	})
 	consul := runMockConsulServer(t, mockConsulOptions{})
 	require.Equal(t, 1, RunExec(ExecConfig{
-		Context:      context.Background(),
-		Logger:       logger,
-		ConsulClient: consul.client,
+		Context: context.Background(),
+		Logger:  logger,
+		// ConsulClient: consul.client,
 		ConsulConfig: *consul.config,
 		AuthConfig: AuthConfig{
 			Method: "nonexistent",
@@ -225,9 +246,9 @@ func TestRunExecBootstrapRenderFail(t *testing.T) {
 	})
 	consul := runMockConsulServer(t, mockConsulOptions{})
 	require.Equal(t, 1, RunExec(ExecConfig{
-		Context:      context.Background(),
-		Logger:       logger,
-		ConsulClient: consul.client,
+		Context: context.Background(),
+		Logger:  logger,
+		// ConsulClient: consul.client,
 		ConsulConfig: *consul.config,
 		AuthConfig: AuthConfig{
 			Method: "nonexistent",
@@ -259,9 +280,9 @@ func TestRunExecEnvoyExecError(t *testing.T) {
 	})
 	consul := runMockConsulServer(t, mockConsulOptions{})
 	require.Equal(t, 1, RunExec(ExecConfig{
-		Context:      context.Background(),
-		Logger:       logger,
-		ConsulClient: consul.client,
+		Context: context.Background(),
+		Logger:  logger,
+		// ConsulClient: consul.client,
 		ConsulConfig: *consul.config,
 		AuthConfig: AuthConfig{
 			Method: "nonexistent",
@@ -298,9 +319,9 @@ func TestRunExecShutdown(t *testing.T) {
 
 	output := gwTesting.RandomString()
 	require.Equal(t, 0, RunExec(ExecConfig{
-		Context:      ctx,
-		Logger:       logger,
-		ConsulClient: consul.client,
+		Context: ctx,
+		Logger:  logger,
+		// ConsulClient: consul.client,
 		ConsulConfig: *consul.config,
 		AuthConfig: AuthConfig{
 			Method: "nonexistent",
@@ -339,9 +360,9 @@ func TestRunExecShutdownACLs(t *testing.T) {
 		logoutFail: true,
 	})
 	require.Equal(t, 1, RunExec(ExecConfig{
-		Context:      context.Background(),
-		Logger:       logger,
-		ConsulClient: consul.client,
+		Context: context.Background(),
+		Logger:  logger,
+		// ConsulClient: consul.client,
 		ConsulConfig: *consul.config,
 		AuthConfig: AuthConfig{
 			Method: "nonexistent",
@@ -353,9 +374,9 @@ func TestRunExecShutdownACLs(t *testing.T) {
 	defer cancel()
 	output := gwTesting.RandomString()
 	require.Equal(t, 1, RunExec(ExecConfig{
-		Context:      ctx,
-		Logger:       logger,
-		ConsulClient: consul.client,
+		Context: ctx,
+		Logger:  logger,
+		// ConsulClient: consul.client,
 		ConsulConfig: *consul.config,
 		AuthConfig: AuthConfig{
 			Method: "nonexistent",
@@ -487,10 +508,10 @@ func runMockConsulServer(t *testing.T, opts mockConsulOptions) *mockConsulServer
 	serverURL, err := url.Parse(consulServer.URL)
 	require.NoError(t, err)
 	clientConfig := &api.Config{Address: serverURL.String()}
-	client, err := api.NewClient(clientConfig)
-	require.NoError(t, err)
+	// client, err := api.NewClient(clientConfig)
+	// require.NoError(t, err)
 
-	server.client = client
+	// server.client = client
 	server.config = clientConfig
 	return server
 }

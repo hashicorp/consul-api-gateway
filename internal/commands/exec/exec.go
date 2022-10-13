@@ -97,17 +97,14 @@ func RunExec(config ExecConfig) (ret int) {
 	// Configure signal handlers to shut down cleanly
 	defer func() {
 		signal.Stop(interrupt)
-		consulServerConnMgr.Stop()
 		cancel()
 	}()
 	go func() {
 		select {
 		case <-interrupt:
 			config.Logger.Debug("received shutdown signal")
-			consulServerConnMgr.Stop()
 			cancel()
 		case <-ctx.Done():
-			consulServerConnMgr.Stop()
 		}
 	}()
 
@@ -115,9 +112,12 @@ func RunExec(config ExecConfig) (ret int) {
 	serverState, err := consulServerConnMgr.State()
 	if err != nil {
 		config.Logger.Error("failed to get Consul server state", err)
+		// FIXME: why does this not exit here?
+		// cancel()
+		// consulServerConnMgr.Stop()
 		return 1
 	}
-	config.Logger.Trace("%#v", serverState)
+	config.Logger.Trace("BOOP: %#v", serverState)
 
 	// First do the ACL Login, if necessary, and create a client the first time.
 	var consulClient *api.Client
@@ -127,7 +127,7 @@ func RunExec(config ExecConfig) (ret int) {
 		config.Logger.Trace("logging in to consul")
 		consulClient, token, err = login(config, serverState)
 		if err != nil {
-			config.Logger.Error("error logging into Consul", "error", err)
+			config.Logger.Error("error logging into consul", "error", err)
 			return 1
 		}
 		config.Logger.Trace("consul login complete")
@@ -135,7 +135,7 @@ func RunExec(config ExecConfig) (ret int) {
 		config.ConsulConfig.Namespace = config.GatewayConfig.Namespace
 		consulClient, err = makeClient(config, serverState)
 		if err != nil {
-			config.Logger.Error("error initializing Consul client", "error", err)
+			config.Logger.Error("error initializing consul client", "error", err)
 			return 1
 		}
 	}
