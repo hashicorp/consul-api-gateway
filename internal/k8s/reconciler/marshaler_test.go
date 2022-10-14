@@ -7,7 +7,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/utils/pointer"
-	gwv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 	gwv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/state"
@@ -15,22 +14,39 @@ import (
 )
 
 func TestMarshalRoute(t *testing.T) {
-	r := &gwv1alpha2.HTTPRoute{}
+	r := &gwv1beta1.HTTPRoute{
+		Spec: gwv1beta1.HTTPRouteSpec{
+			Rules: []gwv1beta1.HTTPRouteRule{{
+				Filters: []gwv1beta1.HTTPRouteFilter{
+					{
+						Type: gwv1beta1.HTTPRouteFilterURLRewrite,
+						URLRewrite: &gwv1beta1.HTTPURLRewriteFilter{
+							Path: &gwv1beta1.HTTPPathModifier{
+								Type:               gwv1beta1.PrefixMatchHTTPPathModifier,
+								ReplacePrefixMatch: pointer.String("/api/v1"),
+							},
+						},
+					},
+				}},
+			},
+		},
+	}
 	r.SetGroupVersionKind(schema.GroupVersionKind{
 		Kind: "HTTPRoute",
 	})
 
 	route := newK8sRoute(r, state.NewRouteState())
 
-	data, err := route.MarshalJSON()
+	data, err := NewMarshaler().MarshalRoute(route)
 	require.NoError(t, err)
-	assert.NotEmpty(t, data)
+	require.NotEmpty(t, data)
 
-	unmarshaled := &K8sRoute{}
-	require.NoError(t, unmarshaled.UnmarshalJSON(data))
+	unmarshaled, err := NewMarshaler().UnmarshalRoute(data)
+	require.NoError(t, err)
+	require.NotNil(t, unmarshaled)
 
-	_, ok := unmarshaled.Route.(*gwv1alpha2.HTTPRoute)
-	assert.True(t, ok)
+	route, ok := unmarshaled.(*K8sRoute)
+	require.True(t, ok)
 }
 
 func TestMarshalGateway(t *testing.T) {
