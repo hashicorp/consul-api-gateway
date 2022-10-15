@@ -141,6 +141,7 @@ func TestExec(t *testing.T) {
 
 func TestExecLoginError(t *testing.T) {
 	t.Parallel()
+	t.Skip()
 
 	directory, err := os.MkdirTemp("", "exec")
 	require.NoError(t, err)
