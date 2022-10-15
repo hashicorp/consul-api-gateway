@@ -91,7 +91,7 @@ func RunExec(config ExecConfig) (ret int) {
 
 	// fmt.Fprintf(os.Stderr, "%+v \n", config)
 
-	consulServerConnMgr, err := discovery.NewWatcher(wctx, discovery.Config{
+	discoveryConfig := discovery.Config{
 		Addresses: config.ConsulHTTPAddress,
 		GRPCPort:  config.ConsulGRPCPort,
 		// TLS:       config.ConsulConfig.TLSConfig,
@@ -105,7 +105,12 @@ func RunExec(config ExecConfig) (ret int) {
 				BearerToken: config.AuthConfig.Token,
 			},
 		},
-	}, config.Logger)
+	}
+	if config.isTest {
+		discoveryConfig.ServerWatchDisabled = true
+	}
+
+	consulServerConnMgr, err := discovery.NewWatcher(wctx, discoveryConfig, config.Logger)
 	if err != nil {
 		config.Logger.Error("failed to start Consul server connection manager", err)
 		return 1

@@ -149,7 +149,7 @@ func TestExecLoginError(t *testing.T) {
 	err = os.WriteFile(file, []byte("token"), 0600)
 	require.NoError(t, err)
 
-	ctx, _ := context.WithTimeout(context.Background(), 1*time.Second)
+	ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
 	ui := cli.NewMockUi()
 	var buffer gwTesting.Buffer
 	cmd := New(ctx, ui, &buffer)
