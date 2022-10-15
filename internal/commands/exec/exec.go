@@ -163,24 +163,25 @@ func RunExec(config ExecConfig) (ret int) {
 	// Subscribe to the Watcher. This returns a channel that receives
 	// a new discovery.State whenever the Watches connects to another
 	// Consul server
-	ch := consulServerConnMgr.Subscribe()
+	// ch := consulServerConnMgr.Subscribe()
 
 	// Monitor the channel and rebuild the client when needed
-	for {
-		select {
-		case state := <-ch:
-			consulClient, err := makeClient(config, state)
+	// TODO: should this happen in a separate goroutine?
+	// for {
+	// 	select {
+	// 	case state := <-ch:
+	// 		consulClient, err := makeClient(config, state)
 
-			if err != nil {
-				config.Logger.Error("failed to initialize Consul client from new Consul server discovery state", err)
-				// TODO: should this exit in this case, or do something else like retry?
-				return 1
-			}
+	// 		if err != nil {
+	// 			config.Logger.Error("failed to initialize Consul client from new Consul server discovery state", err)
+	// 			// TODO: should this exit in this case, or do something else like retry?
+	// 			return 1
+	// 		}
 
-			registry.WithClient(consulClient)
-		case <-ctx.Done():
-		}
-	}
+	// 		registry.WithClient(consulClient)
+	// 	case <-ctx.Done():
+	// 	}
+	// }
 
 	config.Logger.Trace("registering service")
 	if err := registry.RegisterGateway(ctx, true); err != nil {
