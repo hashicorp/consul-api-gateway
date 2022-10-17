@@ -146,6 +146,7 @@ func NewCertManager(logger hclog.Logger, consul *api.Client, service string, opt
 
 func (c *CertManager) handleRootWatch(blockParam watch.BlockingParamVal, raw interface{}) {
 	if raw == nil {
+		c.logger.Error("received nil interface")
 		return
 	}
 	v, ok := raw.(*api.CARootList)
@@ -175,6 +176,7 @@ func (c *CertManager) handleRootWatch(blockParam watch.BlockingParamVal, raw int
 
 func (c *CertManager) handleLeafWatch(blockParam watch.BlockingParamVal, raw interface{}) {
 	if raw == nil {
+		c.logger.Error("received nil interface")
 		return // ignore
 	}
 	v, ok := raw.(*api.LeafCert)
@@ -235,6 +237,7 @@ func (c *CertManager) Manage(ctx context.Context) error {
 		if err := w.RunWithClientAndHclog(c.consul, c.logger); err != nil {
 			c.logger.Error("consul watch.Plan returned unexpectedly", "error", err)
 		}
+		c.logger.Trace("consul watch.Plan stopped")
 	}
 	go wrapWatch(c.rootWatch)
 	go wrapWatch(c.leafWatch)
@@ -254,17 +257,23 @@ func (c *CertManager) persist() error {
 
 	if c.directory != "" {
 		if c.ca != nil {
+			c.logger.Trace("writing root CA file", "file", rootCAFile)
 			if err := os.WriteFile(rootCAFile, c.ca, 0600); err != nil {
+				c.logger.Error("error writing root CA file", "error", err)
 				return fmt.Errorf("error writing root CA fiile: %w", err)
 			}
 		}
 		if c.certificate != nil {
+			c.logger.Trace("writing client cert file", "file", clientCertFile)
 			if err := os.WriteFile(clientCertFile, c.certificate, 0600); err != nil {
+				c.logger.Error("error writing client cert file", "error", err)
 				return fmt.Errorf("error writing client cert fiile: %w", err)
 			}
 		}
 		if c.privateKey != nil {
+			c.logger.Trace("writing client private key file", "file", clientPrivateKeyFile)
 			if err := os.WriteFile(clientPrivateKeyFile, c.privateKey, 0600); err != nil {
+				c.logger.Error("error writing client private key file", "error", err)
 				return fmt.Errorf("error writing client private key fiile: %w", err)
 			}
 		}
