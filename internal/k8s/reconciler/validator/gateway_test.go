@@ -444,7 +444,7 @@ func TestListenerValidate(t *testing.T) {
 		require.NoError(t, err)
 
 		condition := listenerState.Status.ResolvedRefs.Condition(0)
-		assert.Equal(t, status.ListenerConditionReasonInvalidCertificateRef, condition.Reason)
+		assert.Equal(t, status.ListenerConditionReasonRefNotPermitted, condition.Reason)
 	})
 
 	t.Run("Valid cross-namespace secret ref with ReferenceGrant", func(t *testing.T) {
