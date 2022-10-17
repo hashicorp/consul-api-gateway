@@ -50,7 +50,6 @@ func TestManage(t *testing.T) {
 			options.Directory = directory
 
 			manager := NewCertManager(hclog.NewNullLogger(), server.consul, service, options)
-			manager.skipExtraFetch = true
 
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
@@ -109,7 +108,6 @@ func TestManage_Refresh(t *testing.T) {
 
 	options := DefaultCertManagerOptions()
 	manager := NewCertManager(hclog.NewNullLogger(), server.consul, service, options)
-	manager.skipExtraFetch = true
 
 	writes := int32(0)
 	manager.writeCerts = func() error {

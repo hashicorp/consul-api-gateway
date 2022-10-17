@@ -11,7 +11,6 @@ import (
 	"path"
 	"sync"
 	"text/template"
-	"time"
 
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/consul/api/watch"
@@ -121,9 +120,8 @@ type CertManager struct {
 	rootWatch *watch.Plan
 	leafWatch *watch.Plan
 
-	// these can be overwritten to modify retry logic in testing
-	writeCerts     certWriter
-	skipExtraFetch bool
+	// this can be overwritten to check retry logic in testing
+	writeCerts certWriter
 }
 
 // NewCertManager creates a new CertManager instance.
@@ -148,7 +146,6 @@ func NewCertManager(logger hclog.Logger, consul *api.Client, service string, opt
 
 func (c *CertManager) handleRootWatch(blockParam watch.BlockingParamVal, raw interface{}) {
 	if raw == nil {
-		c.logger.Error("received nil interface")
 		return
 	}
 	v, ok := raw.(*api.CARootList)
@@ -178,7 +175,6 @@ func (c *CertManager) handleRootWatch(blockParam watch.BlockingParamVal, raw int
 
 func (c *CertManager) handleLeafWatch(blockParam watch.BlockingParamVal, raw interface{}) {
 	if raw == nil {
-		c.logger.Error("received nil interface")
 		return // ignore
 	}
 	v, ok := raw.(*api.LeafCert)
@@ -239,25 +235,6 @@ func (c *CertManager) Manage(ctx context.Context) error {
 		if err := w.RunWithClientAndHclog(c.consul, c.logger); err != nil {
 			c.logger.Error("consul watch.Plan returned unexpectedly", "error", err)
 		}
-		c.logger.Trace("consul watch.Plan stopped")
-	}
-
-	// Consul 1.11 has a bug where blocking queries on the leaf certificate endpoint
-	// cause all subsequent non-blocking queries to unexpectedly block. The problem
-	// is that this means that, on restart, the query for a leaf certificate with
-	// the given service id will never return until the previous leaf certificate
-	// expires/is rotated. Adding a wait here causes the API to return once the timeout has
-	// been hit -- allowing us to short-circuit the buggy blocking. The subsequent
-	// goroutines can then be leveraged to pick up any certificate rotations.
-	if !c.skipExtraFetch {
-		leafCert, _, err := c.consul.Agent().ConnectCALeaf(c.service, &api.QueryOptions{
-			WaitTime: 1 * time.Second,
-		})
-		if err != nil {
-			c.logger.Error("error grabbing leaf certificate", "error", err)
-			return err
-		}
-		c.handleLeafWatch(nil, leafCert)
 	}
 	go wrapWatch(c.rootWatch)
 	go wrapWatch(c.leafWatch)
@@ -277,23 +254,17 @@ func (c *CertManager) persist() error {
 
 	if c.directory != "" {
 		if c.ca != nil {
-			c.logger.Trace("writing root CA file", "file", rootCAFile)
 			if err := os.WriteFile(rootCAFile, c.ca, 0600); err != nil {
-				c.logger.Error("error writing root CA file", "error", err)
 				return fmt.Errorf("error writing root CA fiile: %w", err)
 			}
 		}
 		if c.certificate != nil {
-			c.logger.Trace("writing client cert file", "file", clientCertFile)
 			if err := os.WriteFile(clientCertFile, c.certificate, 0600); err != nil {
-				c.logger.Error("error writing client cert file", "error", err)
 				return fmt.Errorf("error writing client cert fiile: %w", err)
 			}
 		}
 		if c.privateKey != nil {
-			c.logger.Trace("writing client private key file", "file", clientPrivateKeyFile)
 			if err := os.WriteFile(clientPrivateKeyFile, c.privateKey, 0600); err != nil {
-				c.logger.Error("error writing client private key file", "error", err)
 				return fmt.Errorf("error writing client private key fiile: %w", err)
 			}
 		}
