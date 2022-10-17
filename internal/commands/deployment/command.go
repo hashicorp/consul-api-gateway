@@ -167,7 +167,8 @@ func (c *Command) Run(args []string) (ret int) {
 	options.Directory = internalDirectory
 	certManager := consul.NewCertManager(
 		logger.Named("cert-manager"),
-		consulClient,
+		configuration.Consul.Server,
+		*consulFromBootstrap(configuration.Consul),
 		configuration.Name,
 		options,
 	)

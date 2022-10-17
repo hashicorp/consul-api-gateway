@@ -232,7 +232,8 @@ func RunExec(config ExecConfig) (ret int) {
 	}
 	certManager := consul.NewCertManager(
 		config.Logger.Named("cert-manager"),
-		consulClient,
+		fmt.Sprintf("%s:%d", serverState.Address.IP.String(), config.ConsulHTTPPort),
+		config.ConsulConfig,
 		config.GatewayConfig.Name,
 		options,
 	)

@@ -76,7 +76,8 @@ func RunServer(config ServerConfig) int {
 
 	certManager := consul.NewCertManager(
 		config.Logger.Named("cert-manager"),
-		consulClient,
+		config.ConsulConfig.Address,
+		*config.ConsulConfig,
 		"consul-api-gateway-controller",
 		options,
 	)

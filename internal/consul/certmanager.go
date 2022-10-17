@@ -94,8 +94,9 @@ type certWriter func() error
 // Once a leaf certificate has expired, it generates a new certificate and writes
 // it to the location given in the configuration options with which it was created.
 type CertManager struct {
-	consul *api.Client
-	logger hclog.Logger
+	consulAddress string
+	consulConfig  api.Config
+	logger        hclog.Logger
 
 	service           string
 	directory         string
@@ -125,12 +126,13 @@ type CertManager struct {
 }
 
 // NewCertManager creates a new CertManager instance.
-func NewCertManager(logger hclog.Logger, consul *api.Client, service string, options *CertManagerOptions) *CertManager {
+func NewCertManager(logger hclog.Logger, consulAddress string, consulConfig api.Config, service string, options *CertManagerOptions) *CertManager {
 	if options == nil {
 		options = DefaultCertManagerOptions()
 	}
 	manager := &CertManager{
-		consul:            consul,
+		consulAddress:     consulAddress,
+		consulConfig:      consulConfig,
 		logger:            logger,
 		primaryDatacenter: options.PrimaryDatacenter,
 		sdsAddress:        options.SDSAddress,
@@ -234,7 +236,7 @@ func (c *CertManager) Manage(ctx context.Context) error {
 	c.leafWatch.HybridHandler = c.handleLeafWatch
 
 	wrapWatch := func(w *watch.Plan) {
-		if err := w.RunWithClientAndHclog(c.consul, c.logger); err != nil {
+		if err := w.RunWithConfig(c.consulAddress, &c.consulConfig); err != nil {
 			c.logger.Error("consul watch.Plan returned unexpectedly", "error", err)
 		}
 		c.logger.Trace("consul watch.Plan stopped")

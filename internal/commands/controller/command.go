@@ -147,7 +147,8 @@ func (c *Command) Run(args []string) (ret int) {
 
 	certManager := consul.NewCertManager(
 		logger.Named("cert-manager"),
-		client,
+		c.ConsulConfig().Address,
+		*c.ConsulConfig(),
 		c.flagConsulRegistrationName,
 		consul.DefaultCertManagerOptions(),
 	)
