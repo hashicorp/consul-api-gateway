@@ -88,6 +88,7 @@ jobs:
   e2e:
     name: e2e tests (consul-image=${{ matrix.consul-image }})
     strategy:
+      fail-fast: false
       matrix:
         consul-image:
         - 'hashicorp/consul:1.11.8'
