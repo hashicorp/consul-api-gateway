@@ -423,7 +423,7 @@ func TestListenerValidate(t *testing.T) {
 		require.NoError(t, err)
 
 		condition := listenerState.Status.ResolvedRefs.Condition(0)
-		require.Equal(t, status.ListenerConditionReasonRefNotPermitted, condition.Reason)
+		require.Equal(t, status.ListenerConditionReasonInvalidCertificateRef, condition.Reason)
 	})
 
 	t.Run("Invalid cross-namespace secret ref with no ReferenceGrant", func(t *testing.T) {
@@ -531,7 +531,7 @@ func TestListenerValidate(t *testing.T) {
 		require.NoError(t, err)
 
 		condition := listenerState.Status.ResolvedRefs.Condition(0)
-		assert.Equal(t, status.ListenerConditionReasonRefNotPermitted, condition.Reason)
+		assert.Equal(t, status.ListenerConditionReasonInvalidCertificateRef, condition.Reason)
 	})
 
 	t.Run("Valid minimum TLS version", func(t *testing.T) {
