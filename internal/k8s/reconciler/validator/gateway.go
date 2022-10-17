@@ -391,7 +391,7 @@ func (g *GatewayValidator) validateTLS(ctx context.Context, state *state.Listene
 		if !errors.As(err, &certificateErr) {
 			return err
 		}
-		state.Status.ResolvedRefs.RefNotPermitted = certificateErr
+		state.Status.ResolvedRefs.InvalidCertificateRef = certificateErr
 		return nil
 	}
 
