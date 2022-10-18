@@ -1,0 +1,3 @@
+```release-note:feature
+Switch deployed gateways to use TTL-based health checks to better support running with Consul servers that are not on the same network as a gateway
+```
