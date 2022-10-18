@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/pointer"
 	gwv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/state"
@@ -79,6 +80,14 @@ func TestConvertHTTPRoute(t *testing.T) {
 								Value: "b",
 							}},
 							Remove: []string{"x-c"},
+						},
+					}, {
+						Type: gwv1alpha2.HTTPRouteFilterURLRewrite,
+						URLRewrite: &gwv1alpha2.HTTPURLRewriteFilter{
+							Path: &gwv1alpha2.HTTPPathModifier{
+								Type:               gwv1alpha2.PrefixMatchHTTPPathModifier,
+								ReplacePrefixMatch: pointer.String("/v1/"),
+							},
 						},
 					}},
 				},
@@ -173,6 +182,24 @@ func TestConvertHTTPRoute(t *testing.T) {
 					"URLRewrite": {
 						"Type": "",
 						"ReplacePrefixMatch": ""
+					}
+				},
+				{
+					"Type": "HTTPURLRewriteFilter",
+					"Header": {
+						"Set": null,
+						"Add": null,
+						"Remove": null
+					},
+					"Redirect": {
+						"Scheme": "",
+						"Hostname": "",
+						"Port": 0,
+						"Status": 0
+					},
+					"URLRewrite": {
+						"Type": "URLRewriteReplacePrefixMatch",
+						"ReplacePrefixMatch": "/v1/"
 					}
 				}
 			],

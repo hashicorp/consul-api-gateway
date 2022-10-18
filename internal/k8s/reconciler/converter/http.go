@@ -213,6 +213,21 @@ func convertHTTPRouteFilters(routeFilters []gwv1alpha2.HTTPRouteFilter) []core.H
 					Status:   statusCode,
 				},
 			})
+		case gwv1alpha2.HTTPRouteFilterURLRewrite:
+			// We currently only support prefix match replacement
+			if filter.URLRewrite.Path == nil ||
+				filter.URLRewrite.Path.Type != gwv1alpha2.PrefixMatchHTTPPathModifier ||
+				filter.URLRewrite.Path.ReplacePrefixMatch == nil {
+				continue
+			}
+
+			filters = append(filters, core.HTTPFilter{
+				Type: core.HTTPURLRewriteFilterType,
+				URLRewrite: core.HTTPURLRewriteFilter{
+					Type:               core.URLRewriteReplacePrefixMatchType,
+					ReplacePrefixMatch: *filter.URLRewrite.Path.ReplacePrefixMatch,
+				},
+			})
 		}
 	}
 	return filters

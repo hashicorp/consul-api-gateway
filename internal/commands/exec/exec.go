@@ -110,7 +110,7 @@ func RunExec(config ExecConfig) (ret int) {
 	}
 
 	config.Logger.Trace("registering service")
-	if err := registry.RegisterGateway(ctx, false); err != nil {
+	if err := registry.RegisterGateway(ctx, true); err != nil {
 		config.Logger.Error("error registering service", "error", err)
 		return 1
 	}
