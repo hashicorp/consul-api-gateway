@@ -1,0 +1,3 @@
+```release-note:enhancement
+Add optional configuration for maximum upstream connections to GatewayClassConfig CRD. If unset, behavior is unchanged and Envoy's default will be used.
+```
