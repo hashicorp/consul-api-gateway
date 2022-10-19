@@ -47,6 +47,7 @@ func TestMarshalRoute(t *testing.T) {
 
 	route, ok := unmarshaled.(*K8sRoute)
 	require.True(t, ok)
+	assert.NotNil(t, route)
 }
 
 func TestMarshalGateway(t *testing.T) {

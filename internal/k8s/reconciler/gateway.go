@@ -10,7 +10,13 @@ import (
 	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 )
 
-const defaultListenerName = "default"
+const (
+	defaultListenerName = "default"
+
+	gatewayMetaExternalSource = "external-source"
+	gatewayMetaName           = "consul-api-gateway/k8s/Gateway.Name"
+	gatewayMetaNamespace      = "consul-api-gateway/k8s/Gateway.Namespace"
+)
 
 var (
 	_ store.Gateway = (*K8sGateway)(nil)
@@ -51,9 +57,9 @@ func (g *K8sGateway) Resolve() core.ResolvedGateway {
 	rgw := core.ResolvedGateway{
 		ID: g.ID(),
 		Meta: map[string]string{
-			"external-source":                          "consul-api-gateway",
-			"consul-api-gateway/k8s/Gateway.Name":      g.Gateway.Name,
-			"consul-api-gateway/k8s/Gateway.Namespace": g.Gateway.Namespace,
+			gatewayMetaExternalSource: "consul-api-gateway",
+			gatewayMetaName:           g.Gateway.Name,
+			gatewayMetaNamespace:      g.Gateway.Namespace,
 		},
 		Listeners: listeners,
 	}
