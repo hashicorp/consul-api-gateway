@@ -82,7 +82,7 @@ require (
 	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/gorilla/mux v1.8.0 // indirect
 	github.com/hashicorp/consul-server-connection-manager v0.0.0-20220922180412-01c5be1c636f // indirect
-	github.com/hashicorp/consul/proto-public v0.1.0 // indirect
+	github.com/hashicorp/consul/proto-public v0.1.1 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/hashicorp/go-immutable-radix v1.3.1 // indirect

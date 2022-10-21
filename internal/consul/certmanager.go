@@ -7,6 +7,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path"
 	"sync"
@@ -14,7 +15,11 @@ import (
 
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/consul/api/watch"
+	"github.com/hashicorp/consul/proto-public/pbconnectca"
 	"github.com/hashicorp/go-hclog"
+
+	"google.golang.org/grpc"
+	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/hashicorp/consul-api-gateway/internal/common"
 	"github.com/hashicorp/consul-api-gateway/internal/metrics"
@@ -118,7 +123,7 @@ type CertManager struct {
 	rootCertificatePool *x509.CertPool
 
 	// watches
-	rootWatch *watch.Plan
+	// rootWatch *watch.Plan
 	leafWatch *watch.Plan
 
 	// this can be overwritten to check retry logic in testing
@@ -146,25 +151,19 @@ func NewCertManager(logger hclog.Logger, consulAddress string, consulConfig api.
 	return manager
 }
 
-func (c *CertManager) handleRootWatch(blockParam watch.BlockingParamVal, raw interface{}) {
-	if raw == nil {
-		c.logger.Error("received nil interface")
-		return
-	}
-	v, ok := raw.(*api.CARootList)
-	if !ok || v == nil {
-		c.logger.Error("got invalid response from root watch")
-		return
-	}
-
+func (c *CertManager) handleRootWatch(rsp *pbconnectca.WatchRootsResponse) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
 	roots := x509.NewCertPool()
-	for _, root := range v.Roots {
-		roots.AppendCertsFromPEM([]byte(root.RootCertPEM))
+	for _, root := range rsp.Roots {
+		roots.AppendCertsFromPEM([]byte(root.RootCert))
+		// TODO: should this append intermediate certs too?
+		// for _, intermediate := range root.IntermediateCerts {
+		//     roots.AppendCertsFromPEM([]byte(intermediate))
+		// }
 		if root.Active {
-			c.ca = []byte(root.RootCertPEM)
+			c.ca = []byte(root.RootCert)
 		}
 	}
 
@@ -209,21 +208,78 @@ func (c *CertManager) handleLeafWatch(blockParam watch.BlockingParamVal, raw int
 	}
 }
 
+type rootsOrError struct {
+	rsp *pbconnectca.WatchRootsResponse
+	err error
+}
+
 // Manage is the main run loop of the manager and should be run in a go routine.
 // It should be passed a cancellable context that signals when the manager should
 // stop and return. If it receives an unexpected error the loop exits.
 func (c *CertManager) Manage(ctx context.Context) error {
 	c.logger.Trace("running cert manager")
 
-	rootWatch, err := watch.Parse(map[string]interface{}{
-		"datacenter": c.primaryDatacenter,
-		"type":       "connect_roots",
-	})
+	conn, err := grpc.DialContext(context.Background(), c.consulAddress, grpc.WithInsecure())
 	if err != nil {
 		return err
 	}
-	c.rootWatch = rootWatch
-	c.rootWatch.HybridHandler = c.handleRootWatch
+	defer conn.Close()
+
+	client := pbconnectca.NewConnectCAServiceClient(conn)
+
+	// Open a channel to start watching for Connect CA roots updates
+	// TODO: pass c.primaryDatacenter argument here somehow?
+	stream, err := client.WatchRoots(ctx, &emptypb.Empty{})
+	if err != nil {
+		return err
+	}
+
+	rspCh := make(chan rootsOrError)
+	go func() {
+		for {
+			rsp, err := stream.Recv()
+			if errors.Is(err, io.EOF) ||
+				errors.Is(err, context.Canceled) ||
+				errors.Is(err, context.DeadlineExceeded) {
+				return
+			}
+			rspCh <- rootsOrError{
+				rsp: rsp,
+				err: err,
+			}
+		}
+	}()
+
+	// Consume initial message containing current roots.
+	// TODO: bind this logic to c.rootWatch
+	select {
+	case rsp := <-rspCh:
+		if rsp.err != nil {
+			return rsp.err
+		}
+		c.handleRootWatch(rsp.rsp)
+	}
+
+	// WIP: replacing consul/api agent watch with gRPC impl
+	// csr, _ := connect.TestCSR(t, &connect.SpiffeIDService{
+	// 	Host:       connect.TestClusterID + ".consul",
+	// 	Namespace:  "default",
+	// 	Datacenter: "dc1",
+	// 	Service:    "foo",
+	// })
+
+	// // This would fail if it wasn't forwarded to the leader.
+	// rsp, err := client.Sign(context.Background(), &pbconnectca.SignRequest{
+	// 	Csr: csr,
+	// })
+	// if err != nil {
+	// 	return err
+	// }
+
+	// _, err = connect.ParseCert(rsp.CertPem)
+	// if err != nil {
+	// 	return err
+	// }
 
 	leafWatch, err := watch.Parse(map[string]interface{}{
 		"type":    "connect_leaf",
@@ -241,11 +297,11 @@ func (c *CertManager) Manage(ctx context.Context) error {
 		}
 		c.logger.Trace("consul watch.Plan stopped")
 	}
-	go wrapWatch(c.rootWatch)
+	// go wrapWatch(c.rootWatch)
 	go wrapWatch(c.leafWatch)
 
 	<-ctx.Done()
-	c.rootWatch.Stop()
+	// c.rootWatch.Stop()
 	c.leafWatch.Stop()
 
 	return nil
