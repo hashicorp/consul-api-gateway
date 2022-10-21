@@ -80,7 +80,8 @@ func (p *gatewayTestEnvironment) run(ctx context.Context, namespace string, cfg 
 	certManagerOptions.Directory = p.directory
 	certManager := consul.NewCertManager(
 		nullLogger,
-		consulClient,
+		ConsulAddress(ctx),
+		*ConsulConfig(ctx),
 		"consul-api-gateway",
 		certManagerOptions,
 	)

@@ -229,7 +229,7 @@ func (c *CertManager) Manage(ctx context.Context) error {
 
 	// Open a channel to start watching for Connect CA roots updates
 	// TODO: pass c.primaryDatacenter argument here somehow?
-	stream, err := client.WatchRoots(ctx, &emptypb.Empty{})
+	stream, err := client.WatchRoots(ctx, &pbconnectca.WatchRootsRequest{})
 	if err != nil {
 		return err
 	}

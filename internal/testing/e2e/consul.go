@@ -85,6 +85,8 @@ func init() {
 
 type consulTestEnvironment struct {
 	ca                               []byte
+	consulAddress                    string
+	consulConfig                     api.Config
 	consulClient                     *api.Client
 	token                            string
 	policy                           *api.ACLPolicy
@@ -158,11 +160,11 @@ func CreateTestConsulContainer(name, namespace string) env.Func {
 			return nil, err
 		}
 
-		consulConfig, err := consulConfigMap(namespace, httpsPort, grpcPort)
+		consulConfigMap, err := consulConfigMap(namespace, httpsPort, grpcPort)
 		if err != nil {
 			return nil, err
 		}
-		if err := cfg.Client().Resources().Create(ctx, consulConfig); err != nil {
+		if err := cfg.Client().Resources().Create(ctx, consulConfigMap); err != nil {
 			return nil, err
 		}
 
@@ -171,15 +173,18 @@ func CreateTestConsulContainer(name, namespace string) env.Func {
 			return nil, err
 		}
 
-		consulClient, err := api.NewClient(&api.Config{
-			Address: fmt.Sprintf("localhost:%d", httpsPort),
+		consulAddress := fmt.Sprintf("localhost:%d", httpsPort)
+
+		consulConfig := api.Config{
+			Address: consulAddress,
 			Scheme:  "https",
 			TLSConfig: api.TLSConfig{
 				CAPem:   rootCA.CertBytes,
 				CertPEM: clientCert.CertBytes,
 				KeyPEM:  clientCert.PrivateKeyBytes,
 			},
-		})
+		}
+		consulClient, err := api.NewClient(&consulConfig)
 		if err != nil {
 			return nil, err
 		}
@@ -207,6 +212,8 @@ func CreateTestConsulContainer(name, namespace string) env.Func {
 
 		env := &consulTestEnvironment{
 			ca:                               rootCA.CertBytes,
+			consulAddress:                    consulAddress,
+			consulConfig:                     consulConfig,
 			consulClient:                     consulClient,
 			httpPort:                         httpsPort,
 			httpFlattenedPort:                httpFlattenedPort,
@@ -419,13 +426,20 @@ func consulDeployment(namespace string, httpsPort, grpcPort int) *apps.Deploymen
 	}
 }
 
+func ConsulAddress(ctx context.Context) string {
+	return string(mustGetTestEnvironment(ctx).consulAddress)
+}
+
+func ConsulConfig(ctx context.Context) *api.Config {
+	return &mustGetTestEnvironment(ctx).consulConfig
+}
+
 func ConsulClient(ctx context.Context) *api.Client {
 	return mustGetTestEnvironment(ctx).consulClient
 }
 
 func ConsulCA(ctx context.Context) string {
 	return string(mustGetTestEnvironment(ctx).ca)
-
 }
 
 func ConsulInitialManagementToken(ctx context.Context) string {
