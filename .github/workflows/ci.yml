@@ -36,12 +36,12 @@ jobs:
     strategy:
       matrix:
         consul-version:
-        - 1.11.8
-        - 1.11.8+ent
-        - 1.12.4
-        - 1.12.4+ent
-        - 1.13.1
-        - 1.13.1+ent
+        - 1.11.11
+        - 1.11.11+ent
+        - 1.12.6
+        - 1.12.6+ent
+        - 1.13.3
+        - 1.13.3+ent
     runs-on: ubuntu-latest
     env:
       TEST_RESULTS_DIR: /tmp/test-results/consul@${{ matrix.consul-version }}
@@ -91,15 +91,14 @@ jobs:
       fail-fast: false
       matrix:
         consul-image:
-        - 'hashicorp/consul:1.11.8'
-        - 'hashicorp/consul-enterprise:1.11.8-ent'
-        - 'hashicorp/consul:1.12.4'
-        - 'hashicorp/consul-enterprise:1.12.4-ent'
-        - 'hashicorp/consul:1.13.1'
-        - 'hashicorp/consul-enterprise:1.13.1-ent'
+        - 'hashicorp/consul:1.11.11'
+        - 'hashicorp/consul-enterprise:1.11.11-ent'
+        - 'hashicorp/consul:1.12.6'
+        - 'hashicorp/consul-enterprise:1.12.6-ent'
+        - 'hashicorp/consul:1.13.3'
+        - 'hashicorp/consul-enterprise:1.13.3-ent'
         - 'hashicorppreview/consul:1.14-dev'
-        # Currently no preview builds for consul-enterprise
-        # - 'hashicorppreview/consul-enterprise:1.14-ent'
+        - 'hashicorppreview/consul-enterprise:1.14-dev'
     runs-on: ubuntu-latest
     env:
       TEST_RESULTS_DIR: /tmp/test-results/e2e@${{ matrix.consul-image }}
