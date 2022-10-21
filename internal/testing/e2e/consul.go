@@ -427,7 +427,7 @@ func consulDeployment(namespace string, httpsPort, grpcPort int) *apps.Deploymen
 }
 
 func ConsulAddress(ctx context.Context) string {
-	return string(mustGetTestEnvironment(ctx).consulAddress)
+	return mustGetTestEnvironment(ctx).consulAddress
 }
 
 func ConsulConfig(ctx context.Context) *api.Config {
