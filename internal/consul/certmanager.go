@@ -19,7 +19,6 @@ import (
 	"github.com/hashicorp/go-hclog"
 
 	"google.golang.org/grpc"
-	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/hashicorp/consul-api-gateway/internal/common"
 	"github.com/hashicorp/consul-api-gateway/internal/metrics"
