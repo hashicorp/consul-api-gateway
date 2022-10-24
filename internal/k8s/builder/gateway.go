@@ -199,6 +199,7 @@ func (b *GatewayDeploymentBuilder) podSpec() corev1.PodSpec {
 			},
 		},
 		NodeSelector:       b.gwConfig.Spec.NodeSelector,
+		Tolerations:        b.gwConfig.Spec.Tolerations,
 		ServiceAccountName: orDefault(b.gwConfig.Spec.ConsulSpec.AuthSpec.Account, defaultServiceAccount),
 		// the init container copies the binary into the
 		// next envoy container so we can decouple the envoy
