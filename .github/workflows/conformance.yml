@@ -49,6 +49,11 @@ jobs:
             consul-image: "hashicorppreview/consul:1.14-dev"
             envoy-image: "envoyproxy/envoy:v1.22-latest"
             consul-k8s-version: "v0.49.0"
+          - name: "DELETE ME- TEST WITH BRANCH"
+            api-gateway-image: "hashicorppreview/consul-api-gateway:0.5-dev"
+            consul-image: "hashicorppreview/consul:1.14-dev"
+            envoy-image: "envoyproxy/envoy:v1.22-latest"
+            consul-k8s-version: "consul-api-gateway-add-tolerations-support"
       fail-fast: true
     name: "${{ matrix.cluster-type }} - ${{ matrix.config.name }}"
     concurrency:
