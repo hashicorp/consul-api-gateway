@@ -480,7 +480,7 @@ func ConsulHTTPPort(ctx context.Context) int {
 	return mustGetTestEnvironment(ctx).httpPort
 }
 
-func isConsulNamespaceMirrioringOn() bool {
+func isConsulNamespaceMirroringOn() bool {
 	return IsEnterprise()
 }
 func ConsulNamespace(ctx context.Context) string {
