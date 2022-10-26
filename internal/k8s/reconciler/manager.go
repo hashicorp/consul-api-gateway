@@ -65,30 +65,30 @@ type GatewayReconcileManager struct {
 var _ ReconcileManager = &GatewayReconcileManager{}
 
 type ManagerConfig struct {
-	ControllerName            string
-	Client                    gatewayclient.Client
-	Consul                    *api.Client
-	ConsulCA                  string
-	PrimaryDatacenter         string
-	SDSHost                   string
-	SDSPort                   int
-	Store                     store.Store
-	Logger                    hclog.Logger
-	ConsulNamespaceMapper     common.ConsulNamespaceMapper
-	ConsulNamespaceMirrioring bool
+	ControllerName           string
+	Client                   gatewayclient.Client
+	Consul                   *api.Client
+	ConsulCA                 string
+	PrimaryDatacenter        string
+	SDSHost                  string
+	SDSPort                  int
+	Store                    store.Store
+	Logger                   hclog.Logger
+	ConsulNamespaceMapper    common.ConsulNamespaceMapper
+	ConsulNamespaceMirroring bool
 }
 
 func NewReconcileManager(config ManagerConfig) *GatewayReconcileManager {
 	resolver := service.NewBackendResolver(config.Logger, config.ConsulNamespaceMapper, config.Client, config.Consul)
 	deployer := NewDeployer(DeployerConfig{
-		ConsulCA:                  config.ConsulCA,
-		PrimaryDatacenter:         config.PrimaryDatacenter,
-		SDSHost:                   config.SDSHost,
-		SDSPort:                   config.SDSPort,
-		Logger:                    config.Logger,
-		Client:                    config.Client,
-		Consul:                    config.Consul,
-		ConsulNamespaceMirrioring: config.ConsulNamespaceMirrioring,
+		ConsulCA:                 config.ConsulCA,
+		PrimaryDatacenter:        config.PrimaryDatacenter,
+		SDSHost:                  config.SDSHost,
+		SDSPort:                  config.SDSPort,
+		Logger:                   config.Logger,
+		Client:                   config.Client,
+		Consul:                   config.Consul,
+		ConsulNamespaceMirroring: config.ConsulNamespaceMirroring,
 	})
 
 	return &GatewayReconcileManager{

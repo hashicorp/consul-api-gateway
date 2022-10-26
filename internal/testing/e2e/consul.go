@@ -484,8 +484,8 @@ func isConsulNamespaceMirroringOn() bool {
 	return IsEnterprise()
 }
 func ConsulNamespace(ctx context.Context) string {
-	if isConsulNamespaceMirrioringOn() {
-		//assume mirrioring is on
+	if isConsulNamespaceMirroringOn() {
+		//assume mirroring is on
 		return Namespace(ctx)
 	}
 	return mustGetTestEnvironment(ctx).namespace

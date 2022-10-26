@@ -58,7 +58,7 @@ func NewDeployer(config DeployerConfig) *GatewayDeployer {
 }
 
 func (d *GatewayDeployer) Deploy(ctx context.Context, gateway *K8sGateway) error {
-	if d.consulNamespaceMirrioring {
+	if d.consulNamespaceMirroring {
 		_, err := consul.EnsureNamespaceExists(d.consul, gateway.Namespace)
 		if err != nil {
 			return err
