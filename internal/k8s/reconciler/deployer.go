@@ -41,7 +41,7 @@ type DeployerConfig struct {
 	Logger                    hclog.Logger
 	Client                    gatewayclient.Client
 	Consul                    *capi.Client
-	ConsulNamespaceMirrioring bool
+	ConsulNamespaceMirroring bool
 }
 
 func NewDeployer(config DeployerConfig) *GatewayDeployer {
