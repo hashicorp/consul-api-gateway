@@ -155,16 +155,16 @@ func (k *Kubernetes) Start(ctx context.Context) error {
 	gwClient := k.Client()
 
 	reconcileManager := reconciler.NewReconcileManager(reconciler.ManagerConfig{
-		ControllerName:            ControllerName,
-		Client:                    gwClient,
-		Consul:                    k.consul,
-		ConsulCA:                  k.config.CACert,
-		PrimaryDatacenter:         k.config.PrimaryDatacenter,
-		SDSHost:                   k.config.SDSServerHost,
-		SDSPort:                   k.config.SDSServerPort,
-		Logger:                    k.logger.Named("Reconciler"),
-		Store:                     k.store,
-		ConsulNamespaceMapper:     k.config.ConsulNamespaceConfig.Namespace,
+		ControllerName:           ControllerName,
+		Client:                   gwClient,
+		Consul:                   k.consul,
+		ConsulCA:                 k.config.CACert,
+		PrimaryDatacenter:        k.config.PrimaryDatacenter,
+		SDSHost:                  k.config.SDSServerHost,
+		SDSPort:                  k.config.SDSServerPort,
+		Logger:                   k.logger.Named("Reconciler"),
+		Store:                    k.store,
+		ConsulNamespaceMapper:    k.config.ConsulNamespaceConfig.Namespace,
 		ConsulNamespaceMirroring: k.config.ConsulNamespaceConfig.MirrorKubernetesNamespaces,
 	})
 

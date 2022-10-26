@@ -14,12 +14,12 @@ func StoreConfig(adapter core.SyncAdapter, client gatewayclient.Client, consulCl
 	marshaler := reconciler.NewMarshaler()
 	binder := reconciler.NewBinder(client)
 	deployer := reconciler.NewDeployer(reconciler.DeployerConfig{
-		ConsulCA:                  config.CACert,
-		SDSHost:                   config.SDSServerHost,
-		SDSPort:                   config.SDSServerPort,
-		Logger:                    logger,
-		Client:                    client,
-		Consul:                    consulClient,
+		ConsulCA:                 config.CACert,
+		SDSHost:                  config.SDSServerHost,
+		SDSPort:                  config.SDSServerPort,
+		Logger:                   logger,
+		Client:                   client,
+		Consul:                   consulClient,
 		ConsulNamespaceMirroring: config.ConsulNamespaceConfig.MirrorKubernetesNamespaces,
 	})
 	updater := reconciler.NewStatusUpdater(logger, client, deployer, ControllerName)

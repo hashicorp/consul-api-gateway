@@ -12,7 +12,7 @@ const (
 // EnsureNamespaceExists ensures a Consul namespace with name ns exists. If it doesn't,
 // it will create it and set crossNSACLPolicy as a policy default.
 // Boolean return value indicates if the namespace was created by this call.
-func EnsureNamespaceExists(client *capi.Client, ns string, crossNSAClPolicy string) (bool, error) {
+func EnsureNamespaceExists(client *capi.Client, ns string) (bool, error) {
 	if ns == WildcardNamespace || ns == DefaultNamespace {
 		return false, nil
 	}
@@ -28,15 +28,6 @@ func EnsureNamespaceExists(client *capi.Client, ns string, crossNSAClPolicy stri
 
 	// If not, create it.
 	var aclConfig capi.NamespaceACLConfig
-	if crossNSACLPolicy != "" {
-		// Create the ACLs config for the cross-Consul-namespace
-		// default policy that needs to be attached
-		aclConfig = capi.NamespaceACLConfig{
-			PolicyDefaults: []capi.ACLLink{
-				{Name: crossNSACLPolicy},
-			},
-		}
-	}
 
 	consulNamespace := capi.Namespace{
 		Name:        ns,
@@ -46,5 +37,8 @@ func EnsureNamespaceExists(client *capi.Client, ns string, crossNSAClPolicy stri
 	}
 
 	_, _, err = client.Namespaces().Create(&consulNamespace, nil)
+	if err != nil {
+		return false, err
+	}
 	return true, err
 }

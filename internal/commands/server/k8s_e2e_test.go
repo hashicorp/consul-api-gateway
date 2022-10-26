@@ -1068,7 +1068,7 @@ func TestGatewayWithConsulNamespaceDoesntExist(t *testing.T) {
 
 			// Cleanup
 			assert.NoError(t, resources.Delete(ctx, gw))
-			
+
 			return ctx
 		})
 
