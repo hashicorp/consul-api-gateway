@@ -53,7 +53,7 @@ func NewDeployer(config DeployerConfig) *GatewayDeployer {
 		sdsPort:                   config.SDSPort,
 		logger:                    config.Logger,
 		consul:                    config.Consul,
-		consulNamespaceMirrioring: config.ConsulNamespaceMirrioring,
+		consulNamespaceMirroring: config.ConsulNamespaceMirroring,
 	}
 }
 
