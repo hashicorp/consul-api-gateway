@@ -33,7 +33,7 @@ func EnsureNamespaceExists(client *capi.Client, ns string, crossNSAClPolicy stri
 		// default policy that needs to be attached
 		aclConfig = capi.NamespaceACLConfig{
 			PolicyDefaults: []capi.ACLLink{
-				{Name: crossNSAClPolicy},
+				{Name: crossNSACLPolicy},
 			},
 		}
 	}
