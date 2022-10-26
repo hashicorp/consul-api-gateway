@@ -20,7 +20,7 @@ func StoreConfig(adapter core.SyncAdapter, client gatewayclient.Client, consulCl
 		Logger:                    logger,
 		Client:                    client,
 		Consul:                    consulClient,
-		ConsulNamespaceMirrioring: config.ConsulNamespaceConfig.MirrorKubernetesNamespaces,
+		ConsulNamespaceMirroring: config.ConsulNamespaceConfig.MirrorKubernetesNamespaces,
 	})
 	updater := reconciler.NewStatusUpdater(logger, client, deployer, ControllerName)
 	backend := store.NewMemoryBackend()
