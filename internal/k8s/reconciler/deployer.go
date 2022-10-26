@@ -28,7 +28,7 @@ type GatewayDeployer struct {
 	sdsHost                   string
 	sdsPort                   int
 	consul                    *capi.Client
-	consulNamespaceMirrioring bool
+	consulNamespaceMirroring bool
 
 	logger hclog.Logger
 }
