@@ -165,7 +165,7 @@ func (k *Kubernetes) Start(ctx context.Context) error {
 		Logger:                    k.logger.Named("Reconciler"),
 		Store:                     k.store,
 		ConsulNamespaceMapper:     k.config.ConsulNamespaceConfig.Namespace,
-		ConsulNamespaceMirrioring: k.config.ConsulNamespaceConfig.MirrorKubernetesNamespaces,
+		ConsulNamespaceMirroring: k.config.ConsulNamespaceConfig.MirrorKubernetesNamespaces,
 	})
 
 	err := (&controllers.GatewayClassConfigReconciler{
