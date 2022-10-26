@@ -28,7 +28,7 @@ func EnsureNamespaceExists(client *capi.Client, ns string, crossNSAClPolicy stri
 
 	// If not, create it.
 	var aclConfig capi.NamespaceACLConfig
-	if crossNSAClPolicy != "" {
+	if crossNSACLPolicy != "" {
 		// Create the ACLs config for the cross-Consul-namespace
 		// default policy that needs to be attached
 		aclConfig = capi.NamespaceACLConfig{
