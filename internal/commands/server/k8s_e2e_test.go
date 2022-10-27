@@ -1039,18 +1039,19 @@ func TestHTTPMeshService(t *testing.T) {
 func TestGatewayWithConsulNamespaceDoesntExist(t *testing.T) {
 	feature := features.New("gateway class in k8s namespace where consul namespace not created yet, consul enterprise").
 		Assess("gateway is created with appropriate number of replicas set", func(ctx context.Context, t *testing.T, cfg *envconf.Config) context.Context {
+			if !e2e.IsEnterprise() {
+				t.Skip("Consul Namespaces only exist in consul enterprise")
+			}
 
 			namespace := e2e.Namespace(ctx)
 			client := e2e.ConsulClient(ctx)
 
-			if e2e.IsEnterprise() {
-				//delete from consul is enterprise
+			//delete from consul is enterprise
 
-				//delete namespace from consul
-				fmt.Println("deleting from consul")
-				_, err := client.Namespaces().Delete(namespace, nil)
-				assert.NoError(t, err)
-			}
+			//delete namespace from consul
+			fmt.Println("deleting from consul")
+			_, err := client.Namespaces().Delete(namespace, nil)
+			assert.NoError(t, err)
 
 			resources := cfg.Client().Resources(namespace)
 
