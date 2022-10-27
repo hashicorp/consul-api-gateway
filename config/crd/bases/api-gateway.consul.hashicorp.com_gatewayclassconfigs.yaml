@@ -36,6 +36,17 @@ spec:
           spec:
             description: Spec defines the desired state of GatewayClassConfig.
             properties:
+              connectionManagement:
+                description: Configuration information for managing connections in
+                  Envoy
+                properties:
+                  maxConnections:
+                    description: The maximum number of connections allowed for the
+                      Gateway proxy. If not set, the default for the proxy implementation
+                      will be used.
+                    format: int32
+                    type: integer
+                type: object
               consul:
                 description: Configuration information about connecting to Consul.
                 properties:
