@@ -61,6 +61,7 @@ func (p *gatewayTestEnvironment) run(ctx context.Context, namespace string, cfg 
 		CACert:        ConsulCA(ctx),
 		ConsulNamespaceConfig: k8s.ConsulNamespaceConfig{
 			ConsulDestinationNamespace: ConsulNamespace(ctx),
+			MirrorKubernetesNamespaces: isConsulNamespaceMirroringOn(),
 		},
 	}
 
@@ -70,7 +71,7 @@ func (p *gatewayTestEnvironment) run(ctx context.Context, namespace string, cfg 
 	}
 
 	adapter := consulAdapters.NewSyncAdapter(nullLogger, consulClient)
-	store := store.New(k8s.StoreConfig(adapter, controller.Client(), nullLogger, *k8sConfig))
+	store := store.New(k8s.StoreConfig(adapter, controller.Client(), consulClient, nullLogger, *k8sConfig))
 
 	controller.SetConsul(consulClient)
 	controller.SetStore(store)

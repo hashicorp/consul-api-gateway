@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/hashicorp/consul-api-gateway/internal/consul"
+	capi "github.com/hashicorp/consul/api"
 
 	"github.com/hashicorp/go-hclog"
 	apps "k8s.io/api/apps/v1"
@@ -20,36 +22,49 @@ import (
 
 // GatewayDeployer creates gateway deployments and services and ensures that they exist
 type GatewayDeployer struct {
-	client            gatewayclient.Client
-	consulCA          string
-	primaryDatacenter string
-	sdsHost           string
-	sdsPort           int
+	client                   gatewayclient.Client
+	consulCA                 string
+	primaryDatacenter        string
+	sdsHost                  string
+	sdsPort                  int
+	consul                   *capi.Client
+	consulNamespaceMirroring bool
 
 	logger hclog.Logger
 }
 
 type DeployerConfig struct {
-	ConsulCA          string
-	PrimaryDatacenter string
-	SDSHost           string
-	SDSPort           int
-	Logger            hclog.Logger
-	Client            gatewayclient.Client
+	ConsulCA                 string
+	PrimaryDatacenter        string
+	SDSHost                  string
+	SDSPort                  int
+	Logger                   hclog.Logger
+	Client                   gatewayclient.Client
+	Consul                   *capi.Client
+	ConsulNamespaceMirroring bool
 }
 
 func NewDeployer(config DeployerConfig) *GatewayDeployer {
 	return &GatewayDeployer{
-		client:            config.Client,
-		consulCA:          config.ConsulCA,
-		primaryDatacenter: config.PrimaryDatacenter,
-		sdsHost:           config.SDSHost,
-		sdsPort:           config.SDSPort,
-		logger:            config.Logger,
+		client:                   config.Client,
+		consulCA:                 config.ConsulCA,
+		primaryDatacenter:        config.PrimaryDatacenter,
+		sdsHost:                  config.SDSHost,
+		sdsPort:                  config.SDSPort,
+		logger:                   config.Logger,
+		consul:                   config.Consul,
+		consulNamespaceMirroring: config.ConsulNamespaceMirroring,
 	}
 }
 
 func (d *GatewayDeployer) Deploy(ctx context.Context, gateway *K8sGateway) error {
+	if d.consulNamespaceMirroring {
+		_, err := consul.EnsureNamespaceExists(d.consul, gateway.Namespace)
+		if err != nil {
+			return err
+		}
+	}
+
 	if err := d.ensureServiceAccount(ctx, gateway.Config, gateway.Gateway); err != nil {
 		return err
 	}
