@@ -53,6 +53,16 @@ type GatewayClassConfigSpec struct {
 	LogLevel string `json:"logLevel,omitempty"`
 	// Configuration information about how many instances to deploy
 	DeploymentSpec DeploymentSpec `json:"deployment,omitempty"`
+	// Configuration information for managing connections in Envoy
+	ConnectionManagement ConnectionManagementSpec `json:"connectionManagement,omitempty"`
+}
+
+// +k8s:deepcopy-gen=true
+
+type ConnectionManagementSpec struct {
+	// The maximum number of connections allowed for the Gateway proxy.
+	// If not set, the default for the proxy implementation will be used.
+	MaxConnections *int32 `json:"maxConnections,omitempty"`
 }
 
 // +k8s:deepcopy-gen=true

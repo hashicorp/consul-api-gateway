@@ -150,6 +150,12 @@ func discoveryChain(gateway core.ResolvedGateway) (*api.IngressGatewayConfigEntr
 		Namespace: gateway.ID.ConsulNamespace,
 		Meta:      gateway.Meta,
 	}
+	if gateway.MaxConnections != nil {
+		ingress.Defaults = &api.IngressServiceConfig{
+			MaxConnections: gateway.MaxConnections,
+		}
+	}
+
 	routers := consul.NewConfigEntryIndex(api.ServiceRouter)
 	splitters := consul.NewConfigEntryIndex(api.ServiceSplitter)
 	defaults := consul.NewConfigEntryIndex(api.ServiceDefaults)
