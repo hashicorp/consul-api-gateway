@@ -31,7 +31,7 @@ CRD_OPTIONS ?= "crd:allowDangerousTypes=true"
 .PHONY: goimports
 goimports:
 ifeq (, $(shell which goimports))
-	@go install golang.org/x/tools/cmd/goimports@latest
+	@go install golang.org/x/tools/cmd/goimports
 endif
 GOIMPORTS=$(shell which goimports)
 
@@ -42,7 +42,7 @@ fmt: goimports
 .PHONY: lint
 lint:
 ifeq (, $(shell which golangci-lint))
-	@go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.45
+	@go install github.com/golangci/golangci-lint/cmd/golangci-lint
 endif
 	@$(shell which golangci-lint) run --verbose
 
@@ -68,7 +68,7 @@ endif
 .PHONY: changelog
 changelog:
 ifeq (, $(shell which changelog-build))
-	@go install github.com/hashicorp/go-changelog/cmd/changelog-build@latest
+	@go install github.com/hashicorp/go-changelog/cmd/changelog-build
 endif
 ifeq (, $(LAST_RELEASE_GIT_TAG))
 	@echo "Please set the LAST_RELEASE_GIT_TAG environment variable to generate a changelog section of notes since the last release."
@@ -79,14 +79,14 @@ endif
 .PHONY: changelog-entry
 changelog-entry:
 ifeq (, $(shell which changelog-entry))
-	@go install github.com/hashicorp/go-changelog/cmd/changelog-entry@latest
+	@go install github.com/hashicorp/go-changelog/cmd/changelog-entry
 endif
 	changelog-entry -dir .changelog
 
 .PHONY: changelog-check
 changelog-check:
 ifeq (, $(shell which changelog-check))
-	@go install github.com/hashicorp/go-changelog/cmd/changelog-check@latest
+	@go install github.com/hashicorp/go-changelog/cmd/changelog-check
 endif
 	@changelog-check
 
@@ -95,7 +95,7 @@ endif
 ENVTEST_ASSETS_DIR=$(shell pwd)/testbin
 ctrl-test: ctrl-generate ctrl-manifests
 ifeq (, $(shell which setup-envtest))
-	@go install sigs.k8s.io/controller-runtime/tools/setup-envtest@latest
+	@go install sigs.k8s.io/controller-runtime/tools/setup-envtest
 endif
 	setup-envtest use
 
@@ -114,7 +114,7 @@ ctrl-generate: controller-gen
 .PHONY: controller-gen
 controller-gen:
 ifeq (, $(shell which controller-gen))
-	@go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.9.2
+	@go install sigs.k8s.io/controller-tools/cmd/controller-gen
 endif
 CONTROLLER_GEN=$(shell which controller-gen)
 
