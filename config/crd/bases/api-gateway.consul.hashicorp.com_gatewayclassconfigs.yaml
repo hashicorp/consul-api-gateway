@@ -151,7 +151,7 @@ spec:
                 type: string
               tolerations:
                 description: 'Toleration allow the scheduler to schedule nodes with
-                  matching tains More Info: https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/'
+                  matching taints More Info: https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/'
                 items:
                   description: The pod this Toleration is attached to tolerates any
                     taint that matches the triple <key,value,effect> using the matching
