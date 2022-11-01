@@ -47,6 +47,7 @@ type GatewayReconciler struct {
 //+kubebuilder:rbac:groups=core,resources=services,verbs=list;get;create;update;watch
 //+kubebuilder:rbac:groups=core,resources=serviceaccounts,verbs=list;get;create;watch
 //+kubebuilder:rbac:groups=core,resources=secrets,verbs=create;update;get;list;watch
+//+kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=roles;rolebindings,verbs=list;get;create;watch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
