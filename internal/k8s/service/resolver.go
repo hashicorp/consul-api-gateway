@@ -17,11 +17,12 @@ import (
 	gwv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	"github.com/hashicorp/consul-api-gateway/internal/common"
+	"github.com/hashicorp/consul-api-gateway/internal/consul"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 )
 
-//go:generate mockgen -source ./resolver.go -destination ./mocks/resolver.go -package mocks BackendResolver
+//go:generate mockgen -source ./resolver.go -destination ./mocks/resolver.go -package mocks BackendResolver,PeeringsClient
 
 type ResolvedReferenceType string
 
@@ -198,14 +199,18 @@ type backendResolver struct {
 	consul *api.Client
 	logger hclog.Logger
 	mapper common.ConsulNamespaceMapper
+
+	// Use consul.Peerings interface for testability
+	peerings consul.Peerings
 }
 
 func NewBackendResolver(logger hclog.Logger, mapper common.ConsulNamespaceMapper, client gatewayclient.Client, consul *api.Client) *backendResolver {
 	return &backendResolver{
-		client: client,
-		consul: consul,
-		mapper: mapper,
-		logger: logger,
+		client:   client,
+		consul:   consul,
+		mapper:   mapper,
+		logger:   logger,
+		peerings: consul.Peerings(),
 	}
 }
 
@@ -402,7 +407,7 @@ func (r *backendResolver) findPeerService(ctx context.Context, service *apigwv1a
 	consulName := service.Spec.Name
 	consulPeer := *service.Spec.Peer
 
-	peer, _, err := r.consul.Peerings().Read(ctx, consulPeer, &api.QueryOptions{Namespace: consulNamespace})
+	peer, _, err := r.peerings.Read(ctx, consulPeer, &api.QueryOptions{Namespace: consulNamespace})
 	if err != nil {
 		r.logger.Trace("error resolving imported consul service reference", "error", err)
 		return nil, err
