@@ -130,6 +130,26 @@ func (mr *MockClientMockRecorder) DeploymentForGateway(ctx, gw interface{}) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeploymentForGateway", reflect.TypeOf((*MockClient)(nil).DeploymentForGateway), ctx, gw)
 }
 
+// EnsureExists mocks base method.
+func (m *MockClient) EnsureExists(ctx context.Context, obj client.Object, mutators ...func() error) (bool, error) {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{ctx, obj}
+	for _, a := range mutators {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "EnsureExists", varargs...)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// EnsureExists indicates an expected call of EnsureExists.
+func (mr *MockClientMockRecorder) EnsureExists(ctx, obj interface{}, mutators ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{ctx, obj}, mutators...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnsureExists", reflect.TypeOf((*MockClient)(nil).EnsureExists), varargs...)
+}
+
 // EnsureFinalizer mocks base method.
 func (m *MockClient) EnsureFinalizer(ctx context.Context, object client.Object, finalizer string) (bool, error) {
 	m.ctrl.T.Helper()
