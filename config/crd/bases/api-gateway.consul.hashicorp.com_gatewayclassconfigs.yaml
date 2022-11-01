@@ -150,7 +150,7 @@ spec:
                 - LoadBalancer
                 type: string
               tolerations:
-                description: 'Toleration allow the scheduler to schedule nodes with
+                description: 'Tolerations allow the scheduler to schedule nodes with
                   matching taints More Info: https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/'
                 items:
                   description: The pod this Toleration is attached to tolerates any
