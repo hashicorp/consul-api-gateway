@@ -22,7 +22,7 @@ import (
 	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 )
 
-//go:generate mockgen -source ./resolver.go -destination ./mocks/resolver.go -package mocks BackendResolver,PeeringsClient
+//go:generate mockgen -source ./resolver.go -destination ./mocks/resolver.go -package mocks BackendResolver
 
 type ResolvedReferenceType string
 
