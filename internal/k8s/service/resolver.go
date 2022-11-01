@@ -408,6 +408,10 @@ func (r *backendResolver) findPeerService(ctx context.Context, service *apigwv1a
 		return nil, err
 	}
 
+	if peer == nil {
+		return nil, NewConsulResolutionError(fmt.Sprintf("no peer %q found", consulPeer))
+	}
+
 	for _, importedService := range peer.StreamStatus.ImportedServices {
 		if importedService == consulName {
 			return NewConsulServiceReference(&ConsulService{
@@ -417,8 +421,7 @@ func (r *backendResolver) findPeerService(ctx context.Context, service *apigwv1a
 		}
 	}
 
-	// TODO Consider BackendNotFound vs. ConsulResolutionError
-	return nil, NewBackendNotFoundError(fmt.Sprintf("no service %s found on peer %s", consulName, consulPeer))
+	return nil, NewConsulResolutionError(fmt.Sprintf("no service %s found from peer %s", consulName, consulPeer))
 }
 
 func (r *backendResolver) findCatalogService(service *apigwv1alpha1.MeshService) (*ResolvedReference, error) {
