@@ -39,7 +39,7 @@ type GatewayClassConfigSpec struct {
 	// Selector which must match a node's labels for the pod to be scheduled on that node.
 	// More info: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/
 	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
-	//Toleration allow the scheduler to schedule nodes with matching tains
+	// Tolerations allow the scheduler to schedule nodes with matching taints
 	// More Info: https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/
 	Tolerations []corev1.Toleration `json:"tolerations,omitempty"`
 	// If this is set, then the Envoy container ports are mapped
