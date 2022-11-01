@@ -78,9 +78,10 @@ type Client interface {
 	CreateOrUpdateSecret(ctx context.Context, secret *core.Secret, mutators ...func() error) (bool, error)
 	CreateOrUpdateService(ctx context.Context, service *core.Service, mutators ...func() error) (bool, error)
 	DeleteService(ctx context.Context, service *core.Service) error
+	EnsureExists(ctx context.Context, obj client.Object, mutators ...func() error) (bool, error)
 	EnsureServiceAccount(ctx context.Context, owner *gwv1beta1.Gateway, serviceAccount *core.ServiceAccount) error
 
-	//referencepolicy
+	// referencepolicy
 	GetReferenceGrantsInNamespace(ctx context.Context, namespace string) ([]gwv1alpha2.ReferenceGrant, error)
 }
 
@@ -435,6 +436,14 @@ func (g *gatewayClient) DeleteService(ctx context.Context, service *core.Service
 		return NewK8sError(err)
 	}
 	return nil
+}
+
+func (g *gatewayClient) EnsureExists(ctx context.Context, obj client.Object, mutators ...func() error) (bool, error) {
+	op, err := controllerutil.CreateOrUpdate(ctx, g.Client, obj, multiMutatorFn(mutators))
+	if err != nil {
+		return false, NewK8sError(err)
+	}
+	return op != controllerutil.OperationResultNone, nil
 }
 
 func (g *gatewayClient) EnsureServiceAccount(ctx context.Context, owner *gwv1beta1.Gateway, serviceAccount *core.ServiceAccount) error {

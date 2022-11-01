@@ -4,8 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/hashicorp/consul-api-gateway/internal/consul"
+
 	capi "github.com/hashicorp/consul/api"
+	rbac "k8s.io/api/rbac/v1"
 
 	"github.com/hashicorp/go-hclog"
 	apps "k8s.io/api/apps/v1"
@@ -14,6 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	gwv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
+	"github.com/hashicorp/consul-api-gateway/internal/consul"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/builder"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
@@ -80,6 +82,44 @@ func (d *GatewayDeployer) Deploy(ctx context.Context, gateway *K8sGateway) error
 	return d.ensureService(ctx, gateway.Config, gateway.Gateway)
 }
 
+func roleForGateway(gateway *gwv1beta1.Gateway) *rbac.Role {
+	return &rbac.Role{
+		ObjectMeta: meta.ObjectMeta{
+			Name:      gateway.Name,
+			Namespace: gateway.Namespace,
+			Labels:    utils.LabelsForGateway(gateway),
+		},
+		Rules: []rbac.PolicyRule{{
+			APIGroups:     []string{"policy"},
+			Resources:     []string{"podsecuritypolicies"},
+			ResourceNames: []string{"consul-api-gateway"}, // TODO Accept policy name as config on GatewayClassConfig
+			Verbs:         []string{"use"},
+		}},
+	}
+}
+
+func roleBindingForGateway(gateway *gwv1beta1.Gateway, role *rbac.Role, serviceAccount *core.ServiceAccount) *rbac.RoleBinding {
+	return &rbac.RoleBinding{
+		ObjectMeta: meta.ObjectMeta{
+			Name:      gateway.Name,
+			Namespace: gateway.Namespace,
+			Labels:    utils.LabelsForGateway(gateway),
+		},
+		RoleRef: rbac.RoleRef{
+			APIGroup: role.GroupVersionKind().Group,
+			Kind:     role.GroupVersionKind().Kind,
+			Name:     role.Name,
+		},
+		Subjects: []rbac.Subject{
+			{
+				Kind:      serviceAccount.GroupVersionKind().Kind,
+				Name:      serviceAccount.Name,
+				Namespace: serviceAccount.Namespace,
+			},
+		},
+	}
+}
+
 func (d *GatewayDeployer) ensureServiceAccount(ctx context.Context, config apigwv1alpha1.GatewayClassConfig, gateway *gwv1beta1.Gateway) error {
 	// Create service account for the gateway
 	serviceAccount := config.ServiceAccountFor(gateway)
@@ -87,7 +127,21 @@ func (d *GatewayDeployer) ensureServiceAccount(ctx context.Context, config apigw
 		return nil
 	}
 
-	return d.client.EnsureServiceAccount(ctx, gateway, serviceAccount)
+	if err := d.client.EnsureServiceAccount(ctx, gateway, serviceAccount); err != nil {
+		return err
+	}
+
+	role := roleForGateway(gateway)
+	if _, err := d.client.EnsureExists(ctx, role); err != nil {
+		return err
+	}
+
+	binding := roleBindingForGateway(gateway, role, serviceAccount)
+	if _, err := d.client.EnsureExists(ctx, binding); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // ensureSecret makes sure there is a Secret in the same namespace as the Gateway
