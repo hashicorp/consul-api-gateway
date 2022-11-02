@@ -1,4 +1,4 @@
-package connect
+package csr
 
 import (
 	"crypto/x509"

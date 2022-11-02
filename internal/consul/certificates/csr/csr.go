@@ -1,4 +1,4 @@
-package connect
+package csr
 
 import (
 	"bytes"
@@ -13,7 +13,7 @@ import (
 	"net"
 	"net/url"
 
-	"github.com/hashicorp/consul-api-gateway/internal/consul/certificates/connect/uri"
+	"github.com/hashicorp/consul-api-gateway/internal/consul/certificates/csr/uri"
 )
 
 // SigAlgoForKey returns the preferred x509.SignatureAlgorithm for a given key
