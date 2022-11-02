@@ -508,6 +508,8 @@ github.com/grpc-ecosystem/grpc-gateway v1.9.5/go.mod h1:vNeuVxBJEsws4ogUvrchl83t
 github.com/grpc-ecosystem/grpc-gateway v1.16.0/go.mod h1:BDjrQk3hbvj6Nolgz8mAMFbcEtjT1g+wF4CSlocrBnw=
 github.com/hashicorp/consul-server-connection-manager v0.0.0-20220922180412-01c5be1c636f h1:niyK8S2Vb48YumFkxsqzSl+72tDXgvpAEO6KrL3WwAw=
 github.com/hashicorp/consul-server-connection-manager v0.0.0-20220922180412-01c5be1c636f/go.mod h1:I56VZ1V7WN8/oPHswKDywfepvD7rB1RrTE4fRrNz3Wc=
+github.com/hashicorp/consul-server-connection-manager v0.1.0 h1:XCweGvMHzra88rYv2zxwwuUOjBUdcQmNKVrnQmt/muo=
+github.com/hashicorp/consul-server-connection-manager v0.1.0/go.mod h1:XVVlO+Yk7aiRpspiHZkrrFVn9BJIiOPnQIzqytPxGaU=
 github.com/hashicorp/consul/api v1.15.2 h1:3Q/pDqvJ7udgt/60QOOW/p/PeKioQN+ncYzzCdN2av0=
 github.com/hashicorp/consul/api v1.15.2/go.mod h1:v6nvB10borjOuIwNRZYPZiHKrTM/AyrGtd0WVVodKM8=
 github.com/hashicorp/consul/proto-public v0.1.0 h1:O0LSmCqydZi363hsqc6n2v5sMz3usQMXZF6ziK3SzXU=
@@ -543,6 +545,8 @@ github.com/hashicorp/go-multierror v1.1.1 h1:H5DkEtf6CXdFp0N0Em5UCwQpXMWke8IA0+l
 github.com/hashicorp/go-multierror v1.1.1/go.mod h1:iw975J/qwKPdAO1clOe2L8331t/9/fmwbPZ6JB6eMoM=
 github.com/hashicorp/go-netaddrs v0.0.0-20220509001840-90ed9d26ec46 h1:BysEAd6g+0HNJ0v99u7KbSObjzxC7rfVQ6yVx6HxrvU=
 github.com/hashicorp/go-netaddrs v0.0.0-20220509001840-90ed9d26ec46/go.mod h1:TjKbv4FhIra0YJ82mws5+4QXOhzv09eAWs4jtOBI4IU=
+github.com/hashicorp/go-netaddrs v0.1.0 h1:TnlYvODD4C/wO+j7cX1z69kV5gOzI87u3OcUinANaW8=
+github.com/hashicorp/go-netaddrs v0.1.0/go.mod h1:33+a/emi5R5dqRspOuZKO0E+Tuz5WV1F84eRWALkedA=
 github.com/hashicorp/go-plugin v1.4.3 h1:DXmvivbWD5qdiBts9TpBC7BYL1Aia5sxbRgQB+v6UZM=
 github.com/hashicorp/go-plugin v1.4.3/go.mod h1:5fGEH17QVwTTcR0zV7yhDPLLmFX9YSZ38b18Udy6vYQ=
 github.com/hashicorp/go-retryablehttp v0.5.3/go.mod h1:9B5zBasrRhHXnJnui7y6sL7es7NDiJgTc6Er0maI1Xs=
