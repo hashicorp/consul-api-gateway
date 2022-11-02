@@ -53,7 +53,10 @@ const (
 							"@type": "type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager",
 							"stat_prefix": "edge",
 							"http_filters": [{
-								"name": "envoy.filters.http.router"
+								"name": "envoy.filters.http.router",
+								"typedConfig": {
+									"@type": "type.googleapis.com/envoy.extensions.filters.http.router.v3.Router"
+								}
 							}],
 							"route_config": {
 								"virtual_hosts": [{
