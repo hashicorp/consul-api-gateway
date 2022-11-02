@@ -239,6 +239,12 @@ rules:
   - patch
   - update
 - apiGroups:
+  - policy
+  resources:
+  - podsecuritypolicies
+  verbs:
+  - use
+- apiGroups:
   - rbac.authorization.k8s.io
   resources:
   - rolebindings
