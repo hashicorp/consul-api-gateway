@@ -125,15 +125,15 @@ type CopyAnnotationsSpec struct {
 }
 
 type AuthSpec struct {
-	// Whether deployments should be run with "managed" service accounts created by the gateway controller.
+	// Whether deployments should be run with "managed" Kubernetes ServiceAccounts created by the gateway controller.
 	Managed bool `json:"managed,omitempty"`
 	// The Consul auth method used for initial authentication by consul-api-gateway.
 	Method string `json:"method,omitempty"`
-	// The name of an existing Kubernetes ServiceAccount to authenticate as. Ignored if !Managed.
+	// The name of an existing Kubernetes ServiceAccount to authenticate as. Ignored if !managed.
 	Account string `json:"account,omitempty"`
 	// The Consul namespace to use for authentication.
 	Namespace string `json:"namespace,omitempty"`
-	// The name of an existing Kubernetes PodSecurityPolicy to bind to the ServiceAccount if Managed
+	// The name of an existing Kubernetes PodSecurityPolicy to bind to the ServiceAccount if managed.
 	PodSecurityPolicy string `json:"podSecurityPolicy,omitempty"`
 }
 
