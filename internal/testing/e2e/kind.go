@@ -5,25 +5,24 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/hashicorp/consul/sdk/freeport"
+	"github.com/vladimirvivien/gexe"
 	"html/template"
 	"io"
 	"io/ioutil"
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"log"
 	"os"
 	"os/exec"
-	"strings"
-	"time"
-
-	"github.com/hashicorp/consul/sdk/freeport"
-	"github.com/vladimirvivien/gexe"
-	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/e2e-framework/klient"
 	"sigs.k8s.io/e2e-framework/klient/k8s/resources"
 	"sigs.k8s.io/e2e-framework/klient/wait"
 	"sigs.k8s.io/e2e-framework/klient/wait/conditions"
 	"sigs.k8s.io/e2e-framework/pkg/env"
 	"sigs.k8s.io/e2e-framework/pkg/envconf"
+	"strings"
+	"time"
 )
 
 var (
@@ -218,7 +217,6 @@ func (k *kindCluster) Destroy() error {
 	if err := os.RemoveAll(k.config); err != nil {
 		return fmt.Errorf("kind: remove config failed: %w", err)
 	}
-
 	return nil
 }
 

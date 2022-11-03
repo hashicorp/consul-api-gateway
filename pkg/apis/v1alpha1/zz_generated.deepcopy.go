@@ -153,6 +153,13 @@ func (in *GatewayClassConfigSpec) DeepCopyInto(out *GatewayClassConfigSpec) {
 			(*out)[key] = val
 		}
 	}
+	if in.Tolerations != nil {
+		in, out := &in.Tolerations, &out.Tolerations
+		*out = make([]v1.Toleration, len(*in))
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
+	}
 	out.ConsulSpec = in.ConsulSpec
 	out.ImageSpec = in.ImageSpec
 	in.CopyAnnotations.DeepCopyInto(&out.CopyAnnotations)

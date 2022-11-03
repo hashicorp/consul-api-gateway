@@ -18,6 +18,11 @@ spec:
     envoy: "envoy:1"
   nodeSelector:
     "ingress-ready": "true"
+  tolerations:
+    - key: "key1"
+      operator: "Equal"
+      value: "value1"
+      effect: "NoSchedule"
 ---
 apiVersion: gateway.networking.k8s.io/v1alpha2
 kind: GatewayClass

@@ -115,6 +115,11 @@ spec:
       nodeSelector:
         ingress-ready: "true"
       serviceAccountName: consul-api-gateway
+      tolerations:
+      - effect: NoSchedule
+        key: key1
+        operator: Equal
+        value: value1
       volumes:
       - emptyDir: {}
         name: bootstrap
