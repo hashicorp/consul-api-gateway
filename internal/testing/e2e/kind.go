@@ -301,10 +301,7 @@ func LoadKindDockerImage(clusterName string) env.Func {
 		if err := loadImage(ctx, clusterName, DockerImage(ctx)); err != nil {
 			return nil, err
 		}
-		if err := loadImage(ctx, clusterName, "consul:local"); err != nil {
-			return nil, err
-		}
-
+		
 		for _, image := range ExtraDockerImages() {
 			log.Printf("Loading additional docker image:%s into kind cluster", image)
 			if err := loadImage(ctx, clusterName, image); err != nil {
