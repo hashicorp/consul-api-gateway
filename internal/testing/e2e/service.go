@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	envoyImage                = "envoyproxy/envoy:v1.20-latest"
+	envoyImage                = "envoyproxy/envoy:v1.21-latest"
 	httpBootstrapJSONTemplate = `{
 		"admin": {
 			"access_log_path": "/dev/null",
@@ -53,7 +53,10 @@ const (
 							"@type": "type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager",
 							"stat_prefix": "edge",
 							"http_filters": [{
-								"name": "envoy.filters.http.router"
+								"name": "envoy.filters.http.router",
+								"typedConfig": {
+									"@type": "type.googleapis.com/envoy.extensions.filters.http.router.v3.Router"
+								}
 							}],
 							"route_config": {
 								"virtual_hosts": [{

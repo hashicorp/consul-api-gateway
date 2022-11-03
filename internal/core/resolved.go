@@ -102,7 +102,8 @@ type GatewayID struct {
 }
 
 type ResolvedGateway struct {
-	ID        GatewayID
-	Meta      map[string]string
-	Listeners []ResolvedListener
+	ID             GatewayID
+	Meta           map[string]string
+	Listeners      []ResolvedListener
+	MaxConnections *uint32
 }

@@ -28,7 +28,7 @@ import (
 )
 
 const (
-	defaultConsulImage                = "hashicorp/consul:1.11.4"
+	defaultConsulImage                = "hashicorp/consul-enterprise:1.11.4"
 	envvarConsulImage                 = envvarPrefix + "CONSUL_IMAGE"
 	envvarConsulEnterpriseLicense     = "CONSUL_LICENSE"
 	envvarConsulEnterpriseLicensePath = "CONSUL_LICENSE_PATH"
@@ -480,7 +480,14 @@ func ConsulHTTPPort(ctx context.Context) int {
 	return mustGetTestEnvironment(ctx).httpPort
 }
 
+func isConsulNamespaceMirroringOn() bool {
+	return IsEnterprise()
+}
 func ConsulNamespace(ctx context.Context) string {
+	if isConsulNamespaceMirroringOn() {
+		//assume mirroring is on
+		return Namespace(ctx)
+	}
 	return mustGetTestEnvironment(ctx).namespace
 }
 

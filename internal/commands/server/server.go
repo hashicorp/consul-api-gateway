@@ -61,7 +61,7 @@ func RunServer(config ServerConfig) int {
 	}
 
 	adapter := consulAdapters.NewSyncAdapter(config.Logger.Named("consul-adapter"), consulClient)
-	store := store.New(k8s.StoreConfig(adapter, controller.Client(), config.Logger, *config.K8sConfig))
+	store := store.New(k8s.StoreConfig(adapter, controller.Client(), consulClient, config.Logger, *config.K8sConfig))
 
 	group.Go(func() error {
 		store.SyncAllAtInterval(groupCtx)
