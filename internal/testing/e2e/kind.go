@@ -219,6 +219,17 @@ func (k *kindCluster) Destroy() error {
 		return fmt.Errorf("kind: remove config failed: %w", err)
 	}
 
+	//clean up cached images
+	timeoutContext, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(timeoutContext, "docker", "image", "prune", "-a", "-f")
+	var stdout, stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	cmd.Stdout = &stdout
+	if err := cmd.Run(); err != nil {
+		return err
+	}
+
 	return nil
 }
 
