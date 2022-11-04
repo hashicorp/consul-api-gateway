@@ -81,7 +81,7 @@ func generateECDSAKey(keyBits int) (crypto.Signer, string, error) {
 	return pk, pemBlock, nil
 }
 
-// GeneratePrivateKey generates a new Private key
+// GeneratePrivateKeyWithConfig generates a new Private key
 func GeneratePrivateKeyWithConfig(keyType string, keyBits int) (crypto.Signer, string, error) {
 	switch strings.ToLower(keyType) {
 	case "rsa":
@@ -91,10 +91,4 @@ func GeneratePrivateKeyWithConfig(keyType string, keyBits int) (crypto.Signer, s
 	default:
 		return nil, "", fmt.Errorf("unknown private key type requested: %s", keyType)
 	}
-}
-
-func GeneratePrivateKey() (crypto.Signer, string, error) {
-	// TODO: find any calls to this func, replace with calls to GeneratePrivateKeyWithConfig()
-	// using prefs `private_key_type` and `private_key_bits`
-	return GeneratePrivateKeyWithConfig(DefaultPrivateKeyType, DefaultPrivateKeyBits)
 }
