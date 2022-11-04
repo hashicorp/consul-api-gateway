@@ -5,11 +5,12 @@ import (
 	"testing"
 	// "time"
 
+	"crypto/ecdsa"
+	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
 
 	"github.com/stretchr/testify/require"
-	// "github.com/hashicorp/consul/agent/structs"
 )
 
 type KeyConfig struct {
@@ -27,25 +28,12 @@ var goodParams = []KeyConfig{
 }
 var badParams = []KeyConfig{
 	{keyType: "rsa", keyBits: 0},
-	{keyType: "rsa", keyBits: 1024},
-	{keyType: "rsa", keyBits: 24601},
 	{keyType: "ec", keyBits: 0},
 	{keyType: "ec", keyBits: 512},
 	{keyType: "ec", keyBits: 321},
 	{keyType: "ecdsa", keyBits: 256}, // test for "ecdsa" instead of "ec"
 	{keyType: "aes", keyBits: 128},
 }
-
-// FIXME: break dependency on consul/agent/structs
-// func makeConfig(kc KeyConfig) structs.CommonCAProviderConfig {
-// 	return structs.CommonCAProviderConfig{
-// 		LeafCertTTL:         3 * 24 * time.Hour,
-// 		IntermediateCertTTL: 365 * 24 * time.Hour,
-// 		RootCertTTL:         10 * 365 * 24 * time.Hour,
-// 		PrivateKeyType:      kc.keyType,
-// 		PrivateKeyBits:      kc.keyBits,
-// 	}
-// }
 
 func testGenerateRSAKey(t *testing.T, bits int) {
 	_, rsaBlock, err := GeneratePrivateKeyWithConfig("rsa", bits)
@@ -97,30 +85,48 @@ func TestGenerateKeys(t *testing.T) {
 }
 
 // Tests a variety of valid private key configs to make sure they're accepted.
-// func TestValidateGoodConfigs(t *testing.T) {
-// 	t.Parallel()
-// 	for _, params := range goodParams {
-// 		// config := makeConfig(params)
-// 		t.Run(fmt.Sprintf("TestValidateGoodConfigs-%s-%d", params.keyType, params.keyBits),
-// 			func(t *testing.T) {
-// 				require.NoError(t, config.Validate(), "unexpected error: type=%s bits=%d",
-// 					params.keyType, params.keyBits)
-// 			})
+func TestValidateGoodConfigs(t *testing.T) {
+	t.Parallel()
+	for _, params := range goodParams {
+		t.Run(fmt.Sprintf("TestValidateGoodConfigs-%s-%d", params.keyType, params.keyBits),
+			func(t *testing.T) {
+				pk, pemBlock, err := GeneratePrivateKeyWithConfig(params.keyType, params.keyBits)
+				require.NoError(t, err)
 
-// 	}
-// }
+				switch k := pk.(type) {
+				case *ecdsa.PrivateKey:
+					require.Equal(t, params.keyBits, k.Curve.Params().BitSize)
+				case *rsa.PrivateKey:
+					require.Equal(t, params.keyBits, k.N.BitLen())
+				default:
+					t.Fatalf("unknown key type: %s", params.keyType)
+				}
+
+				signer, err := ParseSigner(pemBlock)
+				require.NoError(t, err)
+
+				switch k := signer.(type) {
+				case *ecdsa.PrivateKey:
+					require.Equal(t, params.keyBits, k.Curve.Params().BitSize)
+				case *rsa.PrivateKey:
+					require.Equal(t, params.keyBits, k.N.BitLen())
+				default:
+					t.Fatalf("unknown key type: %s", params.keyType)
+				}
+			})
+	}
+}
 
 // Tests a variety of invalid private key configs to make sure they're caught.
-// func TestValidateBadConfigs(t *testing.T) {
-// 	t.Parallel()
-// 	for _, params := range badParams {
-// 		// config := makeConfig(params)
-// 		t.Run(fmt.Sprintf("TestValidateBadConfigs-%s-%d", params.keyType, params.keyBits), func(t *testing.T) {
-// 			require.Error(t, config.Validate(), "expected error: type=%s bits=%d",
-// 				params.keyType, params.keyBits)
-// 		})
-// 	}
-// }
+func TestValidateBadConfigs(t *testing.T) {
+	t.Parallel()
+	for _, params := range badParams {
+		t.Run(fmt.Sprintf("TestValidateBadConfigs-%s-%d", params.keyType, params.keyBits), func(t *testing.T) {
+			_, _, err := GeneratePrivateKeyWithConfig(params.keyType, params.keyBits)
+			require.Error(t, err, "expected error: type=%s bits=%d", params.keyType, params.keyBits)
+		})
+	}
+}
 
 // Tests the ability of a CA to sign a CSR using a different key type. This is
 // allowed by TLS 1.2 and should succeed in all combinations.
