@@ -12,8 +12,6 @@ import (
 	"fmt"
 	"net"
 	"net/url"
-
-	"github.com/hashicorp/consul-api-gateway/internal/consul/certificates/csr/uri"
 )
 
 // SigAlgoForKey returns the preferred x509.SignatureAlgorithm for a given key
@@ -47,10 +45,10 @@ func SigAlgoForKeyType(keyType string) x509.SignatureAlgorithm {
 
 // CreateCSR returns a CSR to sign the given service with SAN entries
 // along with the PEM-encoded private key for this certificate.
-func CreateCSR(uri uri.CertURI, privateKey crypto.Signer,
+func CreateCSR(uris []*url.URL, privateKey crypto.Signer,
 	dnsNames []string, ipAddresses []net.IP, extensions ...pkix.Extension) (string, error) {
 	template := &x509.CertificateRequest{
-		URIs:               []*url.URL{uri.URI()},
+		URIs:               uris,
 		SignatureAlgorithm: SigAlgoForKey(privateKey),
 		ExtraExtensions:    extensions,
 		DNSNames:           dnsNames,
@@ -75,13 +73,13 @@ func CreateCSR(uri uri.CertURI, privateKey crypto.Signer,
 
 // CreateCSR returns a CA CSR to sign the given service along with the PEM-encoded
 // private key for this certificate.
-func CreateCACSR(uri uri.CertURI, privateKey crypto.Signer) (string, error) {
+func CreateCACSR(uris []*url.URL, privateKey crypto.Signer) (string, error) {
 	ext, err := CreateCAExtension()
 	if err != nil {
 		return "", err
 	}
 
-	return CreateCSR(uri, privateKey, nil, nil, ext)
+	return CreateCSR(uris, privateKey, nil, nil, ext)
 }
 
 // CreateCAExtension creates a pkix.Extension for the x509 Basic Constraints
