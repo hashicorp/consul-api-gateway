@@ -23,7 +23,7 @@ func ParseCert(pemValue string) (*x509.Certificate, error) {
 	}
 
 	if block.Type != "CERTIFICATE" {
-		return nil, fmt.Errorf("first PEM-block should be CERTIFICATE type")
+		return nil, fmt.Errorf("first PEM-block should be CERTIFICATE type, found %s", block.Type)
 	}
 
 	return x509.ParseCertificate(block.Bytes)
