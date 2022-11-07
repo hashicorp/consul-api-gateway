@@ -147,6 +147,9 @@ type GatewayClassConfigList struct {
 	Items []GatewayClassConfig `json:"items"`
 }
 
+// RoleFor constructs a Kubernetes Role for the specified Gateway based
+// on the GatewayClassConfig. If the GatewayClassConfig is configured in
+// such a way that does not require a Role, nil is returned.
 func (c *GatewayClassConfig) RoleFor(gw *gwv1beta1.Gateway) *rbac.Role {
 	if !c.Spec.ConsulSpec.AuthSpec.Managed || c.Spec.ConsulSpec.AuthSpec.PodSecurityPolicy == "" {
 		return nil
@@ -167,6 +170,9 @@ func (c *GatewayClassConfig) RoleFor(gw *gwv1beta1.Gateway) *rbac.Role {
 	}
 }
 
+// RoleBindingFor constructs a Kubernetes RoleBinding for the specified Gateway
+// based on the GatewayClassConfig. If the GatewayClassConfig is configured in
+// such a way that does not require a RoleBinding, nil is returned.
 func (c *GatewayClassConfig) RoleBindingFor(gw *gwv1beta1.Gateway) *rbac.RoleBinding {
 	serviceAccount := c.ServiceAccountFor(gw)
 	if serviceAccount == nil {
@@ -199,7 +205,9 @@ func (c *GatewayClassConfig) RoleBindingFor(gw *gwv1beta1.Gateway) *rbac.RoleBin
 	}
 }
 
-// ServiceAccountFor returns the service account to be created for the given gateway.
+// ServiceAccountFor constructs a Kubernetes ServiceAccount for the specified
+// Gateway based on the GatewayClassConfig. If the GatewayClassConfig is configured
+// in such a way that does not require a ServiceAccount, nil is returned.
 func (c *GatewayClassConfig) ServiceAccountFor(gw *gwv1beta1.Gateway) *corev1.ServiceAccount {
 	if !c.Spec.ConsulSpec.AuthSpec.Managed {
 		return nil
