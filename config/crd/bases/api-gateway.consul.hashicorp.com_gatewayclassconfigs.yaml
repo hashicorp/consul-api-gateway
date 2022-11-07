@@ -75,7 +75,7 @@ spec:
                         type: string
                       podSecurityPolicy:
                         description: The name of an existing Kubernetes PodSecurityPolicy
-                          to bind to the ServiceAccount if managed is true.
+                          to bind to the managed ServiceAccount if managed is true.
                         type: string
                     type: object
                   ports:

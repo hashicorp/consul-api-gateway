@@ -133,7 +133,7 @@ type AuthSpec struct {
 	Account string `json:"account,omitempty"`
 	// The Consul namespace to use for authentication.
 	Namespace string `json:"namespace,omitempty"`
-	// The name of an existing Kubernetes PodSecurityPolicy to bind to the ServiceAccount if managed is true.
+	// The name of an existing Kubernetes PodSecurityPolicy to bind to the managed ServiceAccount if managed is true.
 	PodSecurityPolicy string `json:"podSecurityPolicy,omitempty"`
 }
 
