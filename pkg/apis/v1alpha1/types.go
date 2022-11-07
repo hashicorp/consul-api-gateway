@@ -3,6 +3,7 @@ package v1alpha1
 import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	rbac "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	gwv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
@@ -124,14 +125,16 @@ type CopyAnnotationsSpec struct {
 }
 
 type AuthSpec struct {
-	// Whether deployments should be run with "managed" service accounts created by the gateway controller.
+	// Whether deployments should be run with "managed" Kubernetes ServiceAccounts created by the gateway controller.
 	Managed bool `json:"managed,omitempty"`
 	// The Consul auth method used for initial authentication by consul-api-gateway.
 	Method string `json:"method,omitempty"`
-	// The Kubernetes service account to authenticate as.
+	// The name of an existing Kubernetes ServiceAccount to authenticate as. Ignored if managed is true.
 	Account string `json:"account,omitempty"`
 	// The Consul namespace to use for authentication.
 	Namespace string `json:"namespace,omitempty"`
+	// The name of an existing Kubernetes PodSecurityPolicy to bind to the managed ServiceAccount if managed is true.
+	PodSecurityPolicy string `json:"podSecurityPolicy,omitempty"`
 }
 
 // +kubebuilder:object:root=true
@@ -144,17 +147,76 @@ type GatewayClassConfigList struct {
 	Items []GatewayClassConfig `json:"items"`
 }
 
-// ServiceAccountFor returns the service account to be created for the given gateway.
+// RoleFor constructs a Kubernetes Role for the specified Gateway based
+// on the GatewayClassConfig. If the GatewayClassConfig is configured in
+// such a way that does not require a Role, nil is returned.
+func (c *GatewayClassConfig) RoleFor(gw *gwv1beta1.Gateway) *rbac.Role {
+	if !c.Spec.ConsulSpec.AuthSpec.Managed || c.Spec.ConsulSpec.AuthSpec.PodSecurityPolicy == "" {
+		return nil
+	}
+
+	return &rbac.Role{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      gw.Name,
+			Namespace: gw.Namespace,
+			Labels:    utils.LabelsForGateway(gw),
+		},
+		Rules: []rbac.PolicyRule{{
+			APIGroups:     []string{"policy"},
+			Resources:     []string{"podsecuritypolicies"},
+			ResourceNames: []string{c.Spec.ConsulSpec.AuthSpec.PodSecurityPolicy},
+			Verbs:         []string{"use"},
+		}},
+	}
+}
+
+// RoleBindingFor constructs a Kubernetes RoleBinding for the specified Gateway
+// based on the GatewayClassConfig. If the GatewayClassConfig is configured in
+// such a way that does not require a RoleBinding, nil is returned.
+func (c *GatewayClassConfig) RoleBindingFor(gw *gwv1beta1.Gateway) *rbac.RoleBinding {
+	serviceAccount := c.ServiceAccountFor(gw)
+	if serviceAccount == nil {
+		return nil
+	}
+
+	role := c.RoleFor(gw)
+	if role == nil {
+		return nil
+	}
+
+	return &rbac.RoleBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      gw.Name,
+			Namespace: gw.Namespace,
+			Labels:    utils.LabelsForGateway(gw),
+		},
+		RoleRef: rbac.RoleRef{
+			APIGroup: "rbac.authorization.k8s.io",
+			Kind:     "Role",
+			Name:     role.Name,
+		},
+		Subjects: []rbac.Subject{
+			{
+				Kind:      "ServiceAccount",
+				Name:      serviceAccount.Name,
+				Namespace: serviceAccount.Namespace,
+			},
+		},
+	}
+}
+
+// ServiceAccountFor constructs a Kubernetes ServiceAccount for the specified
+// Gateway based on the GatewayClassConfig. If the GatewayClassConfig is configured
+// in such a way that does not require a ServiceAccount, nil is returned.
 func (c *GatewayClassConfig) ServiceAccountFor(gw *gwv1beta1.Gateway) *corev1.ServiceAccount {
 	if !c.Spec.ConsulSpec.AuthSpec.Managed {
 		return nil
 	}
-	labels := utils.LabelsForGateway(gw)
 	return &corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      gw.Name,
 			Namespace: gw.Namespace,
-			Labels:    labels,
+			Labels:    utils.LabelsForGateway(gw),
 		},
 	}
 }

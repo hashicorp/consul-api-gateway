@@ -1,0 +1,3 @@
+```release-note:enhancement
+Add optional `podSecurityPolicy` to GatewayClassConfig CRD. If set and "managed" ServiceAccounts are being used, a Role and RoleBinding are created to attach the named `PodSecurityPolicy` to the managed ServiceAccount.
+```
