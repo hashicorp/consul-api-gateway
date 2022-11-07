@@ -129,11 +129,11 @@ type AuthSpec struct {
 	Managed bool `json:"managed,omitempty"`
 	// The Consul auth method used for initial authentication by consul-api-gateway.
 	Method string `json:"method,omitempty"`
-	// The name of an existing Kubernetes ServiceAccount to authenticate as. Ignored if managed.
+	// The name of an existing Kubernetes ServiceAccount to authenticate as. Ignored if managed is true.
 	Account string `json:"account,omitempty"`
 	// The Consul namespace to use for authentication.
 	Namespace string `json:"namespace,omitempty"`
-	// The name of an existing Kubernetes PodSecurityPolicy to bind to the ServiceAccount if managed.
+	// The name of an existing Kubernetes PodSecurityPolicy to bind to the ServiceAccount if managed is true.
 	PodSecurityPolicy string `json:"podSecurityPolicy,omitempty"`
 }
 

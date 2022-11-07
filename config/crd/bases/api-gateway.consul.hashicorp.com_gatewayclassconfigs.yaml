@@ -60,7 +60,7 @@ spec:
                     properties:
                       account:
                         description: The name of an existing Kubernetes ServiceAccount
-                          to authenticate as. Ignored if !managed.
+                          to authenticate as. Ignored if managed is true.
                         type: string
                       managed:
                         description: Whether deployments should be run with "managed"
@@ -75,7 +75,7 @@ spec:
                         type: string
                       podSecurityPolicy:
                         description: The name of an existing Kubernetes PodSecurityPolicy
-                          to bind to the ServiceAccount if managed.
+                          to bind to the ServiceAccount if managed is true.
                         type: string
                     type: object
                   ports:
