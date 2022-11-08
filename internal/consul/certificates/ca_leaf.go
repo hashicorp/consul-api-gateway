@@ -2,19 +2,19 @@ package certificates
 
 import (
 	"context"
-	"errors"
+	// "errors"
 	// "fmt"
 	"net"
 	"net/url"
 
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
+	// "google.golang.org/grpc/codes"
+	// "google.golang.org/grpc/status"
 
-	"github.com/hashicorp/consul-api-gateway/internal/consul/certificates/cache"
+	// "github.com/hashicorp/consul-api-gateway/internal/consul/certificates/cache"
 	"github.com/hashicorp/consul-api-gateway/internal/consul/certificates/certuri"
 	"github.com/hashicorp/consul-api-gateway/internal/consul/certificates/csr"
-	"github.com/hashicorp/consul-api-gateway/internal/consul/certificates/utils"
+	// "github.com/hashicorp/consul-api-gateway/internal/consul/certificates/utils"
 
 	"github.com/hashicorp/consul/proto-public/pbconnectca"
 )
@@ -46,13 +46,14 @@ import (
 // 		return result, errors.New("cluster has no CA bootstrapped yet")
 // 	}
 
-// 	rsp, err := GenerateNewLeaf(&certuri.SpiffeIDService{
-// 		Host:       roots.trustDomain,
-// 		Datacenter: req.Datacenter,
-// 		Partition:  req.TargetPartition(),
-// 		Namespace:  req.TargetNamespace(),
-// 		Service:    req.Service,
-// 	}, req.DNSSAN, req.IPAddresses)
+// 	rsp, err := GenerateNewLeaf(lis.Addr().String(),
+//      &certuri.SpiffeIDService{
+//     		Host:       roots.trustDomain,
+//     		Datacenter: req.Datacenter,
+//     		Partition:  req.TargetPartition(),
+//     		Namespace:  req.TargetNamespace(),
+//     		Service:    req.Service,
+//     	}, req.DNSSAN, req.IPAddresses)
 
 // 	if gerr, ok := status.FromError(err); !ok {
 // 		if gerr.Code() == codes.ResourceExhausted {
@@ -127,7 +128,7 @@ import (
 
 // GenerateNewLeaf does the actual work of creating a new private key,
 // generating a CSR and getting it signed by the servers.
-func GenerateNewLeaf(id certuri.CertURI, dnsNames []string, ipAddresses []net.IP) (*pbconnectca.SignResponse, error) {
+func GenerateNewLeaf(grpcServerAddress string, id certuri.CertURI, dnsNames []string, ipAddresses []net.IP) (*pbconnectca.SignResponse, error) {
 	// Create a new private key
 	//
 	// TODO: for now we always generate EC keys on clients regardless of the key
@@ -154,7 +155,7 @@ func GenerateNewLeaf(id certuri.CertURI, dnsNames []string, ipAddresses []net.IP
 	}
 
 	// TODO: dial Consul gRPC server address
-	conn, err := grpc.Dial(lis.Addr().String(), grpc.WithInsecure())
+	conn, err := grpc.Dial(grpcServerAddress, grpc.WithInsecure())
 	if err != nil {
 		return nil, err
 	}
