@@ -8,8 +8,8 @@ import (
 
 	"github.com/mitchellh/cli"
 
-	"github.com/hashicorp/consul-api-gateway/internal/commands/controller"
 	cmdExec "github.com/hashicorp/consul-api-gateway/internal/commands/exec"
+	cmdServer "github.com/hashicorp/consul-api-gateway/internal/commands/server"
 	cmdVersion "github.com/hashicorp/consul-api-gateway/internal/commands/version"
 
 	"github.com/hashicorp/consul-api-gateway/internal/version"
@@ -36,6 +36,9 @@ func run(args []string, ui cli.Ui, logOutput io.Writer) int {
 
 func initializeCommands(ui cli.Ui, logOutput io.Writer) map[string]cli.CommandFactory {
 	commands := map[string]cli.CommandFactory{
+		"server": func() (cli.Command, error) {
+			return cmdServer.New(context.Background(), ui, logOutput), nil
+		},
 		"exec": func() (cli.Command, error) {
 			return cmdExec.New(context.Background(), ui, logOutput), nil
 		},
@@ -43,8 +46,6 @@ func initializeCommands(ui cli.Ui, logOutput io.Writer) map[string]cli.CommandFa
 			return &cmdVersion.Command{UI: ui, Version: version.GetHumanVersion()}, nil
 		},
 	}
-
-	controller.RegisterCommands(context.Background(), commands, ui, logOutput)
 
 	return commands
 }
