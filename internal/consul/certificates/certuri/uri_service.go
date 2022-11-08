@@ -1,4 +1,4 @@
-package uri
+package certuri
 
 import (
 	"fmt"
