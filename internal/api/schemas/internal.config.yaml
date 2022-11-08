@@ -1,9 +1,0 @@
-package: apiinternal
-generate:
-  models: true
-  embedded-spec: true
-  chi-server: true
-  client: true
-compatibility:
-  always-prefix-enum-values: true
-output: ../apiinternal/zz_generated.go

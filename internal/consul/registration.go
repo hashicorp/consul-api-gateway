@@ -25,7 +25,7 @@ const (
 // Note that the registry is *not* thread safe and should only ever call Register/Deregister
 // from a single managing goroutine.
 type ServiceRegistry struct {
-	consul *api.Client
+	client Client
 	logger hclog.Logger
 
 	id        string
@@ -42,10 +42,10 @@ type ServiceRegistry struct {
 }
 
 // NewServiceRegistry creates a new service registry instance
-func NewServiceRegistry(logger hclog.Logger, consul *api.Client, service, namespace, host string) *ServiceRegistry {
+func NewServiceRegistry(logger hclog.Logger, client Client, service, namespace, host string) *ServiceRegistry {
 	return &ServiceRegistry{
 		logger:                 logger,
-		consul:                 consul,
+		client:                 client,
 		id:                     uuid.New().String(),
 		name:                   service,
 		namespace:              namespace,
@@ -120,7 +120,7 @@ func (s *ServiceRegistry) Register(ctx context.Context) error {
 
 func (s *ServiceRegistry) updateTTL(ctx context.Context) error {
 	opts := &api.QueryOptions{}
-	return s.consul.Agent().UpdateTTLOpts(s.id, "service healthy", "pass", opts.WithContext(ctx))
+	return s.client.Agent().UpdateTTLOpts(s.id, "service healthy", "pass", opts.WithContext(ctx))
 }
 
 func (s *ServiceRegistry) register(ctx context.Context, registration *api.AgentServiceRegistration, ttl bool) error {
@@ -162,7 +162,7 @@ func (s *ServiceRegistry) register(ctx context.Context, registration *api.AgentS
 }
 
 func (s *ServiceRegistry) ensureRegistration(ctx context.Context, registration *api.AgentServiceRegistration) {
-	_, _, err := s.consul.Agent().Service(s.id, &api.QueryOptions{
+	_, _, err := s.client.Agent().Service(s.id, &api.QueryOptions{
 		Namespace: s.namespace,
 	})
 	if err == nil {
@@ -196,7 +196,7 @@ func (s *ServiceRegistry) retryRegistration(ctx context.Context, registration *a
 }
 
 func (s *ServiceRegistry) registerService(ctx context.Context, registration *api.AgentServiceRegistration) error {
-	return s.consul.Agent().ServiceRegisterOpts(registration, (&api.ServiceRegisterOpts{}).WithContext(ctx))
+	return s.client.Agent().ServiceRegisterOpts(registration, (&api.ServiceRegisterOpts{}).WithContext(ctx))
 }
 
 // Deregister de-registers a service from Consul.
@@ -216,7 +216,7 @@ func (s *ServiceRegistry) Deregister(ctx context.Context) error {
 }
 
 func (s *ServiceRegistry) deregister(ctx context.Context) error {
-	return s.consul.Agent().ServiceDeregisterOpts(s.id, (&api.QueryOptions{
+	return s.client.Agent().ServiceDeregisterOpts(s.id, (&api.QueryOptions{
 		Namespace: s.namespace,
 	}).WithContext(ctx))
 }

@@ -97,10 +97,10 @@ func RunExec(config ExecConfig) (ret int) {
 			return 1
 		}
 	}
-
+	client := consul.NewClient(consulClient)
 	registry := consul.NewServiceRegistry(
 		config.Logger.Named("service-registry"),
-		consulClient,
+		client,
 		config.GatewayConfig.Name,
 		config.GatewayConfig.Namespace,
 		config.GatewayConfig.Host,
@@ -158,7 +158,7 @@ func RunExec(config ExecConfig) (ret int) {
 	}
 	certManager := consul.NewCertManager(
 		config.Logger.Named("cert-manager"),
-		consulClient,
+		client,
 		config.GatewayConfig.Name,
 		options,
 	)

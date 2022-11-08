@@ -25,7 +25,7 @@ type syncState struct {
 
 type SyncAdapter struct {
 	logger hclog.Logger
-	consul *api.Client
+	consul consul.Client
 
 	sync       map[core.GatewayID]syncState
 	intentions map[core.GatewayID]*consul.IntentionsReconciler
@@ -34,7 +34,7 @@ type SyncAdapter struct {
 
 var _ core.SyncAdapter = &SyncAdapter{}
 
-func NewSyncAdapter(logger hclog.Logger, consulClient *api.Client) *SyncAdapter {
+func NewSyncAdapter(logger hclog.Logger, consulClient consul.Client) *SyncAdapter {
 	return &SyncAdapter{
 		logger:     logger,
 		consul:     consulClient,

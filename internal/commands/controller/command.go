@@ -16,8 +16,6 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	consulAdapters "github.com/hashicorp/consul-api-gateway/internal/adapters/consul"
-	"github.com/hashicorp/consul-api-gateway/internal/api"
-	"github.com/hashicorp/consul-api-gateway/internal/api/apiinternal"
 	"github.com/hashicorp/consul-api-gateway/internal/common"
 	"github.com/hashicorp/consul-api-gateway/internal/consul"
 	"github.com/hashicorp/consul-api-gateway/internal/envoy"
@@ -25,7 +23,6 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/profiling"
 	"github.com/hashicorp/consul-api-gateway/internal/store"
 	"github.com/hashicorp/consul-api-gateway/internal/vault"
-	"github.com/hashicorp/consul-api-gateway/internal/vm"
 )
 
 func RegisterCommands(ctx context.Context, commands map[string]cli.CommandFactory, ui cli.Ui, logOutput io.Writer) {
@@ -119,7 +116,6 @@ func (c *Command) Run(args []string) (ret int) {
 	}
 
 	logger := c.Logger("controller")
-	address := fmt.Sprintf("%s:%d", c.flagControllerAddress, c.flagControllerPort)
 
 	vault, err := vaultapi.NewClient(&vaultapi.Config{
 		Address: c.flagVaultAddress,
@@ -128,12 +124,12 @@ func (c *Command) Run(args []string) (ret int) {
 		return c.Error("initializing Vault client", err)
 	}
 	vault.SetToken(c.flagVaultToken)
-	vaultKVClient := vault.KVv2(c.flagVaultMount)
 
-	client, err := consulapi.NewClient(c.ConsulConfig())
+	consulClient, err := consulapi.NewClient(c.ConsulConfig())
 	if err != nil {
 		return c.Error("initializing Consul client", err)
 	}
+	client := consul.NewClient(consulClient)
 
 	secretClient, err := registerSecretClients(logger)
 	if err != nil {
@@ -176,28 +172,6 @@ func (c *Command) Run(args []string) (ret int) {
 			NewSDSServer(logger.Named("sds-server"), certManager, secretClient, store).
 			WithAddress(c.flagSDSAddress, c.flagSDSPort).
 			Run(groupCtx)
-	})
-
-	server := api.NewServer(api.ServerConfig{
-		Logger:          logger,
-		Consul:          client,
-		Address:         address,
-		CertFile:        c.flagControllerCertFile,
-		KeyFile:         c.flagControllerKeyFile,
-		Name:            c.flagConsulRegistrationName,
-		Namespace:       c.flagConsulRegistrationNamespace,
-		ShutdownTimeout: 10 * time.Second,
-		Validator:       vm.NewValidator(logger.Named("validator"), vaultKVClient, client),
-		Bootstrap: apiinternal.BootstrapConfiguration{
-			Consul: apiinternal.ConsulConfiguration{
-				Server:  c.flagConsulAddress,
-				XdsPort: int(c.flagConsulXDSPort),
-			},
-			SdsPort: int(c.flagSDSPort),
-		},
-	})
-	group.Go(func() error {
-		return server.Run(groupCtx)
 	})
 
 	if c.flagDebugMetricsPort != 0 {
