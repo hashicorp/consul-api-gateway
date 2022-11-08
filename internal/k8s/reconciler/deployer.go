@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 
-	capi "github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
 	apps "k8s.io/api/apps/v1"
 	core "k8s.io/api/core/v1"
@@ -27,7 +26,7 @@ type GatewayDeployer struct {
 	primaryDatacenter        string
 	sdsHost                  string
 	sdsPort                  int
-	consul                   *capi.Client
+	consul                   consul.Client
 	consulNamespaceMirroring bool
 
 	logger hclog.Logger
@@ -40,7 +39,7 @@ type DeployerConfig struct {
 	SDSPort                  int
 	Logger                   hclog.Logger
 	Client                   gatewayclient.Client
-	Consul                   *capi.Client
+	Consul                   consul.Client
 	ConsulNamespaceMirroring bool
 }
 

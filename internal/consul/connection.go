@@ -9,6 +9,7 @@ type Client interface {
 	Catalog() *api.Catalog
 	ConfigEntries() *api.ConfigEntries
 	DiscoveryChain() *api.DiscoveryChain
+	Namespaces() *api.Namespaces
 
 	// TODO: drop this
 	Internal() *api.Client
@@ -38,6 +39,10 @@ func (c *client) ConfigEntries() *api.ConfigEntries {
 
 func (c *client) DiscoveryChain() *api.DiscoveryChain {
 	return c.client.DiscoveryChain()
+}
+
+func (c *client) Namespaces() *api.Namespaces {
+	return c.client.Namespaces()
 }
 
 func (c *client) Internal() *api.Client {
