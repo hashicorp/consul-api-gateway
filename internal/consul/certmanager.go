@@ -11,7 +11,6 @@ import (
 	"path"
 	"sync"
 	"text/template"
-	"time"
 
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/consul/api/watch"
@@ -19,6 +18,12 @@ import (
 
 	"github.com/hashicorp/consul-api-gateway/internal/common"
 	"github.com/hashicorp/consul-api-gateway/internal/metrics"
+
+	"github.com/hashicorp/consul/proto-public/pbconnectca"
+
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 const (
@@ -37,6 +42,15 @@ var (
 	sdsCertConfigTemplate = template.New("sdsCert")
 	sdsCAConfigTemplate   = template.New("sdsCA")
 )
+
+type Config struct {
+	Addresses  []string
+	GRPCPort   int
+	Namespace  string
+	Partition  string
+	Datacenter string
+	TLS        *tls.Config
+}
 
 type sdsClusterArgs struct {
 	Name              string
@@ -95,8 +109,10 @@ type certWriter func() error
 // Once a leaf certificate has expired, it generates a new certificate and writes
 // it to the location given in the configuration options with which it was created.
 type CertManager struct {
-	client Client
-	logger hclog.Logger
+	cfg        Config
+	apiClient  Client
+	grpcClient pbconnectca.ConnectCAServiceClient
+	logger     hclog.Logger
 
 	service           string
 	directory         string
@@ -105,20 +121,21 @@ type CertManager struct {
 	sdsAddress        string
 	sdsPort           int
 
-	lock sync.RWMutex
+	mutex sync.RWMutex
 
 	signalled        bool
 	initializeSignal chan struct{}
 
 	// cached values
 	ca                  []byte
+	trustDomain         string
 	certificate         []byte
 	privateKey          []byte
 	tlsCertificate      *tls.Certificate
 	rootCertificatePool *x509.CertPool
 
 	// watches
-	rootWatch *watch.Plan
+	// rootWatch *watch.Plan
 	leafWatch *watch.Plan
 
 	// these can be overwritten to modify retry logic in testing
@@ -127,12 +144,13 @@ type CertManager struct {
 }
 
 // NewCertManager creates a new CertManager instance.
-func NewCertManager(logger hclog.Logger, client Client, service string, options *CertManagerOptions) *CertManager {
+func NewCertManager(logger hclog.Logger, cfg Config, apiClient Client, service string, options *CertManagerOptions) *CertManager {
 	if options == nil {
 		options = DefaultCertManagerOptions()
 	}
 	manager := &CertManager{
-		client:            client,
+		cfg:               cfg,
+		apiClient:         apiClient,
 		logger:            logger,
 		primaryDatacenter: options.PrimaryDatacenter,
 		sdsAddress:        options.SDSAddress,
@@ -146,26 +164,63 @@ func NewCertManager(logger hclog.Logger, client Client, service string, options 
 	return manager
 }
 
-func (c *CertManager) handleRootWatch(blockParam watch.BlockingParamVal, raw interface{}) {
-	if raw == nil {
-		c.logger.Error("received nil interface")
-		return
+func (c *CertManager) watchRoots(ctx context.Context, rotatedRootCh chan *pbconnectca.WatchRootsResponse) error {
+	c.logger.Trace("starting CA roots watch stream")
+
+	// This doesn't appear to allow specifying a primary datacenter, unclear if
+	// it gets forwarded automatically or the primary must be dialed directly.
+	stream, err := c.grpcClient.WatchRoots(ctx, &pbconnectca.WatchRootsRequest{})
+	if err != nil {
+		c.logger.Error(err.Error())
+		return err
 	}
-	v, ok := raw.(*api.CARootList)
-	if !ok || v == nil {
-		c.logger.Error("got invalid response from root watch")
-		return
+	for {
+		root, err := stream.Recv()
+		if err != nil {
+			c.logger.Error(err.Error())
+			return err
+		}
+		select {
+		case rotatedRootCh <- root:
+		case <-ctx.Done():
+			return nil
+		}
+	}
+}
+
+func (c *CertManager) handleRootWatch(ctx context.Context, response *pbconnectca.WatchRootsResponse) {
+	c.logger.Trace("handling CA roots response")
+
+	// TODO: this shouldn't ever really happen?
+	if response == nil {
+		c.logger.Error("received nil interface")
+		return // ignore
 	}
 
-	c.lock.Lock()
-	defer c.lock.Unlock()
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
+	// Set trust domain
+	c.trustDomain = response.TrustDomain
+	c.logger.Trace("setting trust domain")
 
 	roots := x509.NewCertPool()
-	for _, root := range v.Roots {
-		roots.AppendCertsFromPEM([]byte(root.RootCertPEM))
-		if root.Active {
-			c.ca = []byte(root.RootCertPEM)
+	id := response.ActiveRootId
+	foundActiveRoot := false
+	for _, root := range response.Roots {
+		// Add all roots, including non-active, to root certificate pool
+		roots.AppendCertsFromPEM([]byte(root.RootCert))
+
+		// Set active root as CA
+		if root.Id == id {
+			c.logger.Trace("found active root")
+			foundActiveRoot = true
+			c.ca = []byte(root.RootCert)
 		}
+	}
+
+	if !foundActiveRoot {
+		c.logger.Error("active root not found from root watch")
 	}
 
 	c.rootCertificatePool = roots
@@ -196,8 +251,8 @@ func (c *CertManager) handleLeafWatch(blockParam watch.BlockingParamVal, raw int
 
 	metrics.Registry.IncrCounter(metrics.ConsulLeafCertificateFetches, 1)
 
-	c.lock.Lock()
-	defer c.lock.Unlock()
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 
 	c.certificate = []byte(v.CertPEM)
 	c.privateKey = []byte(v.PrivateKeyPEM)
@@ -215,15 +270,45 @@ func (c *CertManager) handleLeafWatch(blockParam watch.BlockingParamVal, raw int
 func (c *CertManager) Manage(ctx context.Context) error {
 	c.logger.Trace("running cert manager")
 
-	rootWatch, err := watch.Parse(map[string]interface{}{
-		"datacenter": c.primaryDatacenter,
-		"type":       "connect_roots",
-	})
+	grpcAddress := fmt.Sprintf("%s:%d", c.cfg.Addresses[0], c.cfg.GRPCPort)
+
+	c.logger.Trace("dialing " + grpcAddress)
+
+	// Default to insecure credentials unless TLS config has been provided
+	tlsCredentials := insecure.NewCredentials()
+	if c.cfg.TLS != nil {
+		tlsCredentials = credentials.NewTLS(c.cfg.TLS)
+	}
+
+	conn, err := grpc.DialContext(ctx, grpcAddress, grpc.WithTransportCredentials(tlsCredentials))
 	if err != nil {
+		c.logger.Error(err.Error())
 		return err
 	}
-	c.rootWatch = rootWatch
-	c.rootWatch.HybridHandler = c.handleRootWatch
+
+	c.grpcClient = pbconnectca.NewConnectCAServiceClient(conn)
+
+	// TODO: should this move to a field on the CertManager struct?
+	rotatedRootCh := make(chan *pbconnectca.WatchRootsResponse)
+
+	// TODO: does this need to be stopped/cleaned up at some point, or will
+	// the context handle that?
+	// TODO: is there a good reason to wrap these in an errgroup?
+	go c.watchRoots(ctx, rotatedRootCh)
+
+	// Don't try to pull from the channel until after the watch has started
+	go func() error {
+		for {
+			select {
+			case r := <-rotatedRootCh:
+				c.handleRootWatch(ctx, r)
+				// TODO: generate and sign new leaf certificate
+				// expiration, err = c.fetchCert(ctx)
+			case <-ctx.Done():
+				return nil
+			}
+		}
+	}()
 
 	leafWatch, err := watch.Parse(map[string]interface{}{
 		"type":    "connect_leaf",
@@ -236,34 +321,17 @@ func (c *CertManager) Manage(ctx context.Context) error {
 	c.leafWatch.HybridHandler = c.handleLeafWatch
 
 	wrapWatch := func(w *watch.Plan) {
-		if err := w.RunWithClientAndHclog(c.client.Internal(), c.logger); err != nil {
+		if err := w.RunWithClientAndHclog(c.apiClient.Internal(), c.logger); err != nil {
 			c.logger.Error("consul watch.Plan returned unexpectedly", "error", err)
 		}
 		c.logger.Trace("consul watch.Plan stopped")
 	}
 
-	// Consul 1.11 has a bug where blocking queries on the leaf certificate endpoint
-	// cause all subsequent non-blocking queries to unexpectedly block. The problem
-	// is that this means that, on restart, the query for a leaf certificate with
-	// the given service id will never return until the previous leaf certificate
-	// expires/is rotated. Adding a wait here causes the API to return once the timeout has
-	// been hit -- allowing us to short-circuit the buggy blocking. The subsequent
-	// goroutines can then be leveraged to pick up any certificate rotations.
-	if !c.skipExtraFetch {
-		leafCert, _, err := c.client.Agent().ConnectCALeaf(c.service, &api.QueryOptions{
-			WaitTime: 1 * time.Second,
-		})
-		if err != nil {
-			c.logger.Error("error grabbing leaf certificate", "error", err)
-			return err
-		}
-		c.handleLeafWatch(nil, leafCert)
-	}
-	go wrapWatch(c.rootWatch)
+	// go wrapWatch(c.rootWatch)
 	go wrapWatch(c.leafWatch)
 
 	<-ctx.Done()
-	c.rootWatch.Stop()
+	// c.rootWatch.Stop()
 	c.leafWatch.Stop()
 
 	return nil
@@ -315,40 +383,40 @@ func (c *CertManager) signal() {
 
 // RootCA returns the current CA cert
 func (c *CertManager) RootCA() []byte {
-	c.lock.RLock()
-	defer c.lock.RUnlock()
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
 
 	return c.ca
 }
 
 // RootPool returns the certificate pool for the connect root CA
 func (c *CertManager) RootPool() *x509.CertPool {
-	c.lock.RLock()
-	defer c.lock.RUnlock()
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
 
 	return c.rootCertificatePool
 }
 
 // Certificate returns the current leaf cert
 func (c *CertManager) Certificate() []byte {
-	c.lock.RLock()
-	defer c.lock.RUnlock()
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
 
 	return c.certificate
 }
 
 // PrivateKey returns the current leaf cert private key
 func (c *CertManager) PrivateKey() []byte {
-	c.lock.RLock()
-	defer c.lock.RUnlock()
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
 
 	return c.privateKey
 }
 
 // TLSCertificate returns the current leaf certificate as a parsed structure
 func (c *CertManager) TLSCertificate() *tls.Certificate {
-	c.lock.RLock()
-	defer c.lock.RUnlock()
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
 
 	return c.tlsCertificate
 }

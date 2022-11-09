@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"golang.org/x/sync/errgroup"
@@ -27,6 +28,7 @@ type ServerConfig struct {
 	Context           context.Context
 	Logger            hclog.Logger
 	ConsulConfig      *api.Config
+	ConsulGRPCPort    int
 	K8sConfig         *k8s.Config
 	ProfilingPort     int
 	MetricsPort       int
@@ -75,8 +77,18 @@ func RunServer(config ServerConfig) int {
 	options := consul.DefaultCertManagerOptions()
 	options.PrimaryDatacenter = config.PrimaryDatacenter
 
+	tlsConfig, err := api.SetupTLSConfig(&config.ConsulConfig.TLSConfig)
+	if err != nil {
+		return 1
+	}
+
 	certManager := consul.NewCertManager(
 		config.Logger.Named("cert-manager"),
+		consul.Config{
+			Addresses: []string{strings.Split(config.ConsulConfig.Address, ":")[0]},
+			GRPCPort:  config.ConsulGRPCPort,
+			TLS:       tlsConfig,
+		},
 		client,
 		"consul-api-gateway-controller",
 		options,

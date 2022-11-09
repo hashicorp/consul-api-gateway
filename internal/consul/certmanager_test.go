@@ -49,7 +49,17 @@ func TestManage(t *testing.T) {
 			options := DefaultCertManagerOptions()
 			options.Directory = directory
 
-			manager := NewCertManager(hclog.NewNullLogger(), NewClient(server.consul), service, options)
+			manager := NewCertManager(
+				hclog.NewNullLogger(),
+				Config{
+					Addresses: []string{server.consulAddress},
+					GRPCPort:  8502,
+					TLS:       nil,
+				},
+				NewClient(server.consulClient),
+				service,
+				options,
+			)
 			manager.skipExtraFetch = true
 
 			ctx, cancel := context.WithCancel(context.Background())
@@ -108,7 +118,17 @@ func TestManage_Refresh(t *testing.T) {
 	server := runCertServer(t, 0, 0, service, 2)
 
 	options := DefaultCertManagerOptions()
-	manager := NewCertManager(hclog.NewNullLogger(), NewClient(server.consul), service, options)
+	manager := NewCertManager(
+		hclog.NewNullLogger(),
+		Config{
+			Addresses: []string{server.consulAddress},
+			GRPCPort:  8502,
+			TLS:       nil,
+		},
+		NewClient(server.consulClient),
+		service,
+		options,
+	)
 	manager.skipExtraFetch = true
 
 	writes := int32(0)
@@ -156,12 +176,19 @@ func TestManage_WaitCancel(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Millisecond)
 	defer cancel()
 
-	err := NewCertManager(hclog.NewNullLogger(), nil, "", nil).WaitForWrite(ctx)
+	err := NewCertManager(
+		hclog.NewNullLogger(),
+		Config{},
+		nil,
+		"",
+		nil,
+	).WaitForWrite(ctx)
 	require.Error(t, err)
 }
 
 type certServer struct {
-	consul *api.Client
+	consulAddress string
+	consulClient  *api.Client
 
 	fakeRootCertPEM      string
 	fakeClientCert       string
@@ -250,11 +277,13 @@ func runCertServer(t *testing.T, leafFailures, rootFailures uint64, service stri
 
 	serverURL, err := url.Parse(consulServer.URL)
 	require.NoError(t, err)
-	clientConfig := &api.Config{Address: serverURL.String()}
+	consulHTTPAddress := serverURL.String()
+	clientConfig := &api.Config{Address: consulHTTPAddress}
 	client, err := api.NewClient(clientConfig)
 	require.NoError(t, err)
 
-	server.consul = client
+	server.consulAddress = strings.Split(consulHTTPAddress, ":")[0]
+	server.consulClient = client
 	return server
 }
 
@@ -316,7 +345,13 @@ func TestRenderSDS(t *testing.T) {
 
 	options := DefaultCertManagerOptions()
 	options.Directory = "/certs"
-	manager := NewCertManager(hclog.NewNullLogger(), nil, gwTesting.RandomString(), options)
+	manager := NewCertManager(
+		hclog.NewNullLogger(),
+		Config{},
+		nil,
+		gwTesting.RandomString(),
+		options,
+	)
 	manager.configDirectory = directory
 
 	config, err := manager.RenderSDSConfig()

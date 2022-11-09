@@ -18,6 +18,8 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/k8s"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 	"github.com/hashicorp/consul-api-gateway/internal/store"
+
+	"google.golang.org/grpc/metadata"
 )
 
 type gatewayTestContext struct{}
@@ -82,6 +84,11 @@ func (p *gatewayTestEnvironment) run(ctx context.Context, namespace string, cfg 
 	certManagerOptions.Directory = p.directory
 	certManager := consul.NewCertManager(
 		nullLogger,
+		consul.Config{
+			Addresses: []string{"localhost"},
+			GRPCPort:  ConsulGRPCPort(ctx),
+			TLS:       ConsulTLSConfig(ctx),
+		},
 		client,
 		"consul-api-gateway",
 		certManagerOptions,
@@ -90,13 +97,19 @@ func (p *gatewayTestEnvironment) run(ctx context.Context, namespace string, cfg 
 	// wait for the first write
 	cancelCtx, cancel := context.WithCancel(ctx)
 	group, groupCtx := errgroup.WithContext(cancelCtx)
+
+	// Append token with service:write permissions to allow certmanager to
+	// watch roots and sign CSRs
+	groupCtx = metadata.AppendToOutgoingContext(groupCtx, "x-consul-token", ConsulInitialManagementToken(ctx))
+
 	group.Go(func() error {
 		return certManager.Manage(groupCtx)
 	})
-	timeoutCtx, timeoutCancel := context.WithTimeout(groupCtx, 10*time.Second)
+	timeoutCtx, timeoutCancel := context.WithTimeout(groupCtx, 30*time.Second)
 	defer timeoutCancel()
 	err = certManager.WaitForWrite(timeoutCtx)
 	if err != nil {
+		log.Print(err.Error())
 		cancel()
 		return err
 	}

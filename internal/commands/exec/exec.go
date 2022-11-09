@@ -16,6 +16,8 @@ import (
 
 	"github.com/hashicorp/consul-api-gateway/internal/consul"
 	"github.com/hashicorp/consul-api-gateway/internal/envoy"
+
+	"google.golang.org/grpc/metadata"
 )
 
 type AuthConfig struct {
@@ -78,6 +80,7 @@ func RunExec(config ExecConfig) (ret int) {
 
 	// First do the ACL Login, if necessary.
 	var consulClient *api.Client
+	var consulConfig *api.Config
 	var token string
 	var err error
 	if config.AuthConfig.Method != "" {
@@ -89,7 +92,7 @@ func RunExec(config ExecConfig) (ret int) {
 		}
 		config.Logger.Trace("consul login complete")
 	} else {
-		consulConfig := &config.ConsulConfig
+		consulConfig = &config.ConsulConfig
 		consulConfig.Namespace = config.GatewayConfig.Namespace
 		consulClient, err = api.NewClient(consulConfig)
 		if err != nil {
@@ -156,8 +159,19 @@ func RunExec(config ExecConfig) (ret int) {
 	if config.EnvoyConfig.CertificateDirectory != "" {
 		options.Directory = config.EnvoyConfig.CertificateDirectory
 	}
+
+	tlsConfig, err := api.SetupTLSConfig(&config.ConsulConfig.TLSConfig)
+	if err != nil {
+		return 1
+	}
+
 	certManager := consul.NewCertManager(
 		config.Logger.Named("cert-manager"),
+		consul.Config{
+			Addresses: []string{config.EnvoyConfig.XDSAddress},
+			GRPCPort:  config.EnvoyConfig.XDSPort,
+			TLS:       tlsConfig,
+		},
 		client,
 		config.GatewayConfig.Name,
 		options,
@@ -174,6 +188,11 @@ func RunExec(config ExecConfig) (ret int) {
 	}
 
 	group, groupCtx := errgroup.WithContext(ctx)
+
+	// Append token with service:write permissions to allow certmanager to
+	// watch roots and sign CSRs
+	groupCtx = metadata.AppendToOutgoingContext(groupCtx, "x-consul-token", token)
+
 	group.Go(func() error {
 		return certManager.Manage(groupCtx)
 	})
