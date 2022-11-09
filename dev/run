@@ -1,5 +1,8 @@
 #!/bin/bash
 
+K8S_VERSION=1.24.7
+CONSUL_K8S_VERSION=0.49.0
+
 enableHelmRepo() {
   echo "Enabling Hashicorp Helm repo"
   (helm repo add hashicorp https://helm.releases.hashicorp.com && helm repo update) 2>&1 > /dev/null
@@ -20,7 +23,7 @@ createCluster() {
     echo "consul-api-gateway cluster already exists"
     exit 1
   fi
-  kind create cluster --name consul-api-gateway --config=dev/config/kind/cluster.yaml
+  kind create cluster --name consul-api-gateway --config=dev/config/kind/cluster.yaml --image kindest/node:v$K8S_VERSION
 }
 
 installGatewayCRDs() {
@@ -30,7 +33,8 @@ installGatewayCRDs() {
 
 createServiceAccountForRBAC() {
   echo "Creating consul-api-gateway Service Account"
-  kubectl create serviceaccount consul-api-gateway 2>&1 > /dev/null
+  kubectl apply -f dev/config/k8s/service-account.yaml 2>&1 > /dev/null
+  kubectl apply -f dev/config/k8s/service-account-secret.yaml 2>&1 > /dev/null
   kubectl apply -f dev/config/k8s/rbac.yaml 2>&1 > /dev/null
 }
 
@@ -44,7 +48,7 @@ createNginxIngress() {
 
 installConsul() {
   echo "Installing consul helm chart"
-  helm install consul hashicorp/consul --version 0.41.1 -f dev/config/helm/consul.yaml 2>&1 > /dev/null
+  helm install consul hashicorp/consul --version $CONSUL_K8S_VERSION -f dev/config/helm/consul.yaml 2>&1 > /dev/null
   echo "Waiting for consul to stabilize"
   sleep 10
   kubectl wait --for=condition=ready pod --selector=app=consul,component=server,release=consul --timeout=90s
@@ -53,7 +57,7 @@ installConsul() {
 
 setupAuthMethod() {
   echo "Importing Kubernetes Configuration"
-  export K8S_JWT=$(kubectl get secret $(kubectl get serviceaccounts consul-api-gateway -o json | jq '.secrets[0].name' -r) -o json | jq '.data.token' -r | base64 -d)
+  export K8S_JWT=$(kubectl get secret consul-api-gateway -o json | jq '.data.token' -r | base64 -d)
   export K8S_HOST=$(kind get kubeconfig --name consul-api-gateway --internal | grep server | tr -s ' '| cut -d' ' -f3)
   export K8S_CERT=$(kubectl config view -o jsonpath='{.clusters[].cluster.certificate-authority-data}' --raw | base64 -d)
 
