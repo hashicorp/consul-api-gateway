@@ -6,13 +6,10 @@ import (
 	"fmt"
 	"math/rand"
 	"net"
+	"net/url"
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 
 	hashstructure "github.com/mitchellh/hashstructure/v2"
 
@@ -20,12 +17,13 @@ import (
 	// "github.com/hashicorp/consul/agent/structs"
 
 	"github.com/hashicorp/consul-api-gateway/internal/consul/certificates/cache"
-	"github.com/hashicorp/consul-api-gateway/internal/consul/certificates/connect"
+	"github.com/hashicorp/consul-api-gateway/internal/consul/certificates/certuri"
+	"github.com/hashicorp/consul-api-gateway/internal/consul/certificates/csr"
 	"github.com/hashicorp/consul-api-gateway/internal/consul/certificates/utils"
 )
 
 // Recommended name for registration.
-const ConnectCALeafName = "connect-ca-leaf"
+// const ConnectCALeafName = "connect-ca-leaf"
 
 // caChangeJitterWindow is the time over which we spread each round of retries
 // when attempting to get a new certificate following a root rotation. It's
@@ -545,13 +543,13 @@ func (c *ConnectCALeaf) generateNewLeaf(req *ConnectCALeafRequest,
 	}
 
 	// Build the cert uri
-	var id connect.CertURI
+	var id certuri.CertURI
 	var dnsNames []string
 	var ipAddresses []net.IP
 
 	switch {
 	case req.Service != "":
-		id = &connect.SpiffeIDService{
+		id = &certuri.SpiffeIDService{
 			Host:       roots.TrustDomain,
 			Datacenter: req.Datacenter,
 			Partition:  req.TargetPartition(),
@@ -561,7 +559,7 @@ func (c *ConnectCALeaf) generateNewLeaf(req *ConnectCALeafRequest,
 		dnsNames = append(dnsNames, req.DNSSAN...)
 
 	case req.Agent != "":
-		id = &connect.SpiffeIDAgent{
+		id = &certuri.SpiffeIDAgent{
 			Host:       roots.TrustDomain,
 			Datacenter: req.Datacenter,
 			Partition:  req.TargetPartition(),
@@ -570,13 +568,13 @@ func (c *ConnectCALeaf) generateNewLeaf(req *ConnectCALeafRequest,
 		dnsNames = append([]string{"localhost"}, req.DNSSAN...)
 		ipAddresses = append([]net.IP{net.ParseIP("127.0.0.1"), net.ParseIP("::1")}, req.IPSAN...)
 
-	case req.Kind == structs.ServiceKindMeshGateway:
-		id = &connect.SpiffeIDMeshGateway{
-			Host:       roots.TrustDomain,
-			Datacenter: req.Datacenter,
-			Partition:  req.TargetPartition(),
-		}
-		dnsNames = append(dnsNames, req.DNSSAN...)
+	// case req.Kind == structs.ServiceKindMeshGateway:
+	// 	id = &certuri.SpiffeIDMeshGateway{
+	// 		Host:       roots.TrustDomain,
+	// 		Datacenter: req.Datacenter,
+	// 		Partition:  req.TargetPartition(),
+	// 	}
+	// 	dnsNames = append(dnsNames, req.DNSSAN...)
 
 	case req.Kind != "":
 		return result, fmt.Errorf("unsupported kind: %s", req.Kind)
@@ -585,11 +583,11 @@ func (c *ConnectCALeaf) generateNewLeaf(req *ConnectCALeafRequest,
 		if req.Datacenter == "" {
 			return result, errors.New("datacenter name must be specified")
 		}
-		id = &connect.SpiffeIDServer{
+		id = &certuri.SpiffeIDServer{
 			Host:       roots.TrustDomain,
 			Datacenter: req.Datacenter,
 		}
-		dnsNames = append(dnsNames, connect.PeeringServerSAN(req.Datacenter, roots.TrustDomain))
+		dnsNames = append(dnsNames, certuri.PeeringServerSAN(req.Datacenter, roots.TrustDomain))
 
 	default:
 		return result, errors.New("URI must be either service, agent, server, or kind")
@@ -607,13 +605,15 @@ func (c *ConnectCALeaf) generateNewLeaf(req *ConnectCALeafRequest,
 	// instead intelligently pick the key type we generate here based on the key
 	// type of the active signing CA. We already have that loaded since we need
 	// the trust domain.
-	pk, pkPEM, err := connect.GeneratePrivateKey()
+	pk, pkPEM, err := csr.GeneratePrivateKey()
 	if err != nil {
 		return result, err
 	}
 
+	uris := []*url.URL{id.URI()}
+
 	// Create a CSR.
-	csr, err := connect.CreateCSR(id, pk, dnsNames, ipAddresses)
+	csr, err := csr.CreateCSR(uris, pk, dnsNames, ipAddresses)
 	if err != nil {
 		return result, err
 	}
@@ -687,12 +687,12 @@ func (c *ConnectCALeaf) generateNewLeaf(req *ConnectCALeafRequest,
 	// state.consecutiveRateLimitErrs = 0
 	// state.activeRootRotationStart = time.Time{}
 
-	cert, err := connect.ParseCert(reply.CertPEM)
+	cert, err := csr.ParseCert(reply.CertPEM)
 	if err != nil {
 		return result, err
 	}
 	// TODO: Set the CA key ID so we can easily tell when a active root has changed.
-	// state.authorityKeyID = connect.EncodeSigningKeyID(cert.AuthorityKeyId)
+	// state.authorityKeyID = csr.EncodeSigningKeyID(cert.AuthorityKeyId)
 
 	return &reply, nil
 
@@ -723,10 +723,10 @@ type ConnectCALeafRequest struct {
 
 	// The following flags indicate the entity we are requesting a cert for.
 	// Only one of these must be specified.
-	Service string              // Given a Service name, not ID, the request is for a SpiffeIDService.
-	Agent   string              // Given an Agent name, not ID, the request is for a SpiffeIDAgent.
-	Kind    structs.ServiceKind // Given "mesh-gateway", the request is for a SpiffeIDMeshGateway. No other kinds supported.
-	Server  bool                // If true, the request is for a SpiffeIDServer.
+	Service string // Given a Service name, not ID, the request is for a SpiffeIDService.
+	Agent   string // Given an Agent name, not ID, the request is for a SpiffeIDAgent.
+	// Kind    structs.ServiceKind // Given "mesh-gateway", the request is for a SpiffeIDMeshGateway. No other kinds supported.
+	Server bool // If true, the request is for a SpiffeIDServer.
 }
 
 func (r *ConnectCALeafRequest) Key() string {
@@ -738,26 +738,26 @@ func (r *ConnectCALeafRequest) Key() string {
 		v, err := hashstructure.Hash([]interface{}{
 			r.Agent,
 			r.PartitionOrDefault(),
-		}, nil)
+		}, hashstructure.FormatV2, nil)
 		if err == nil {
 			return fmt.Sprintf("agent:%d", v)
 		}
-	case r.Kind == structs.ServiceKindMeshGateway:
-		v, err := hashstructure.Hash([]interface{}{
-			r.PartitionOrDefault(),
-			r.DNSSAN,
-			r.IPSAN,
-		}, nil)
-		if err == nil {
-			return fmt.Sprintf("kind:%d", v)
-		}
-	case r.Kind != "":
-		// this is not valid
+	// case r.Kind == structs.ServiceKindMeshGateway:
+	// 	v, err := hashstructure.Hash([]interface{}{
+	// 		r.PartitionOrDefault(),
+	// 		r.DNSSAN,
+	// 		r.IPSAN,
+	// 	}, hashstructure.FormatV2, nil)
+	// 	if err == nil {
+	// 		return fmt.Sprintf("kind:%d", v)
+	// 	}
+	// case r.Kind != "":
+	// 	// this is not valid
 	case r.Server:
 		v, err := hashstructure.Hash([]interface{}{
 			"server",
 			r.Datacenter,
-		}, nil)
+		}, hashstructure.FormatV2, nil)
 		if err == nil {
 			return fmt.Sprintf("server:%d", v)
 		}
@@ -767,7 +767,7 @@ func (r *ConnectCALeafRequest) Key() string {
 			// r.EnterpriseMeta,
 			r.DNSSAN,
 			r.IPSAN,
-		}, nil)
+		}, hashstructure.FormatV2, nil)
 		if err == nil {
 			return fmt.Sprintf("service:%d", v)
 		}
