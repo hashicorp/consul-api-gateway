@@ -22,7 +22,7 @@ require (
 	github.com/hashicorp/vault/api v1.8.2
 	github.com/hashicorp/vault/sdk v0.6.1
 	github.com/kr/text v0.2.0
-	github.com/mitchellh/cli v1.1.4
+	github.com/mitchellh/cli v1.1.5
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/prometheus/client_golang v1.14.0
 	github.com/stretchr/testify v1.8.1
@@ -56,7 +56,7 @@ require (
 	github.com/Masterminds/goutils v1.1.1 // indirect
 	github.com/Masterminds/semver v1.5.0 // indirect
 	github.com/Masterminds/semver/v3 v3.1.1 // indirect
-	github.com/Masterminds/sprig/v3 v3.2.0 // indirect
+	github.com/Masterminds/sprig/v3 v3.2.1 // indirect
 	github.com/Microsoft/go-winio v0.4.17 // indirect
 	github.com/Microsoft/hcsshim v0.9.0 // indirect
 	github.com/OpenPeeDeeP/depguard v1.1.1 // indirect
