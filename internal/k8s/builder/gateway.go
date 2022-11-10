@@ -289,7 +289,7 @@ func (b *GatewayDeploymentBuilder) envVars() []corev1.EnvVar {
 		},
 		{
 			Name:  "PATH",
-			Value: "/bin:/usr/bin:/usr/bin/local:/bootstrap",
+			Value: "/:/sbin:/bin:/usr/bin:/usr/local/bin:/bootstrap",
 		},
 	}
 
