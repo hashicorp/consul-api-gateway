@@ -211,6 +211,7 @@ func (b *GatewayDeploymentBuilder) podSpec() corev1.PodSpec {
 			VolumeMounts: mounts,
 			Command: []string{
 				"cp", "/bin/consul-api-gateway", "/bootstrap/consul-api-gateway",
+				"cp", "/bin/discover", "/bootstrap/discover",
 			},
 		}},
 		Containers: []corev1.Container{{
@@ -286,6 +287,10 @@ func (b *GatewayDeploymentBuilder) envVars() []corev1.EnvVar {
 					FieldPath: "status.hostIP",
 				},
 			},
+		},
+		{
+			Name:  "PATH",
+			Value: "/bin:/usr/bin:/usr/bin/local:/bootstrap",
 		},
 	}
 
