@@ -210,8 +210,7 @@ func (b *GatewayDeploymentBuilder) podSpec() corev1.PodSpec {
 			Name:         "consul-api-gateway-init",
 			VolumeMounts: mounts,
 			Command: []string{
-				"cp", "/bin/consul-api-gateway", "/bootstrap/consul-api-gateway",
-				"cp", "/bin/discover", "/bootstrap/discover",
+				"cp", "/bin/discover", "/bin/consul-api-gateway", "/bootstrap/",
 			},
 		}},
 		Containers: []corev1.Container{{
