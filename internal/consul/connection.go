@@ -2,7 +2,12 @@ package consul
 
 import (
 	"context"
+	"crypto/tls"
+	"sync"
+
+	"github.com/hashicorp/consul-server-connection-manager/discovery"
 	"github.com/hashicorp/consul/api"
+	"github.com/hashicorp/go-hclog"
 )
 
 type Client interface {
@@ -12,42 +17,153 @@ type Client interface {
 	DiscoveryChain() *api.DiscoveryChain
 	Namespaces() *api.Namespaces
 
+	Watch(ctx context.Context) error
+
+	Token() string
+
 	// TODO: drop this
 	Internal() *api.Client
 }
 
-type client struct {
-	client *api.Client
-	ctx    context.Context
+type ClientConfig struct {
+	Addresses   string
+	HTTPAddress string
+	GRPCPort    int
+	Namespace   string
+	TLS         *tls.Config
+	Credentials discovery.Credentials
+	Logger      hclog.Logger
 }
 
-func NewClient(ctx context.Context, c *api.Client) Client {
+type client struct {
+	config      ClientConfig
+	client      *api.Client
+	token       string
+	mutex       sync.RWMutex
+	initialized chan struct{}
+}
+
+func NewClient(config ClientConfig) Client {
 	return &client{
-		ctx:    ctx,
-		client: c,
+		config:      config,
+		initialized: make(chan struct{}),
+	}
+}
+
+func (c *client) wait() {
+	<-c.initialized
+}
+
+func (c *client) Watch(ctx context.Context) error {
+	watcher, err := discovery.NewWatcher(ctx, discovery.Config{
+		Addresses:   c.config.Addresses,
+		GRPCPort:    c.config.GRPCPort,
+		TLS:         c.config.TLS,
+		Credentials: c.config.Credentials,
+	}, c.config.Logger)
+	go watcher.Run()
+	defer watcher.Stop()
+
+	// Wait for initial state.
+	state, err := watcher.State()
+	if err != nil {
+		return err
+	}
+	updateClient := func(s discovery.State) error {
+		cfg := api.DefaultConfig()
+		cfg.Namespace = c.config.Namespace
+		cfg.Address = c.config.HTTPAddress
+		cfg.Token = s.Token
+
+		client, err := api.NewClient(cfg)
+		if err != nil {
+			return err
+		}
+
+		c.mutex.Lock()
+		c.client = client
+		c.token = s.Token
+		c.mutex.Unlock()
+
+		return nil
+	}
+	if err := updateClient(state); err != nil {
+		return err
+	}
+	close(c.initialized)
+
+	ch := watcher.Subscribe()
+	for {
+		select {
+		case state := <-ch:
+			if err := updateClient(state); err != nil {
+				return err
+			}
+		case <-ctx.Done():
+			return nil
+		}
 	}
 }
 
 func (c *client) Agent() *api.Agent {
+	c.wait()
+
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
+
 	return c.client.Agent()
 }
 
 func (c *client) Catalog() *api.Catalog {
+	c.wait()
+
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
+
 	return c.client.Catalog()
 }
 
 func (c *client) ConfigEntries() *api.ConfigEntries {
+	c.wait()
+
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
+
 	return c.client.ConfigEntries()
 }
 
 func (c *client) DiscoveryChain() *api.DiscoveryChain {
+	c.wait()
+
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
+
 	return c.client.DiscoveryChain()
 }
 
 func (c *client) Namespaces() *api.Namespaces {
+	c.wait()
+
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
+
 	return c.client.Namespaces()
 }
 
+func (c *client) Token() string {
+	c.wait()
+
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
+
+	return c.token
+}
+
 func (c *client) Internal() *api.Client {
+	c.wait()
+
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
+
 	return c.client
 }
