@@ -1,5 +1,9 @@
+FROM golang:1.19.1-alpine as go-discover
+RUN CGO_ENABLED=0 go install github.com/hashicorp/go-discover/cmd/discover@49f60c093101c9c5f6b04d5b1c80164251a761a6
+
 FROM alpine:latest
 
+COPY --from=go-discover /go/bin/discover /bin/
 COPY ./consul-api-gateway /bin/consul-api-gateway
 ENTRYPOINT ["/bin/consul-api-gateway"]
 CMD ["version"]

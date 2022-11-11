@@ -71,6 +71,7 @@ func (p *gatewayTestEnvironment) run(ctx context.Context, namespace string, cfg 
 	}
 
 	client := consul.NewClient(ctx, consulClient)
+
 	adapter := consulAdapters.NewSyncAdapter(nullLogger, client)
 	store := store.New(k8s.StoreConfig(adapter, controller.Client(), client, nullLogger, *k8sConfig))
 

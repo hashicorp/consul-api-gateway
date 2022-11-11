@@ -55,6 +55,7 @@ func TestRegister(t *testing.T) {
 
 			server := runRegistryServer(t, test.failures, id)
 			registry := NewServiceRegistry(hclog.NewNullLogger(), NewClient(ctx, server.consul), service, namespace, test.host).WithTries(maxAttempts)
+
 			registry.backoffInterval = 0
 			registry.id = id
 
