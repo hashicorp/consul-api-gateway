@@ -238,7 +238,7 @@ func TestIntentionsReconciler_Reconcile(t *testing.T) {
 			},
 		},
 	}
-	r := NewIntentionsReconciler(c, igw, testutil.Logger(t))
+	r := NewIntentionsReconciler(NewClient(c), igw, testutil.Logger(t))
 	require.NoError(r.Reconcile())
 
 	err = c.Agent().ServiceRegister(&api.AgentServiceRegistration{

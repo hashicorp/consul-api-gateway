@@ -59,16 +59,17 @@ func RunServer(config ServerConfig) int {
 		config.Logger.Error("error creating a Consul API client", "error", err)
 		return 1
 	}
+	client := consul.NewClient(consulClient)
 
-	adapter := consulAdapters.NewSyncAdapter(config.Logger.Named("consul-adapter"), consulClient)
-	store := store.New(k8s.StoreConfig(adapter, controller.Client(), consulClient, config.Logger, *config.K8sConfig))
+	adapter := consulAdapters.NewSyncAdapter(config.Logger.Named("consul-adapter"), client)
+	store := store.New(k8s.StoreConfig(adapter, controller.Client(), client, config.Logger, *config.K8sConfig))
 
 	group.Go(func() error {
 		store.SyncAllAtInterval(groupCtx)
 		return nil
 	})
 
-	controller.SetConsul(consulClient)
+	controller.SetConsul(client)
 	controller.SetStore(store)
 
 	options := consul.DefaultCertManagerOptions()
@@ -76,7 +77,7 @@ func RunServer(config ServerConfig) int {
 
 	certManager := consul.NewCertManager(
 		config.Logger.Named("cert-manager"),
-		consulClient,
+		client,
 		"consul-api-gateway-controller",
 		options,
 	)

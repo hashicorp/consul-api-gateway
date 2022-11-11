@@ -16,6 +16,7 @@ import (
 	gwv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	"github.com/hashicorp/consul-api-gateway/internal/common"
+	"github.com/hashicorp/consul-api-gateway/internal/consul"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 )
@@ -194,12 +195,12 @@ type BackendResolver interface {
 
 type backendResolver struct {
 	client gatewayclient.Client
-	consul *api.Client
+	consul consul.Client
 	logger hclog.Logger
 	mapper common.ConsulNamespaceMapper
 }
 
-func NewBackendResolver(logger hclog.Logger, mapper common.ConsulNamespaceMapper, client gatewayclient.Client, consul *api.Client) *backendResolver {
+func NewBackendResolver(logger hclog.Logger, mapper common.ConsulNamespaceMapper, client gatewayclient.Client, consul consul.Client) *backendResolver {
 	return &backendResolver{
 		client: client,
 		consul: consul,

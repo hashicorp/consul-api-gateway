@@ -70,10 +70,11 @@ func (p *gatewayTestEnvironment) run(ctx context.Context, namespace string, cfg 
 		return err
 	}
 
-	adapter := consulAdapters.NewSyncAdapter(nullLogger, consulClient)
-	store := store.New(k8s.StoreConfig(adapter, controller.Client(), consulClient, nullLogger, *k8sConfig))
+	client := consul.NewClient(consulClient)
+	adapter := consulAdapters.NewSyncAdapter(nullLogger, client)
+	store := store.New(k8s.StoreConfig(adapter, controller.Client(), client, nullLogger, *k8sConfig))
 
-	controller.SetConsul(consulClient)
+	controller.SetConsul(client)
 	controller.SetStore(store)
 
 	// set up the cert manager
@@ -81,7 +82,7 @@ func (p *gatewayTestEnvironment) run(ctx context.Context, namespace string, cfg 
 	certManagerOptions.Directory = p.directory
 	certManager := consul.NewCertManager(
 		nullLogger,
-		consulClient,
+		client,
 		"consul-api-gateway",
 		certManagerOptions,
 	)
