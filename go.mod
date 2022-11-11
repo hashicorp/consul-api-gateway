@@ -3,13 +3,12 @@ module github.com/hashicorp/consul-api-gateway
 go 1.18
 
 require (
+	github.com/Masterminds/semver v1.5.0
 	github.com/armon/go-metrics v0.4.1
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/deepmap/oapi-codegen v1.11.0
 	github.com/docker/docker v20.10.21+incompatible
 	github.com/envoyproxy/go-control-plane v0.10.2-0.20220325020618-49ff273808a1
-	github.com/getkin/kin-openapi v0.108.0
-	github.com/go-chi/chi/v5 v5.0.7
 	github.com/go-logr/logr v1.2.3
 	github.com/golang/mock v1.6.0
 	github.com/golangci/golangci-lint v1.50.1
@@ -55,7 +54,6 @@ require (
 	github.com/Djarvur/go-err113 v0.0.0-20210108212216-aea10b59be24 // indirect
 	github.com/GaijinEntertainment/go-exhaustruct/v2 v2.3.0 // indirect
 	github.com/Masterminds/goutils v1.1.1 // indirect
-	github.com/Masterminds/semver v1.5.0 // indirect
 	github.com/Masterminds/semver/v3 v3.1.1 // indirect
 	github.com/Masterminds/sprig/v3 v3.2.1 // indirect
 	github.com/Microsoft/go-winio v0.4.17 // indirect
@@ -108,7 +106,7 @@ require (
 	github.com/firefart/nonamedreturns v1.0.4 // indirect
 	github.com/fsnotify/fsnotify v1.5.4 // indirect
 	github.com/fzipp/gocyclo v0.6.0 // indirect
-	github.com/getkin/kin-openapi v0.107.0 // indirect
+	github.com/getkin/kin-openapi v0.108.0 // indirect
 	github.com/go-critic/go-critic v0.6.5 // indirect
 	github.com/go-git/gcfg v1.5.0 // indirect
 	github.com/go-git/go-billy/v5 v5.3.1 // indirect
