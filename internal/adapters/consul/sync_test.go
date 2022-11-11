@@ -177,7 +177,6 @@ func TestConsulSyncAdapter_Sync(t *testing.T) {
 	require.NoError(t, err)
 	consul := consul.NewClient(ctx, c)
 
-
 	adapter := NewSyncAdapter(testutil.Logger(t), consul)
 
 	route := core.NewTCPRouteBuilder().
