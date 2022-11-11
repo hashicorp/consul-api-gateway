@@ -59,7 +59,7 @@ func RunServer(config ServerConfig) int {
 		config.Logger.Error("error creating a Consul API client", "error", err)
 		return 1
 	}
-	client := consul.NewClient(consulClient)
+	client := consul.NewClient(ctx, consulClient)
 
 	adapter := consulAdapters.NewSyncAdapter(config.Logger.Named("consul-adapter"), client)
 	store := store.New(k8s.StoreConfig(adapter, controller.Client(), client, config.Logger, *config.K8sConfig))

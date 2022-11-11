@@ -20,6 +20,7 @@ import (
 
 func TestRegister(t *testing.T) {
 	t.Parallel()
+	ctx := context.Background()
 
 	for _, test := range []struct {
 		name        string
@@ -53,11 +54,11 @@ func TestRegister(t *testing.T) {
 			}
 
 			server := runRegistryServer(t, test.failures, id)
-			registry := NewServiceRegistry(hclog.NewNullLogger(), NewClient(server.consul), service, namespace, test.host).WithTries(maxAttempts)
+			registry := NewServiceRegistry(hclog.NewNullLogger(), NewClient(ctx, server.consul), service, namespace, test.host).WithTries(maxAttempts)
 			registry.backoffInterval = 0
 			registry.id = id
 
-			err := registry.RegisterGateway(context.Background(), false)
+			err := registry.RegisterGateway(ctx, false)
 			if test.fail {
 				require.Error(t, err)
 				return
@@ -78,7 +79,7 @@ func TestRegister(t *testing.T) {
 
 func TestDeregister(t *testing.T) {
 	t.Parallel()
-
+	ctx := context.Background()
 	for _, test := range []struct {
 		name        string
 		failures    uint64
@@ -106,7 +107,7 @@ func TestDeregister(t *testing.T) {
 			}
 
 			server := runRegistryServer(t, test.failures, id)
-			registry := NewServiceRegistry(hclog.NewNullLogger(), NewClient(server.consul), service, "", "").WithTries(maxAttempts)
+			registry := NewServiceRegistry(hclog.NewNullLogger(), NewClient(ctx, server.consul), service, "", "").WithTries(maxAttempts)
 			registry.backoffInterval = 0
 			registry.id = id
 			err := registry.Deregister(context.Background())

@@ -1,6 +1,7 @@
 package consul
 
 import (
+	"context"
 	"github.com/hashicorp/consul/api"
 )
 
@@ -17,10 +18,12 @@ type Client interface {
 
 type client struct {
 	client *api.Client
+	ctx    context.Context
 }
 
-func NewClient(c *api.Client) Client {
+func NewClient(ctx context.Context, c *api.Client) Client {
 	return &client{
+		ctx:    ctx,
 		client: c,
 	}
 }

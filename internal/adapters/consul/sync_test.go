@@ -175,7 +175,7 @@ func TestConsulSyncAdapter_Sync(t *testing.T) {
 	cfg.Address = consulSrv.HTTPAddr
 	c, err := api.NewClient(cfg)
 	require.NoError(t, err)
-	consul := consul.NewClient(c)
+	consul := consul.NewClient(ctx, c)
 
 	adapter := NewSyncAdapter(testutil.Logger(t), consul)
 
