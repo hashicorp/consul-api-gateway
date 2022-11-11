@@ -61,6 +61,7 @@ RUN addgroup $PRODUCT_NAME && \
     adduser -S -G $PRODUCT_NAME 100
 
 COPY dist/$TARGETOS/$TARGETARCH/$BIN_NAME /bin/
+COPY --from=go-discover /go/bin/discover /bin/
 
 USER 100
 ENTRYPOINT /bin/$BIN_NAME
