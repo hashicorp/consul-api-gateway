@@ -1,6 +1,5 @@
 global:
   name: consul
-  image: "hashicorpdev/consul:581357c32"
   tls:
     enabled: true
     serverAdditionalDNSSANs:
