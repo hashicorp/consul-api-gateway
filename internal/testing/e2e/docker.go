@@ -3,6 +3,7 @@ package e2e
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path"
@@ -35,7 +36,7 @@ func BuildDockerImage(ctx context.Context, cfg *envconf.Config) (context.Context
 	if err != nil {
 		return nil, err
 	}
-	_, err = dockerClient.ImageBuild(ctx, tar, types.ImageBuildOptions{
+	r, err := dockerClient.ImageBuild(ctx, tar, types.ImageBuildOptions{
 		Dockerfile: "Dockerfile.local",
 		Tags:       []string{tag},
 		Remove:     true,
@@ -43,6 +44,13 @@ func BuildDockerImage(ctx context.Context, cfg *envconf.Config) (context.Context
 	if err != nil {
 		return nil, err
 	}
+	defer r.Body.Close()
+	b, err := io.ReadAll(r.Body)
+	if err != nil {
+		return nil, err
+	}
+	log.Print(string(b))
+
 	return context.WithValue(ctx, dockerImageContextKey, tag), nil
 }
 
