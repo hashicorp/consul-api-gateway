@@ -81,6 +81,9 @@ func (c *client) Watch(ctx context.Context) error {
 		TLS:         c.config.TLS,
 		Credentials: c.config.Credentials,
 	}, c.config.Logger)
+	if err != nil {
+		return err
+	}
 	go watcher.Run()
 	defer watcher.Stop()
 
