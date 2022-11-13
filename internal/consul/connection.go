@@ -92,7 +92,7 @@ func (c *client) Watch(ctx context.Context) error {
 	updateClient := func(s discovery.State) error {
 		cfg := api.DefaultConfig()
 		cfg.Namespace = c.config.Namespace
-		cfg.Address = fmt.Sprintf("%s:%s", c.config.HTTPAddress, c.config.HTTPPort)
+		cfg.Address = fmt.Sprintf("%s:%d", c.config.HTTPAddress, c.config.HTTPPort)
 		cfg.Token = s.Token
 
 		client, err := api.NewClient(cfg)

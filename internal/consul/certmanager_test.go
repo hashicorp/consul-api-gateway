@@ -23,6 +23,7 @@ import (
 )
 
 func testClientConfig() ClientConfig {
+	panic("hi")
 	return ClientConfig{}
 }
 func TestManage(t *testing.T) {
