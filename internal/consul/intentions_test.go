@@ -9,7 +9,6 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 
-	"context"
 	"github.com/hashicorp/consul-api-gateway/internal/consul/mocks"
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/consul/sdk/testutil"
@@ -210,7 +209,6 @@ func TestIntentionsReconciler_handleChainResults(t *testing.T) {
 
 func TestIntentionsReconciler_Reconcile(t *testing.T) {
 	require := require.New(t)
-	ctx := context.Background()
 	consulSrv, err := testutil.NewTestServerConfigT(t, func(c *testutil.TestServerConfig) {
 		c.Connect = map[string]interface{}{"enabled": true}
 		c.Peering = nil
@@ -240,7 +238,7 @@ func TestIntentionsReconciler_Reconcile(t *testing.T) {
 			},
 		},
 	}
-	r := NewIntentionsReconciler(NewClient(ctx, c), igw, testutil.Logger(t))
+	r := NewIntentionsReconciler(NewClient(testClientConfig()), igw, testutil.Logger(t))
 
 	require.NoError(r.Reconcile())
 

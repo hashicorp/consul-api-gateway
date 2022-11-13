@@ -22,6 +22,9 @@ import (
 	"github.com/hashicorp/go-hclog"
 )
 
+func testClientConfig() ClientConfig {
+	return ClientConfig{}
+}
 func TestManage(t *testing.T) {
 	t.Parallel()
 
@@ -49,7 +52,7 @@ func TestManage(t *testing.T) {
 			options := DefaultCertManagerOptions()
 			options.Directory = directory
 
-			manager := NewCertManager(hclog.NewNullLogger(), NewClient(context.Background(), server.consul), service, options)
+			manager := NewCertManager(hclog.NewNullLogger(), NewClient(testClientConfig()), service, options)
 
 			manager.skipExtraFetch = true
 
@@ -109,7 +112,8 @@ func TestManage_Refresh(t *testing.T) {
 	server := runCertServer(t, 0, 0, service, 2)
 
 	options := DefaultCertManagerOptions()
-	manager := NewCertManager(hclog.NewNullLogger(), NewClient(context.Background(), server.consul), service, options)
+	manager := NewCertManager(hclog.NewNullLogger(), NewClient(
+		testClientConfig()), service, options)
 
 	manager.skipExtraFetch = true
 

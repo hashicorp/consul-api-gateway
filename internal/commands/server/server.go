@@ -24,13 +24,14 @@ import (
 )
 
 type ServerConfig struct {
-	Context           context.Context
-	Logger            hclog.Logger
-	ConsulConfig      *api.Config
-	K8sConfig         *k8s.Config
-	ProfilingPort     int
-	MetricsPort       int
-	PrimaryDatacenter string
+	Context            context.Context
+	Logger             hclog.Logger
+	ConsulConfig       *api.Config
+	ConsulClientConfig consul.ClientConfig
+	K8sConfig          *k8s.Config
+	ProfilingPort      int
+	MetricsPort        int
+	PrimaryDatacenter  string
 
 	// for testing only
 	isTest bool
@@ -54,12 +55,7 @@ func RunServer(config ServerConfig) int {
 		return 1
 	}
 
-	consulClient, err := api.NewClient(config.ConsulConfig)
-	if err != nil {
-		config.Logger.Error("error creating a Consul API client", "error", err)
-		return 1
-	}
-	client := consul.NewClient(ctx, consulClient)
+	client := consul.NewClient(config.ConsulClientConfig)
 
 	adapter := consulAdapters.NewSyncAdapter(config.Logger.Named("consul-adapter"), client)
 	store := store.New(k8s.StoreConfig(adapter, controller.Client(), client, config.Logger, *config.K8sConfig))

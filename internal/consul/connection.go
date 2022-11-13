@@ -35,6 +35,7 @@ type Client interface {
 type ClientConfig struct {
 	Addresses   string
 	HTTPAddress string
+	HTTPPort    int
 	GRPCPort    int
 	Namespace   string
 	TLS         *tls.Config
@@ -61,28 +62,21 @@ func (c *client) wait() {
 	<-c.initialized
 }
 
-func getDiscoveryAddresses() (addresses string, port string, err error) {
+func ParseDiscoveryAddresses() (addresses string, err error) {
+	//TODO should this be pulled in from the flag instead of the env?
 	consulhttpAddress := os.Getenv(ConsulHTTPAddressEnvName)
 	if !strings.Contains(consulhttpAddress, DiscoveryKey) {
 		//TODO should this return an error? What do we do in this case? Default?
-		return "", "", errors.New("discovery not found")
+		return "", errors.New("discovery not found")
 	}
 	s := strings.Split(consulhttpAddress, ":")
-	if len(s) < 2 {
-		//TODO same question here
-		return "", "", errors.New("port not provided in " + ConsulHTTPAddressEnvName)
-	}
-	return s[0], s[1], nil
+	return s[0], nil
 
 }
 
 func (c *client) Watch(ctx context.Context) error {
-	addresses, port, err := getDiscoveryAddresses()
-	if err != nil {
-		return err
-	}
 	watcher, err := discovery.NewWatcher(ctx, discovery.Config{
-		Addresses:   addresses,
+		Addresses:   c.config.Addresses,
 		GRPCPort:    c.config.GRPCPort,
 		TLS:         c.config.TLS,
 		Credentials: c.config.Credentials,
@@ -98,7 +92,7 @@ func (c *client) Watch(ctx context.Context) error {
 	updateClient := func(s discovery.State) error {
 		cfg := api.DefaultConfig()
 		cfg.Namespace = c.config.Namespace
-		cfg.Address = fmt.Springf("%s:%s", c.config.HTTPAddress, port)
+		cfg.Address = fmt.Sprintf("%s:%s", c.config.HTTPAddress, c.config.HTTPPort)
 		cfg.Token = s.Token
 
 		client, err := api.NewClient(cfg)

@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/hashicorp/consul-api-gateway/internal/consul"
 	"html/template"
 	"io/ioutil"
 	"log"
@@ -88,7 +89,7 @@ func init() {
 
 type consulTestEnvironment struct {
 	ca                               []byte
-	consulClient                     *api.Client
+	consulClient                     consul.Client
 	token                            string
 	policy                           *api.ACLPolicy
 	httpPort                         int
@@ -174,14 +175,15 @@ func CreateTestConsulContainer(name, namespace string) env.Func {
 			return nil, err
 		}
 
-		consulClient, err := api.NewClient(&api.Config{
-			Address: fmt.Sprintf("localhost:%d", httpsPort),
-			Scheme:  "https",
-			TLSConfig: api.TLSConfig{
-				CAPem:   rootCA.CertBytes,
-				CertPEM: clientCert.CertBytes,
-				KeyPEM:  clientCert.PrivateKeyBytes,
-			},
+		tlsClientConfig, err := api.SetupTLSConfig(&api.TLSConfig{
+			CAPem:   rootCA.CertBytes,
+			CertPEM: clientCert.CertBytes,
+			KeyPEM:  clientCert.PrivateKeyBytes,
+		})
+		consulClient := consul.NewClient(consul.ClientConfig{
+			HTTPAddress: "localhost",
+			HTTPPort:    httpsPort,
+			TLS:         tlsClientConfig,
 		})
 		if err != nil {
 			return nil, err
@@ -443,7 +445,7 @@ func consulDeployment(namespace string, httpsPort, grpcPort int) *apps.Deploymen
 	}
 }
 
-func ConsulClient(ctx context.Context) *api.Client {
+func ConsulClient(ctx context.Context) consul.Client {
 	return mustGetTestEnvironment(ctx).consulClient
 }
 
@@ -531,12 +533,12 @@ func CreateConsulACLPolicy(ctx context.Context, cfg *envconf.Config) (context.Co
 		return ctx, nil
 	}
 	env := consulEnvironment.(*consulTestEnvironment)
-	token, _, err := env.consulClient.ACL().Bootstrap()
+	token, _, err := env.consulClient.Internal().ACL().Bootstrap()
 	if err != nil {
 		return nil, err
 	}
 	log.Printf("Consul initial management token: %s", token.SecretID)
-	policy, _, err := env.consulClient.ACL().PolicyCreate(adminPolicy(), &api.WriteOptions{
+	policy, _, err := env.consulClient.Internal().ACL().PolicyCreate(adminPolicy(), &api.WriteOptions{
 		Token: token.SecretID,
 	})
 	if err != nil {
@@ -556,19 +558,19 @@ func CreateConsulAuthMethod() env.Func {
 			return ctx, nil
 		}
 		env := consulEnvironment.(*consulTestEnvironment)
-		_, _, err := env.consulClient.ACL().RoleCreate(gatewayConsulRole(env.policy.ID), &api.WriteOptions{
+		_, _, err := env.consulClient.Internal().ACL().RoleCreate(gatewayConsulRole(env.policy.ID), &api.WriteOptions{
 			Token: env.token,
 		})
 		if err != nil {
 			return nil, err
 		}
-		_, _, err = env.consulClient.ACL().AuthMethodCreate(gatewayConsulAuthMethod(ClusterName(ctx), K8sServiceToken(ctx), cfg.Client().RESTConfig()), &api.WriteOptions{
+		_, _, err = env.consulClient.Internal().ACL().AuthMethodCreate(gatewayConsulAuthMethod(ClusterName(ctx), K8sServiceToken(ctx), cfg.Client().RESTConfig()), &api.WriteOptions{
 			Token: env.token,
 		})
 		if err != nil {
 			return nil, err
 		}
-		_, _, err = env.consulClient.ACL().BindingRuleCreate(gatewayConsulBindingRule(), &api.WriteOptions{
+		_, _, err = env.consulClient.Internal().ACL().BindingRuleCreate(gatewayConsulBindingRule(), &api.WriteOptions{
 			Token: env.token,
 		})
 		if err != nil {

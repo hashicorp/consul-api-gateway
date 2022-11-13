@@ -5,6 +5,8 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/hashicorp/consul-api-gateway/internal/consul"
+	"github.com/hashicorp/consul-server-connection-manager/discovery"
 	"io"
 	"os"
 	"strings"
@@ -165,6 +167,32 @@ func (c *Command) Run(args []string) (ret int) {
 		bearerToken = strings.TrimSpace(string(data))
 	}
 
+	addresses, err := consul.ParseDiscoveryAddresses()
+	if err != nil {
+		logger.Error("error reading discoveYr addresses", "error", err)
+		//TODO should this return error
+		return 1
+	}
+
+	consulClientConfig := consul.ClientConfig{
+		Addresses:   addresses,
+		HTTPAddress: c.flagConsulHTTPAddress,
+		HTTPPort:    c.flagConsulHTTPPort,
+		GRPCPort:    c.flagConsulXDSPort,
+		Namespace:   c.flagGatewayNamespace,
+		TLS:         cfg.Transport.TLSClientConfig,
+		//TODO is this right?
+		Credentials: discovery.Credentials{
+			Type: discovery.CredentialsTypeLogin,
+			Login: discovery.LoginCredential{
+				AuthMethod:  c.flagACLAuthMethod,
+				Namespace:   c.flagAuthMethodNamespace,
+				BearerToken: bearerToken,
+			},
+		},
+		Logger: logger,
+	}
+
 	return RunExec(ExecConfig{
 		Context:           c.ctx,
 		Logger:            logger,
@@ -192,7 +220,8 @@ func (c *Command) Run(args []string) (ret int) {
 			Binary:            "envoy",
 			Output:            c.output,
 		},
-		isTest: c.isTest,
+		ConsulClientConfig: consulClientConfig,
+		isTest:             c.isTest,
 	})
 }
 
