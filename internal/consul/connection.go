@@ -3,19 +3,13 @@ package consul
 import (
 	"context"
 	"crypto/tls"
-	"os"
-	"strings"
 	"sync"
 
-	"errors"
 	"fmt"
 	"github.com/hashicorp/consul-server-connection-manager/discovery"
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
 )
-
-const ConsulHTTPAddressEnvName = "CONSUL_HTTP_ADDR"
-const DiscoveryKey = "exec=discover"
 
 type Client interface {
 	Agent() *api.Agent
@@ -60,18 +54,6 @@ func NewClient(config ClientConfig) Client {
 
 func (c *client) wait() {
 	<-c.initialized
-}
-
-func ParseDiscoveryAddresses() (addresses string, err error) {
-	//TODO should this be pulled in from the flag instead of the env?
-	consulhttpAddress := os.Getenv(ConsulHTTPAddressEnvName)
-	if !strings.Contains(consulhttpAddress, DiscoveryKey) {
-		//TODO should this return an error? What do we do in this case? Default?
-		return "", errors.New("discovery not found")
-	}
-	s := strings.Split(consulhttpAddress, ":")
-	return s[0], nil
-
 }
 
 func (c *client) Watch(ctx context.Context) error {

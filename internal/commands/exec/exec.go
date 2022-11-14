@@ -77,6 +77,7 @@ func RunExec(config ExecConfig) (ret int) {
 	}()
 
 	client := consul.NewClient(config.ConsulClientConfig)
+	client.Watch(ctx)
 	registry := consul.NewServiceRegistry(
 		config.Logger.Named("service-registry"),
 		client,

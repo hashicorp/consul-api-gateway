@@ -31,7 +31,8 @@ const (
 	defaultBearerTokenFile = "/var/run/secrets/kubernetes.io/serviceaccount/token"
 
 	// The amount of time to wait for the first cert write
-	defaultCertWaitTime = 1 * time.Minute
+	defaultCertWaitTime      = 1 * time.Minute
+	consulHTTPAddressEnvName = "CONSUL_HTTP_ADDR"
 )
 
 type Command struct {
@@ -167,9 +168,9 @@ func (c *Command) Run(args []string) (ret int) {
 		bearerToken = strings.TrimSpace(string(data))
 	}
 
-	addresses, err := consul.ParseDiscoveryAddresses()
+	addresses, err := parseDiscoveryAddresses()
 	if err != nil {
-		logger.Error("error reading discoveYr addresses", "error", err)
+		logger.Error("error reading discovery addresses", "error", err)
 		//TODO should this return error
 		return 1
 	}
@@ -257,4 +258,10 @@ Usage: consul-api-gateway exec [options]
 
 	Handles service registration, certificate rotation, and spawning envoy.
 `
+}
+
+func parseDiscoveryAddresses() (addresses string, err error) {
+	consulhttpAddress := os.Getenv(ConsulHTTPAddressEnvName)
+	s := strings.Split(consulhttpAddress, ":")
+	return s[0], nil
 }
