@@ -18,7 +18,7 @@ type Client interface {
 	DiscoveryChain() *api.DiscoveryChain
 	Namespaces() *api.Namespaces
 
-	Watch(ctx context.Context) error
+	WatchServers(ctx context.Context) error
 
 	Token() string
 
@@ -56,7 +56,7 @@ func (c *client) wait() {
 	<-c.initialized
 }
 
-func (c *client) Watch(ctx context.Context) error {
+func (c *client) WatchServers(ctx context.Context) error {
 	watcher, err := discovery.NewWatcher(ctx, discovery.Config{
 		Addresses:   c.config.Addresses,
 		GRPCPort:    c.config.GRPCPort,

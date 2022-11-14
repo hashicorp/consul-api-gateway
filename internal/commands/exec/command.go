@@ -9,6 +9,7 @@ import (
 	"github.com/hashicorp/consul-server-connection-manager/discovery"
 	"io"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -16,10 +17,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/mitchellh/cli"
 
+	"github.com/hashicorp/consul-api-gateway/internal/common"
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
-
-	"github.com/hashicorp/consul-api-gateway/internal/common"
 )
 
 // https://github.com/hashicorp/consul-k8s/blob/24be51c58461e71365ca39f113dae0379f7a1b7c/control-plane/connect-inject/container_init.go#L272-L306
@@ -34,6 +34,8 @@ const (
 	defaultCertWaitTime      = 1 * time.Minute
 	consulHTTPAddressEnvName = "CONSUL_HTTP_ADDR"
 )
+
+var discoverySyntaxError = errors.New("\"not discovery syntax\"")
 
 type Command struct {
 	UI     cli.Ui
@@ -168,10 +170,14 @@ func (c *Command) Run(args []string) (ret int) {
 		bearerToken = strings.TrimSpace(string(data))
 	}
 
-	addresses, err := parseDiscoveryAddresses()
-	if err != nil {
+	addresses, grpcPort, err := c.parseDiscoveryAddresses()
+	if errors.Is(err, discoverySyntaxError) {
+		//old syntax
+		grpcPort = c.flagConsulXDSPort
+		addresses = c.flagConsulHTTPAddress
+	} else if err != nil {
 		logger.Error("error reading discovery addresses", "error", err)
-		//TODO should this return error
+		//TODO should this return error?
 		return 1
 	}
 
@@ -179,7 +185,7 @@ func (c *Command) Run(args []string) (ret int) {
 		Addresses:   addresses,
 		HTTPAddress: c.flagConsulHTTPAddress,
 		HTTPPort:    c.flagConsulHTTPPort,
-		GRPCPort:    c.flagConsulXDSPort,
+		GRPCPort:    grpcPort,
 		Namespace:   c.flagGatewayNamespace,
 		TLS:         cfg.Transport.TLSClientConfig,
 		//TODO is this right?
@@ -260,9 +266,17 @@ Usage: consul-api-gateway exec [options]
 `
 }
 
-func parseDiscoveryAddresses() (addresses string, port string, err error) {
-	consulhttpAddress := os.Getenv(consulHTTPAddressEnvName)
+func (c *Command) parseDiscoveryAddresses() (addresses string, port int, err error) {
+	consulhttpAddress := c.flagConsulHTTPAddress
+	if !strings.Contains(consulhttpAddress, "exec=") {
+		return "", -1, discoverySyntaxError
+	}
+
 	index := strings.LastIndex(consulhttpAddress, ":")
-	cmd, port := consulhttpAddress[:index], consulhttpAddress[index+1:]
+	cmd, portString := consulhttpAddress[:index], consulhttpAddress[index+1:]
+	port, err = strconv.Atoi(portString)
+	if err != nil {
+		return "", 0, err
+	}
 	return cmd, port, nil
 }
