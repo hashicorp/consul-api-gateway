@@ -4,13 +4,17 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
 	"path"
+	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -18,8 +22,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	gwTesting "github.com/hashicorp/consul-api-gateway/internal/testing"
+
 	"github.com/hashicorp/consul/api"
+	"github.com/hashicorp/consul/proto-public/pbconnectca"
+
 	"github.com/hashicorp/go-hclog"
+
+	"google.golang.org/grpc"
 )
 
 func TestManage(t *testing.T) {
@@ -29,6 +38,7 @@ func TestManage(t *testing.T) {
 		name         string
 		leafFailures uint64
 		rootFailures uint64
+		expirations  uint64
 	}{{
 		name: "test-basic",
 	}, {
@@ -44,19 +54,19 @@ func TestManage(t *testing.T) {
 			defer os.RemoveAll(directory)
 			service := gwTesting.RandomString()
 
-			server := runCertServer(t, test.leafFailures, test.rootFailures, service, 0)
+			server := runCertServer(t, service, test.leafFailures, test.rootFailures, test.expirations)
 
 			options := DefaultCertManagerOptions()
 			options.Directory = directory
 
 			manager := NewCertManager(
-				hclog.NewNullLogger(),
+				hclog.Default().Named("certmanager"),
 				Config{
 					Addresses: []string{server.consulAddress},
-					GRPCPort:  8502,
+					GRPCPort:  server.consulGRPCPort,
 					TLS:       nil,
 				},
-				NewClient(server.consulClient),
+				NewClient(server.consulHTTPClient),
 				service,
 				options,
 			)
@@ -115,17 +125,17 @@ func TestManage_Refresh(t *testing.T) {
 
 	service := gwTesting.RandomString()
 
-	server := runCertServer(t, 0, 0, service, 2)
+	server := runCertServer(t, service, 0, 0, 2)
 
 	options := DefaultCertManagerOptions()
 	manager := NewCertManager(
-		hclog.NewNullLogger(),
+		hclog.Default().Named("certmanager"),
 		Config{
 			Addresses: []string{server.consulAddress},
-			GRPCPort:  8502,
+			GRPCPort:  server.consulGRPCPort,
 			TLS:       nil,
 		},
-		NewClient(server.consulClient),
+		NewClient(server.consulHTTPClient),
 		service,
 		options,
 	)
@@ -177,7 +187,7 @@ func TestManage_WaitCancel(t *testing.T) {
 	defer cancel()
 
 	err := NewCertManager(
-		hclog.NewNullLogger(),
+		hclog.Default().Named("certmanager"),
 		Config{},
 		nil,
 		"",
@@ -186,16 +196,82 @@ func TestManage_WaitCancel(t *testing.T) {
 	require.Error(t, err)
 }
 
-type certServer struct {
-	consulAddress string
-	consulClient  *api.Client
+type testCAHandler struct {
+	consulAddress  string
+	consulHTTPPort int
+	consulGRPCPort int
 
+	consulHTTPClient *api.Client
+	consulGRPCClient *pbconnectca.ConnectCAServiceClient
+
+	ca                   *gwTesting.CertificateInfo
 	fakeRootCertPEM      string
 	fakeClientCert       string
 	fakeClientPrivateKey string
+
+	rotate chan struct{}
+
+	mutex sync.RWMutex
 }
 
-func runCertServer(t *testing.T, leafFailures, rootFailures uint64, service string, expirations int32) *certServer {
+func (c *testCAHandler) WatchRoots(request *pbconnectca.WatchRootsRequest, stream pbconnectca.ConnectCAService_WatchRootsServer) error {
+	writeCertificate := func() error {
+		fmt.Printf("writing certificate to channel")
+
+		c.mutex.RLock()
+		ca := c.fakeRootCertPEM
+		c.mutex.RUnlock()
+
+		if err := stream.Send(&pbconnectca.WatchRootsResponse{
+			ActiveRootId: "test",
+			Roots: []*pbconnectca.CARoot{{
+				Id:       "test",
+				RootCert: ca,
+			}},
+		}); err != nil {
+			return err
+		}
+		return nil
+	}
+
+	// do initial write
+	if err := writeCertificate(); err != nil {
+		return err
+	}
+
+	for {
+		select {
+		case <-stream.Context().Done():
+			return nil
+		case <-c.rotate:
+			if err := writeCertificate(); err != nil {
+				return err
+			}
+		}
+	}
+}
+
+func (c *testCAHandler) Rotate() {
+	rootCA, err := gwTesting.GenerateSignedCertificate(gwTesting.GenerateCertificateOptions{
+		IsCA: true,
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	c.mutex.Lock()
+	c.ca = rootCA
+	c.fakeRootCertPEM = string(rootCA.CertBytes)
+	c.mutex.Unlock()
+
+	c.rotate <- struct{}{}
+}
+
+func (c *testCAHandler) Sign(ctx context.Context, request *pbconnectca.SignRequest) (*pbconnectca.SignResponse, error) {
+	return nil, fmt.Errorf("not yet implemented")
+}
+
+func runCertServer(t *testing.T, service string, leafFailures, rootFailures, expirations uint64) *testCAHandler {
 	t.Helper()
 
 	ca, _, clientCert := gwTesting.DefaultCertificates()
@@ -206,16 +282,17 @@ func runCertServer(t *testing.T, leafFailures, rootFailures uint64, service stri
 	})
 	require.NoError(t, err)
 
-	server := &certServer{
+	server := &testCAHandler{
 		fakeRootCertPEM:      string(ca.CertBytes),
 		fakeClientCert:       string(clientCert.CertBytes),
 		fakeClientPrivateKey: string(clientCert.PrivateKeyBytes),
+		rotate:               make(chan struct{}),
 	}
 
-	// Start the fake Consul server.
-	consulServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	// Start the fake Consul HTTP server.
+	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		leafPath := fmt.Sprintf("/v1/agent/connect/ca/leaf/%s", service)
-		rootPath := "/v1/agent/connect/ca/roots"
+		// rootPath := "/v1/agent/connect/ca/roots"
 		meta := map[string]string{
 			"X-Consul-Index": "1",
 		}
@@ -251,39 +328,70 @@ func runCertServer(t *testing.T, leafFailures, rootFailures uint64, service stri
 			require.NoError(t, err)
 			return
 		}
-		if r != nil && strings.HasPrefix(r.URL.Path, rootPath) && r.Method == "GET" {
-			if rootFailures > 0 {
-				rootFailures--
-				w.WriteHeader(http.StatusInternalServerError)
-				return
-			}
-			rootCert, err := json.Marshal(map[string]interface{}{
-				"Roots": []map[string]interface{}{{
-					"RootCert": server.fakeRootCertPEM,
-					"Active":   true,
-				}},
-			})
-			require.NoError(t, err)
-			for k, v := range meta {
-				w.Header().Add(k, v)
-			}
-			_, err = w.Write(rootCert)
-			require.NoError(t, err)
-			return
-		}
+		// if r != nil && strings.HasPrefix(r.URL.Path, rootPath) && r.Method == "GET" {
+		// 	if rootFailures > 0 {
+		// 		rootFailures--
+		// 		w.WriteHeader(http.StatusInternalServerError)
+		// 		return
+		// 	}
+		// 	rootCert, err := json.Marshal(map[string]interface{}{
+		// 		"Roots": []map[string]interface{}{{
+		// 			"RootCert": server.fakeRootCertPEM,
+		// 			"Active":   true,
+		// 		}},
+		// 	})
+		// 	require.NoError(t, err)
+		// 	for k, v := range meta {
+		// 		w.Header().Add(k, v)
+		// 	}
+		// 	_, err = w.Write(rootCert)
+		// 	require.NoError(t, err)
+		// 	return
+		// }
 		w.WriteHeader(http.StatusInternalServerError)
 	}))
-	t.Cleanup(consulServer.Close)
+	t.Cleanup(httpServer.Close)
 
-	serverURL, err := url.Parse(consulServer.URL)
+	serverURL, err := url.Parse(httpServer.URL)
 	require.NoError(t, err)
-	consulHTTPAddress := serverURL.String()
+	consulHTTPAddress := serverURL.Host
+
 	clientConfig := &api.Config{Address: consulHTTPAddress}
 	client, err := api.NewClient(clientConfig)
 	require.NoError(t, err)
+	server.consulHTTPClient = client
 
-	server.consulAddress = strings.Split(consulHTTPAddress, ":")[0]
-	server.consulClient = client
+	// httptest.NewServer hardcodes 127.0.0.1, so this will be the same as for
+	// the gRPC server, just on a different port
+	consulHTTPAddressParts := strings.Split(consulHTTPAddress, ":")
+	server.consulAddress = consulHTTPAddressParts[0]
+	server.consulHTTPPort, err = strconv.Atoi(consulHTTPAddressParts[1])
+	require.NoError(t, err)
+	fmt.Printf("running Consul HTTP mock server at %s\n", consulHTTPAddress)
+
+	// Start the fake Consul gRPC server
+	grpcServer := grpc.NewServer()
+	pbconnectca.RegisterConnectCAServiceServer(grpcServer, server)
+	grpcListener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	errEarlyTestTermination := errors.New("early termination")
+	done := make(chan error, 1)
+	go func() {
+		defer func() {
+			// Write an error to the channel, if the server canceled
+			// successfully the err will be nil and the read will get that
+			// first, this will only be read if we have some early exception
+			// that calls runtime.Goexit prior to the server stopping
+			done <- errEarlyTestTermination
+		}()
+		// Start gRPC mock server, send nil error if clean exit
+		done <- grpcServer.Serve(grpcListener)
+	}()
+	server.consulGRPCPort, err = strconv.Atoi(strings.Split(grpcListener.Addr().String(), ":")[1])
+	require.NoError(t, err)
+	fmt.Printf("running Consul gRPC mock server at %s\n", grpcListener.Addr().String())
+
 	return server
 }
 
@@ -346,7 +454,7 @@ func TestRenderSDS(t *testing.T) {
 	options := DefaultCertManagerOptions()
 	options.Directory = "/certs"
 	manager := NewCertManager(
-		hclog.NewNullLogger(),
+		hclog.Default().Named("certmanager"),
 		Config{},
 		nil,
 		gwTesting.RandomString(),
