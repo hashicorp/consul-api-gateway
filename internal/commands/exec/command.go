@@ -260,8 +260,9 @@ Usage: consul-api-gateway exec [options]
 `
 }
 
-func parseDiscoveryAddresses() (addresses string, err error) {
-	consulhttpAddress := os.Getenv(ConsulHTTPAddressEnvName)
-	s := strings.Split(consulhttpAddress, ":")
-	return s[0], nil
+func parseDiscoveryAddresses() (addresses string, port string, err error) {
+	consulhttpAddress := os.Getenv(consulHTTPAddressEnvName)
+	index := strings.LastIndex(consulhttpAddress, ":")
+	cmd, port := consulhttpAddress[:index], consulhttpAddress[index+1:]
+	return cmd, port, nil
 }
