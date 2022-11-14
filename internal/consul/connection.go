@@ -27,14 +27,15 @@ type Client interface {
 }
 
 type ClientConfig struct {
-	Addresses   string
-	HTTPAddress string
-	HTTPPort    int
-	GRPCPort    int
-	Namespace   string
-	TLS         *tls.Config
-	Credentials discovery.Credentials
-	Logger      hclog.Logger
+	ApiClientConfig *api.Config
+	Addresses       string
+	HTTPAddress     string
+	HTTPPort        int
+	GRPCPort        int
+	Namespace       string
+	TLS             *tls.Config
+	Credentials     discovery.Credentials
+	Logger          hclog.Logger
 }
 
 type client struct {
@@ -75,7 +76,7 @@ func (c *client) WatchServers(ctx context.Context) error {
 		return err
 	}
 	updateClient := func(s discovery.State) error {
-		cfg := api.DefaultConfig()
+		cfg := c.config.ApiClientConfig
 		cfg.Namespace = c.config.Namespace
 		cfg.Address = fmt.Sprintf("%s:%d", c.config.HTTPAddress, c.config.HTTPPort)
 		cfg.Token = s.Token

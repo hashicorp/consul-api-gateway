@@ -182,12 +182,13 @@ func (c *Command) Run(args []string) (ret int) {
 	}
 
 	consulClientConfig := consul.ClientConfig{
-		Addresses:   addresses,
-		HTTPAddress: c.flagConsulHTTPAddress,
-		HTTPPort:    c.flagConsulHTTPPort,
-		GRPCPort:    grpcPort,
-		Namespace:   c.flagGatewayNamespace,
-		TLS:         cfg.Transport.TLSClientConfig,
+		ApiClientConfig: cfg,
+		Addresses:       addresses,
+		HTTPAddress:     c.flagConsulHTTPAddress,
+		HTTPPort:        c.flagConsulHTTPPort,
+		GRPCPort:        grpcPort,
+		Namespace:       c.flagGatewayNamespace,
+		TLS:             cfg.Transport.TLSClientConfig,
 		//TODO is this right?
 		Credentials: discovery.Credentials{
 			Type: discovery.CredentialsTypeLogin,
