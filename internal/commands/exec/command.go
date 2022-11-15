@@ -9,7 +9,6 @@ import (
 	"github.com/hashicorp/consul-server-connection-manager/discovery"
 	"io"
 	"os"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -31,11 +30,8 @@ const (
 	defaultBearerTokenFile = "/var/run/secrets/kubernetes.io/serviceaccount/token"
 
 	// The amount of time to wait for the first cert write
-	defaultCertWaitTime      = 1 * time.Minute
-	consulHTTPAddressEnvName = "CONSUL_HTTP_ADDR"
+	defaultCertWaitTime = 1 * time.Minute
 )
-
-var discoverySyntaxError = errors.New("\"not discovery syntax\"")
 
 type Command struct {
 	UI     cli.Ui
@@ -170,26 +166,14 @@ func (c *Command) Run(args []string) (ret int) {
 		bearerToken = strings.TrimSpace(string(data))
 	}
 
-	addresses, grpcPort, err := c.parseDiscoveryAddresses()
-	if errors.Is(err, discoverySyntaxError) {
-		//old syntax
-		grpcPort = c.flagConsulXDSPort
-		addresses = c.flagConsulHTTPAddress
-	} else if err != nil {
-		logger.Error("error reading discovery addresses", "error", err)
-		//TODO should this return error?
-		return 1
-	}
-
 	consulClientConfig := consul.ClientConfig{
 		ApiClientConfig: cfg,
-		Addresses:       addresses,
+		Addresses:       c.flagConsulHTTPAddress,
 		HTTPAddress:     c.flagConsulHTTPAddress,
 		HTTPPort:        c.flagConsulHTTPPort,
-		GRPCPort:        grpcPort,
+		GRPCPort:        c.flagConsulXDSPort,
 		Namespace:       c.flagGatewayNamespace,
 		TLS:             cfg.Transport.TLSClientConfig,
-		//TODO is this right?
 		Credentials: discovery.Credentials{
 			Type: discovery.CredentialsTypeLogin,
 			Login: discovery.LoginCredential{
@@ -265,19 +249,4 @@ Usage: consul-api-gateway exec [options]
 
 	Handles service registration, certificate rotation, and spawning envoy.
 `
-}
-
-func (c *Command) parseDiscoveryAddresses() (addresses string, port int, err error) {
-	consulhttpAddress := c.flagConsulHTTPAddress
-	if !strings.Contains(consulhttpAddress, "exec=") {
-		return "", -1, discoverySyntaxError
-	}
-
-	index := strings.LastIndex(consulhttpAddress, ":")
-	cmd, portString := consulhttpAddress[:index], consulhttpAddress[index+1:]
-	port, err = strconv.Atoi(portString)
-	if err != nil {
-		return "", 0, err
-	}
-	return cmd, port, nil
 }

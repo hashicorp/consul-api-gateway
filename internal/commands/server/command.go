@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"flag"
+	"github.com/hashicorp/consul-api-gateway/internal/consul"
 	"io"
 	"io/ioutil"
 	"os"
@@ -166,15 +167,47 @@ func (c *Command) Run(args []string) int {
 		MirrorKubernetesNamespacePrefix: c.flagMirrorK8SNamespacePrefix,
 	}
 
+	cmd, port, err := parseConsulHTTPAddress()
+	if err != nil {
+		logger.Error("error reading "+consulHTTPAddressEnvName, "error", err)
+		return 1
+	}
+
+	tlsCfg, err := api.SetupTLSConfig(&consulCfg.TLSConfig)
+	if err != nil {
+		logger.Error("could not set up tls config", err)
+		return 1
+	}
+
+	consulClientConfig := consul.ClientConfig{
+		ApiClientConfig: consulCfg,
+		Addresses:       cmd,
+		HTTPAddress:     c.flagConsulAddress,
+		HTTPPort:        port,
+		//GRPCPort:        c.flag, ??
+		Namespace: c.flagK8sNamespace,
+		TLS:       tlsCfg,
+		//Credentials: discovery.Credentials{ ??
+		//	Type: discovery.CredentialsTypeLogin,
+		//	Login: discovery.LoginCredential{
+		//		AuthMethod:  c.flagACLAuthMethod,
+		//		Namespace:   c.flagAuthMethodNamespace,
+		//		BearerToken: bearerToken,
+		//	},
+		//},
+		Logger: logger,
+	}
+
 	return RunServer(ServerConfig{
-		Context:           context.Background(),
-		Logger:            logger,
-		ConsulConfig:      consulCfg,
-		K8sConfig:         cfg,
-		ProfilingPort:     c.flagPprofPort,
-		MetricsPort:       c.flagMetricsPort,
-		PrimaryDatacenter: c.flagPrimaryDatacenter,
-		isTest:            c.isTest,
+		Context:            context.Background(),
+		Logger:             logger,
+		ConsulConfig:       consulCfg,
+		K8sConfig:          cfg,
+		ProfilingPort:      c.flagPprofPort,
+		MetricsPort:        c.flagMetricsPort,
+		PrimaryDatacenter:  c.flagPrimaryDatacenter,
+		isTest:             c.isTest,
+		ConsulClientConfig: consulClientConfig,
 	})
 }
 

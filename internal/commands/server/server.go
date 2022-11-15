@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strconv"
+	"strings"
 	"syscall"
 
 	"golang.org/x/sync/errgroup"
@@ -21,6 +23,10 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/profiling"
 	"github.com/hashicorp/consul-api-gateway/internal/store"
 	"github.com/hashicorp/consul-api-gateway/internal/vault"
+)
+
+const (
+	consulHTTPAddressEnvName = "CONSUL_HTTP_ADDR"
 )
 
 type ServerConfig struct {
@@ -56,6 +62,7 @@ func RunServer(config ServerConfig) int {
 	}
 
 	client := consul.NewClient(config.ConsulClientConfig)
+	client.WatchServers(ctx)
 
 	adapter := consulAdapters.NewSyncAdapter(config.Logger.Named("consul-adapter"), client)
 	store := store.New(k8s.StoreConfig(adapter, controller.Client(), client, config.Logger, *config.K8sConfig))
@@ -151,4 +158,16 @@ func registerSecretClients(config ServerConfig) (*envoy.MultiSecretClient, error
 	secretClient.Register(vault.KVSecretScheme, vaultStaticClient)
 
 	return secretClient, nil
+}
+
+func parseConsulHTTPAddress() (cmd string, port int, err error) {
+	consulhttpAddress := os.Getenv("consulHTTPAddressEnvName")
+
+	index := strings.LastIndex(consulhttpAddress, ":")
+	cmd, portString := consulhttpAddress[:index], consulhttpAddress[index+1:]
+	port, err = strconv.Atoi(portString)
+	if err != nil {
+		return "", 0, err
+	}
+	return cmd, port, nil
 }
