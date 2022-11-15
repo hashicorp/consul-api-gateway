@@ -5,13 +5,14 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"github.com/hashicorp/consul-api-gateway/internal/consul"
-	"github.com/hashicorp/consul-server-connection-manager/discovery"
 	"io"
 	"os"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/hashicorp/consul-api-gateway/internal/consul"
+	"github.com/hashicorp/consul-server-connection-manager/discovery"
 
 	"github.com/google/uuid"
 	"github.com/mitchellh/cli"
@@ -169,7 +170,6 @@ func (c *Command) Run(args []string) (ret int) {
 	consulClientConfig := consul.ClientConfig{
 		ApiClientConfig: cfg,
 		Addresses:       c.flagConsulHTTPAddress,
-		HTTPAddress:     c.flagConsulHTTPAddress,
 		HTTPPort:        c.flagConsulHTTPPort,
 		GRPCPort:        c.flagConsulXDSPort,
 		Namespace:       c.flagGatewayNamespace,
@@ -179,7 +179,10 @@ func (c *Command) Run(args []string) (ret int) {
 			Login: discovery.LoginCredential{
 				AuthMethod:  c.flagACLAuthMethod,
 				Namespace:   c.flagAuthMethodNamespace,
+				Partition:   os.Getenv("CONSUL_LOGIN_PARTITION"),
+				Datacenter:  os.Getenv("CONSUL_LOGIN_DATACENTER"),
 				BearerToken: bearerToken,
+				Meta:        map[string]string{},
 			},
 		},
 		Logger: logger,

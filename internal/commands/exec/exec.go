@@ -76,9 +76,23 @@ func RunExec(config ExecConfig) (ret int) {
 		}
 	}()
 
-	client := consul.NewClient(config.ConsulClientConfig)
+	group, groupCtx := errgroup.WithContext(ctx)
 
-	client.WatchServers(ctx)
+	sessionContext, sessionCancel := context.WithCancel(context.Background())
+	defer sessionCancel()
+
+	client := consul.NewClient(config.ConsulClientConfig)
+	go func() {
+		if err := client.WatchServers(sessionContext); err != nil {
+			config.Logger.Error("unexpected error watching servers", "error", err)
+			cancel()
+		}
+	}()
+	if err := client.Wait(10 * time.Second); err != nil {
+		config.Logger.Error("unexpected error watching servers", "error", err)
+		return 1
+	}
+
 	registry := consul.NewServiceRegistry(
 		config.Logger.Named("service-registry"),
 		client,
@@ -97,13 +111,14 @@ func RunExec(config ExecConfig) (ret int) {
 	}
 	defer func() {
 		config.Logger.Trace("deregistering service")
-		// using context.Background here since the global context has
+		// using sessionContext here since the global context has
 		// already been canceled at this point and we're just in a cleanup
 		// function
-		if err := registry.Deregister(context.Background()); err != nil {
+		if err := registry.Deregister(sessionContext); err != nil {
 			config.Logger.Error("error deregistering service", "error", err)
 			ret = 1
 		}
+		sessionCancel()
 	}()
 
 	envoyManager := envoy.NewManager(
@@ -147,7 +162,6 @@ func RunExec(config ExecConfig) (ret int) {
 		return 1
 	}
 
-	group, groupCtx := errgroup.WithContext(ctx)
 	group.Go(func() error {
 		return certManager.Manage(groupCtx)
 	})

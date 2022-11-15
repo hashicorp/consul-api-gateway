@@ -3,12 +3,16 @@ package server
 import (
 	"context"
 	"flag"
-	"github.com/hashicorp/consul-api-gateway/internal/consul"
 	"io"
 	"io/ioutil"
 	"os"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
+
+	"github.com/hashicorp/consul-api-gateway/internal/consul"
+	"github.com/hashicorp/consul-server-connection-manager/discovery"
 
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
@@ -20,6 +24,7 @@ import (
 )
 
 const (
+	defaultGRPCPort      = 8502
 	defaultSDSServerHost = "consul-api-gateway-controller.default.svc.cluster.local"
 	defaultSDSServerPort = 9090
 	// The amount of time to wait for the first cert write
@@ -167,7 +172,7 @@ func (c *Command) Run(args []string) int {
 		MirrorKubernetesNamespacePrefix: c.flagMirrorK8SNamespacePrefix,
 	}
 
-	cmd, port, err := parseConsulHTTPAddress()
+	consulHTTPAddressOrCommand, port, err := parseConsulHTTPAddress()
 	if err != nil {
 		logger.Error("error reading "+consulHTTPAddressEnvName, "error", err)
 		return 1
@@ -179,22 +184,35 @@ func (c *Command) Run(args []string) int {
 		return 1
 	}
 
+	var token string
+	if consulCfg.TokenFile != "" {
+		data, err := ioutil.ReadFile(consulCfg.TokenFile)
+		if err != nil {
+			logger.Error("error loading token file", err)
+			return 1
+		}
+
+		if t := strings.TrimSpace(string(data)); t != "" {
+			token = t
+		}
+	}
+	if consulCfg.Token != "" {
+		token = consulCfg.Token
+	}
+
 	consulClientConfig := consul.ClientConfig{
 		ApiClientConfig: consulCfg,
-		Addresses:       cmd,
-		HTTPAddress:     c.flagConsulAddress,
+		Addresses:       consulHTTPAddressOrCommand,
 		HTTPPort:        port,
-		//GRPCPort:        c.flag, ??
-		Namespace: c.flagK8sNamespace,
-		TLS:       tlsCfg,
-		//Credentials: discovery.Credentials{ ??
-		//	Type: discovery.CredentialsTypeLogin,
-		//	Login: discovery.LoginCredential{
-		//		AuthMethod:  c.flagACLAuthMethod,
-		//		Namespace:   c.flagAuthMethodNamespace,
-		//		BearerToken: bearerToken,
-		//	},
-		//},
+		GRPCPort:        grpcPort(),
+		Namespace:       c.flagK8sNamespace,
+		TLS:             tlsCfg,
+		Credentials: discovery.Credentials{
+			Type: discovery.CredentialsTypeStatic,
+			Static: discovery.StaticTokenCredential{
+				Token: token,
+			},
+		},
 		Logger: logger,
 	}
 
@@ -209,6 +227,15 @@ func (c *Command) Run(args []string) int {
 		isTest:             c.isTest,
 		ConsulClientConfig: consulClientConfig,
 	})
+}
+
+func grpcPort() int {
+	port := os.Getenv("CONSUL_GRPC_PORT")
+	p, err := strconv.Atoi(port)
+	if err == nil {
+		return p
+	}
+	return defaultGRPCPort
 }
 
 func (c *Command) Synopsis() string {

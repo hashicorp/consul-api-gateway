@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"golang.org/x/sync/errgroup"
 
@@ -62,7 +63,13 @@ func RunServer(config ServerConfig) int {
 	}
 
 	client := consul.NewClient(config.ConsulClientConfig)
-	client.WatchServers(ctx)
+	group.Go(func() error {
+		return client.WatchServers(groupCtx)
+	})
+	if err := client.Wait(10 * time.Second); err != nil {
+		config.Logger.Error("unexpected error watching servers", "error", err)
+		return 1
+	}
 
 	adapter := consulAdapters.NewSyncAdapter(config.Logger.Named("consul-adapter"), client)
 	store := store.New(k8s.StoreConfig(adapter, controller.Client(), client, config.Logger, *config.K8sConfig))

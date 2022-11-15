@@ -5,13 +5,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/hashicorp/consul-api-gateway/internal/consul"
 	"html/template"
 	"io/ioutil"
 	"log"
 	"net"
 	"os"
 	"strings"
+
+	"github.com/hashicorp/consul-api-gateway/internal/consul"
 
 	"github.com/Masterminds/semver"
 	"github.com/cenkalti/backoff"
@@ -175,15 +176,14 @@ func CreateTestConsulContainer(name, namespace string) env.Func {
 			return nil, err
 		}
 
-		tlsClientConfig, err := api.SetupTLSConfig(&api.TLSConfig{
-			CAPem:   rootCA.CertBytes,
-			CertPEM: clientCert.CertBytes,
-			KeyPEM:  clientCert.PrivateKeyBytes,
-		})
-		consulClient := consul.NewClient(consul.ClientConfig{
-			HTTPAddress: "localhost",
-			HTTPPort:    httpsPort,
-			TLS:         tlsClientConfig,
+		consulClient, err := api.NewClient(&api.Config{
+			Address: fmt.Sprintf("localhost:%d", httpsPort),
+			Scheme:  "https",
+			TLSConfig: api.TLSConfig{
+				CAPem:   rootCA.CertBytes,
+				CertPEM: clientCert.CertBytes,
+				KeyPEM:  clientCert.PrivateKeyBytes,
+			},
 		})
 		if err != nil {
 			return nil, err
@@ -204,6 +204,7 @@ func CreateTestConsulContainer(name, namespace string) env.Func {
 		if err != nil {
 			return nil, err
 		}
+		log.Print("Consul is ready")
 
 		ip, err := consulPodIP(ctx, cfg, deployment)
 		if err != nil {
@@ -212,7 +213,7 @@ func CreateTestConsulContainer(name, namespace string) env.Func {
 
 		env := &consulTestEnvironment{
 			ca:                               rootCA.CertBytes,
-			consulClient:                     consulClient,
+			consulClient:                     testing.NewTestClient(consulClient),
 			httpPort:                         httpsPort,
 			httpFlattenedPort:                httpFlattenedPort,
 			httpReferenceGrantPort:           httpReferenceGrantPort,

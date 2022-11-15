@@ -16,8 +16,8 @@ import (
 	"github.com/hashicorp/consul/sdk/testutil"
 
 	"github.com/hashicorp/consul-api-gateway/internal/common"
-	"github.com/hashicorp/consul-api-gateway/internal/consul"
 	"github.com/hashicorp/consul-api-gateway/internal/core"
+	consultesting "github.com/hashicorp/consul-api-gateway/internal/testing"
 )
 
 var (
@@ -171,14 +171,11 @@ func TestConsulSyncAdapter_Sync(t *testing.T) {
 		_ = consulSrv.Stop()
 	})
 
-	//cfg := api.DefaultConfig()
-	//cfg.Address = consulSrv.HTTPAddr
-	//c, err := api.NewClient(cfg)
+	cfg := api.DefaultConfig()
+	cfg.Address = consulSrv.HTTPAddr
+	c, err := api.NewClient(cfg)
 	require.NoError(t, err)
-	consul := consul.NewClient(consul.ClientConfig{
-		HTTPAddress: consulSrv.HTTPAddr,
-	},
-	)
+	consul := consultesting.NewTestClient(c)
 
 	adapter := NewSyncAdapter(testutil.Logger(t), consul)
 

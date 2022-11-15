@@ -3,12 +3,26 @@ package consul
 import (
 	"context"
 	"crypto/tls"
+	"errors"
+	"strings"
 	"sync"
+	"time"
 
 	"fmt"
+
 	"github.com/hashicorp/consul-server-connection-manager/discovery"
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
+)
+
+var (
+	// Calling discovery.NewWatcher registers a new gRPC load balancer
+	// type tied to the consul:// scheme, which calls the global
+	// google.golang.org/grpc/balancer.Register, which, as specified
+	// in their docs is not threadsafe and should be called only in an
+	// init function. This mutex makes it so we can boot up multiple watchers
+	// particularly in our tests.
+	globalWatcherMutex sync.Mutex
 )
 
 type Client interface {
@@ -21,6 +35,7 @@ type Client interface {
 	WatchServers(ctx context.Context) error
 
 	Token() string
+	Wait(until time.Duration) error
 
 	// TODO: drop this
 	Internal() *api.Client
@@ -29,7 +44,6 @@ type Client interface {
 type ClientConfig struct {
 	ApiClientConfig *api.Config
 	Addresses       string
-	HTTPAddress     string
 	HTTPPort        int
 	GRPCPort        int
 	Namespace       string
@@ -39,32 +53,58 @@ type ClientConfig struct {
 }
 
 type client struct {
+	stop        func()
 	config      ClientConfig
 	client      *api.Client
 	token       string
 	mutex       sync.RWMutex
-	initialized chan struct{}
+	initialized chan error
 }
 
 func NewClient(config ClientConfig) Client {
+	config.Logger = hclog.Default()
 	return &client{
 		config:      config,
-		initialized: make(chan struct{}),
+		initialized: make(chan error, 1),
 	}
 }
 
-func (c *client) wait() {
-	<-c.initialized
+func (c *client) Wait(until time.Duration) error {
+	select {
+	case err := <-c.initialized:
+		return err
+	case <-time.After(until):
+		c.stop()
+		return errors.New("did not get state within time limit")
+	}
 }
 
 func (c *client) WatchServers(ctx context.Context) error {
+	ctx, cancel := context.WithCancel(ctx)
+	c.stop = cancel
+
+	var static bool
+	serverName := c.config.Addresses
+	if strings.Contains(serverName, "=") {
+		serverName = ""
+	} else {
+		static = true
+	}
+	if c.config.TLS != nil && c.config.TLS.ServerName != "" {
+		serverName = c.config.TLS.ServerName
+	}
+
+	globalWatcherMutex.Lock()
 	watcher, err := discovery.NewWatcher(ctx, discovery.Config{
 		Addresses:   c.config.Addresses,
 		GRPCPort:    c.config.GRPCPort,
 		TLS:         c.config.TLS,
 		Credentials: c.config.Credentials,
 	}, c.config.Logger)
+	globalWatcherMutex.Unlock()
+
 	if err != nil {
+		c.initialized <- err
 		return err
 	}
 	go watcher.Run()
@@ -73,13 +113,21 @@ func (c *client) WatchServers(ctx context.Context) error {
 	// Wait for initial state.
 	state, err := watcher.State()
 	if err != nil {
+		c.initialized <- err
 		return err
 	}
 	updateClient := func(s discovery.State) error {
 		cfg := c.config.ApiClientConfig
 		cfg.Namespace = c.config.Namespace
-		cfg.Address = fmt.Sprintf("%s:%d", c.config.HTTPAddress, c.config.HTTPPort)
+		cfg.Address = fmt.Sprintf("%s:%d", s.Address.IP.String(), c.config.HTTPPort)
+		if static {
+			// This is to fix the fact that s.Address always resolves to an IP, if
+			// we pass a DNS address without an IPSANS, regardless of setting cfg.TLSConfig.Address
+			// below, we have a connection error on cert validation.
+			cfg.Address = fmt.Sprintf("%s:%d", c.config.Addresses, c.config.HTTPPort)
+		}
 		cfg.Token = s.Token
+		cfg.TLSConfig.Address = serverName
 
 		client, err := api.NewClient(cfg)
 		if err != nil {
@@ -94,6 +142,7 @@ func (c *client) WatchServers(ctx context.Context) error {
 		return nil
 	}
 	if err := updateClient(state); err != nil {
+		c.initialized <- err
 		return err
 	}
 	close(c.initialized)
@@ -112,8 +161,6 @@ func (c *client) WatchServers(ctx context.Context) error {
 }
 
 func (c *client) Agent() *api.Agent {
-	c.wait()
-
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
 
@@ -121,8 +168,6 @@ func (c *client) Agent() *api.Agent {
 }
 
 func (c *client) Catalog() *api.Catalog {
-	c.wait()
-
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
 
@@ -130,8 +175,6 @@ func (c *client) Catalog() *api.Catalog {
 }
 
 func (c *client) ConfigEntries() *api.ConfigEntries {
-	c.wait()
-
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
 
@@ -139,8 +182,6 @@ func (c *client) ConfigEntries() *api.ConfigEntries {
 }
 
 func (c *client) DiscoveryChain() *api.DiscoveryChain {
-	c.wait()
-
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
 
@@ -148,8 +189,6 @@ func (c *client) DiscoveryChain() *api.DiscoveryChain {
 }
 
 func (c *client) Namespaces() *api.Namespaces {
-	c.wait()
-
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
 
@@ -157,8 +196,6 @@ func (c *client) Namespaces() *api.Namespaces {
 }
 
 func (c *client) Token() string {
-	c.wait()
-
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
 
@@ -166,8 +203,6 @@ func (c *client) Token() string {
 }
 
 func (c *client) Internal() *api.Client {
-	c.wait()
-
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
 

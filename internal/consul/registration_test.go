@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	consultesting "github.com/hashicorp/consul-api-gateway/internal/testing"
 	gwTesting "github.com/hashicorp/consul-api-gateway/internal/testing"
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
@@ -54,7 +55,7 @@ func TestRegister(t *testing.T) {
 			}
 
 			server := runRegistryServer(t, test.failures, id)
-			registry := NewServiceRegistry(hclog.NewNullLogger(), NewClient(testClientConfig()), service, namespace, test.host).WithTries(maxAttempts)
+			registry := NewServiceRegistry(hclog.NewNullLogger(), consultesting.NewTestClient(server.consul), service, namespace, test.host).WithTries(maxAttempts)
 
 			registry.backoffInterval = 0
 			registry.id = id
@@ -107,7 +108,7 @@ func TestDeregister(t *testing.T) {
 			}
 
 			server := runRegistryServer(t, test.failures, id)
-			registry := NewServiceRegistry(hclog.NewNullLogger(), NewClient(testClientConfig()), service, "", "").WithTries(maxAttempts)
+			registry := NewServiceRegistry(hclog.NewNullLogger(), consultesting.NewTestClient(server.consul), service, "", "").WithTries(maxAttempts)
 			registry.backoffInterval = 0
 			registry.id = id
 			err := registry.Deregister(context.Background())

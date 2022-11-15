@@ -73,6 +73,8 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: status.hostIP
+        - name: CONSUL_LOGIN_PARTITION
+        - name: CONSUL_LOGIN_DATACENTER
         - name: PATH
           value: /:/sbin:/bin:/usr/bin:/usr/local/bin:/bootstrap
         - name: CONSUL_CACERT
