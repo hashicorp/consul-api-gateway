@@ -73,6 +73,8 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: status.hostIP
+        - name: CONSUL_PARTITION
+        - name: CONSUL_TLS_SERVER_NAME
         - name: PATH
           value: /:/sbin:/bin:/usr/bin:/usr/local/bin:/bootstrap
         image: envoyproxy/envoy:v1.21-latest
