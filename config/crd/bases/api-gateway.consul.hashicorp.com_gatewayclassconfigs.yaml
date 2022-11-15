@@ -78,6 +78,9 @@ spec:
                           to bind to the managed ServiceAccount if managed is true.
                         type: string
                     type: object
+                  partition:
+                    description: The partition in which the gateway is registered.
+                    type: string
                   ports:
                     description: The information about Consul's ports
                     properties:
@@ -93,6 +96,11 @@ spec:
                     enum:
                     - http
                     - https
+                    type: string
+                  serverName:
+                    description: The server name presented by the server's TLS certificate.
+                      This is useful when attempting to talk to a Consul server over
+                      TLS while referencing it via ip address.
                     type: string
                 type: object
               copyAnnotations:
