@@ -168,7 +168,7 @@ func registerSecretClients(config ServerConfig) (*envoy.MultiSecretClient, error
 }
 
 func parseConsulHTTPAddress() (cmd string, port int, err error) {
-	consulhttpAddress := os.Getenv("consulHTTPAddressEnvName")
+	consulhttpAddress := os.Getenv(consulHTTPAddressEnvName)
 
 	index := strings.LastIndex(consulhttpAddress, ":")
 	cmd, portString := consulhttpAddress[:index], consulhttpAddress[index+1:]
