@@ -43,15 +43,6 @@ var (
 	sdsCAConfigTemplate   = template.New("sdsCA")
 )
 
-type Config struct {
-	Addresses  []string
-	GRPCPort   int
-	Namespace  string
-	Partition  string
-	Datacenter string
-	TLS        *tls.Config
-}
-
 type sdsClusterArgs struct {
 	Name              string
 	CertSDSConfigPath string
@@ -87,7 +78,14 @@ func init() {
 
 // CertManagerOptions contains the optional configuration used to initialize a CertManager.
 type CertManagerOptions struct {
+	Addresses         []string
+	GRPCPort          int
+	GRPCTLS           *tls.Config
+	GRPCUseTLS        bool
 	Directory         string
+	Namespace         string
+	Partition         string
+	Datacenter        string
 	PrimaryDatacenter string
 	SDSAddress        string
 	SDSPort           int
@@ -96,6 +94,9 @@ type CertManagerOptions struct {
 // DefaultCertManagerOptions returns the default options for a CertManager instance.
 func DefaultCertManagerOptions() *CertManagerOptions {
 	return &CertManagerOptions{
+		GRPCPort:   8502,
+		Namespace:  "default",
+		Partition:  "default",
 		SDSAddress: defaultSDSAddress,
 		SDSPort:    defaultSDSPort,
 	}
@@ -109,14 +110,20 @@ type certWriter func() error
 // Once a leaf certificate has expired, it generates a new certificate and writes
 // it to the location given in the configuration options with which it was created.
 type CertManager struct {
-	cfg        Config
 	apiClient  Client
 	grpcClient pbconnectca.ConnectCAServiceClient
 	logger     hclog.Logger
 
+	addresses         []string
+	grpcPort          int
+	grpcTLS           *tls.Config
+	grpcUseTLS        bool
 	service           string
 	directory         string
 	configDirectory   string // only used for testing
+	namespace         string
+	partition         string
+	datacenter        string
 	primaryDatacenter string
 	sdsAddress        string
 	sdsPort           int
@@ -144,14 +151,20 @@ type CertManager struct {
 }
 
 // NewCertManager creates a new CertManager instance.
-func NewCertManager(logger hclog.Logger, cfg Config, apiClient Client, service string, options *CertManagerOptions) *CertManager {
+func NewCertManager(logger hclog.Logger, apiClient Client, service string, options *CertManagerOptions) *CertManager {
 	if options == nil {
 		options = DefaultCertManagerOptions()
 	}
 	manager := &CertManager{
-		cfg:               cfg,
+		addresses:         options.Addresses,
+		grpcPort:          options.GRPCPort,
+		grpcTLS:           options.GRPCTLS,
+		grpcUseTLS:        options.GRPCUseTLS,
 		apiClient:         apiClient,
 		logger:            logger,
+		namespace:         options.Namespace,
+		partition:         options.Partition,
+		datacenter:        options.Datacenter,
 		primaryDatacenter: options.PrimaryDatacenter,
 		sdsAddress:        options.SDSAddress,
 		sdsPort:           options.SDSPort,
@@ -270,14 +283,16 @@ func (c *CertManager) handleLeafWatch(blockParam watch.BlockingParamVal, raw int
 func (c *CertManager) Manage(ctx context.Context) error {
 	c.logger.Trace("running cert manager")
 
-	grpcAddress := fmt.Sprintf("%s:%d", c.cfg.Addresses[0], c.cfg.GRPCPort)
+	grpcAddress := fmt.Sprintf("%s:%d", c.addresses[0], c.grpcPort)
 
 	c.logger.Trace("dialing " + grpcAddress)
+	c.logger.Trace("tls", c.grpcUseTLS)
 
 	// Default to insecure credentials unless TLS config has been provided
 	tlsCredentials := insecure.NewCredentials()
-	if c.cfg.TLS != nil {
-		tlsCredentials = credentials.NewTLS(c.cfg.TLS)
+	if c.grpcUseTLS {
+		c.logger.Trace(fmt.Sprintf("configuring gRPC TLS credentials: %+v", c.grpcTLS))
+		tlsCredentials = credentials.NewTLS(c.grpcTLS)
 	}
 
 	conn, err := grpc.DialContext(ctx, grpcAddress, grpc.WithTransportCredentials(tlsCredentials))

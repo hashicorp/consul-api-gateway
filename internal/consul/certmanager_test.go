@@ -57,15 +57,13 @@ func TestManage(t *testing.T) {
 			server := runCertServer(t, service, test.leafFailures, test.rootFailures, test.expirations)
 
 			options := DefaultCertManagerOptions()
+			options.Addresses = []string{server.consulAddress}
+			options.GRPCPort = server.consulGRPCPort
+			options.GRPCUseTLS = false
 			options.Directory = directory
 
 			manager := NewCertManager(
 				hclog.Default().Named("certmanager"),
-				Config{
-					Addresses: []string{server.consulAddress},
-					GRPCPort:  server.consulGRPCPort,
-					TLS:       nil,
-				},
 				NewClient(server.consulHTTPClient),
 				service,
 				options,
@@ -128,13 +126,12 @@ func TestManage_Refresh(t *testing.T) {
 	server := runCertServer(t, service, 0, 0, 2)
 
 	options := DefaultCertManagerOptions()
+	options.Addresses = []string{server.consulAddress}
+	options.GRPCPort = server.consulGRPCPort
+	options.GRPCUseTLS = false
+
 	manager := NewCertManager(
 		hclog.Default().Named("certmanager"),
-		Config{
-			Addresses: []string{server.consulAddress},
-			GRPCPort:  server.consulGRPCPort,
-			TLS:       nil,
-		},
 		NewClient(server.consulHTTPClient),
 		service,
 		options,
@@ -188,7 +185,6 @@ func TestManage_WaitCancel(t *testing.T) {
 
 	err := NewCertManager(
 		hclog.Default().Named("certmanager"),
-		Config{},
 		nil,
 		"",
 		nil,
@@ -453,9 +449,9 @@ func TestRenderSDS(t *testing.T) {
 
 	options := DefaultCertManagerOptions()
 	options.Directory = "/certs"
+
 	manager := NewCertManager(
 		hclog.Default().Named("certmanager"),
-		Config{},
 		nil,
 		gwTesting.RandomString(),
 		options,

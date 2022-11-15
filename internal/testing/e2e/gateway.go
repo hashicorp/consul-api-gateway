@@ -81,14 +81,13 @@ func (p *gatewayTestEnvironment) run(ctx context.Context, namespace string, cfg 
 
 	// set up the cert manager
 	certManagerOptions := consul.DefaultCertManagerOptions()
+	certManagerOptions.Addresses = []string{"localhost"}
+	certManagerOptions.GRPCPort = ConsulGRPCPort(ctx)
+	certManagerOptions.GRPCUseTLS = ConsulGRPCUseTLS(ctx)
+	certManagerOptions.GRPCTLS = ConsulTLSConfig(ctx)
 	certManagerOptions.Directory = p.directory
 	certManager := consul.NewCertManager(
 		nullLogger,
-		consul.Config{
-			Addresses: []string{"localhost"},
-			GRPCPort:  ConsulGRPCPort(ctx),
-			TLS:       ConsulTLSConfig(ctx),
-		},
 		client,
 		"consul-api-gateway",
 		certManagerOptions,

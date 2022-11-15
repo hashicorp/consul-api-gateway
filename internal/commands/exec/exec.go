@@ -152,6 +152,8 @@ func RunExec(config ExecConfig) (ret int) {
 		},
 	)
 	options := consul.DefaultCertManagerOptions()
+	options.Addresses = []string{config.EnvoyConfig.XDSAddress}
+	options.GRPCPort = config.EnvoyConfig.XDSPort
 	options.PrimaryDatacenter = config.PrimaryDatacenter
 	options.SDSAddress = config.EnvoyConfig.SDSAddress
 	options.SDSPort = config.EnvoyConfig.SDSPort
@@ -160,18 +162,20 @@ func RunExec(config ExecConfig) (ret int) {
 		options.Directory = config.EnvoyConfig.CertificateDirectory
 	}
 
-	tlsConfig, err := api.SetupTLSConfig(&config.ConsulConfig.TLSConfig)
-	if err != nil {
-		return 1
+	// This is the same check used in exec/command.go for HTTPS API configuration
+	if config.ConsulConfig.TLSConfig.CAFile != "" {
+		config.Logger.Info("configuring gateway TLS")
+		tlsConfig, err := api.SetupTLSConfig(&config.ConsulConfig.TLSConfig)
+		if err != nil {
+			return 1
+		}
+
+		options.GRPCUseTLS = true
+		options.GRPCTLS = tlsConfig
 	}
 
 	certManager := consul.NewCertManager(
 		config.Logger.Named("cert-manager"),
-		consul.Config{
-			Addresses: []string{config.EnvoyConfig.XDSAddress},
-			GRPCPort:  config.EnvoyConfig.XDSPort,
-			TLS:       tlsConfig,
-		},
 		client,
 		config.GatewayConfig.Name,
 		options,

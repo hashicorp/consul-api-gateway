@@ -89,6 +89,7 @@ func init() {
 
 type consulTestEnvironment struct {
 	ca                               []byte
+	consulGRPCUseTLS                 bool
 	consulTLSConfig                  *tls.Config
 	consulClient                     *api.Client
 	token                            string
@@ -182,6 +183,11 @@ func CreateTestConsulContainer(name, namespace string) env.Func {
 			KeyPEM:  clientCert.PrivateKeyBytes,
 		}
 
+		var consulGRPCUseTLS bool
+		if consulAPITLSConfig.CAFile != "" || len(consulAPITLSConfig.CAPem) > 0 {
+			consulGRPCUseTLS = true
+		}
+
 		consulTLSConfig, err := api.SetupTLSConfig(&consulAPITLSConfig)
 		if err != nil {
 			return nil, err
@@ -219,6 +225,7 @@ func CreateTestConsulContainer(name, namespace string) env.Func {
 
 		env := &consulTestEnvironment{
 			ca:                               rootCA.CertBytes,
+			consulGRPCUseTLS:                 consulGRPCUseTLS,
 			consulTLSConfig:                  consulTLSConfig,
 			consulClient:                     consulClient,
 			httpPort:                         httpsPort,
@@ -456,6 +463,10 @@ func consulDeployment(namespace string, httpsPort, grpcPort int) *apps.Deploymen
 			},
 		},
 	}
+}
+
+func ConsulGRPCUseTLS(ctx context.Context) bool {
+	return mustGetTestEnvironment(ctx).consulGRPCUseTLS
 }
 
 func ConsulTLSConfig(ctx context.Context) *tls.Config {
