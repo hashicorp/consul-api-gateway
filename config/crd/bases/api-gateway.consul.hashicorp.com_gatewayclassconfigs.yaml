@@ -79,7 +79,8 @@ spec:
                         type: string
                     type: object
                   partition:
-                    description: The partition in which the gateway is registered.
+                    description: The Consul admin partition in which the gateway is
+                      registered. https://developer.hashicorp.com/consul/tutorials/enterprise/consul-admin-partitions
                     type: string
                   ports:
                     description: The information about Consul's ports
