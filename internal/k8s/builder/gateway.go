@@ -297,6 +297,14 @@ func (b *GatewayDeploymentBuilder) envVars() []corev1.EnvVar {
 			Value: os.Getenv("CONSUL_LOGIN_DATACENTER"),
 		},
 		{
+			Name:  "CONSUL_PARTITION",
+			Value: orDefault(b.gwConfig.Spec.ConsulSpec.Partition, defaultPartition),
+		},
+		{
+			Name:  "CONSUL_TLS_SERVER_NAME",
+			Value: orDefault(b.gwConfig.Spec.ConsulSpec.ServerName, defaultServerName),
+		},
+		{
 			Name:  "PATH",
 			Value: "/:/sbin:/bin:/usr/bin:/usr/local/bin:/bootstrap",
 		},

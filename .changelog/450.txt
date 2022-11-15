@@ -1,0 +1,3 @@
+```release-note:enhancement
+Add optional `consul.partition` and `consul.serverName` to GatewayClassConfig CRD. If set these will be used to initialize the partition and server name used in TLS verification for communicating with Consul in a deployment.
+```

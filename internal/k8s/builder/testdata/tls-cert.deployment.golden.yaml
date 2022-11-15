@@ -75,6 +75,8 @@ spec:
               fieldPath: status.hostIP
         - name: CONSUL_LOGIN_PARTITION
         - name: CONSUL_LOGIN_DATACENTER
+        - name: CONSUL_PARTITION
+        - name: CONSUL_TLS_SERVER_NAME
         - name: PATH
           value: /:/sbin:/bin:/usr/bin:/usr/local/bin:/bootstrap
         - name: CONSUL_CACERT
