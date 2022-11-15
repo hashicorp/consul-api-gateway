@@ -36,7 +36,8 @@ type Command struct {
 	flagCASecret          string // CA Secret for Consul server
 	flagCASecretNamespace string // CA Secret namespace for Consul server
 
-	flagConsulAddress string // Consul server address
+	flagConsulAddress  string // Consul server address
+	flagConsulGRPCPort int    // Consul gRPC port
 
 	flagPrimaryDatacenter string // Primary datacenter, may or may not be the datacenter this controller is running in
 
@@ -71,6 +72,7 @@ func (c *Command) init() {
 	c.flagSet.StringVar(&c.flagCASecret, "ca-secret", "", "CA Secret for Consul server.")
 	c.flagSet.StringVar(&c.flagCASecretNamespace, "ca-secret-namespace", "default", "CA Secret namespace for Consul server.")
 	c.flagSet.StringVar(&c.flagConsulAddress, "consul-address", "", "Consul Address.")
+	c.flagSet.IntVar(&c.flagConsulGRPCPort, "consul-grpc-port", 8502, "Consul gRPC Port.")
 	c.flagSet.StringVar(&c.flagPrimaryDatacenter, "primary-datacenter", "", "Name of the primary Consul datacenter")
 	c.flagSet.StringVar(&c.flagSDSServerHost, "sds-server-host", defaultSDSServerHost, "SDS Server Host.")
 	c.flagSet.StringVar(&c.flagK8sContext, "k8s-context", "", "Kubernetes context to use.")
@@ -170,6 +172,7 @@ func (c *Command) Run(args []string) int {
 		Context:           context.Background(),
 		Logger:            logger,
 		ConsulConfig:      consulCfg,
+		ConsulGRPCPort:    c.flagConsulGRPCPort,
 		K8sConfig:         cfg,
 		ProfilingPort:     c.flagPprofPort,
 		MetricsPort:       c.flagMetricsPort,

@@ -1,0 +1,3 @@
+```release-note:enhancement
+consul: swap CA root watch from Consul Agent API to gRPC
+```

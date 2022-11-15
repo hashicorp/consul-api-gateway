@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"golang.org/x/sync/errgroup"
@@ -27,6 +28,7 @@ type ServerConfig struct {
 	Context           context.Context
 	Logger            hclog.Logger
 	ConsulConfig      *api.Config
+	ConsulGRPCPort    int
 	K8sConfig         *k8s.Config
 	ProfilingPort     int
 	MetricsPort       int
@@ -73,7 +75,23 @@ func RunServer(config ServerConfig) int {
 	controller.SetStore(store)
 
 	options := consul.DefaultCertManagerOptions()
+	options.Addresses = []string{strings.Split(config.ConsulConfig.Address, ":")[0]}
+	options.GRPCPort = config.ConsulGRPCPort
 	options.PrimaryDatacenter = config.PrimaryDatacenter
+
+	// This is the same check used in server/command.go for HTTPS API configuration
+	if config.ConsulConfig.TLSConfig.CAFile != "" {
+		config.Logger.Info("configuring controller TLS")
+		tlsConfig, err := api.SetupTLSConfig(&config.ConsulConfig.TLSConfig)
+		if err != nil {
+			return 1
+		}
+
+		options.GRPCUseTLS = true
+		options.GRPCTLS = tlsConfig
+	}
+
+	config.Logger.Info(fmt.Sprintf("%+v", options))
 
 	certManager := consul.NewCertManager(
 		config.Logger.Named("cert-manager"),

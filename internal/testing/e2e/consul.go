@@ -3,6 +3,7 @@ package e2e
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"html/template"
@@ -88,6 +89,8 @@ func init() {
 
 type consulTestEnvironment struct {
 	ca                               []byte
+	consulGRPCUseTLS                 bool
+	consulTLSConfig                  *tls.Config
 	consulClient                     *api.Client
 	token                            string
 	policy                           *api.ACLPolicy
@@ -174,14 +177,26 @@ func CreateTestConsulContainer(name, namespace string) env.Func {
 			return nil, err
 		}
 
+		consulAPITLSConfig := api.TLSConfig{
+			CAPem:   rootCA.CertBytes,
+			CertPEM: clientCert.CertBytes,
+			KeyPEM:  clientCert.PrivateKeyBytes,
+		}
+
+		var consulGRPCUseTLS bool
+		if consulAPITLSConfig.CAFile != "" || len(consulAPITLSConfig.CAPem) > 0 {
+			consulGRPCUseTLS = true
+		}
+
+		consulTLSConfig, err := api.SetupTLSConfig(&consulAPITLSConfig)
+		if err != nil {
+			return nil, err
+		}
+
 		consulClient, err := api.NewClient(&api.Config{
-			Address: fmt.Sprintf("localhost:%d", httpsPort),
-			Scheme:  "https",
-			TLSConfig: api.TLSConfig{
-				CAPem:   rootCA.CertBytes,
-				CertPEM: clientCert.CertBytes,
-				KeyPEM:  clientCert.PrivateKeyBytes,
-			},
+			Address:   fmt.Sprintf("localhost:%d", httpsPort),
+			Scheme:    "https",
+			TLSConfig: consulAPITLSConfig,
 		})
 		if err != nil {
 			return nil, err
@@ -210,6 +225,8 @@ func CreateTestConsulContainer(name, namespace string) env.Func {
 
 		env := &consulTestEnvironment{
 			ca:                               rootCA.CertBytes,
+			consulGRPCUseTLS:                 consulGRPCUseTLS,
+			consulTLSConfig:                  consulTLSConfig,
 			consulClient:                     consulClient,
 			httpPort:                         httpsPort,
 			httpFlattenedPort:                httpFlattenedPort,
@@ -260,15 +277,20 @@ func consulGRPCVarName() string {
 	tagTokens := strings.Split(consulImage, ":")
 	tag := tagTokens[len(tagTokens)-1]
 	imageVersion, err := semver.NewVersion(tag)
+	log.Printf("Consul image version: %s", imageVersion.String())
 	if err != nil {
+		log.Printf("Error parsing Consul image version: %s", err.Error())
 		return "grpc"
 	}
 	breakingVersion, err := semver.NewVersion(grpcConsulIncompatibleNameVersion)
+	log.Printf("Consul breaking version: %s", breakingVersion.String())
 	if err != nil {
+		log.Printf("Error parsing Consul breaking version: %s", breakingVersion.String())
 		return "grpc"
 	}
 	// we check major/minor directly since the semver check fails with the trailing -dev tag
 	if breakingVersion.Major() > imageVersion.Major() || (breakingVersion.Major() == imageVersion.Major() && breakingVersion.Minor() > imageVersion.Minor()) {
+		log.Print("Breaking version greater than image version")
 		return "grpc"
 	}
 	return "grpc_tls"
@@ -441,6 +463,14 @@ func consulDeployment(namespace string, httpsPort, grpcPort int) *apps.Deploymen
 			},
 		},
 	}
+}
+
+func ConsulGRPCUseTLS(ctx context.Context) bool {
+	return mustGetTestEnvironment(ctx).consulGRPCUseTLS
+}
+
+func ConsulTLSConfig(ctx context.Context) *tls.Config {
+	return mustGetTestEnvironment(ctx).consulTLSConfig
 }
 
 func ConsulClient(ctx context.Context) *api.Client {

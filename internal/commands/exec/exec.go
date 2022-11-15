@@ -16,6 +16,8 @@ import (
 
 	"github.com/hashicorp/consul-api-gateway/internal/consul"
 	"github.com/hashicorp/consul-api-gateway/internal/envoy"
+
+	"google.golang.org/grpc/metadata"
 )
 
 type AuthConfig struct {
@@ -78,6 +80,7 @@ func RunExec(config ExecConfig) (ret int) {
 
 	// First do the ACL Login, if necessary.
 	var consulClient *api.Client
+	var consulConfig *api.Config
 	var token string
 	var err error
 	if config.AuthConfig.Method != "" {
@@ -89,7 +92,7 @@ func RunExec(config ExecConfig) (ret int) {
 		}
 		config.Logger.Trace("consul login complete")
 	} else {
-		consulConfig := &config.ConsulConfig
+		consulConfig = &config.ConsulConfig
 		consulConfig.Namespace = config.GatewayConfig.Namespace
 		consulClient, err = api.NewClient(consulConfig)
 		if err != nil {
@@ -149,6 +152,8 @@ func RunExec(config ExecConfig) (ret int) {
 		},
 	)
 	options := consul.DefaultCertManagerOptions()
+	options.Addresses = []string{config.EnvoyConfig.XDSAddress}
+	options.GRPCPort = config.EnvoyConfig.XDSPort
 	options.PrimaryDatacenter = config.PrimaryDatacenter
 	options.SDSAddress = config.EnvoyConfig.SDSAddress
 	options.SDSPort = config.EnvoyConfig.SDSPort
@@ -156,6 +161,19 @@ func RunExec(config ExecConfig) (ret int) {
 	if config.EnvoyConfig.CertificateDirectory != "" {
 		options.Directory = config.EnvoyConfig.CertificateDirectory
 	}
+
+	// This is the same check used in exec/command.go for HTTPS API configuration
+	if config.ConsulConfig.TLSConfig.CAFile != "" {
+		config.Logger.Info("configuring gateway TLS")
+		tlsConfig, err := api.SetupTLSConfig(&config.ConsulConfig.TLSConfig)
+		if err != nil {
+			return 1
+		}
+
+		options.GRPCUseTLS = true
+		options.GRPCTLS = tlsConfig
+	}
+
 	certManager := consul.NewCertManager(
 		config.Logger.Named("cert-manager"),
 		client,
@@ -174,6 +192,11 @@ func RunExec(config ExecConfig) (ret int) {
 	}
 
 	group, groupCtx := errgroup.WithContext(ctx)
+
+	// Append token with service:write permissions to allow certmanager to
+	// watch roots and sign CSRs
+	groupCtx = metadata.AppendToOutgoingContext(groupCtx, "x-consul-token", token)
+
 	group.Go(func() error {
 		return certManager.Manage(groupCtx)
 	})
