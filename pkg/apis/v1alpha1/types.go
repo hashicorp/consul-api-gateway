@@ -95,7 +95,8 @@ type ConsulSpec struct {
 	// The scheme to use for connecting to Consul.
 	// +kubebuilder:validation:Enum=http;https
 	Scheme string `json:"scheme,omitempty"`
-	// The partition in which the gateway is registered.
+	// The Consul admin partition in which the gateway is registered.
+	// https://developer.hashicorp.com/consul/tutorials/enterprise/consul-admin-partitions
 	Partition string `json:"partition,omitempty"`
 	// The server name presented by the server's TLS certificate. This is
 	// useful when attempting to talk to a Consul server over TLS while
