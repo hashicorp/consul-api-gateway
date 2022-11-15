@@ -13,8 +13,9 @@ require (
 	github.com/golang/mock v1.6.0
 	github.com/golangci/golangci-lint v1.50.1
 	github.com/google/uuid v1.3.0
-	github.com/hashicorp/consul-server-connection-manager v0.1.0
+	github.com/hashicorp/consul-server-connection-manager v0.1.1-0.20221115222743-242744ae73fb
 	github.com/hashicorp/consul/api v1.15.3
+	github.com/hashicorp/consul/proto-public v0.1.0
 	github.com/hashicorp/consul/sdk v0.11.0
 	github.com/hashicorp/go-changelog v0.0.0-20221013053416-ba40b3a8c7ff
 	github.com/hashicorp/go-hclog v1.3.1
@@ -149,7 +150,6 @@ require (
 	github.com/gostaticanalysis/comment v1.4.2 // indirect
 	github.com/gostaticanalysis/forcetypeassert v0.1.0 // indirect
 	github.com/gostaticanalysis/nilerr v0.1.1 // indirect
-	github.com/hashicorp/consul/proto-public v0.1.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/hashicorp/go-immutable-radix v1.3.1 // indirect

@@ -678,8 +678,8 @@ github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0/go.mod h1:8NvIoxWQoOIhqOTXgf
 github.com/grpc-ecosystem/grpc-gateway v1.9.0/go.mod h1:vNeuVxBJEsws4ogUvrchl83t/GYV9WGTSLVdBhOQFDY=
 github.com/grpc-ecosystem/grpc-gateway v1.9.5/go.mod h1:vNeuVxBJEsws4ogUvrchl83t/GYV9WGTSLVdBhOQFDY=
 github.com/grpc-ecosystem/grpc-gateway v1.16.0/go.mod h1:BDjrQk3hbvj6Nolgz8mAMFbcEtjT1g+wF4CSlocrBnw=
-github.com/hashicorp/consul-server-connection-manager v0.1.0 h1:XCweGvMHzra88rYv2zxwwuUOjBUdcQmNKVrnQmt/muo=
-github.com/hashicorp/consul-server-connection-manager v0.1.0/go.mod h1:XVVlO+Yk7aiRpspiHZkrrFVn9BJIiOPnQIzqytPxGaU=
+github.com/hashicorp/consul-server-connection-manager v0.1.1-0.20221115222743-242744ae73fb h1:bbbNb5f4PFoKLSRREYb/YKjrTtt7MHEqffGW+Tjx25o=
+github.com/hashicorp/consul-server-connection-manager v0.1.1-0.20221115222743-242744ae73fb/go.mod h1:XVVlO+Yk7aiRpspiHZkrrFVn9BJIiOPnQIzqytPxGaU=
 github.com/hashicorp/consul/api v1.15.3 h1:WYONYL2rxTXtlekAqblR2SCdJsizMDIj/uXb5wNy9zU=
 github.com/hashicorp/consul/api v1.15.3/go.mod h1:/g/qgcoBcEXALCNZgRRisyTW0nY86++L0KbeAMXYCeY=
 github.com/hashicorp/consul/proto-public v0.1.0 h1:O0LSmCqydZi363hsqc6n2v5sMz3usQMXZF6ziK3SzXU=
