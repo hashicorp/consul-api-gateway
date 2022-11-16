@@ -31,16 +31,16 @@ jobs:
     strategy:
       matrix:
         config:
-          - name: "consul@v1.13 + consul-k8s@v0.49.0"
+          - name: "consul@v1.13 + consul-k8s@v0.49.1"
             api-gateway-image: "consul-api-gateway:local-build"
             consul-image: "hashicorp/consul:1.13"
             envoy-image: "envoyproxy/envoy:v1.22-latest"
-            consul-k8s-version: "v0.49.0"
-          - name: "consul@v1.14-dev + consul-k8s@v0.49.0"
+            consul-k8s-version: "v0.49.1"
+          - name: "consul@v1.14-dev + consul-k8s@v0.49.1"
             api-gateway-image: "consul-api-gateway:local-build"
             consul-image: "hashicorp/consul:1.14"
             envoy-image: "envoyproxy/envoy:v1.22-latest"
-            consul-k8s-version: "v0.49.0"
+            consul-k8s-version: "v0.49.1"
       fail-fast: true
     name: "${{ matrix.config.name }}"
 
