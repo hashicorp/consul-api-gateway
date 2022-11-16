@@ -534,7 +534,7 @@ func CreateConsulACLPolicy(ctx context.Context, cfg *envconf.Config) (context.Co
 		return ctx, nil
 	}
 	env := consulEnvironment.(*consulTestEnvironment)
-	token, _, err := env.consulClient.Internal().ACL().Bootstrap()
+	token, _, err := env.consulClient.ACL().Bootstrap()
 	if err != nil {
 		return nil, err
 	}
