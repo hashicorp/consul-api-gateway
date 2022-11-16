@@ -40,7 +40,7 @@ jobs:
             consul-k8s-version: "v0.49.0"
           - name: "consul@v1.14-dev + consul-k8s@v0.49.0"
             api-gateway-image: "hashicorppreview/consul-api-gateway:0.5-dev"
-            consul-image: "hashicorppreview/consul:1.14-dev"
+            consul-image: "hashicorp/consul:1.14"
             envoy-image: "envoyproxy/envoy:v1.22-latest"
             consul-k8s-version: "v0.49.0"
       fail-fast: true
