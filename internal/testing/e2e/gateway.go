@@ -40,7 +40,7 @@ func (p *gatewayTestEnvironment) run(ctx context.Context, namespace string, cfg 
 	consulClient := ConsulClient(ctx)
 
 	// this should go away once we implement auth in the server bootup
-	consulClient.AddHeader("x-consul-token", ConsulInitialManagementToken(ctx))
+	consulClient.Internal().AddHeader("x-consul-token", ConsulInitialManagementToken(ctx))
 
 	nullLogger := hclog.Default()
 	nullLogger.SetLevel(hclog.Trace)
@@ -70,11 +70,10 @@ func (p *gatewayTestEnvironment) run(ctx context.Context, namespace string, cfg 
 		return err
 	}
 
-	client := consul.NewClient(consulClient)
-	adapter := consulAdapters.NewSyncAdapter(nullLogger, client)
-	store := store.New(k8s.StoreConfig(adapter, controller.Client(), client, nullLogger, *k8sConfig))
+	adapter := consulAdapters.NewSyncAdapter(nullLogger, consulClient)
+	store := store.New(k8s.StoreConfig(adapter, controller.Client(), consulClient, nullLogger, *k8sConfig))
 
-	controller.SetConsul(client)
+	controller.SetConsul(consulClient)
 	controller.SetStore(store)
 
 	// set up the cert manager
@@ -82,7 +81,7 @@ func (p *gatewayTestEnvironment) run(ctx context.Context, namespace string, cfg 
 	certManagerOptions.Directory = p.directory
 	certManager := consul.NewCertManager(
 		nullLogger,
-		client,
+		consulClient,
 		"consul-api-gateway",
 		certManagerOptions,
 	)

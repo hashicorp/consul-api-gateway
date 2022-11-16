@@ -2,6 +2,7 @@ package builder
 
 import (
 	"bytes"
+	"os"
 	"strings"
 	"text/template"
 
@@ -286,6 +287,14 @@ func (b *GatewayDeploymentBuilder) envVars() []corev1.EnvVar {
 					FieldPath: "status.hostIP",
 				},
 			},
+		},
+		{
+			Name:  "CONSUL_LOGIN_PARTITION",
+			Value: os.Getenv("CONSUL_LOGIN_PARTITION"),
+		},
+		{
+			Name:  "CONSUL_LOGIN_DATACENTER",
+			Value: os.Getenv("CONSUL_LOGIN_DATACENTER"),
 		},
 		{
 			Name:  "CONSUL_PARTITION",

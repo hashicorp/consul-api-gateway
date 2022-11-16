@@ -5,7 +5,10 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strconv"
+	"strings"
 	"syscall"
+	"time"
 
 	"golang.org/x/sync/errgroup"
 
@@ -23,14 +26,19 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/vault"
 )
 
+const (
+	consulHTTPAddressEnvName = "CONSUL_HTTP_ADDR"
+)
+
 type ServerConfig struct {
-	Context           context.Context
-	Logger            hclog.Logger
-	ConsulConfig      *api.Config
-	K8sConfig         *k8s.Config
-	ProfilingPort     int
-	MetricsPort       int
-	PrimaryDatacenter string
+	Context            context.Context
+	Logger             hclog.Logger
+	ConsulConfig       *api.Config
+	ConsulClientConfig consul.ClientConfig
+	K8sConfig          *k8s.Config
+	ProfilingPort      int
+	MetricsPort        int
+	PrimaryDatacenter  string
 
 	// for testing only
 	isTest bool
@@ -54,12 +62,14 @@ func RunServer(config ServerConfig) int {
 		return 1
 	}
 
-	consulClient, err := api.NewClient(config.ConsulConfig)
-	if err != nil {
-		config.Logger.Error("error creating a Consul API client", "error", err)
+	client := consul.NewClient(config.ConsulClientConfig)
+	group.Go(func() error {
+		return client.WatchServers(groupCtx)
+	})
+	if err := client.Wait(10 * time.Second); err != nil {
+		config.Logger.Error("unexpected error watching servers", "error", err)
 		return 1
 	}
-	client := consul.NewClient(consulClient)
 
 	adapter := consulAdapters.NewSyncAdapter(config.Logger.Named("consul-adapter"), client)
 	store := store.New(k8s.StoreConfig(adapter, controller.Client(), client, config.Logger, *config.K8sConfig))
@@ -155,4 +165,16 @@ func registerSecretClients(config ServerConfig) (*envoy.MultiSecretClient, error
 	secretClient.Register(vault.KVSecretScheme, vaultStaticClient)
 
 	return secretClient, nil
+}
+
+func parseConsulHTTPAddress() (cmd string, port int, err error) {
+	consulhttpAddress := os.Getenv(consulHTTPAddressEnvName)
+
+	index := strings.LastIndex(consulhttpAddress, ":")
+	cmd, portString := consulhttpAddress[:index], consulhttpAddress[index+1:]
+	port, err = strconv.Atoi(portString)
+	if err != nil {
+		return "", 0, err
+	}
+	return cmd, port, nil
 }
