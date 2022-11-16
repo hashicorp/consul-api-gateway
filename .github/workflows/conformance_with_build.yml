@@ -40,7 +40,8 @@ jobs:
             api-gateway-image: "consul-api-gateway:local-build"
             consul-image: "hashicorp/consul:1.14"
             envoy-image: "envoyproxy/envoy:v1.22-latest"
-            consul-k8s-version: "v0.49.1"
+            #use the latest version of main
+            consul-k8s-version: "main"
       fail-fast: true
     name: "${{ matrix.config.name }}"
 

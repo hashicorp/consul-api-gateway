@@ -1,6 +1,6 @@
 global:
   tls:
-    enabled: false
+    enabled: true
 server:
   replicas: 1
 connectInject:
