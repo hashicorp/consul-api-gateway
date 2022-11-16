@@ -44,7 +44,7 @@ jobs:
             envoy-image: "envoyproxy/envoy:v1.22-latest"
             #use the latest version of main
             consul-k8s-version: "main"
-      fail-fast: true
+      fail-fast: false
     name: "${{ matrix.cluster-type }} - ${{ matrix.config.name }}"
     concurrency:
       group: ${{ matrix.cluster-type }}

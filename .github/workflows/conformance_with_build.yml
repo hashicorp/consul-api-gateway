@@ -41,7 +41,7 @@ jobs:
             consul-image: "hashicorp/consul:1.14"
             envoy-image: "envoyproxy/envoy:v1.22-latest"
             consul-k8s-version: "main"
-      fail-fast: true
+      fail-fast: false
     name: "${{ matrix.config.name }}"
 
     steps:
