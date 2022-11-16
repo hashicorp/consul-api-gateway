@@ -27,6 +27,7 @@ var (
 
 type Client interface {
 	Agent() *api.Agent
+	ACL() *api.ACL
 	Catalog() *api.Catalog
 	ConfigEntries() *api.ConfigEntries
 	DiscoveryChain() *api.DiscoveryChain
@@ -197,6 +198,13 @@ func (c *client) Namespaces() *api.Namespaces {
 	defer c.mutex.RUnlock()
 
 	return c.client.Namespaces()
+}
+
+func (c *client) ACL() *api.ACL {
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
+
+	return c.client.ACL()
 }
 
 func (c *client) Token() string {
