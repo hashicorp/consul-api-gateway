@@ -167,14 +167,22 @@ func (c *Command) Run(args []string) (ret int) {
 		bearerToken = strings.TrimSpace(string(data))
 	}
 
+	if c.flagGatewayNamespace != "" {
+		cfg.Namespace = c.flagGatewayNamespace
+	}
+
 	consulClientConfig := consul.ClientConfig{
 		ApiClientConfig: cfg,
 		Addresses:       c.flagConsulHTTPAddress,
 		HTTPPort:        c.flagConsulHTTPPort,
 		GRPCPort:        c.flagConsulXDSPort,
-		Namespace:       c.flagGatewayNamespace,
+		PlainText:       cfg.Scheme == "http",
 		TLS:             cfg.Transport.TLSClientConfig,
-		Credentials: discovery.Credentials{
+		Logger:          logger,
+	}
+
+	if c.flagACLAuthMethod != "" {
+		consulClientConfig.Credentials = discovery.Credentials{
 			Type: discovery.CredentialsTypeLogin,
 			Login: discovery.LoginCredential{
 				AuthMethod:  c.flagACLAuthMethod,
@@ -184,8 +192,7 @@ func (c *Command) Run(args []string) (ret int) {
 				BearerToken: bearerToken,
 				Meta:        map[string]string{},
 			},
-		},
-		Logger: logger,
+		}
 	}
 
 	return RunExec(ExecConfig{

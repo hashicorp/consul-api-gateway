@@ -43,10 +43,10 @@ type Client interface {
 
 type ClientConfig struct {
 	ApiClientConfig *api.Config
+	PlainText       bool
 	Addresses       string
 	HTTPPort        int
 	GRPCPort        int
-	Namespace       string
 	TLS             *tls.Config
 	Credentials     discovery.Credentials
 	Logger          hclog.Logger
@@ -94,13 +94,18 @@ func (c *client) WatchServers(ctx context.Context) error {
 		serverName = c.config.TLS.ServerName
 	}
 
-	globalWatcherMutex.Lock()
-	watcher, err := discovery.NewWatcher(ctx, discovery.Config{
+	config := discovery.Config{
 		Addresses:   c.config.Addresses,
 		GRPCPort:    c.config.GRPCPort,
-		TLS:         c.config.TLS,
 		Credentials: c.config.Credentials,
-	}, c.config.Logger)
+	}
+
+	if !c.config.PlainText {
+		config.TLS = c.config.TLS
+	}
+
+	globalWatcherMutex.Lock()
+	watcher, err := discovery.NewWatcher(ctx, config, c.config.Logger)
 	globalWatcherMutex.Unlock()
 
 	if err != nil {
@@ -118,7 +123,6 @@ func (c *client) WatchServers(ctx context.Context) error {
 	}
 	updateClient := func(s discovery.State) error {
 		cfg := c.config.ApiClientConfig
-		cfg.Namespace = c.config.Namespace
 		cfg.Address = fmt.Sprintf("%s:%d", s.Address.IP.String(), c.config.HTTPPort)
 		if static {
 			// This is to fix the fact that s.Address always resolves to an IP, if

@@ -205,7 +205,7 @@ func (c *Command) Run(args []string) int {
 		Addresses:       consulHTTPAddressOrCommand,
 		HTTPPort:        port,
 		GRPCPort:        grpcPort(),
-		Namespace:       c.flagK8sNamespace,
+		PlainText:       consulCfg.Scheme == "http",
 		TLS:             tlsCfg,
 		Credentials: discovery.Credentials{
 			Type: discovery.CredentialsTypeStatic,
