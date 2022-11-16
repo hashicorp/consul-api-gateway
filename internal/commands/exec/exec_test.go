@@ -3,27 +3,44 @@ package exec
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
 	"path"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
 
 	"github.com/hashicorp/consul/api"
+	"github.com/hashicorp/consul/proto-public/pbdataplane"
 	"github.com/hashicorp/go-hclog"
 
+	"github.com/hashicorp/consul-api-gateway/internal/consul"
 	gwTesting "github.com/hashicorp/consul-api-gateway/internal/testing"
 )
 
-func TestRunExecLoginError(t *testing.T) {
-	t.Parallel()
+type testDPServer struct{}
 
+func (t *testDPServer) GetSupportedDataplaneFeatures(context.Context, *pbdataplane.GetSupportedDataplaneFeaturesRequest) (*pbdataplane.GetSupportedDataplaneFeaturesResponse, error) {
+	return &pbdataplane.GetSupportedDataplaneFeaturesResponse{
+		SupportedDataplaneFeatures: []*pbdataplane.DataplaneFeatureSupport{},
+	}, nil
+}
+
+func (t *testDPServer) GetEnvoyBootstrapParams(context.Context, *pbdataplane.GetEnvoyBootstrapParamsRequest) (*pbdataplane.GetEnvoyBootstrapParamsResponse, error) {
+	return nil, errors.New("not implemented")
+}
+
+func TestRunExecLoginError(t *testing.T) {
 	var buffer gwTesting.Buffer
 	logger := hclog.New(&hclog.LoggerOptions{
 		Output: &buffer,
@@ -32,22 +49,21 @@ func TestRunExecLoginError(t *testing.T) {
 		loginFail: true,
 	})
 	require.Equal(t, 1, RunExec(ExecConfig{
-		Context:      context.Background(),
-		Logger:       logger,
-		ConsulClient: consul.client,
-		ConsulConfig: *consul.config,
+		Context:            context.Background(),
+		Logger:             logger,
+		ConsulClient:       consul.client,
+		ConsulConfig:       *consul.config,
+		ConsulClientConfig: consul.clientConfig,
 		AuthConfig: AuthConfig{
 			Method: "nonexistent",
 			Token:  "token",
 		},
 		isTest: true,
 	}))
-	require.Contains(t, buffer.String(), "error logging into consul")
+	require.Contains(t, buffer.String(), "no such file or directory")
 }
 
 func TestRunExecLoginSuccessRegistrationFail(t *testing.T) {
-	t.Parallel()
-
 	var buffer gwTesting.Buffer
 	logger := hclog.New(&hclog.LoggerOptions{
 		Output: &buffer,
@@ -56,10 +72,11 @@ func TestRunExecLoginSuccessRegistrationFail(t *testing.T) {
 		registerFail: true,
 	})
 	require.Equal(t, 1, RunExec(ExecConfig{
-		Context:      context.Background(),
-		Logger:       logger,
-		ConsulClient: consul.client,
-		ConsulConfig: *consul.config,
+		Context:            context.Background(),
+		Logger:             logger,
+		ConsulClient:       consul.client,
+		ConsulConfig:       *consul.config,
+		ConsulClientConfig: consul.clientConfig,
 		AuthConfig: AuthConfig{
 			Method: "nonexistent",
 			Token:  "token",
@@ -73,8 +90,6 @@ func TestRunExecLoginSuccessRegistrationFail(t *testing.T) {
 }
 
 func TestRunExecDeregisterFail(t *testing.T) {
-	t.Parallel()
-
 	directory, err := os.MkdirTemp("", "exec-test")
 	require.NoError(t, err)
 	defer os.RemoveAll(directory)
@@ -89,10 +104,11 @@ func TestRunExecDeregisterFail(t *testing.T) {
 		leafCertFail: true,
 	})
 	require.Equal(t, 1, RunExec(ExecConfig{
-		Context:      context.Background(),
-		Logger:       logger,
-		ConsulClient: consul.client,
-		ConsulConfig: *consul.config,
+		Context:            context.Background(),
+		Logger:             logger,
+		ConsulClient:       consul.client,
+		ConsulConfig:       *consul.config,
+		ConsulClientConfig: consul.clientConfig,
 		AuthConfig: AuthConfig{
 			Method: "nonexistent",
 			Token:  "token",
@@ -110,8 +126,6 @@ func TestRunExecDeregisterFail(t *testing.T) {
 }
 
 func TestRunExecCertFail(t *testing.T) {
-	t.Parallel()
-
 	directory, err := os.MkdirTemp("", "exec-test")
 	require.NoError(t, err)
 	defer os.RemoveAll(directory)
@@ -124,10 +138,11 @@ func TestRunExecCertFail(t *testing.T) {
 		leafCertFail: true,
 	})
 	require.Equal(t, 1, RunExec(ExecConfig{
-		Context:      context.Background(),
-		Logger:       logger,
-		ConsulClient: consul.client,
-		ConsulConfig: *consul.config,
+		Context:            context.Background(),
+		Logger:             logger,
+		ConsulClient:       consul.client,
+		ConsulClientConfig: consul.clientConfig,
+		ConsulConfig:       *consul.config,
 		AuthConfig: AuthConfig{
 			Method: "nonexistent",
 			Token:  "token",
@@ -145,8 +160,6 @@ func TestRunExecCertFail(t *testing.T) {
 }
 
 func TestRunExecRootCertFail(t *testing.T) {
-	t.Parallel()
-
 	directory, err := os.MkdirTemp("", "exec-test")
 	require.NoError(t, err)
 	defer os.RemoveAll(directory)
@@ -159,10 +172,11 @@ func TestRunExecRootCertFail(t *testing.T) {
 		rootCertFail: true,
 	})
 	require.Equal(t, 1, RunExec(ExecConfig{
-		Context:      context.Background(),
-		Logger:       logger,
-		ConsulClient: consul.client,
-		ConsulConfig: *consul.config,
+		Context:            context.Background(),
+		Logger:             logger,
+		ConsulClient:       consul.client,
+		ConsulClientConfig: consul.clientConfig,
+		ConsulConfig:       *consul.config,
 		AuthConfig: AuthConfig{
 			Method: "nonexistent",
 			Token:  "token",
@@ -180,8 +194,6 @@ func TestRunExecRootCertFail(t *testing.T) {
 }
 
 func TestRunExecSDSRenderFail(t *testing.T) {
-	t.Parallel()
-
 	directory, err := os.MkdirTemp("", "exec-test")
 	require.NoError(t, err)
 	os.RemoveAll(directory)
@@ -192,10 +204,11 @@ func TestRunExecSDSRenderFail(t *testing.T) {
 	})
 	consul := runMockConsulServer(t, mockConsulOptions{})
 	require.Equal(t, 1, RunExec(ExecConfig{
-		Context:      context.Background(),
-		Logger:       logger,
-		ConsulClient: consul.client,
-		ConsulConfig: *consul.config,
+		Context:            context.Background(),
+		Logger:             logger,
+		ConsulClient:       consul.client,
+		ConsulClientConfig: consul.clientConfig,
+		ConsulConfig:       *consul.config,
 		AuthConfig: AuthConfig{
 			Method: "nonexistent",
 			Token:  "token",
@@ -213,8 +226,6 @@ func TestRunExecSDSRenderFail(t *testing.T) {
 }
 
 func TestRunExecBootstrapRenderFail(t *testing.T) {
-	t.Parallel()
-
 	directory, err := os.MkdirTemp("", "exec-test")
 	require.NoError(t, err)
 	defer os.RemoveAll(directory)
@@ -225,10 +236,11 @@ func TestRunExecBootstrapRenderFail(t *testing.T) {
 	})
 	consul := runMockConsulServer(t, mockConsulOptions{})
 	require.Equal(t, 1, RunExec(ExecConfig{
-		Context:      context.Background(),
-		Logger:       logger,
-		ConsulClient: consul.client,
-		ConsulConfig: *consul.config,
+		Context:            context.Background(),
+		Logger:             logger,
+		ConsulClient:       consul.client,
+		ConsulClientConfig: consul.clientConfig,
+		ConsulConfig:       *consul.config,
 		AuthConfig: AuthConfig{
 			Method: "nonexistent",
 			Token:  "token",
@@ -247,8 +259,6 @@ func TestRunExecBootstrapRenderFail(t *testing.T) {
 }
 
 func TestRunExecEnvoyExecError(t *testing.T) {
-	t.Parallel()
-
 	directory, err := os.MkdirTemp("", "exec-test")
 	require.NoError(t, err)
 	defer os.RemoveAll(directory)
@@ -259,10 +269,11 @@ func TestRunExecEnvoyExecError(t *testing.T) {
 	})
 	consul := runMockConsulServer(t, mockConsulOptions{})
 	require.Equal(t, 1, RunExec(ExecConfig{
-		Context:      context.Background(),
-		Logger:       logger,
-		ConsulClient: consul.client,
-		ConsulConfig: *consul.config,
+		Context:            context.Background(),
+		Logger:             logger,
+		ConsulClient:       consul.client,
+		ConsulClientConfig: consul.clientConfig,
+		ConsulConfig:       *consul.config,
 		AuthConfig: AuthConfig{
 			Method: "nonexistent",
 			Token:  "token",
@@ -293,15 +304,16 @@ func TestRunExecShutdown(t *testing.T) {
 		Output: &buffer,
 	})
 	consul := runMockConsulServer(t, mockConsulOptions{})
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 
 	output := gwTesting.RandomString()
-	require.Equal(t, 0, RunExec(ExecConfig{
-		Context:      ctx,
-		Logger:       logger,
-		ConsulClient: consul.client,
-		ConsulConfig: *consul.config,
+	assert.Equal(t, 0, RunExec(ExecConfig{
+		Context:            ctx,
+		ConsulClientConfig: consul.clientConfig,
+		Logger:             logger,
+		ConsulClient:       consul.client,
+		ConsulConfig:       *consul.config,
 		AuthConfig: AuthConfig{
 			Method: "nonexistent",
 			Token:  "token",
@@ -322,62 +334,6 @@ func TestRunExecShutdown(t *testing.T) {
 	require.Contains(t, buffer.String(), "shutting down")
 }
 
-// TestRunExecShutdownACLs test that if ACLs are enabled we logout and report error if this fails.
-func TestRunExecShutdownACLs(t *testing.T) {
-	t.Parallel()
-
-	directory, err := os.MkdirTemp("", "exec-test")
-	require.NoError(t, err)
-	defer os.RemoveAll(directory)
-
-	var buffer gwTesting.Buffer
-	logger := hclog.New(&hclog.LoggerOptions{
-		Output: &buffer,
-	})
-	consul := runMockConsulServer(t, mockConsulOptions{
-		loginFail:  false,
-		logoutFail: true,
-	})
-	require.Equal(t, 1, RunExec(ExecConfig{
-		Context:      context.Background(),
-		Logger:       logger,
-		ConsulClient: consul.client,
-		ConsulConfig: *consul.config,
-		AuthConfig: AuthConfig{
-			Method: "nonexistent",
-			Token:  "token",
-		},
-		isTest: true,
-	}))
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
-	defer cancel()
-	output := gwTesting.RandomString()
-	require.Equal(t, 1, RunExec(ExecConfig{
-		Context:      ctx,
-		Logger:       logger,
-		ConsulClient: consul.client,
-		ConsulConfig: *consul.config,
-		AuthConfig: AuthConfig{
-			Method: "nonexistent",
-			Token:  "token",
-		},
-		GatewayConfig: GatewayConfig{
-			Name: "test",
-		},
-		EnvoyConfig: EnvoyConfig{
-			CertificateDirectory: directory,
-			BootstrapFile:        path.Join(directory, "boostrap.json"),
-			Binary:               "echo",
-			ExtraArgs:            []string{output},
-			Output:               &buffer,
-		},
-		isTest: true,
-	}))
-
-	require.Contains(t, buffer.String(), output)
-	require.Contains(t, buffer.String(), "error deleting acl token")
-}
-
 type mockConsulOptions struct {
 	loginFail      bool
 	logoutFail     bool
@@ -390,6 +346,8 @@ type mockConsulOptions struct {
 type mockConsulServer struct {
 	client *api.Client
 	config *api.Config
+
+	clientConfig consul.ClientConfig
 
 	token            string
 	rootCertPEM      string
@@ -492,5 +450,29 @@ func runMockConsulServer(t *testing.T, opts mockConsulOptions) *mockConsulServer
 
 	server.client = client
 	server.config = clientConfig
+
+	port, err := strconv.Atoi(serverURL.Port())
+	require.NoError(t, err)
+
+	grpcServer := grpc.NewServer()
+	pbdataplane.RegisterDataplaneServiceServer(grpcServer, &testDPServer{})
+	grpcListener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	grpcPort, err := strconv.Atoi(strings.Split(grpcListener.Addr().String(), ":")[1])
+	require.NoError(t, err)
+	go func() {
+		_ = grpcServer.Serve(grpcListener)
+	}()
+	t.Cleanup(func() {
+		_ = grpcListener.Close()
+	})
+
+	server.clientConfig = consul.ClientConfig{
+		Addresses:       serverURL.Hostname(),
+		ApiClientConfig: clientConfig,
+		GRPCPort:        grpcPort,
+		HTTPPort:        port,
+	}
+
 	return server
 }

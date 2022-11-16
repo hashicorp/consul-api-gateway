@@ -11,13 +11,15 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hashicorp/consul-api-gateway/internal/consul"
+	"github.com/hashicorp/consul-server-connection-manager/discovery"
+
 	"github.com/google/uuid"
 	"github.com/mitchellh/cli"
 
+	"github.com/hashicorp/consul-api-gateway/internal/common"
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
-
-	"github.com/hashicorp/consul-api-gateway/internal/common"
 )
 
 // https://github.com/hashicorp/consul-k8s/blob/24be51c58461e71365ca39f113dae0379f7a1b7c/control-plane/connect-inject/container_init.go#L272-L306
@@ -149,6 +151,8 @@ func (c *Command) Run(args []string) (ret int) {
 	if cfg.TLSConfig.CAFile != "" {
 		cfg.Scheme = "https"
 	}
+	// this call mutates the cfg object with a bunch of defaults
+	// so we're going to keep it for now
 	consulClient, err := api.NewClient(cfg)
 	if err != nil {
 		logger.Error("error creating consul client", "error", err)
@@ -163,6 +167,34 @@ func (c *Command) Run(args []string) (ret int) {
 			return 1
 		}
 		bearerToken = strings.TrimSpace(string(data))
+	}
+
+	if c.flagGatewayNamespace != "" {
+		cfg.Namespace = c.flagGatewayNamespace
+	}
+
+	consulClientConfig := consul.ClientConfig{
+		ApiClientConfig: cfg,
+		Addresses:       c.flagConsulHTTPAddress,
+		HTTPPort:        c.flagConsulHTTPPort,
+		GRPCPort:        c.flagConsulXDSPort,
+		PlainText:       cfg.Scheme == "http",
+		TLS:             cfg.Transport.TLSClientConfig,
+		Logger:          logger,
+	}
+
+	if c.flagACLAuthMethod != "" {
+		consulClientConfig.Credentials = discovery.Credentials{
+			Type: discovery.CredentialsTypeLogin,
+			Login: discovery.LoginCredential{
+				AuthMethod:  c.flagACLAuthMethod,
+				Namespace:   c.flagAuthMethodNamespace,
+				Partition:   os.Getenv("CONSUL_LOGIN_PARTITION"),
+				Datacenter:  os.Getenv("CONSUL_LOGIN_DATACENTER"),
+				BearerToken: bearerToken,
+				Meta:        map[string]string{},
+			},
+		}
 	}
 
 	return RunExec(ExecConfig{
@@ -192,7 +224,8 @@ func (c *Command) Run(args []string) (ret int) {
 			Binary:            "envoy",
 			Output:            c.output,
 		},
-		isTest: c.isTest,
+		ConsulClientConfig: consulClientConfig,
+		isTest:             c.isTest,
 	})
 }
 

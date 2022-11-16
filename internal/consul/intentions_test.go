@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/hashicorp/consul-api-gateway/internal/consul/mocks"
+	consultesting "github.com/hashicorp/consul-api-gateway/internal/testing"
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/consul/sdk/testutil"
 )
@@ -238,7 +239,8 @@ func TestIntentionsReconciler_Reconcile(t *testing.T) {
 			},
 		},
 	}
-	r := NewIntentionsReconciler(NewClient(c), igw, testutil.Logger(t))
+	r := NewIntentionsReconciler(consultesting.NewTestClient(c), igw, testutil.Logger(t))
+
 	require.NoError(r.Reconcile())
 
 	err = c.Agent().ServiceRegister(&api.AgentServiceRegistration{

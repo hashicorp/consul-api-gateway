@@ -2,7 +2,6 @@ package exec
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"os"
 	"os/signal"
@@ -44,15 +43,16 @@ type EnvoyConfig struct {
 }
 
 type ExecConfig struct {
-	Context           context.Context
-	Logger            hclog.Logger
-	LogLevel          string
-	ConsulClient      *api.Client
-	ConsulConfig      api.Config
-	AuthConfig        AuthConfig
-	GatewayConfig     GatewayConfig
-	EnvoyConfig       EnvoyConfig
-	PrimaryDatacenter string
+	Context            context.Context
+	Logger             hclog.Logger
+	LogLevel           string
+	ConsulClient       *api.Client
+	ConsulConfig       api.Config
+	AuthConfig         AuthConfig
+	GatewayConfig      GatewayConfig
+	EnvoyConfig        EnvoyConfig
+	ConsulClientConfig consul.ClientConfig
+	PrimaryDatacenter  string
 
 	// for testing only
 	isTest bool
@@ -76,28 +76,23 @@ func RunExec(config ExecConfig) (ret int) {
 		}
 	}()
 
-	// First do the ACL Login, if necessary.
-	var consulClient *api.Client
-	var token string
-	var err error
-	if config.AuthConfig.Method != "" {
-		config.Logger.Trace("logging in to consul")
-		consulClient, token, err = login(config)
-		if err != nil {
-			config.Logger.Error("error logging into consul", "error", err)
-			return 1
+	group, groupCtx := errgroup.WithContext(ctx)
+
+	sessionContext, sessionCancel := context.WithCancel(context.Background())
+	defer sessionCancel()
+
+	client := consul.NewClient(config.ConsulClientConfig)
+	go func() {
+		if err := client.WatchServers(sessionContext); err != nil {
+			config.Logger.Error("unexpected error watching servers", "error", err)
+			cancel()
 		}
-		config.Logger.Trace("consul login complete")
-	} else {
-		consulConfig := &config.ConsulConfig
-		consulConfig.Namespace = config.GatewayConfig.Namespace
-		consulClient, err = api.NewClient(consulConfig)
-		if err != nil {
-			config.Logger.Error("error reinitializing consul client", "error", err)
-			return 1
-		}
+	}()
+	if err := client.Wait(10 * time.Second); err != nil {
+		config.Logger.Error("unexpected error watching servers", "error", err)
+		return 1
 	}
-	client := consul.NewClient(consulClient)
+
 	registry := consul.NewServiceRegistry(
 		config.Logger.Named("service-registry"),
 		client,
@@ -116,20 +111,14 @@ func RunExec(config ExecConfig) (ret int) {
 	}
 	defer func() {
 		config.Logger.Trace("deregistering service")
-		// using context.Background here since the global context has
+		// using sessionContext here since the global context has
 		// already been canceled at this point and we're just in a cleanup
 		// function
-		if err := registry.Deregister(context.Background()); err != nil {
+		if err := registry.Deregister(sessionContext); err != nil {
 			config.Logger.Error("error deregistering service", "error", err)
 			ret = 1
 		}
-		// clean up the ACL token that was provisioned via acl.login
-		if config.AuthConfig.Method != "" {
-			if err := logout(config, token); err != nil {
-				config.Logger.Error("error deleting acl token", "error", err)
-				ret = 1
-			}
-		}
+		sessionCancel()
 	}()
 
 	envoyManager := envoy.NewManager(
@@ -142,7 +131,7 @@ func RunExec(config ExecConfig) (ret int) {
 			ConsulXDSPort:     config.EnvoyConfig.XDSPort,
 			BootstrapFilePath: config.EnvoyConfig.BootstrapFile,
 			LogLevel:          config.LogLevel,
-			Token:             token,
+			Token:             client.Token(),
 			EnvoyBinary:       config.EnvoyConfig.Binary,
 			ExtraArgs:         config.EnvoyConfig.ExtraArgs,
 			Output:            config.EnvoyConfig.Output,
@@ -173,7 +162,6 @@ func RunExec(config ExecConfig) (ret int) {
 		return 1
 	}
 
-	group, groupCtx := errgroup.WithContext(ctx)
 	group.Go(func() error {
 		return certManager.Manage(groupCtx)
 	})
@@ -204,39 +192,4 @@ func RunExec(config ExecConfig) (ret int) {
 
 	config.Logger.Info("shutting down")
 	return 0
-}
-
-func login(config ExecConfig) (*api.Client, string, error) {
-	authenticator := consul.NewAuthenticator(
-		config.Logger.Named("authenticator"),
-		config.ConsulClient,
-		config.AuthConfig.Method,
-		config.AuthConfig.Namespace,
-	)
-	if config.isTest {
-		authenticator = authenticator.WithTries(1)
-	}
-
-	token, err := authenticator.Authenticate(config.Context, config.GatewayConfig.Name, config.AuthConfig.Token)
-	if err != nil {
-		return nil, "", fmt.Errorf("error logging in to consul: %w", err)
-	}
-
-	// Now update the client so that it will read the ACL token we just fetched.
-	config.ConsulConfig.Token = token
-	config.ConsulConfig.Namespace = config.GatewayConfig.Namespace
-	newClient, err := api.NewClient(&config.ConsulConfig)
-	if err != nil {
-		return nil, "", fmt.Errorf("error updating client connection with token: %w", err)
-	}
-	return newClient, token, nil
-}
-
-func logout(config ExecConfig, token string) error {
-	config.Logger.Info("deleting acl token")
-	_, err := config.ConsulClient.ACL().Logout(&api.WriteOptions{Token: token})
-	if err != nil {
-		return fmt.Errorf("error deleting acl token: %w", err)
-	}
-	return nil
 }
