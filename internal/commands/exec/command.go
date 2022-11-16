@@ -151,6 +151,8 @@ func (c *Command) Run(args []string) (ret int) {
 	if cfg.TLSConfig.CAFile != "" {
 		cfg.Scheme = "https"
 	}
+	// this call mutates the cfg object with a bunch of defaults
+	// so we're going to keep it for now
 	consulClient, err := api.NewClient(cfg)
 	if err != nil {
 		logger.Error("error creating consul client", "error", err)
