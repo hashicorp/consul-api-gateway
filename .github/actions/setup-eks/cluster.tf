@@ -76,7 +76,4 @@ module "eks" {
       instance_type = "m5.large"
     }
   }
-  manage_aws_auth        = false
-    write_kubeconfig       = true
-    kubeconfig_output_path = pathexpand("~/.kube/${var.cluster_name}")
 }
