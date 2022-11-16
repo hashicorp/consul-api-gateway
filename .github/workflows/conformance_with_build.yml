@@ -42,7 +42,7 @@ jobs:
             envoy-image: "envoyproxy/envoy:v1.22-latest"
             #use the latest version of main
             consul-k8s-version: "main"
-      fail-fast: true
+      fail-fast: false
     name: "${{ matrix.config.name }}"
 
     steps:
