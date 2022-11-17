@@ -97,7 +97,7 @@ jobs:
         - 'hashicorp/consul-enterprise:1.13.3-ent'
         - 'hashicorp/consul:1.14.0'
         - 'hashicorp/consul-enterprise:1.14.0-ent'
-        - 'hashicorppreview/consul:1.15'
+        - 'hashicorppreview/consul:1.15-dev'
         - 'hashicorppreview/consul-enterprise:1.15-dev'
     runs-on: ubuntu-latest
     env:
