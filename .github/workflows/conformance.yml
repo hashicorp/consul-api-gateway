@@ -29,27 +29,27 @@ jobs:
           - kind
           - eks
         config:
-          - name: "consul@v1.11 + consul-k8s@v0.49.0"
-            api-gateway-image: "hashicorppreview/consul-api-gateway:0.5-dev"
-            consul-image: "hashicorp/consul:1.11"
-            envoy-image: "envoyproxy/envoy:v1.20-latest"
-            consul-k8s-version: "v0.49.0"
-          - name: "consul@v1.12 + consul-k8s@v0.49.0"
+          - name: "consul@v1.12 + consul-k8s@v0.49.1"
             api-gateway-image: "hashicorppreview/consul-api-gateway:0.5-dev"
             consul-image: "hashicorp/consul:1.12"
             envoy-image: "envoyproxy/envoy:v1.22-latest"
-            consul-k8s-version: "v0.49.0"
-          - name: "consul@v1.13 + consul-k8s@v0.49.0"
+            consul-k8s-version: "v0.49.1"
+          - name: "consul@v1.13 + consul-k8s@v0.49.1"
             api-gateway-image: "hashicorppreview/consul-api-gateway:0.5-dev"
             consul-image: "hashicorp/consul:1.13"
             envoy-image: "envoyproxy/envoy:v1.22-latest"
-            consul-k8s-version: "v0.49.0"
-          - name: "consul@v1.14-dev + consul-k8s@v0.49.0"
+            consul-k8s-version: "v0.49.1"
+          - name: "consul@v1.14-dev + consul-k8s@v1.0.0"
             api-gateway-image: "hashicorppreview/consul-api-gateway:0.5-dev"
-            consul-image: "hashicorppreview/consul:1.14-dev"
+            consul-image: "hashicorp/consul:1.14"
             envoy-image: "envoyproxy/envoy:v1.22-latest"
-            consul-k8s-version: "v0.49.0"
-      fail-fast: true
+            consul-k8s-version: "main"
+          - name: "consul@v1.15-dev + consul-k8s@v1.0.0"
+            api-gateway-image: "hashicorppreview/consul-api-gateway:0.5-dev"
+            consul-image: "hashicorppreview/consul:1.15-dev"
+            envoy-image: "envoyproxy/envoy:v1.22-latest"
+            consul-k8s-version: "main"
+      fail-fast: false
     name: "${{ matrix.cluster-type }} - ${{ matrix.config.name }}"
     concurrency:
       group: ${{ matrix.cluster-type }}
