@@ -174,7 +174,9 @@ func (c *Command) Run(args []string) (ret int) {
 	}
 
 	consulClientConfig := consul.ClientConfig{
+		Name:            c.flagGatewayName,
 		ApiClientConfig: cfg,
+		UseDynamic:      os.Getenv("CONSUL_DYNAMIC_SERVER_DISCOVERY") == "true",
 		Addresses:       c.flagConsulHTTPAddress,
 		HTTPPort:        c.flagConsulHTTPPort,
 		GRPCPort:        c.flagConsulXDSPort,

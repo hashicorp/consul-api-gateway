@@ -172,10 +172,14 @@ func (c *Command) Run(args []string) int {
 		MirrorKubernetesNamespacePrefix: c.flagMirrorK8SNamespacePrefix,
 	}
 
-	consulHTTPAddressOrCommand, port, err := parseConsulHTTPAddress()
+	consulScheme, consulHTTPAddressOrCommand, port, err := parseConsulHTTPAddress()
 	if err != nil {
 		logger.Error("error reading "+consulHTTPAddressEnvName, "error", err)
 		return 1
+	}
+	if consulCfg.Scheme != "https" {
+		// override only if it needs to be explicitly marked
+		consulCfg.Scheme = consulScheme
 	}
 
 	tlsCfg, err := api.SetupTLSConfig(&consulCfg.TLSConfig)
@@ -201,8 +205,10 @@ func (c *Command) Run(args []string) int {
 	}
 
 	consulClientConfig := consul.ClientConfig{
+		Name:            "api-gateway-controller",
 		ApiClientConfig: consulCfg,
 		Addresses:       consulHTTPAddressOrCommand,
+		UseDynamic:      os.Getenv("CONSUL_DYNAMIC_SERVER_DISCOVERY") == "true",
 		HTTPPort:        port,
 		GRPCPort:        grpcPort(),
 		PlainText:       consulCfg.Scheme == "http",
