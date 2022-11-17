@@ -32,6 +32,7 @@ type Client interface {
 	ConfigEntries() *api.ConfigEntries
 	DiscoveryChain() *api.DiscoveryChain
 	Namespaces() *api.Namespaces
+	Peerings() *api.Peerings
 
 	WatchServers(ctx context.Context) error
 
@@ -251,6 +252,13 @@ func (c *client) Namespaces() *api.Namespaces {
 	defer c.mutex.RUnlock()
 
 	return c.client.Namespaces()
+}
+
+func (c *client) Peerings() *api.Peerings {
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
+
+	return c.client.Peerings()
 }
 
 func (c *client) ACL() *api.ACL {
