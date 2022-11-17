@@ -1,5 +1,33 @@
 ## UNRELEASED
 
+## 0.5.0 (November 17, 2022)
+
+FEATURES:
+
+* Switch deployed gateways to use TTL-based health checks to better support running with Consul servers that are not on the same network as a gateway [[GH-371](https://github.com/hashicorp/consul-api-gateway/issues/371)]
+
+IMPROVEMENTS:
+
+* Add optional `consul.partition` and `consul.serverName` to GatewayClassConfig CRD. If set these will be used to initialize the partition and server name used in TLS verification for communicating with Consul in a deployment. [[GH-450](https://github.com/hashicorp/consul-api-gateway/issues/450)]
+* Add optional `podSecurityPolicy` to GatewayClassConfig CRD. If set and "managed" ServiceAccounts are being used, a Role and RoleBinding are created to attach the named `PodSecurityPolicy` to the managed ServiceAccount. [[GH-433](https://github.com/hashicorp/consul-api-gateway/issues/433)]
+* Add optional configuration for maximum upstream connections to GatewayClassConfig CRD. If unset, behavior is unchanged and Envoy's default will be used. [[GH-405](https://github.com/hashicorp/consul-api-gateway/issues/405)]
+* Add support for tolerations to Consul API Gateway Controller and GatewayClassConfig. [[GH-426](https://github.com/hashicorp/consul-api-gateway/issues/426)]
+* Integrate consul-server-connection-manager to support Agentless consul server discovery [[GH-449](https://github.com/hashicorp/consul-api-gateway/issues/449)]
+* Support distroless Envoy images (with continued support for distroful images) [[GH-391](https://github.com/hashicorp/consul-api-gateway/issues/391)]
+* api: add OpenAPI schema and stubs for bootstrap token CRUD [[GH-384](https://github.com/hashicorp/consul-api-gateway/issues/384)]
+* go: update to Go v1.19 [[GH-424](https://github.com/hashicorp/consul-api-gateway/issues/424)]
+* makefile: switch back to upstream go-changelog repo [[GH-385](https://github.com/hashicorp/consul-api-gateway/issues/385)]
+
+BUG FIXES:
+
+* Delete gateway ACL tokens on shutdown so they are not orphaned after being provisioned at startup. [[GH-377](https://github.com/hashicorp/consul-api-gateway/issues/377)]
+* Fix failing root certificate watch for controller when deployed in secondary federated datacenter. [[GH-368](https://github.com/hashicorp/consul-api-gateway/issues/368)]
+* When a gateway is created in a namespace that doesn't exist in Consul and namespace mirroring is enabled, create the namespace in Consul. [[GH-397](https://github.com/hashicorp/consul-api-gateway/issues/397)]
+
+NOTES:
+
+* RefNotPermitted error is now returned instead of InvalidCertificateRef in the case where a cross namespace certificate is not allowed by a ReferenceGrant [[GH-412](https://github.com/hashicorp/consul-api-gateway/issues/412)]
+
 ## 0.4.0 (August 16, 2022)
 DEPRECATIONS:
 
