@@ -82,7 +82,7 @@ type IntentionsReconciler struct {
 	logger hclog.Logger
 }
 
-func NewIntentionsReconciler(consul *api.Client, ingress *api.IngressGatewayConfigEntry, logger hclog.Logger) *IntentionsReconciler {
+func NewIntentionsReconciler(consul Client, ingress *api.IngressGatewayConfigEntry, logger hclog.Logger) *IntentionsReconciler {
 	name := api.CompoundServiceName{Name: ingress.Name, Namespace: ingress.Namespace}
 	r := newIntentionsReconciler(consul.DiscoveryChain(), consul.ConfigEntries(), name, logger)
 	r.updateChainWatchers(ingress)
@@ -148,12 +148,12 @@ func (r *IntentionsReconciler) sourceIntention() *api.SourceIntention {
 
 // reconcileLoop runs until the struct context is cancelled, and is the main loop handling all intention reconciliation.
 // Intentions can be reconciled if any one of three conditions are triggered:
-//   1. Reconcile is called sending an error channel through the forceSyncChan. This will immediately attempt to sync
-//      intentions and return the error through the received error channel, blocking until the error is handled or the
-//      reconciler is stopped.
-//   2. A discoChainWatcher sends a discoChainWatchResult which will compute and added or removed discovery chain
-//      targets and synchronize intentions.
-//   3. The intentionSyncInterval is met, triggering the ticker to fire and synchronize intentions.
+//  1. Reconcile is called sending an error channel through the forceSyncChan. This will immediately attempt to sync
+//     intentions and return the error through the received error channel, blocking until the error is handled or the
+//     reconciler is stopped.
+//  2. A discoChainWatcher sends a discoChainWatchResult which will compute and added or removed discovery chain
+//     targets and synchronize intentions.
+//  3. The intentionSyncInterval is met, triggering the ticker to fire and synchronize intentions.
 //
 // The loop stops and returns if the struct context is cancelled.
 func (r *IntentionsReconciler) reconcileLoop() {

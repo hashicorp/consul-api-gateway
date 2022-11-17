@@ -8,7 +8,6 @@ import (
 	"io"
 	"strings"
 
-	"github.com/hashicorp/consul-api-gateway/internal/api"
 	"github.com/hashicorp/go-hclog"
 	"github.com/kr/text"
 	"github.com/mitchellh/cli"
@@ -82,74 +81,6 @@ func (c *CommonCLI) Synopsis() string {
 
 func (c *CommonCLI) Help() string {
 	return c.help
-}
-
-type ClientCLI struct {
-	*CommonCLI
-
-	flagAddress    string // Server address for requests
-	flagPort       uint   // Server port for requests
-	flagToken      string // Token for requests
-	flagScheme     string // Server scheme for API
-	flagCAFile     string // Server TLS CA file for TLS verification
-	flagSkipVerify bool   // Skip certificate verification for client
-}
-
-func NewClientCLI(ctx context.Context, help, synopsis string, ui cli.Ui, logOutput io.Writer, name string) *ClientCLI {
-	cli := &ClientCLI{
-		CommonCLI: NewCommonCLI(ctx, help, synopsis, ui, logOutput, name),
-	}
-	cli.init()
-	cli.help = FlagUsage(help, cli.Flags)
-
-	return cli
-}
-
-func (c *ClientCLI) init() {
-	c.Flags.StringVar(&c.flagToken, "consul-token", "", "Token to use for client.")
-	c.Flags.StringVar(&c.flagAddress, "gateway-controller-address", "localhost", "Server address to use for client.")
-	c.Flags.UintVar(&c.flagPort, "gateway-controller-port", 5605, "Server port to use for client.")
-	c.Flags.StringVar(&c.flagScheme, "gateway-controller-scheme", "http", "Server scheme to use for client.")
-	c.Flags.StringVar(&c.flagCAFile, "gateway-controller-ca-file", "", "Path to CA file for verifying server TLS certificate.")
-	c.Flags.BoolVar(&c.flagSkipVerify, "gateway-controller-skip-verify", false, "Skip certificate verification for TLS connection.")
-}
-
-func (c *ClientCLI) CreateClient() (*api.Client, error) {
-	var tlsConfig *api.TLSConfiguration
-	if c.flagScheme == "https" {
-		tlsConfig = &api.TLSConfiguration{
-			CAFile:           c.flagCAFile,
-			SkipVerification: c.flagSkipVerify,
-		}
-	}
-
-	return api.CreateClient(api.ClientConfig{
-		Address:          c.flagAddress,
-		Port:             c.flagPort,
-		Token:            GetConsulTokenOr(c.flagToken),
-		TLSConfiguration: tlsConfig,
-	})
-}
-
-type ClientCLIWithNamespace struct {
-	*ClientCLI
-
-	flagNamespace string // Namespace to pass in client requests
-}
-
-func NewClientCLIWithNamespace(ctx context.Context, help, synopsis string, ui cli.Ui, logOutput io.Writer, name string) *ClientCLIWithNamespace {
-	cli := &ClientCLIWithNamespace{ClientCLI: NewClientCLI(ctx, help, synopsis, ui, logOutput, name)}
-	cli.Flags.StringVar(&cli.flagNamespace, "namespace", "", "Namespace to pass in client requests.")
-	cli.help = FlagUsage(help, cli.Flags)
-
-	return cli
-}
-
-func (c *ClientCLIWithNamespace) Namespace() string {
-	if c.flagNamespace == "" {
-		return "default"
-	}
-	return c.flagNamespace
 }
 
 func LogAndDie(logger hclog.Logger, message string, err error) int {

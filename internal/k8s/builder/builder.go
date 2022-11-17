@@ -2,6 +2,7 @@ package builder
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strconv"
 
@@ -38,6 +39,11 @@ const (
 	consulCAFilename  = "ca.pem"
 
 	k8sHostnameTopologyKey = "kubernetes.io/hostname"
+)
+
+var (
+	defaultPartition  = os.Getenv("CONSUL_PARTITION")
+	defaultServerName = os.Getenv("CONSUL_TLS_SERVER_NAME")
 )
 
 var consulCALocalFile = filepath.Join(consulCALocalPath, consulCAFilename)

@@ -50,7 +50,7 @@ jobs:
             api-gateway-image: "hashicorppreview/consul-api-gateway:0.4-dev"
             consul-image: "hashicorppreview/consul:1.14-dev"
             envoy-image: "envoyproxy/envoy:v1.22-latest"
-            consul-k8s-version: "v0.49.0"
+            consul-k8s-version: "main"
       fail-fast: true
     name: "${{ matrix.config.name }}"
 

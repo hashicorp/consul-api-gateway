@@ -1,3 +1,6 @@
+FROM golang:1.19.1-alpine as go-discover
+RUN CGO_ENABLED=0 go install github.com/hashicorp/go-discover/cmd/discover@49f60c093101c9c5f6b04d5b1c80164251a761a6
+
 # ===================================
 #
 #   Non-release images.
@@ -24,6 +27,8 @@ ARG BIN_NAME
 # Export BIN_NAME for the CMD below, it can't see ARGs directly.
 ENV BIN_NAME=$BIN_NAME
 COPY --from=devbuild /build/$BIN_NAME /bin/
+COPY --from=go-discover /go/bin/discover /bin/
+
 ENTRYPOINT /bin/$BIN_NAME
 CMD ["version"]
 
@@ -56,6 +61,7 @@ RUN addgroup $PRODUCT_NAME && \
     adduser -S -G $PRODUCT_NAME 100
 
 COPY dist/$TARGETOS/$TARGETARCH/$BIN_NAME /bin/
+COPY --from=go-discover /go/bin/discover /bin/
 
 USER 100
 ENTRYPOINT /bin/$BIN_NAME
@@ -84,6 +90,7 @@ RUN addgroup $PRODUCT_NAME && \
     adduser --system --uid 101 --group $PRODUCT_NAME
 
 COPY dist/$TARGETOS/$TARGETARCH/$BIN_NAME /bin/
+COPY --from=go-discover /go/bin/discover /bin/
 
 USER 101
 ENTRYPOINT /bin/$BIN_NAME

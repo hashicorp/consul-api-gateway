@@ -9,10 +9,10 @@ import (
 	gwv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 	gwv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
-	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
 
 	"github.com/hashicorp/consul-api-gateway/internal/common"
+	"github.com/hashicorp/consul-api-gateway/internal/consul"
 	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/validator"
@@ -44,7 +44,7 @@ type ReconcileManager interface {
 type GatewayReconcileManager struct {
 	logger   hclog.Logger
 	client   gatewayclient.Client
-	consul   *api.Client
+	consul   consul.Client
 	consulCA string
 	sdsHost  string
 	sdsPort  int
@@ -67,7 +67,7 @@ var _ ReconcileManager = &GatewayReconcileManager{}
 type ManagerConfig struct {
 	ControllerName           string
 	Client                   gatewayclient.Client
-	Consul                   *api.Client
+	Consul                   consul.Client
 	ConsulCA                 string
 	PrimaryDatacenter        string
 	SDSHost                  string

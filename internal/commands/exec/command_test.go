@@ -3,7 +3,6 @@ package exec
 import (
 	"context"
 	"os"
-	"path"
 	"testing"
 
 	"github.com/mitchellh/cli"
@@ -114,18 +113,19 @@ func TestExec(t *testing.T) {
 		},
 		output: "error reading bearer token",
 	}, {
-		name:   "registration-error",
+		name:   "discovery-error",
 		retVal: 1,
 		args: []string{
-			"-consul-http-address", "notadomain",
+			"-consul-http-address", "127.0.0.1",
 			"-gateway-host", "localhost",
 			"-gateway-name", "gateway",
 			"-envoy-bootstrap-path", "/path.json",
 			"-envoy-sds-address", "localhost",
 		},
-		output: "error registering service",
+		output: "did not get state within time limit",
 	}} {
 		t.Run(test.name, func(t *testing.T) {
+			os.Setenv("CONSUL_DYNAMIC_SERVER_DISCOVERY", "true")
 			ctx := context.Background()
 			ui := cli.NewMockUi()
 			var buffer gwTesting.Buffer
@@ -136,32 +136,4 @@ func TestExec(t *testing.T) {
 			require.Contains(t, buffer.String(), test.output)
 		})
 	}
-}
-
-func TestExecLoginError(t *testing.T) {
-	t.Parallel()
-
-	directory, err := os.MkdirTemp("", "exec")
-	require.NoError(t, err)
-	defer os.RemoveAll(directory)
-	file := path.Join(directory, "token")
-	err = os.WriteFile(file, []byte("token"), 0600)
-	require.NoError(t, err)
-
-	ctx := context.Background()
-	ui := cli.NewMockUi()
-	var buffer gwTesting.Buffer
-	cmd := New(ctx, ui, &buffer)
-	cmd.isTest = true
-
-	require.Equal(t, 1, cmd.Run([]string{
-		"-consul-http-address", "notadomain",
-		"-gateway-host", "localhost",
-		"-gateway-name", "gateway",
-		"-envoy-bootstrap-path", "/path.json",
-		"-envoy-sds-address", "localhost",
-		"-acl-auth-method", "no-auth-method",
-		"-acl-bearer-token-file", file,
-	}))
-	require.Contains(t, buffer.String(), "error logging into consul")
 }

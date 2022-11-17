@@ -1,16 +1,16 @@
 package k8s
 
 import (
-	capi "github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
 
+	"github.com/hashicorp/consul-api-gateway/internal/consul"
 	"github.com/hashicorp/consul-api-gateway/internal/core"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler"
 	"github.com/hashicorp/consul-api-gateway/internal/store"
 )
 
-func StoreConfig(adapter core.SyncAdapter, client gatewayclient.Client, consulClient *capi.Client, logger hclog.Logger, config Config) store.Config {
+func StoreConfig(adapter core.SyncAdapter, client gatewayclient.Client, consulClient consul.Client, logger hclog.Logger, config Config) store.Config {
 	marshaler := reconciler.NewMarshaler()
 	binder := reconciler.NewBinder(client)
 	deployer := reconciler.NewDeployer(reconciler.DeployerConfig{

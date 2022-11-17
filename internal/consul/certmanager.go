@@ -95,7 +95,7 @@ type certWriter func() error
 // Once a leaf certificate has expired, it generates a new certificate and writes
 // it to the location given in the configuration options with which it was created.
 type CertManager struct {
-	consul *api.Client
+	client Client
 	logger hclog.Logger
 
 	service           string
@@ -127,12 +127,12 @@ type CertManager struct {
 }
 
 // NewCertManager creates a new CertManager instance.
-func NewCertManager(logger hclog.Logger, consul *api.Client, service string, options *CertManagerOptions) *CertManager {
+func NewCertManager(logger hclog.Logger, client Client, service string, options *CertManagerOptions) *CertManager {
 	if options == nil {
 		options = DefaultCertManagerOptions()
 	}
 	manager := &CertManager{
-		consul:            consul,
+		client:            client,
 		logger:            logger,
 		primaryDatacenter: options.PrimaryDatacenter,
 		sdsAddress:        options.SDSAddress,
@@ -236,7 +236,7 @@ func (c *CertManager) Manage(ctx context.Context) error {
 	c.leafWatch.HybridHandler = c.handleLeafWatch
 
 	wrapWatch := func(w *watch.Plan) {
-		if err := w.RunWithClientAndHclog(c.consul, c.logger); err != nil {
+		if err := w.RunWithClientAndHclog(c.client.Internal(), c.logger); err != nil {
 			c.logger.Error("consul watch.Plan returned unexpectedly", "error", err)
 		}
 		c.logger.Trace("consul watch.Plan stopped")
@@ -250,7 +250,7 @@ func (c *CertManager) Manage(ctx context.Context) error {
 	// been hit -- allowing us to short-circuit the buggy blocking. The subsequent
 	// goroutines can then be leveraged to pick up any certificate rotations.
 	if !c.skipExtraFetch {
-		leafCert, _, err := c.consul.Agent().ConnectCALeaf(c.service, &api.QueryOptions{
+		leafCert, _, err := c.client.Agent().ConnectCALeaf(c.service, &api.QueryOptions{
 			WaitTime: 1 * time.Second,
 		})
 		if err != nil {

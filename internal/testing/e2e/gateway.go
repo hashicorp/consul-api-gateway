@@ -40,7 +40,7 @@ func (p *gatewayTestEnvironment) run(ctx context.Context, namespace string, cfg 
 	consulClient := ConsulClient(ctx)
 
 	// this should go away once we implement auth in the server bootup
-	consulClient.AddHeader("x-consul-token", ConsulInitialManagementToken(ctx))
+	consulClient.Internal().AddHeader("x-consul-token", ConsulInitialManagementToken(ctx))
 
 	nullLogger := hclog.Default()
 	nullLogger.SetLevel(hclog.Trace)

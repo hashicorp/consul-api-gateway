@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/hashicorp/consul-api-gateway/internal/consul"
-	capi "github.com/hashicorp/consul/api"
 
 	"github.com/hashicorp/go-hclog"
 	apps "k8s.io/api/apps/v1"
@@ -14,6 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	gwv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
+	"github.com/hashicorp/consul-api-gateway/internal/consul"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/builder"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
@@ -27,7 +26,7 @@ type GatewayDeployer struct {
 	primaryDatacenter        string
 	sdsHost                  string
 	sdsPort                  int
-	consul                   *capi.Client
+	consul                   consul.Client
 	consulNamespaceMirroring bool
 
 	logger hclog.Logger
@@ -40,7 +39,7 @@ type DeployerConfig struct {
 	SDSPort                  int
 	Logger                   hclog.Logger
 	Client                   gatewayclient.Client
-	Consul                   *capi.Client
+	Consul                   consul.Client
 	ConsulNamespaceMirroring bool
 }
 
@@ -87,7 +86,26 @@ func (d *GatewayDeployer) ensureServiceAccount(ctx context.Context, config apigw
 		return nil
 	}
 
-	return d.client.EnsureServiceAccount(ctx, gateway, serviceAccount)
+	if err := d.client.EnsureServiceAccount(ctx, gateway, serviceAccount); err != nil {
+		return err
+	}
+
+	role := config.RoleFor(gateway)
+	if role == nil {
+		return nil
+	}
+
+	if _, err := d.client.EnsureExists(ctx, role); err != nil {
+		return err
+	}
+
+	binding := config.RoleBindingFor(gateway)
+	if binding == nil {
+		return nil
+	}
+
+	_, err := d.client.EnsureExists(ctx, binding)
+	return err
 }
 
 // ensureSecret makes sure there is a Secret in the same namespace as the Gateway

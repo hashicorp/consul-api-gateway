@@ -6,8 +6,13 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
+
+	"github.com/hashicorp/consul-api-gateway/internal/consul"
+	"github.com/hashicorp/consul-server-connection-manager/discovery"
 
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
@@ -19,6 +24,7 @@ import (
 )
 
 const (
+	defaultGRPCPort      = 8502
 	defaultSDSServerHost = "consul-api-gateway-controller.default.svc.cluster.local"
 	defaultSDSServerPort = 9090
 	// The amount of time to wait for the first cert write
@@ -166,16 +172,76 @@ func (c *Command) Run(args []string) int {
 		MirrorKubernetesNamespacePrefix: c.flagMirrorK8SNamespacePrefix,
 	}
 
+	consulScheme, consulHTTPAddressOrCommand, port, err := parseConsulHTTPAddress()
+	if err != nil {
+		logger.Error("error reading "+consulHTTPAddressEnvName, "error", err)
+		return 1
+	}
+	if consulCfg.Scheme != "https" {
+		// override only if it needs to be explicitly marked
+		consulCfg.Scheme = consulScheme
+	}
+
+	tlsCfg, err := api.SetupTLSConfig(&consulCfg.TLSConfig)
+	if err != nil {
+		logger.Error("could not set up tls config", err)
+		return 1
+	}
+
+	var token string
+	if consulCfg.TokenFile != "" {
+		data, err := ioutil.ReadFile(consulCfg.TokenFile)
+		if err != nil {
+			logger.Error("error loading token file", err)
+			return 1
+		}
+
+		if t := strings.TrimSpace(string(data)); t != "" {
+			token = t
+		}
+	}
+	if consulCfg.Token != "" {
+		token = consulCfg.Token
+	}
+
+	consulClientConfig := consul.ClientConfig{
+		Name:            "api-gateway-controller",
+		ApiClientConfig: consulCfg,
+		Addresses:       consulHTTPAddressOrCommand,
+		UseDynamic:      os.Getenv("CONSUL_DYNAMIC_SERVER_DISCOVERY") == "true",
+		HTTPPort:        port,
+		GRPCPort:        grpcPort(),
+		PlainText:       consulCfg.Scheme == "http",
+		TLS:             tlsCfg,
+		Credentials: discovery.Credentials{
+			Type: discovery.CredentialsTypeStatic,
+			Static: discovery.StaticTokenCredential{
+				Token: token,
+			},
+		},
+		Logger: logger,
+	}
+
 	return RunServer(ServerConfig{
-		Context:           context.Background(),
-		Logger:            logger,
-		ConsulConfig:      consulCfg,
-		K8sConfig:         cfg,
-		ProfilingPort:     c.flagPprofPort,
-		MetricsPort:       c.flagMetricsPort,
-		PrimaryDatacenter: c.flagPrimaryDatacenter,
-		isTest:            c.isTest,
+		Context:            context.Background(),
+		Logger:             logger,
+		ConsulConfig:       consulCfg,
+		K8sConfig:          cfg,
+		ProfilingPort:      c.flagPprofPort,
+		MetricsPort:        c.flagMetricsPort,
+		PrimaryDatacenter:  c.flagPrimaryDatacenter,
+		isTest:             c.isTest,
+		ConsulClientConfig: consulClientConfig,
 	})
+}
+
+func grpcPort() int {
+	port := os.Getenv("CONSUL_GRPC_PORT")
+	p, err := strconv.Atoi(port)
+	if err == nil {
+		return p
+	}
+	return defaultGRPCPort
 }
 
 func (c *Command) Synopsis() string {

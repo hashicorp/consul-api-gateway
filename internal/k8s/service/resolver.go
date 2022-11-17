@@ -196,7 +196,7 @@ type BackendResolver interface {
 
 type backendResolver struct {
 	client gatewayclient.Client
-	consul *api.Client
+	consul consul.Client
 	logger hclog.Logger
 	mapper common.ConsulNamespaceMapper
 
@@ -204,7 +204,7 @@ type backendResolver struct {
 	peerings consul.Peerings
 }
 
-func NewBackendResolver(logger hclog.Logger, mapper common.ConsulNamespaceMapper, client gatewayclient.Client, consul *api.Client) *backendResolver {
+func NewBackendResolver(logger hclog.Logger, mapper common.ConsulNamespaceMapper, client gatewayclient.Client, consul consul.Client) *backendResolver {
 	return &backendResolver{
 		client:   client,
 		consul:   consul,

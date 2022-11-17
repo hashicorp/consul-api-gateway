@@ -14,9 +14,9 @@ import (
 	gwv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 	gwv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
-	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
 
+	"github.com/hashicorp/consul-api-gateway/internal/consul"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/controllers"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler"
@@ -62,7 +62,7 @@ func (c ConsulNamespaceConfig) Namespace(namespace string) string {
 type Kubernetes struct {
 	config     *Config
 	k8sManager ctrl.Manager
-	consul     *api.Client
+	consul     consul.Client
 	store      store.Store
 	logger     hclog.Logger
 }
@@ -133,7 +133,7 @@ func New(logger hclog.Logger, config *Config) (*Kubernetes, error) {
 	}, nil
 }
 
-func (k *Kubernetes) SetConsul(consul *api.Client) {
+func (k *Kubernetes) SetConsul(consul consul.Client) {
 	k.consul = consul
 }
 

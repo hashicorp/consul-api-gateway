@@ -12,6 +12,9 @@ import (
 	"os"
 	"strings"
 
+	"github.com/hashicorp/consul-api-gateway/internal/consul"
+
+	"github.com/Masterminds/semver"
 	"github.com/cenkalti/backoff"
 	apps "k8s.io/api/apps/v1"
 	core "k8s.io/api/core/v1"
@@ -28,10 +31,12 @@ import (
 )
 
 const (
-	defaultConsulImage                = "hashicorp/consul-enterprise:1.11.4"
+	grpcConsulIncompatibleNameVersion = "1.14"
+	defaultConsulImage                = "hashicorppreview/consul:1.14-dev"
 	envvarConsulImage                 = envvarPrefix + "CONSUL_IMAGE"
 	envvarConsulEnterpriseLicense     = "CONSUL_LICENSE"
 	envvarConsulEnterpriseLicensePath = "CONSUL_LICENSE_PATH"
+	envvarGRPCName                    = "CONSUL_GRPC_VAR_NAME"
 	configTemplateString              = `
 {
 	"log_level": "trace",
@@ -46,11 +51,11 @@ const (
   "skip_leave_on_interrupt": true,
   "addresses": {
     "https": "0.0.0.0",
-    "grpc": "0.0.0.0"
+    "{{ .GRPCVarName }}": "0.0.0.0"
   },
   "ports": {
     "https": {{ .HTTPSPort }},
-    "grpc": {{ .GRPCPort }}
+    "{{ .GRPCVarName }}": {{ .GRPCPort }}
   },
   "data_dir": "/data",
   "ca_file": "/ca/tls.crt",
@@ -85,7 +90,7 @@ func init() {
 
 type consulTestEnvironment struct {
 	ca                               []byte
-	consulClient                     *api.Client
+	consulClient                     consul.Client
 	token                            string
 	policy                           *api.ACLPolicy
 	httpPort                         int
@@ -199,6 +204,7 @@ func CreateTestConsulContainer(name, namespace string) env.Func {
 		if err != nil {
 			return nil, err
 		}
+		log.Print("Consul is ready")
 
 		ip, err := consulPodIP(ctx, cfg, deployment)
 		if err != nil {
@@ -207,7 +213,7 @@ func CreateTestConsulContainer(name, namespace string) env.Func {
 
 		env := &consulTestEnvironment{
 			ca:                               rootCA.CertBytes,
-			consulClient:                     consulClient,
+			consulClient:                     testing.NewTestClient(consulClient),
 			httpPort:                         httpsPort,
 			httpFlattenedPort:                httpFlattenedPort,
 			httpReferenceGrantPort:           httpReferenceGrantPort,
@@ -253,6 +259,24 @@ func consulCASecret(namespace string, caCert *testing.CertificateInfo) client.Ob
 	}
 }
 
+func consulGRPCVarName() string {
+	tagTokens := strings.Split(consulImage, ":")
+	tag := tagTokens[len(tagTokens)-1]
+	imageVersion, err := semver.NewVersion(tag)
+	if err != nil {
+		return "grpc"
+	}
+	breakingVersion, err := semver.NewVersion(grpcConsulIncompatibleNameVersion)
+	if err != nil {
+		return "grpc"
+	}
+	// we check major/minor directly since the semver check fails with the trailing -dev tag
+	if breakingVersion.Major() > imageVersion.Major() || (breakingVersion.Major() == imageVersion.Major() && breakingVersion.Minor() > imageVersion.Minor()) {
+		return "grpc"
+	}
+	return "grpc_tls"
+}
+
 func consulPodIP(ctx context.Context, cfg *envconf.Config, deployment *apps.Deployment) (string, error) {
 	namespace := Namespace(ctx)
 	resourcesClient := cfg.Client().Resources(namespace)
@@ -284,12 +308,15 @@ func consulPodIP(ctx context.Context, cfg *envconf.Config, deployment *apps.Depl
 
 func consulConfig(httpsPort, grpcPort int) (string, error) {
 	var template bytes.Buffer
+
 	if err := configTemplate.Execute(&template, &struct {
-		HTTPSPort int
-		GRPCPort  int
+		HTTPSPort   int
+		GRPCPort    int
+		GRPCVarName string
 	}{
-		HTTPSPort: httpsPort,
-		GRPCPort:  grpcPort,
+		HTTPSPort:   httpsPort,
+		GRPCPort:    grpcPort,
+		GRPCVarName: getEnvDefault(envvarGRPCName, consulGRPCVarName()),
 	}); err != nil {
 		return "", err
 	}
@@ -419,7 +446,7 @@ func consulDeployment(namespace string, httpsPort, grpcPort int) *apps.Deploymen
 	}
 }
 
-func ConsulClient(ctx context.Context) *api.Client {
+func ConsulClient(ctx context.Context) consul.Client {
 	return mustGetTestEnvironment(ctx).consulClient
 }
 
@@ -512,7 +539,7 @@ func CreateConsulACLPolicy(ctx context.Context, cfg *envconf.Config) (context.Co
 		return nil, err
 	}
 	log.Printf("Consul initial management token: %s", token.SecretID)
-	policy, _, err := env.consulClient.ACL().PolicyCreate(adminPolicy(), &api.WriteOptions{
+	policy, _, err := env.consulClient.Internal().ACL().PolicyCreate(adminPolicy(), &api.WriteOptions{
 		Token: token.SecretID,
 	})
 	if err != nil {
@@ -532,19 +559,19 @@ func CreateConsulAuthMethod() env.Func {
 			return ctx, nil
 		}
 		env := consulEnvironment.(*consulTestEnvironment)
-		_, _, err := env.consulClient.ACL().RoleCreate(gatewayConsulRole(env.policy.ID), &api.WriteOptions{
+		_, _, err := env.consulClient.Internal().ACL().RoleCreate(gatewayConsulRole(env.policy.ID), &api.WriteOptions{
 			Token: env.token,
 		})
 		if err != nil {
 			return nil, err
 		}
-		_, _, err = env.consulClient.ACL().AuthMethodCreate(gatewayConsulAuthMethod(ClusterName(ctx), K8sServiceToken(ctx), cfg.Client().RESTConfig()), &api.WriteOptions{
+		_, _, err = env.consulClient.Internal().ACL().AuthMethodCreate(gatewayConsulAuthMethod(ClusterName(ctx), K8sServiceToken(ctx), cfg.Client().RESTConfig()), &api.WriteOptions{
 			Token: env.token,
 		})
 		if err != nil {
 			return nil, err
 		}
-		_, _, err = env.consulClient.ACL().BindingRuleCreate(gatewayConsulBindingRule(), &api.WriteOptions{
+		_, _, err = env.consulClient.Internal().ACL().BindingRuleCreate(gatewayConsulBindingRule(), &api.WriteOptions{
 			Token: env.token,
 		})
 		if err != nil {

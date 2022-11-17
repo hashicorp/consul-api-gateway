@@ -2,6 +2,7 @@ package builder
 
 import (
 	"bytes"
+	"os"
 	"strings"
 	"text/template"
 
@@ -210,7 +211,7 @@ func (b *GatewayDeploymentBuilder) podSpec() corev1.PodSpec {
 			Name:         "consul-api-gateway-init",
 			VolumeMounts: mounts,
 			Command: []string{
-				"cp", "/bin/consul-api-gateway", "/bootstrap/consul-api-gateway",
+				"cp", "/bin/discover", "/bin/consul-api-gateway", "/bootstrap/",
 			},
 		}},
 		Containers: []corev1.Container{{
@@ -286,6 +287,30 @@ func (b *GatewayDeploymentBuilder) envVars() []corev1.EnvVar {
 					FieldPath: "status.hostIP",
 				},
 			},
+		},
+		{
+			Name:  "CONSUL_LOGIN_PARTITION",
+			Value: os.Getenv("CONSUL_LOGIN_PARTITION"),
+		},
+		{
+			Name:  "CONSUL_LOGIN_DATACENTER",
+			Value: os.Getenv("CONSUL_LOGIN_DATACENTER"),
+		},
+		{
+			Name:  "CONSUL_DYNAMIC_SERVER_DISCOVERY",
+			Value: os.Getenv("CONSUL_DYNAMIC_SERVER_DISCOVERY"),
+		},
+		{
+			Name:  "CONSUL_PARTITION",
+			Value: orDefault(b.gwConfig.Spec.ConsulSpec.Partition, defaultPartition),
+		},
+		{
+			Name:  "CONSUL_TLS_SERVER_NAME",
+			Value: orDefault(b.gwConfig.Spec.ConsulSpec.ServerName, defaultServerName),
+		},
+		{
+			Name:  "PATH",
+			Value: "/:/sbin:/bin:/usr/bin:/usr/local/bin:/bootstrap",
 		},
 	}
 

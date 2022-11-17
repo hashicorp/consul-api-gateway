@@ -17,6 +17,7 @@ import (
 
 	"github.com/hashicorp/consul-api-gateway/internal/common"
 	"github.com/hashicorp/consul-api-gateway/internal/core"
+	consultesting "github.com/hashicorp/consul-api-gateway/internal/testing"
 )
 
 var (
@@ -172,8 +173,9 @@ func TestConsulSyncAdapter_Sync(t *testing.T) {
 
 	cfg := api.DefaultConfig()
 	cfg.Address = consulSrv.HTTPAddr
-	consul, err := api.NewClient(cfg)
+	c, err := api.NewClient(cfg)
 	require.NoError(t, err)
+	consul := consultesting.NewTestClient(c)
 
 	adapter := NewSyncAdapter(testutil.Logger(t), consul)
 
