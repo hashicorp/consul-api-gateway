@@ -169,12 +169,11 @@ func (c *Command) Run(args []string) (ret int) {
 		bearerToken = strings.TrimSpace(string(data))
 	}
 
-	if c.flagGatewayNamespace != "" {
-		cfg.Namespace = c.flagGatewayNamespace
-	}
-
 	consulClientConfig := consul.ClientConfig{
+		Name:            c.flagGatewayName,
+		Namespace:       c.flagGatewayNamespace,
 		ApiClientConfig: cfg,
+		UseDynamic:      os.Getenv("CONSUL_DYNAMIC_SERVER_DISCOVERY") == "true",
 		Addresses:       c.flagConsulHTTPAddress,
 		HTTPPort:        c.flagConsulHTTPPort,
 		GRPCPort:        c.flagConsulXDSPort,

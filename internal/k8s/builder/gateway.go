@@ -297,6 +297,10 @@ func (b *GatewayDeploymentBuilder) envVars() []corev1.EnvVar {
 			Value: os.Getenv("CONSUL_LOGIN_DATACENTER"),
 		},
 		{
+			Name:  "CONSUL_DYNAMIC_SERVER_DISCOVERY",
+			Value: os.Getenv("CONSUL_DYNAMIC_SERVER_DISCOVERY"),
+		},
+		{
 			Name:  "CONSUL_PARTITION",
 			Value: orDefault(b.gwConfig.Spec.ConsulSpec.Partition, defaultPartition),
 		},

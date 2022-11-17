@@ -167,14 +167,21 @@ func registerSecretClients(config ServerConfig) (*envoy.MultiSecretClient, error
 	return secretClient, nil
 }
 
-func parseConsulHTTPAddress() (cmd string, port int, err error) {
+func parseConsulHTTPAddress() (scheme string, cmd string, port int, err error) {
 	consulhttpAddress := os.Getenv(consulHTTPAddressEnvName)
+	scheme = "http"
+	if os.Getenv("CONSUL_HTTP_SSL") == "true" || strings.HasPrefix(consulhttpAddress, "https://") {
+		scheme = "https"
+	}
 
+	// (?:http|https|ftp)://)
+	consulhttpAddress = strings.TrimPrefix(consulhttpAddress, "http://")
+	consulhttpAddress = strings.TrimPrefix(consulhttpAddress, "https://")
 	index := strings.LastIndex(consulhttpAddress, ":")
 	cmd, portString := consulhttpAddress[:index], consulhttpAddress[index+1:]
 	port, err = strconv.Atoi(portString)
 	if err != nil {
-		return "", 0, err
+		return "", "", 0, err
 	}
-	return cmd, port, nil
+	return scheme, cmd, port, nil
 }

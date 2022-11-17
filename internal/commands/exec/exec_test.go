@@ -468,6 +468,7 @@ func runMockConsulServer(t *testing.T, opts mockConsulOptions) *mockConsulServer
 	})
 
 	server.clientConfig = consul.ClientConfig{
+		UseDynamic:      true,
 		Addresses:       serverURL.Hostname(),
 		ApiClientConfig: clientConfig,
 		GRPCPort:        grpcPort,
