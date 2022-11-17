@@ -36,21 +36,25 @@ jobs:
             consul-image: "hashicorp/consul:1.12"
             envoy-image: "envoyproxy/envoy:v1.22-latest"
             consul-k8s-version: "v0.49.1"
+            envoy-field: "global.imageEnvoy"
           - name: "consul@v1.13 + consul-k8s@v0.49.1"
             api-gateway-image: "consul-api-gateway:local-build"
             consul-image: "hashicorp/consul:1.13"
             envoy-image: "envoyproxy/envoy:v1.22-latest"
             consul-k8s-version: "v0.49.1"
+            envoy-field: "global.imageEnvoy"
           - name: "consul@v1.14 + consul-k8s@v1.0.0"
             api-gateway-image: "consul-api-gateway:local-build"
             consul-image: "hashicorp/consul:1.14"
-            envoy-image: "envoyproxy/envoy:v1.22-latest"
+            envoy-image: "envoyproxy/envoy:v1.24-latest"
             consul-k8s-version: "main"
+            envoy-field: "apiGateway.imageEnvoy"
           - name: "consul@v1.15-dev + consul-k8s@v1.0.0"
             api-gateway-image: "consul-api-gateway:local-build"
             consul-image: "hashicorppreview/consul:1.15-dev"
-            envoy-image: "envoyproxy/envoy:v1.22-latest"
+            envoy-image: "envoyproxy/envoy:v1.24-latest"
             consul-k8s-version: "main"
+            envoy-field: "apiGateway.imageEnvoy"
       fail-fast: false
     name: "${{ matrix.config.name }}"
 
@@ -119,7 +123,7 @@ jobs:
       - name: Install Consul
         working-directory: "consul-api-gateway/internal/testing/conformance"
         run: |
-          helm install --values ./consul-config.yaml consul $GITHUB_WORKSPACE/consul-k8s/charts/consul --set global.image=${{ matrix.config.consul-image }} --set global.imageEnvoy=${{ matrix.config.envoy-image }} --set apiGateway.image=${{ matrix.config.api-gateway-image }} --create-namespace --namespace=consul
+          helm install --values ./consul-config.yaml consul $GITHUB_WORKSPACE/consul-k8s/charts/consul --set global.image=${{ matrix.config.consul-image }} --set ${{ matrix.config.envoy-field }}=${{ matrix.config.envoy-image }} --set apiGateway.image=${{ matrix.config.api-gateway-image }} --create-namespace --namespace=consul
           kubectl wait --for=condition=Ready --timeout=60s --namespace=consul pods --all
 
       - name: Patch testing resources
