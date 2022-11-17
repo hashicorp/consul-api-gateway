@@ -1,10 +1,6 @@
 name: Conformance (Main)
 
 on:
-  #TODO remove before merging
-  pull_request:
-    types: [ "opened", "reopened", "synchronize", "labeled" ]
-
   schedule:
     - cron:  '0 0 * * *'
 
