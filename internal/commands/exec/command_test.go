@@ -2,6 +2,7 @@ package exec
 
 import (
 	"context"
+	"os"
 	"testing"
 
 	"github.com/mitchellh/cli"
@@ -124,6 +125,7 @@ func TestExec(t *testing.T) {
 		output: "did not get state within time limit",
 	}} {
 		t.Run(test.name, func(t *testing.T) {
+			os.Setenv("CONSUL_DYNAMIC_SERVER_DISCOVERY", "true")
 			ctx := context.Background()
 			ui := cli.NewMockUi()
 			var buffer gwTesting.Buffer

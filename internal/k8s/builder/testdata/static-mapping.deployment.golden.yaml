@@ -77,6 +77,7 @@ spec:
               fieldPath: status.hostIP
         - name: CONSUL_LOGIN_PARTITION
         - name: CONSUL_LOGIN_DATACENTER
+        - name: CONSUL_DYNAMIC_SERVER_DISCOVERY
         - name: CONSUL_PARTITION
         - name: CONSUL_TLS_SERVER_NAME
         - name: PATH
