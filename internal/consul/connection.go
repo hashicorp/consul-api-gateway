@@ -44,6 +44,7 @@ type Client interface {
 
 type ClientConfig struct {
 	Name            string
+	Namespace       string
 	ApiClientConfig *api.Config
 	UseDynamic      bool
 	PlainText       bool
@@ -91,20 +92,27 @@ func (c *client) WatchServers(ctx context.Context) error {
 		var client *api.Client
 		var token string
 		if c.config.Credentials.Type == discovery.CredentialsTypeLogin {
-			client, err = api.NewClient(cfg)
+			baseClient, err := api.NewClient(cfg)
 			if err != nil {
 				c.initialized <- err
 				return err
 			}
-			client, token, err = login(ctx, client, cfg, c.config)
+			if c.config.Namespace != "" {
+				cfg.Namespace = c.config.Namespace
+			}
+			client, token, err = login(ctx, baseClient, cfg, c.config)
 			if err != nil {
 				c.initialized <- err
 				return err
 			}
-			defer logout(client, token, c.config)
+			defer logout(baseClient, token, c.config)
+
 		} else {
 			// this might be empty
 			cfg.Token = c.config.Credentials.Static.Token
+			if c.config.Namespace != "" {
+				cfg.Namespace = c.config.Namespace
+			}
 			client, err = api.NewClient(cfg)
 			if err != nil {
 				c.initialized <- err
@@ -166,6 +174,9 @@ func (c *client) WatchServers(ctx context.Context) error {
 	}
 	updateClient := func(s discovery.State) error {
 		cfg := c.config.ApiClientConfig
+		if c.config.Namespace != "" {
+			cfg.Namespace = c.config.Namespace
+		}
 		cfg.Address = fmt.Sprintf("%s:%d", s.Address.IP.String(), c.config.HTTPPort)
 		if static {
 			// This is to fix the fact that s.Address always resolves to an IP, if
