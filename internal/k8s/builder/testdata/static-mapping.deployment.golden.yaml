@@ -112,7 +112,7 @@ spec:
         - /bin/discover
         - /bin/consul-api-gateway
         - /bootstrap/
-        image: hashicorp/consul-api-gateway:0.5.0
+        image: hashicorp/consul-api-gateway:0.5.1
         name: consul-api-gateway-init
         resources: {}
         volumeMounts:
