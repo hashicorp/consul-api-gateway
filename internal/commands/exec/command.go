@@ -2,6 +2,7 @@ package exec
 
 import (
 	"context"
+	"encoding/pem"
 	"errors"
 	"flag"
 	"fmt"
@@ -151,6 +152,7 @@ func (c *Command) Run(args []string) (ret int) {
 	if cfg.TLSConfig.CAFile != "" {
 		cfg.Scheme = "https"
 	}
+
 	// this call mutates the cfg object with a bunch of defaults
 	// so we're going to keep it for now
 	consulClient, err := api.NewClient(cfg)
@@ -260,4 +262,24 @@ Usage: consul-api-gateway exec [options]
 
 	Handles service registration, certificate rotation, and spawning envoy.
 `
+}
+
+func init() {
+	// this is a hack to ensure we actually have a valid CA file passed to our
+	// deployment, we parse the CA file just to make sure it's readable, if not,
+	// then we fallback to system certs by emptying the CAFile option.
+	caFile := os.Getenv(api.HTTPCAFile)
+	if caFile != "" {
+		os.Setenv(api.HTTPSSLEnvName, "true")
+		cert, err := os.ReadFile(caFile)
+		if err != nil {
+			os.Setenv(api.HTTPCAFile, "")
+		} else {
+			block, _ := pem.Decode(cert)
+			if block == nil {
+				// no pem data
+				os.Setenv(api.HTTPCAFile, "")
+			}
+		}
+	}
 }

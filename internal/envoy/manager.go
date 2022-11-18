@@ -31,6 +31,7 @@ type bootstrapArgs struct {
 	SDSCluster    string
 	Token         string
 	AddressType   string
+	ForceTLS      bool
 }
 
 func init() {
@@ -53,6 +54,7 @@ type ManagerConfig struct {
 	EnvoyBinary       string
 	ExtraArgs         []string
 	Output            io.Writer
+	ForceTLS          bool
 }
 
 // Manager wraps and manages an envoy process and its bootstrap configuration
@@ -115,6 +117,7 @@ func (m *Manager) RenderBootstrap(sdsConfig string) error {
 		ConsulCA:      m.ConsulCA,
 		ConsulAddress: m.ConsulAddress,
 		ConsulXDSPort: m.ConsulXDSPort,
+		ForceTLS:      m.ForceTLS,
 		AddressType:   common.AddressTypeForAddress(m.ConsulAddress),
 		Token:         m.Token,
 	}); err != nil {
@@ -183,6 +186,20 @@ const bootstrapJSONTemplate = `{
               "validation_context": {
                 "trusted_ca": {
                   "filename": "{{ .ConsulCA }}"
+                }
+              }
+            }
+          }
+        },
+        {{- else if .ForceTLS }}
+        "transport_socket": {
+          "name": "tls",
+          "typed_config": {
+            "@type": "type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext",
+            "common_tls_context": {
+              "validation_context": {
+                "trusted_ca": {
+                  "filename": "/etc/ssl/certs/ca-certificates.crt"
                 }
               }
             }
