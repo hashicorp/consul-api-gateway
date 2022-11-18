@@ -1,5 +1,11 @@
 ## UNRELEASED
 
+## 0.5.1 (November 21, 2022)
+
+BUG FIXES:
+
+* Fix being able to use system-wide root certificates in deployments. [[GH-459](https://github.com/hashicorp/consul-api-gateway/issues/459)]
+
 ## 0.5.0 (November 17, 2022)
 
 FEATURES:
