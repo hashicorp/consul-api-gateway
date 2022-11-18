@@ -135,6 +135,7 @@ func RunExec(config ExecConfig) (ret int) {
 			EnvoyBinary:       config.EnvoyConfig.Binary,
 			ExtraArgs:         config.EnvoyConfig.ExtraArgs,
 			Output:            config.EnvoyConfig.Output,
+			ForceTLS:          os.Getenv(api.HTTPSSLEnvName) == "true",
 		},
 	)
 	options := consul.DefaultCertManagerOptions()
