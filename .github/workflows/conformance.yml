@@ -41,7 +41,7 @@ jobs:
             envoy-image: "envoyproxy/envoy:v1.22-latest"
             consul-k8s-version: "v0.49.1"
             envoy-field: "global.imageEnvoy"
-          - name: "consul@v1.14-dev + consul-k8s@v1.0.0"
+          - name: "consul@v1.14 + consul-k8s@v1.0.0"
             api-gateway-image: "hashicorppreview/consul-api-gateway:0.5-dev"
             consul-image: "hashicorp/consul:1.14"
             envoy-image: "envoyproxy/envoy:v1.24-latest"
