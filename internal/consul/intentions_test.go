@@ -9,10 +9,10 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 
-	"github.com/hashicorp/consul-api-gateway/internal/consul/mocks"
-	consultesting "github.com/hashicorp/consul-api-gateway/internal/testing"
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/consul/sdk/testutil"
+
+	"github.com/hashicorp/consul-api-gateway/internal/consul/mocks"
 )
 
 type configEntryMatcher struct {
@@ -239,7 +239,7 @@ func TestIntentionsReconciler_Reconcile(t *testing.T) {
 			},
 		},
 	}
-	r := NewIntentionsReconciler(consultesting.NewTestClient(c), igw, testutil.Logger(t))
+	r := NewIntentionsReconciler(NewTestClient(c), igw, testutil.Logger(t))
 
 	require.NoError(r.Reconcile())
 

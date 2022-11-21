@@ -199,18 +199,14 @@ type backendResolver struct {
 	consul consul.Client
 	logger hclog.Logger
 	mapper common.ConsulNamespaceMapper
-
-	// Use consul.Peerings interface for testability
-	peerings consul.Peerings
 }
 
 func NewBackendResolver(logger hclog.Logger, mapper common.ConsulNamespaceMapper, client gatewayclient.Client, consul consul.Client) *backendResolver {
 	return &backendResolver{
-		client:   client,
-		consul:   consul,
-		mapper:   mapper,
-		logger:   logger,
-		peerings: consul.Peerings(),
+		client: client,
+		consul: consul,
+		mapper: mapper,
+		logger: logger,
 	}
 }
 
@@ -407,7 +403,7 @@ func (r *backendResolver) findPeerService(ctx context.Context, service *apigwv1a
 	consulName := service.Spec.Name
 	consulPeer := *service.Spec.Peer
 
-	peer, _, err := r.peerings.Read(ctx, consulPeer, &api.QueryOptions{Namespace: consulNamespace})
+	peer, _, err := r.consul.Peerings().Read(ctx, consulPeer, &api.QueryOptions{Namespace: consulNamespace})
 	if err != nil {
 		r.logger.Trace("error resolving imported consul service reference", "error", err)
 		return nil, err

@@ -4,11 +4,10 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
-
-	"fmt"
 
 	"github.com/hashicorp/consul-server-connection-manager/discovery"
 	"github.com/hashicorp/consul/api"
@@ -25,6 +24,10 @@ var (
 	globalWatcherMutex sync.Mutex
 )
 
+type PeeringClient interface {
+	Read(ctx context.Context, name string, q *api.QueryOptions) (*api.Peering, *api.QueryMeta, error)
+}
+
 type Client interface {
 	Agent() *api.Agent
 	ACL() *api.ACL
@@ -32,7 +35,7 @@ type Client interface {
 	ConfigEntries() *api.ConfigEntries
 	DiscoveryChain() *api.DiscoveryChain
 	Namespaces() *api.Namespaces
-	Peerings() *api.Peerings
+	Peerings() PeeringClient
 
 	WatchServers(ctx context.Context) error
 
@@ -254,7 +257,7 @@ func (c *client) Namespaces() *api.Namespaces {
 	return c.client.Namespaces()
 }
 
-func (c *client) Peerings() *api.Peerings {
+func (c *client) Peerings() PeeringClient {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
 

@@ -1,14 +1,18 @@
-package testing
+package consul
 
 import (
 	"context"
 	"time"
 
 	"github.com/hashicorp/consul/api"
+
+	"github.com/hashicorp/consul-api-gateway/internal/consul/mocks"
 )
 
 type TestClient struct {
 	*api.Client
+
+	peerings *mocks.MockPeerings
 }
 
 func NewTestClient(c *api.Client) *TestClient {
@@ -31,4 +35,15 @@ func (c *TestClient) Wait(time.Duration) error {
 
 func (c *TestClient) Internal() *api.Client {
 	return c.Client
+}
+
+func (c *TestClient) Peerings() PeeringClient {
+	if c.peerings == nil {
+		return c.Client.Peerings()
+	}
+	return c.peerings
+}
+
+func (c *TestClient) SetPeerings(peerings *mocks.MockPeerings) {
+	c.peerings = peerings
 }

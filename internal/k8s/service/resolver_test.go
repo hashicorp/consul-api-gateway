@@ -12,6 +12,7 @@ import (
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
 
+	testing2 "github.com/hashicorp/consul-api-gateway/internal/consul"
 	mocks2 "github.com/hashicorp/consul-api-gateway/internal/consul/mocks"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient/mocks"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
@@ -272,11 +273,14 @@ func TestBackendResolver_consulServiceForMeshService_peer(t *testing.T) {
 	peerings := mocks2.NewMockPeerings(ctrl)
 	peerings.EXPECT().Read(gomock.Any(), "exporting_peer", &api.QueryOptions{Namespace: t.Name()}).Return(peering, nil, nil)
 
+	consul := testing2.NewTestClient(nil)
+	consul.SetPeerings(peerings)
+
 	resolver := &backendResolver{
-		client:   gwClient,
-		logger:   hclog.NewNullLogger(),
-		mapper:   sameNamespaceMapper,
-		peerings: peerings,
+		client: gwClient,
+		consul: consul,
+		logger: hclog.NewNullLogger(),
+		mapper: sameNamespaceMapper,
 	}
 
 	ref, err := resolver.consulServiceForMeshService(context.Background(), utils.NamespacedName(meshService))
