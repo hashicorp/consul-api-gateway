@@ -213,7 +213,7 @@ func CreateTestConsulContainer(name, namespace string) env.Func {
 
 		env := &consulTestEnvironment{
 			ca:                               rootCA.CertBytes,
-			consulClient:                     testing.NewTestClient(consulClient),
+			consulClient:                     consul.NewTestClient(consulClient),
 			httpPort:                         httpsPort,
 			httpFlattenedPort:                httpFlattenedPort,
 			httpReferenceGrantPort:           httpReferenceGrantPort,

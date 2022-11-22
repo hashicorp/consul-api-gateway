@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/go-hclog"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/pointer"
 	gwv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	"github.com/hashicorp/consul-api-gateway/internal/common"
@@ -364,14 +365,26 @@ func (r *backendResolver) consulServiceForMeshService(ctx context.Context, names
 	// we do an inner retry since consul may take some time to sync
 	err = backoff.Retry(func() error {
 		r.logger.Trace("attempting to resolve global catalog service")
-		resolved, err = r.findCatalogService(service)
-		if err != nil {
-			r.logger.Trace("error resolving global catalog reference", "error", err)
-			return err
+
+		if pointer.StringDeref(service.Spec.Peer, "") != "" {
+			resolved, err = r.findPeerService(ctx, service)
+			if err != nil {
+				r.logger.Trace("error resolving imported service reference")
+				return err
+			} else if resolved == nil {
+				return NewConsulResolutionError(
+					fmt.Sprintf("imported consul service %s from peer %s not found", namespacedName, *service.Spec.Peer))
+			}
+		} else {
+			resolved, err = r.findCatalogService(service)
+			if err != nil {
+				r.logger.Trace("error resolving global catalog reference", "error", err)
+				return err
+			} else if resolved == nil {
+				return NewConsulResolutionError(fmt.Sprintf("consul service %s not found", namespacedName))
+			}
 		}
-		if resolved == nil {
-			return NewConsulResolutionError(fmt.Sprintf("consul service %s not found", namespacedName))
-		}
+
 		return nil
 	}, backoff.WithContext(backoff.WithMaxRetries(backoff.NewConstantBackOff(1*time.Second), 30), ctx))
 	if err != nil {
@@ -379,6 +392,37 @@ func (r *backendResolver) consulServiceForMeshService(ctx context.Context, names
 		return nil, err
 	}
 	return resolved, nil
+}
+
+func (r *backendResolver) findPeerService(ctx context.Context, service *apigwv1alpha1.MeshService) (*ResolvedReference, error) {
+	if pointer.StringDeref(service.Spec.Peer, "") == "" {
+		return nil, NewConsulResolutionError("peer name expected but not provided")
+	}
+
+	consulNamespace := r.mapper(service.Namespace)
+	consulName := service.Spec.Name
+	consulPeer := *service.Spec.Peer
+
+	peer, _, err := r.consul.Peerings().Read(ctx, consulPeer, &api.QueryOptions{Namespace: consulNamespace})
+	if err != nil {
+		r.logger.Trace("error resolving imported consul service reference", "error", err)
+		return nil, err
+	}
+
+	if peer == nil {
+		return nil, NewConsulResolutionError(fmt.Sprintf("no peer %q found", consulPeer))
+	}
+
+	for _, importedService := range peer.StreamStatus.ImportedServices {
+		if importedService == consulName {
+			return NewConsulServiceReference(&ConsulService{
+				Namespace: consulNamespace,
+				Name:      consulName,
+			}), nil
+		}
+	}
+
+	return nil, NewConsulResolutionError(fmt.Sprintf("no service %s found from peer %s", consulName, consulPeer))
 }
 
 func (r *backendResolver) findCatalogService(service *apigwv1alpha1.MeshService) (*ResolvedReference, error) {

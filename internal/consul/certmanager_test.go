@@ -17,10 +17,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	consultesting "github.com/hashicorp/consul-api-gateway/internal/testing"
-	gwTesting "github.com/hashicorp/consul-api-gateway/internal/testing"
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
+
+	gwTesting "github.com/hashicorp/consul-api-gateway/internal/testing"
 )
 
 func TestManage(t *testing.T) {
@@ -50,7 +50,7 @@ func TestManage(t *testing.T) {
 			options := DefaultCertManagerOptions()
 			options.Directory = directory
 
-			manager := NewCertManager(hclog.NewNullLogger(), consultesting.NewTestClient(server.consul), service, options)
+			manager := NewCertManager(hclog.NewNullLogger(), NewTestClient(server.consul), service, options)
 
 			manager.skipExtraFetch = true
 
@@ -110,7 +110,7 @@ func TestManage_Refresh(t *testing.T) {
 	server := runCertServer(t, 0, 0, service, 2)
 
 	options := DefaultCertManagerOptions()
-	manager := NewCertManager(hclog.NewNullLogger(), consultesting.NewTestClient(server.consul), service, options)
+	manager := NewCertManager(hclog.NewNullLogger(), NewTestClient(server.consul), service, options)
 
 	manager.skipExtraFetch = true
 
