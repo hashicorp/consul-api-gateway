@@ -1,6 +1,10 @@
 ## UNRELEASED
 
-## 0.5.1 (November 21, 2022)
+## 0.5.1 (November 22, 2022)
+
+IMPROVEMENTS:
+
+* Allow MeshService CRD to reference a Consul service imported from a peer by specifying the peer's name [[GH-406](https://github.com/hashicorp/consul-api-gateway/issues/406)]
 
 BUG FIXES:
 
