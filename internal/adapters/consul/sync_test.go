@@ -16,8 +16,8 @@ import (
 	"github.com/hashicorp/consul/sdk/testutil"
 
 	"github.com/hashicorp/consul-api-gateway/internal/common"
+	consultesting "github.com/hashicorp/consul-api-gateway/internal/consul"
 	"github.com/hashicorp/consul-api-gateway/internal/core"
-	consultesting "github.com/hashicorp/consul-api-gateway/internal/testing"
 )
 
 var (
