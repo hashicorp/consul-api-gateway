@@ -197,7 +197,7 @@ func (m *GatewayReconcileManager) UpsertGateway(ctx context.Context, g *gwv1beta
 		if current == nil {
 			return true
 		}
-		return !utils.ResourceVersionGreater(current.(*K8sGateway).ResourceVersion, gateway.ResourceVersion)
+		return current.(*K8sGateway).ResourceVersion != gateway.ResourceVersion
 	})
 }
 
@@ -235,7 +235,7 @@ func (m *GatewayReconcileManager) upsertRoute(ctx context.Context, r Route, pare
 		if current == nil {
 			return true
 		}
-		return !utils.ResourceVersionGreater(current.(*K8sRoute).GetResourceVersion(), route.GetResourceVersion())
+		return current.(*K8sRoute).GetResourceVersion() != route.GetResourceVersion()
 	})
 }
 
