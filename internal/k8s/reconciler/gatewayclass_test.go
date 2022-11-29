@@ -119,7 +119,7 @@ func TestGatewayClasses(t *testing.T) {
 
 	gatewayClass = NewK8sGatewayClass(&gwv1beta1.GatewayClass{
 		ObjectMeta: meta.ObjectMeta{
-			ResourceVersion: "0",
+			ResourceVersion: "1",
 		},
 		Spec: gwv1beta1.GatewayClassSpec{
 			ParametersRef: &gwv1beta1.ParametersReference{
