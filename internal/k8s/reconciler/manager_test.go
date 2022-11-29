@@ -6,7 +6,10 @@ import (
 	"testing"
 
 	"github.com/golang/mock/gomock"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	gwv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 	gwv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
@@ -34,24 +37,34 @@ func TestUpsertGatewayClass(t *testing.T) {
 		Logger: hclog.NewNullLogger(),
 	})
 
-	inner := &gwv1beta1.GatewayClass{}
-	expected := errors.New("expected")
-	client.EXPECT().UpdateStatus(gomock.Any(), inner).Return(expected)
-	require.Equal(t, expected, manager.UpsertGatewayClass(context.Background(), inner))
-
-	client.EXPECT().UpdateStatus(gomock.Any(), inner)
-	require.NoError(t, manager.UpsertGatewayClass(context.Background(), inner))
-
-	// validation
-	client.EXPECT().GetGatewayClassConfig(gomock.Any(), gomock.Any()).Return(nil, expected)
-	require.Equal(t, expected, manager.UpsertGatewayClass(context.Background(), &gwv1beta1.GatewayClass{
-		Spec: gwv1beta1.GatewayClassSpec{
-			ParametersRef: &gwv1beta1.ParametersReference{
-				Group: apigwv1alpha1.Group,
-				Kind:  apigwv1alpha1.GatewayClassConfigKind,
+	t.Run("error validating GatewayClassConfig", func(t *testing.T) {
+		inner := &gwv1beta1.GatewayClass{
+			Spec: gwv1beta1.GatewayClassSpec{
+				ParametersRef: &gwv1beta1.ParametersReference{
+					Group: apigwv1alpha1.Group,
+					Kind:  apigwv1alpha1.GatewayClassConfigKind,
+				},
 			},
-		},
-	}))
+		}
+		expected := errors.New("expected")
+		client.EXPECT().GetGatewayClassConfig(gomock.Any(), gomock.Any()).Return(nil, expected)
+
+		err := manager.UpsertGatewayClass(context.Background(), inner)
+		assert.EqualError(t, err, expected.Error())
+	})
+
+	t.Run("error updating status", func(t *testing.T) {
+		inner := &gwv1beta1.GatewayClass{ObjectMeta: v1.ObjectMeta{ResourceVersion: uuid.NewString()}}
+		expected := errors.New("expected")
+		client.EXPECT().UpdateStatus(gomock.Any(), inner).Return(expected)
+		assert.EqualError(t, manager.UpsertGatewayClass(context.Background(), inner), expected.Error())
+	})
+
+	t.Run("successful update", func(t *testing.T) {
+		inner := &gwv1beta1.GatewayClass{ObjectMeta: v1.ObjectMeta{ResourceVersion: uuid.NewString()}}
+		client.EXPECT().UpdateStatus(gomock.Any(), inner)
+		assert.NoError(t, manager.UpsertGatewayClass(context.Background(), inner))
+	})
 }
 
 func TestUpsertGateway(t *testing.T) {
