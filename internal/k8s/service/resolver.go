@@ -271,7 +271,7 @@ func (r *backendResolver) consulServiceForK8SService(ctx context.Context, namesp
 	return resolved, nil
 }
 
-func validateAgentConsulReference(services map[string]*api.AgentService) (*ResolvedReference, error) {
+func validateAgentConsulReference(services []*api.AgentService) (*ResolvedReference, error) {
 	serviceName := ""
 	serviceNamespace := ""
 	for _, service := range services {
@@ -305,10 +305,9 @@ func (r *backendResolver) findGlobalCatalogService(service *corev1.Service) (*Re
 		return nil, err
 	}
 
-	var consulNamespaces []*api.Namespace
-	// the default namespace
-	namespaces := []string{""}
-	consulNamespaces, _, err = r.consul.Namespaces().List(nil)
+	// Check to see if we're dealing with an enterprise version of Consul
+	namespace := ""
+	_, _, err = r.consul.Namespaces().List(nil)
 	if err != nil {
 		if !strings.Contains(err.Error(), "Unexpected response code: 404") {
 			r.logger.Trace("error retrieving namespaces", "error", err)
@@ -317,33 +316,34 @@ func (r *backendResolver) findGlobalCatalogService(service *corev1.Service) (*Re
 		// we're dealing with an OSS version of Consul, skip namespaces other than the
 		// default namespace
 	} else {
-		for _, namespace := range consulNamespaces {
-			namespaces = append(namespaces, namespace.Name)
-		}
+		namespace = "*"
 	}
 
 	filter := fmt.Sprintf(`Meta[%q] == %q and Meta[%q] == %q and Kind != "connect-proxy"`, MetaKeyKubeServiceName, service.Name, MetaKeyKubeNS, service.Namespace)
 	for _, node := range nodes {
-		for _, namespace := range namespaces {
-			nodeWithServices, _, err := r.consul.Catalog().Node(node.Node, &api.QueryOptions{
-				Filter:    filter,
-				Namespace: namespace,
-			})
-			if err != nil {
-				r.logger.Trace("error retrieving node services", "error", err, "node", node.Node)
-				return nil, err
-			}
-			if len(nodeWithServices.Services) == 0 {
-				continue
-			}
-			resolved, err := validateAgentConsulReference(nodeWithServices.Services)
-			if err != nil {
-				r.logger.Trace("error validating node services", "error", err, "node", node.Node)
-				return nil, err
-			}
-			if resolved != nil {
-				return resolved, nil
-			}
+		opts := &api.QueryOptions{Filter: filter}
+		if namespace != "" {
+			opts.Namespace = "*"
+		}
+
+		nodeWithServices, _, err := r.consul.Catalog().NodeServiceList(node.Node, &api.QueryOptions{
+			Filter:    filter,
+			Namespace: namespace,
+		})
+		if err != nil {
+			r.logger.Trace("error retrieving node services", "error", err, "node", node.Node)
+			return nil, err
+		} else if len(nodeWithServices.Services) == 0 {
+			continue
+		}
+
+		resolved, err := validateAgentConsulReference(nodeWithServices.Services)
+		if err != nil {
+			r.logger.Trace("error validating node services", "error", err, "node", node.Node)
+			return nil, err
+		}
+		if resolved != nil {
+			return resolved, nil
 		}
 	}
 	return nil, nil
