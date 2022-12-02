@@ -57,7 +57,10 @@ var (
 )
 
 const (
-	errorTemplate = `package errors
+	errorTemplate = `// Copyright (c) HashiCorp, Inc.
+// SPDX-License-Identifier: MPL-2.0
+
+package errors
 
 // GENERATED from errors.yaml, DO NOT EDIT DIRECTLY
 
@@ -89,7 +92,10 @@ func (r {{ $error.Name }}Error) Kind() {{ $error.Name }}ErrorType {
 }	
 {{end}}
 `
-	errorTestsTemplate = `package errors
+	errorTestsTemplate = `// Copyright (c) HashiCorp, Inc.
+// SPDX-License-Identifier: MPL-2.0
+
+package errors
 
 // GENERATED from errors.yaml, DO NOT EDIT DIRECTLY
 
