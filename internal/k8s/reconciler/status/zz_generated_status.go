@@ -1,3 +1,6 @@
+// Copyright (c) HashiCorp, Inc.
+// SPDX-License-Identifier: MPL-2.0
+
 package status
 
 // GENERATED from statuses.yaml, DO NOT EDIT DIRECTLY
