@@ -15,7 +15,7 @@ require (
 	github.com/google/uuid v1.3.0
 	github.com/hashicorp/consul-server-connection-manager v0.1.1-0.20221115222743-242744ae73fb
 	github.com/hashicorp/consul/api v1.18.0
-	github.com/hashicorp/consul/proto-public v0.1.0
+	github.com/hashicorp/consul/proto-public v0.2.1
 	github.com/hashicorp/consul/sdk v0.13.0
 	github.com/hashicorp/go-changelog v0.0.0-20221013053416-ba40b3a8c7ff
 	github.com/hashicorp/go-hclog v1.3.1
