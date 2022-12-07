@@ -14,7 +14,7 @@ require (
 	github.com/golangci/golangci-lint v1.50.1
 	github.com/google/uuid v1.3.0
 	github.com/hashicorp/consul-server-connection-manager v0.1.1-0.20221115222743-242744ae73fb
-	github.com/hashicorp/consul/api v1.17.0
+	github.com/hashicorp/consul/api v1.18.0
 	github.com/hashicorp/consul/proto-public v0.2.1
 	github.com/hashicorp/consul/sdk v0.13.0
 	github.com/hashicorp/go-changelog v0.0.0-20221013053416-ba40b3a8c7ff
@@ -29,9 +29,9 @@ require (
 	github.com/stretchr/testify v1.8.1
 	github.com/vladimirvivien/gexe v0.1.1
 	golang.org/x/exp v0.0.0-20220722155223-a9213eeb770e
-	golang.org/x/net v0.3.0
+	golang.org/x/net v0.4.0
 	golang.org/x/sync v0.1.0
-	golang.org/x/tools v0.3.0
+	golang.org/x/tools v0.4.0
 	google.golang.org/grpc v1.51.0
 	k8s.io/api v0.25.4
 	k8s.io/apiextensions-apiserver v0.25.4
