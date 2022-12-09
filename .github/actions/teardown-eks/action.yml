@@ -1,3 +1,6 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: MPL-2.0
+
 name: "Tear down EKS"
 description: "Tears down an EKS cluster. Requires eksctl and credentials in the workflow's environment from the setup-eks action."
 inputs:

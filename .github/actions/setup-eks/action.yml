@@ -1,3 +1,6 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: MPL-2.0
+
 name: "Setup EKS"
 description: "Installs eksctl, configures AWS credentials in the workflow's environment and sets up an EKS cluster."
 inputs:

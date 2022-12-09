@@ -1,3 +1,6 @@
+// Copyright (c) HashiCorp, Inc.
+// SPDX-License-Identifier: MPL-2.0
+
 //go:build generate
 // +build generate
 
@@ -120,7 +123,10 @@ var (
 )
 
 const (
-	statusTestsTemplate = `package status
+	statusTestsTemplate = `// Copyright (c) HashiCorp, Inc.
+// SPDX-License-Identifier: MPL-2.0
+
+package status
 
 // GENERATED from statuses.yaml, DO NOT EDIT DIRECTLY
 
@@ -214,7 +220,10 @@ func Test{{ $status.Kind }}{{ $conditionType.Name }}StatusMarshaling(t *testing.
 
 {{ end }}
 `
-	statusTemplate = `package status
+	statusTemplate = `// Copyright (c) HashiCorp, Inc.
+// SPDX-License-Identifier: MPL-2.0
+
+package status
 
 // GENERATED from statuses.yaml, DO NOT EDIT DIRECTLY
 
