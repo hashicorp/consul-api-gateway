@@ -1,3 +1,6 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: MPL-2.0
+
 # This file contains the additional resources and the patches for existing resources necessary
 # to run the conformance tests from https://github.com/kubernetes-sigs/gateway-api against
 # Consul API Gateway.

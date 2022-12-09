@@ -1,0 +1,3 @@
+```release-note:enhancement
+Add initial set of copyright headers to applicable files
+```
