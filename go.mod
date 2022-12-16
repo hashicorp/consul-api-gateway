@@ -7,7 +7,7 @@ require (
 	github.com/armon/go-metrics v0.4.1
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/deepmap/oapi-codegen v1.11.0
-	github.com/docker/docker v20.10.21+incompatible
+	github.com/docker/docker v20.10.22+incompatible
 	github.com/envoyproxy/go-control-plane v0.10.2-0.20220325020618-49ff273808a1
 	github.com/go-logr/logr v1.2.3
 	github.com/golang/mock v1.6.0
