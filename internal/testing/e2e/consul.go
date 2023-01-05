@@ -594,7 +594,8 @@ func SetConsulNamespace(namespace *string) env.Func {
 		if IsEnterprise() {
 			log.Print("Creating Consul Namespace")
 			if namespace == nil {
-				*namespace = envconf.RandomName("consul", 16)
+				name := envconf.RandomName("consul", 16)
+				namespace = &name
 			}
 
 			consulEnvironment := ctx.Value(consulTestContextKey)
