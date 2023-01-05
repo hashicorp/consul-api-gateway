@@ -510,14 +510,15 @@ func ConsulHTTPPort(ctx context.Context) int {
 	return mustGetTestEnvironment(ctx).httpPort
 }
 
-func isConsulNamespaceMirroringOn() bool {
-	return IsEnterprise()
+func isConsulNamespaceMirroringOn(ctx context.Context) bool {
+	return IsEnterprise() && NamespaceMirroring(ctx)
 }
 func ConsulNamespace(ctx context.Context) string {
-	if isConsulNamespaceMirroringOn() {
-		//assume mirroring is on
+	if isConsulNamespaceMirroringOn(ctx) {
 		return Namespace(ctx)
 	}
+
+	// Return Consul namespace
 	return mustGetTestEnvironment(ctx).namespace
 }
 
@@ -588,27 +589,32 @@ func IsEnterprise() bool {
 	return strings.HasSuffix(consulImage, "ent")
 }
 
-func CreateConsulNamespace(ctx context.Context, cfg *envconf.Config) (context.Context, error) {
-	if IsEnterprise() {
-		log.Print("Creating Consul Namespace")
-		namespace := envconf.RandomName("test", 16)
+func SetConsulNamespace(namespace *string) env.Func {
+	return func(ctx context.Context, _ *envconf.Config) (context.Context, error) {
+		if IsEnterprise() {
+			log.Print("Creating Consul Namespace")
+			if namespace == nil {
+				*namespace = envconf.RandomName("consul", 16)
+			}
 
-		consulEnvironment := ctx.Value(consulTestContextKey)
-		if consulEnvironment == nil {
-			return ctx, nil
+			consulEnvironment := ctx.Value(consulTestContextKey)
+			if consulEnvironment == nil {
+				return ctx, nil
+			}
+			env := consulEnvironment.(*consulTestEnvironment)
+			_, _, err := env.consulClient.Namespaces().Create(&api.Namespace{
+				Name: *namespace,
+			}, &api.WriteOptions{
+				Token: env.token,
+			})
+			// TODO: ignore error if namespace already exists
+			if err != nil {
+				return nil, err
+			}
+			env.namespace = *namespace
 		}
-		env := consulEnvironment.(*consulTestEnvironment)
-		_, _, err := env.consulClient.Namespaces().Create(&api.Namespace{
-			Name: namespace,
-		}, &api.WriteOptions{
-			Token: env.token,
-		})
-		if err != nil {
-			return nil, err
-		}
-		env.namespace = namespace
+		return ctx, nil
 	}
-	return ctx, nil
 }
 
 func gatewayConsulAuthMethod(name, token string, k8sConfig *rest.Config) *api.ACLAuthMethod {

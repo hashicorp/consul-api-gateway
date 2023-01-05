@@ -28,6 +28,7 @@ func SetUpStack(hostRoute string) env.Func {
 		for _, f := range []env.Func{
 			SetClusterName(kindClusterName),
 			SetNamespace(namespace),
+			SetNamespaceMirroring(true),
 			CrossCompileProject,
 			BuildDockerImage,
 			CreateKindCluster(kindClusterName),
@@ -38,7 +39,7 @@ func SetUpStack(hostRoute string) env.Func {
 			CreateTestConsulContainer(kindClusterName, namespace),
 			CreateConsulACLPolicy,
 			CreateConsulAuthMethod(),
-			CreateConsulNamespace,
+			SetConsulNamespace(nil),
 			CreateTestGatewayServer(namespace),
 		} {
 			ctx, err = f(ctx, cfg)
