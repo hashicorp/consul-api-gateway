@@ -602,15 +602,19 @@ func SetConsulNamespace(namespace *string) env.Func {
 			if consulEnvironment == nil {
 				return ctx, nil
 			}
-			env := consulEnvironment.(*consulTestEnvironment)
-			_, _, err := env.consulClient.Namespaces().Create(&api.Namespace{
-				Name: *namespace,
-			}, &api.WriteOptions{
-				Token: env.token,
-			})
-			// TODO: ignore error if namespace already exists
-			if err != nil {
-				return nil, err
+			// Passing an empty string for namespace name returns a Consul API error,
+			// and the default namespace should always exist
+			if *namespace != "" {
+				env := consulEnvironment.(*consulTestEnvironment)
+				_, _, err := env.consulClient.Namespaces().Create(&api.Namespace{
+					Name: *namespace,
+				}, &api.WriteOptions{
+					Token: env.token,
+				})
+				// TODO: ignore error if namespace already exists
+				if err != nil {
+					return nil, err
+				}
 			}
 			env.namespace = *namespace
 		}
