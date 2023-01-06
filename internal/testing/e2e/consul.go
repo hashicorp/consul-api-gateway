@@ -612,7 +612,6 @@ func SetConsulNamespace(namespace *string) env.Func {
 				}, &api.WriteOptions{
 					Token: env.token,
 				})
-				// TODO: ignore error if namespace already exists
 				if err != nil {
 					return nil, err
 				}

@@ -23,6 +23,8 @@ func SetUpStack(hostRoute string) env.Func {
 		kindClusterName := envconf.RandomName("consul-api-gateway-test", 30)
 		namespace := envconf.RandomName("test", 16)
 
+		// TODO: should this instead create a new context?
+
 		ctx = SetHostRoute(ctx, hostRoute)
 
 		for _, f := range []env.Func{
