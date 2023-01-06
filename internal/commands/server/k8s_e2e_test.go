@@ -170,7 +170,7 @@ func TestGatewayWithoutNamespaceMirroring(t *testing.T) {
 			assert.NoError(t, resources.Delete(ctx, thirdGateway))
 
 			// Re-enable namespace mirroring
-			ctx, err := e2e.SetNamespaceMirroring(true)(ctx, nil)
+			ctx, err = e2e.SetNamespaceMirroring(true)(ctx, nil)
 			require.NoError(t, err)
 
 			return ctx
