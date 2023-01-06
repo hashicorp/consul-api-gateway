@@ -348,9 +348,9 @@ func TestGatewayBasic(t *testing.T) {
 
 			// check for the service being registered
 			client := e2e.ConsulClient(ctx)
-            t.Log("k8s namespace:", e2e.Namespace(ctx)
-            t.Log("consul namespace:", e2e.ConsulNamespace(ctx)
-            t.Log("mirroring:", e2e.NamespaceMirroring(ctx)
+			t.Log("k8s namespace:", e2e.Namespace(ctx))
+			t.Log("consul namespace:", e2e.ConsulNamespace(ctx))
+			t.Log("mirroring:", e2e.NamespaceMirroring(ctx))
 
 			require.Eventually(t, func() bool {
 				services, _, err := client.Catalog().Service(gatewayName, "", &api.QueryOptions{
