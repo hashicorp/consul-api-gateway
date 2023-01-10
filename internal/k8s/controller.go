@@ -66,7 +66,7 @@ func (c ConsulNamespaceConfig) Namespace(namespace string) string {
 
 	// Always map the default namespace to "" for compatibility with Consul OSS
 	if consulNamespace == "default" {
-		consulNamespace = ""
+		return ""
 	}
 
 	return consulNamespace
