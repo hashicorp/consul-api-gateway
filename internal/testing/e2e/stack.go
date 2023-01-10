@@ -23,11 +23,14 @@ func SetUpStack(hostRoute string) env.Func {
 		kindClusterName := envconf.RandomName("consul-api-gateway-test", 30)
 		namespace := envconf.RandomName("test", 16)
 
+		// TODO: should this instead create a new context?
+
 		ctx = SetHostRoute(ctx, hostRoute)
 
 		for _, f := range []env.Func{
 			SetClusterName(kindClusterName),
 			SetNamespace(namespace),
+			SetNamespaceMirroring(true),
 			CrossCompileProject,
 			BuildDockerImage,
 			CreateKindCluster(kindClusterName),
@@ -38,7 +41,7 @@ func SetUpStack(hostRoute string) env.Func {
 			CreateTestConsulContainer(kindClusterName, namespace),
 			CreateConsulACLPolicy,
 			CreateConsulAuthMethod(),
-			CreateConsulNamespace,
+			SetConsulNamespace(nil),
 			CreateTestGatewayServer(namespace),
 		} {
 			ctx, err = f(ctx, cfg)

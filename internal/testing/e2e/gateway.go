@@ -64,7 +64,7 @@ func (p *gatewayTestEnvironment) run(ctx context.Context, namespace string, cfg 
 		CACert:        ConsulCA(ctx),
 		ConsulNamespaceConfig: k8s.ConsulNamespaceConfig{
 			ConsulDestinationNamespace: ConsulNamespace(ctx),
-			MirrorKubernetesNamespaces: isConsulNamespaceMirroringOn(),
+			MirrorKubernetesNamespaces: isConsulNamespaceMirroringOn(ctx),
 		},
 	}
 

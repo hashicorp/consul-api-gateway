@@ -56,10 +56,20 @@ type ConsulNamespaceConfig struct {
 }
 
 func (c ConsulNamespaceConfig) Namespace(namespace string) string {
+	var consulNamespace string
+
 	if c.MirrorKubernetesNamespaces {
-		return c.MirrorKubernetesNamespacePrefix + namespace
+		consulNamespace = c.MirrorKubernetesNamespacePrefix + namespace
+	} else {
+		consulNamespace = c.ConsulDestinationNamespace
 	}
-	return c.ConsulDestinationNamespace
+
+	// Always map the default namespace to "" for compatibility with Consul OSS
+	if consulNamespace == "default" {
+		return ""
+	}
+
+	return consulNamespace
 }
 
 type Kubernetes struct {
