@@ -75,7 +75,6 @@ func (c *client) Wait(until time.Duration) error {
 	case err := <-c.initialized:
 		return err
 	case <-time.After(until):
-		c.stop()
 		return errors.New("did not get state within time limit")
 	}
 }
@@ -127,9 +126,6 @@ func (c *client) WatchServers(ctx context.Context) error {
 		<-ctx.Done()
 		return nil
 	}
-
-	ctx, cancel := context.WithCancel(ctx)
-	c.stop = cancel
 
 	var static bool
 	serverName := c.config.Addresses
