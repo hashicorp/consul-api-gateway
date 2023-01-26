@@ -26,6 +26,7 @@ type Client interface {
 	ACL() *api.ACL
 	Catalog() *api.Catalog
 	ConfigEntries() *api.ConfigEntries
+	ConsulAddress() string
 	DiscoveryChain() *api.DiscoveryChain
 	Namespaces() *api.Namespaces
 	Peerings() PeeringClient
@@ -54,11 +55,12 @@ type ClientConfig struct {
 }
 
 type client struct {
-	config      ClientConfig
-	client      *api.Client
-	token       string
-	mutex       sync.RWMutex
-	initialized chan error
+	config        ClientConfig
+	client        *api.Client
+	consulAddress string
+	token         string
+	mutex         sync.RWMutex
+	initialized   chan error
 }
 
 func NewClient(config ClientConfig) Client {
@@ -163,16 +165,21 @@ func (c *client) WatchServers(ctx context.Context) error {
 		return err
 	}
 	updateClient := func(s discovery.State) error {
+		var consulServerAddress string
+
 		cfg := c.config.ApiClientConfig
 		if c.config.Namespace != "" {
 			cfg.Namespace = c.config.Namespace
 		}
-		cfg.Address = fmt.Sprintf("%s:%d", s.Address.IP.String(), c.config.HTTPPort)
+
+		consulServerAddress = s.Address.IP.String()
+		cfg.Address = fmt.Sprintf("%s:%d", consulServerAddress, c.config.HTTPPort)
 		if static {
 			// This is to fix the fact that s.Address always resolves to an IP, if
 			// we pass a DNS address without an IPSANS, regardless of setting cfg.TLSConfig.Address
 			// below, we have a connection error on cert validation.
-			cfg.Address = fmt.Sprintf("%s:%d", c.config.Addresses, c.config.HTTPPort)
+			consulServerAddress = c.config.Addresses
+			cfg.Address = fmt.Sprintf("%s:%d", consulServerAddress, c.config.HTTPPort)
 		}
 		cfg.Token = s.Token
 		cfg.TLSConfig.Address = serverName
@@ -184,6 +191,7 @@ func (c *client) WatchServers(ctx context.Context) error {
 
 		c.mutex.Lock()
 		c.client = client
+		c.consulAddress = consulServerAddress
 		c.token = s.Token
 		c.mutex.Unlock()
 
@@ -227,6 +235,13 @@ func (c *client) ConfigEntries() *api.ConfigEntries {
 	defer c.mutex.RUnlock()
 
 	return c.client.ConfigEntries()
+}
+
+func (c *client) ConsulAddress() string {
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
+
+	return c.consulAddress
 }
 
 func (c *client) DiscoveryChain() *api.DiscoveryChain {

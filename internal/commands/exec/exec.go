@@ -130,7 +130,7 @@ func RunExec(config ExecConfig) (ret int) {
 			ID:                registry.ID(),
 			Namespace:         registry.Namespace(),
 			ConsulCA:          config.EnvoyConfig.CACertificateFile,
-			ConsulAddress:     config.EnvoyConfig.XDSAddress,
+			ConsulAddress:     client.ConsulAddress(),
 			ConsulXDSPort:     config.EnvoyConfig.XDSPort,
 			BootstrapFilePath: config.EnvoyConfig.BootstrapFile,
 			LogLevel:          config.LogLevel,
