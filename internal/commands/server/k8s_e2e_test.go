@@ -632,13 +632,14 @@ func TestHTTPRouteFlattening(t *testing.T) {
 				Body:       serviceTwo.Name,
 			}, map[string]string{
 				"Host": "test.foo",
+				"x-v2": "v2",
 			}, "service two not routable in allotted time")
-			checkRoute(t, checkPort, "/", httpResponse{
+			checkRoute(t, checkPort, "/v2/test", httpResponse{
 				StatusCode: http.StatusOK,
-				Body:       serviceOne.Name,
+				Body:       serviceTwo.Name,
 			}, map[string]string{
 				"Host": "test.foo",
-			}, "service one not routable in allotted time")
+			}, "service two not routable in allotted time")
 			checkRoute(t, checkPort, "/", httpResponse{
 				StatusCode: http.StatusOK,
 				Body:       serviceTwo.Name,
@@ -646,6 +647,18 @@ func TestHTTPRouteFlattening(t *testing.T) {
 				"Host": "test.foo",
 				"x-v2": "v2",
 			}, "service two with headers is not routable in allotted time")
+			checkRoute(t, checkPort, "/", httpResponse{
+				StatusCode: http.StatusOK,
+				Body:       serviceOne.Name,
+			}, map[string]string{
+				"Host": "test.foo",
+			}, "service one not routable in allotted time")
+			checkRoute(t, checkPort, "/v2/test", httpResponse{
+				StatusCode: http.StatusOK,
+				Body:       serviceOne.Name,
+			}, map[string]string{
+				"Host": "test.example",
+			}, "service one not routable in allotted time")
 
 			err = resources.Delete(ctx, gw)
 			require.NoError(t, err)
