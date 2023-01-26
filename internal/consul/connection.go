@@ -54,7 +54,6 @@ type ClientConfig struct {
 }
 
 type client struct {
-	stop        func()
 	config      ClientConfig
 	client      *api.Client
 	token       string
