@@ -165,21 +165,23 @@ func (c *client) WatchServers(ctx context.Context) error {
 		return err
 	}
 	updateClient := func(s discovery.State) error {
-		var consulServerAddress string
+		var consulAddress string
+
+		fmt.Printf("DISCOVERY STATE %+v\n", s)
 
 		cfg := c.config.ApiClientConfig
 		if c.config.Namespace != "" {
 			cfg.Namespace = c.config.Namespace
 		}
 
-		consulServerAddress = s.Address.IP.String()
-		cfg.Address = fmt.Sprintf("%s:%d", consulServerAddress, c.config.HTTPPort)
+		consulAddress = s.Address.IP.String()
+		cfg.Address = fmt.Sprintf("%s:%d", consulAddress, c.config.HTTPPort)
 		if static {
 			// This is to fix the fact that s.Address always resolves to an IP, if
 			// we pass a DNS address without an IPSANS, regardless of setting cfg.TLSConfig.Address
 			// below, we have a connection error on cert validation.
-			consulServerAddress = c.config.Addresses
-			cfg.Address = fmt.Sprintf("%s:%d", consulServerAddress, c.config.HTTPPort)
+			consulAddress = c.config.Addresses
+			cfg.Address = fmt.Sprintf("%s:%d", c.config.Addresses, c.config.HTTPPort)
 		}
 		cfg.Token = s.Token
 		cfg.TLSConfig.Address = serverName
@@ -191,7 +193,7 @@ func (c *client) WatchServers(ctx context.Context) error {
 
 		c.mutex.Lock()
 		c.client = client
-		c.consulAddress = consulServerAddress
+		c.consulAddress = consulAddress
 		c.token = s.Token
 		c.mutex.Unlock()
 

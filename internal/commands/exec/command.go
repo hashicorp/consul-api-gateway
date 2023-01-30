@@ -220,6 +220,7 @@ func (c *Command) Run(args []string) (ret int) {
 		},
 		EnvoyConfig: EnvoyConfig{
 			CACertificateFile: cfg.TLSConfig.CAFile,
+			XDSAddress:        c.flagConsulHTTPAddress,
 			XDSPort:           c.flagConsulXDSPort,
 			SDSAddress:        c.flagSDSServerAddress,
 			SDSPort:           c.flagSDSServerPort,

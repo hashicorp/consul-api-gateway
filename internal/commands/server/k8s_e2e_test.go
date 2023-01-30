@@ -87,6 +87,9 @@ func TestGatewayWithClassConfigChange(t *testing.T) {
 			// Create a Gateway and wait for it to be ready
 			firstGatewayName := envconf.RandomName("gw", 16)
 			firstGateway := createGateway(ctx, t, resources, firstGatewayName, namespace, gc, []gwv1beta1.Listener{httpsListener})
+
+			time.Sleep(60 * time.Minute)
+
 			require.Eventually(t, gatewayStatusCheck(ctx, resources, firstGatewayName, namespace, conditionReady), checkTimeout, checkInterval, "no gateway found in the allotted time")
 			checkGatewayConfigAnnotation(ctx, t, resources, firstGatewayName, namespace, firstConfig)
 

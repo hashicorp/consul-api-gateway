@@ -5,6 +5,7 @@ package exec
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"os"
 	"os/signal"
@@ -123,6 +124,11 @@ func RunExec(config ExecConfig) (ret int) {
 		}
 		sessionCancel()
 	}()
+
+	fmt.Println("initializing Envoy manager")
+	fmt.Println("Consul HTTP address", config.EnvoyConfig.XDSAddress)
+	fmt.Println("Consul Server Connection Manager address", client.ConsulAddress())
+	// time.Sleep(60 * time.Minute)
 
 	envoyManager := envoy.NewManager(
 		config.Logger.Named("envoy-manager"),

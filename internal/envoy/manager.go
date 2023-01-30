@@ -6,6 +6,7 @@ package envoy
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -126,6 +127,8 @@ func (m *Manager) RenderBootstrap(sdsConfig string) error {
 	}); err != nil {
 		return err
 	}
+
+	fmt.Printf("BOOTSTRAP CONFIG %+v\n", bootstrapConfig.String())
 
 	return os.WriteFile(m.BootstrapFilePath, bootstrapConfig.Bytes(), 0600)
 }

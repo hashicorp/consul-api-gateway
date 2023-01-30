@@ -25,7 +25,7 @@ func NewTestClient(c *api.Client) *TestClient {
 }
 
 func (c *TestClient) ConsulAddress() string {
-	return ""
+	return "test"
 }
 
 func (c *TestClient) WatchServers(ctx context.Context) error {
