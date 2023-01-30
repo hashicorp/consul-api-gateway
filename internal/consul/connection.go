@@ -17,16 +17,6 @@ import (
 	"github.com/hashicorp/go-hclog"
 )
 
-var (
-	// Calling discovery.NewWatcher registers a new gRPC load balancer
-	// type tied to the consul:// scheme, which calls the global
-	// google.golang.org/grpc/balancer.Register, which, as specified
-	// in their docs is not threadsafe and should be called only in an
-	// init function. This mutex makes it so we can boot up multiple watchers
-	// particularly in our tests.
-	globalWatcherMutex sync.Mutex
-)
-
 type PeeringClient interface {
 	Read(ctx context.Context, name string, q *api.QueryOptions) (*api.Peering, *api.QueryMeta, error)
 }
@@ -64,7 +54,6 @@ type ClientConfig struct {
 }
 
 type client struct {
-	stop        func()
 	config      ClientConfig
 	client      *api.Client
 	token       string
@@ -85,7 +74,6 @@ func (c *client) Wait(until time.Duration) error {
 	case err := <-c.initialized:
 		return err
 	case <-time.After(until):
-		c.stop()
 		return errors.New("did not get state within time limit")
 	}
 }
@@ -138,9 +126,6 @@ func (c *client) WatchServers(ctx context.Context) error {
 		return nil
 	}
 
-	ctx, cancel := context.WithCancel(ctx)
-	c.stop = cancel
-
 	var static bool
 	serverName := c.config.Addresses
 	if strings.Contains(serverName, "=") {
@@ -162,9 +147,7 @@ func (c *client) WatchServers(ctx context.Context) error {
 		config.TLS = c.config.TLS
 	}
 
-	globalWatcherMutex.Lock()
 	watcher, err := discovery.NewWatcher(ctx, config, c.config.Logger)
-	globalWatcherMutex.Unlock()
 
 	if err != nil {
 		c.initialized <- err
