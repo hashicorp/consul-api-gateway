@@ -27,7 +27,7 @@ require (
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/prometheus/client_golang v1.14.0
 	github.com/stretchr/testify v1.8.1
-	github.com/vladimirvivien/gexe v0.1.1
+	github.com/vladimirvivien/gexe v0.2.0
 	golang.org/x/exp v0.0.0-20220722155223-a9213eeb770e
 	golang.org/x/net v0.5.0
 	golang.org/x/sync v0.1.0
