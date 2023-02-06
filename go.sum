@@ -2021,8 +2021,8 @@ sigs.k8s.io/controller-runtime v0.14.4 h1:Kd/Qgx5pd2XUL08eOV2vwIq3L9GhIbJ5Nxengb
 sigs.k8s.io/controller-runtime v0.14.4/go.mod h1:WqIdsAY6JBsjfc/CqO0CORmNtoCtE4S6qbPc9s68h+0=
 sigs.k8s.io/controller-runtime/tools/setup-envtest v0.0.0-20221007015352-8ad090e0663e h1:3e/FEdLbOPc5S3D040XM9g7dBjlrA7YCIAXjjwkjCgk=
 sigs.k8s.io/controller-runtime/tools/setup-envtest v0.0.0-20221007015352-8ad090e0663e/go.mod h1:oiCXd8V7ZaS/wwvXKZ9pYkoU0BYM86CyEa0RvivM0nw=
-sigs.k8s.io/controller-tools v0.11.2 h1:3GOMW8Ha4P0v1wt2bXbWOGKl186y2ijsjNFv+Rmi3Yw=
-sigs.k8s.io/controller-tools v0.11.2/go.mod h1:qcfX7jfcfYD/b7lAhvqAyTbt/px4GpvN88WKLFFv7p8=
+sigs.k8s.io/controller-tools v0.11.3 h1:T1xzLkog9saiyQSLz1XOImu4OcbdXWytc5cmYsBeBiE=
+sigs.k8s.io/controller-tools v0.11.3/go.mod h1:qcfX7jfcfYD/b7lAhvqAyTbt/px4GpvN88WKLFFv7p8=
 sigs.k8s.io/e2e-framework v0.1.0 h1:JwbS89FVX0K0pZG/x6dRgDZP9XedeVmahslqwA68uSE=
 sigs.k8s.io/e2e-framework v0.1.0/go.mod h1:Gb+pWwEFOD38lvDZIWKACWN9LpeoFuwyK/skZUKcuwY=
 sigs.k8s.io/gateway-api v0.5.1 h1:EqzgOKhChzyve9rmeXXbceBYB6xiM50vDfq0kK5qpdw=

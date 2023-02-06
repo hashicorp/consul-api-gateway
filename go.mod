@@ -41,7 +41,7 @@ require (
 	k8s.io/utils v0.0.0-20221128185143-99ec85e7a448
 	sigs.k8s.io/controller-runtime v0.14.4
 	sigs.k8s.io/controller-runtime/tools/setup-envtest v0.0.0-20221007015352-8ad090e0663e
-	sigs.k8s.io/controller-tools v0.11.2
+	sigs.k8s.io/controller-tools v0.11.3
 	sigs.k8s.io/e2e-framework v0.1.0
 	sigs.k8s.io/gateway-api v0.5.1
 )
