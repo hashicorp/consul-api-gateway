@@ -17,6 +17,14 @@ import (
 	"github.com/hashicorp/go-hclog"
 )
 
+// Calling discovery.NewWatcher registers a new gRPC load balancer
+// type tied to the consul:// scheme, which calls the global
+// google.golang.org/grpc/balancer.Register, which, as specified
+// in their docs is not threadsafe and should be called only in an
+// init function. This mutex makes it so we can boot up multiple watchers
+// particularly in our tests.
+var globalWatcherMutex sync.Mutex
+
 type PeeringClient interface {
 	Read(ctx context.Context, name string, q *api.QueryOptions) (*api.Peering, *api.QueryMeta, error)
 }
@@ -80,22 +88,22 @@ func (c *client) Wait(until time.Duration) error {
 
 func (c *client) WatchServers(ctx context.Context) error {
 	if !c.config.UseDynamic {
-		cfg := c.config.ApiClientConfig
-		cfg.Address = fmt.Sprintf("%s:%d", c.config.Addresses, c.config.HTTPPort)
+		c.config.ApiClientConfig.Address = fmt.Sprintf("%s:%d", c.config.Addresses, c.config.HTTPPort)
 
 		var err error
 		var client *api.Client
 		var token string
 		if c.config.Credentials.Type == discovery.CredentialsTypeLogin {
-			baseClient, err := api.NewClient(cfg)
+			c.config.Logger.Info("IN IF STATEMENT")
+			baseClient, err := api.NewClient(c.config.ApiClientConfig)
 			if err != nil {
 				c.initialized <- err
 				return err
 			}
 			if c.config.Namespace != "" {
-				cfg.Namespace = c.config.Namespace
+				c.config.ApiClientConfig.Namespace = c.config.Namespace
 			}
-			client, token, err = login(ctx, baseClient, cfg, c.config)
+			client, token, err = login(ctx, baseClient, c.config)
 			if err != nil {
 				c.initialized <- err
 				return err
@@ -104,11 +112,11 @@ func (c *client) WatchServers(ctx context.Context) error {
 
 		} else {
 			// this might be empty
-			cfg.Token = c.config.Credentials.Static.Token
+			c.config.ApiClientConfig.Token = c.config.Credentials.Static.Token
 			if c.config.Namespace != "" {
-				cfg.Namespace = c.config.Namespace
+				c.config.ApiClientConfig.Namespace = c.config.Namespace
 			}
-			client, err = api.NewClient(cfg)
+			client, err = api.NewClient(c.config.ApiClientConfig)
 			if err != nil {
 				c.initialized <- err
 				return err
@@ -117,7 +125,7 @@ func (c *client) WatchServers(ctx context.Context) error {
 
 		c.mutex.Lock()
 		c.client = client
-		c.token = cfg.Token
+		c.token = c.config.ApiClientConfig.Token
 		c.mutex.Unlock()
 
 		close(c.initialized)
@@ -148,7 +156,6 @@ func (c *client) WatchServers(ctx context.Context) error {
 	}
 
 	watcher, err := discovery.NewWatcher(ctx, config, c.config.Logger)
-
 	if err != nil {
 		c.initialized <- err
 		return err
@@ -271,13 +278,14 @@ func (c *client) Internal() *api.Client {
 	return c.client
 }
 
-func login(ctx context.Context, client *api.Client, cfg *api.Config, config ClientConfig) (*api.Client, string, error) {
+func login(ctx context.Context, client *api.Client, config ClientConfig) (*api.Client, string, error) {
 	authenticator := NewAuthenticator(
 		config.Logger.Named("authenticator"),
 		client,
 		config.Credentials.Login.AuthMethod,
 		config.Credentials.Login.Namespace,
 	)
+	config.Logger.Named("authenticator").Info(fmt.Sprintf("Cred Namespace: %s, Config Namespace: %s", config.Credentials.Login.Namespace, config.Namespace))
 
 	token, err := authenticator.Authenticate(ctx, config.Name, config.Credentials.Login.BearerToken)
 	if err != nil {
@@ -285,8 +293,10 @@ func login(ctx context.Context, client *api.Client, cfg *api.Config, config Clie
 	}
 
 	// Now update the client so that it will read the ACL token we just fetched.
-	cfg.Token = token
-	newClient, err := api.NewClient(cfg)
+	config.ApiClientConfig.Token = token
+	config.Logger.Named("authenticator").Info(fmt.Sprintf("ClientConfigToken in login: %s", config.ApiClientConfig.Token))
+	// config.ApiClientConfig.Namespace = config.Credentials.Login.Namespace
+	newClient, err := api.NewClient(config.ApiClientConfig)
 	if err != nil {
 		return nil, "", fmt.Errorf("error updating client connection with token: %w", err)
 	}

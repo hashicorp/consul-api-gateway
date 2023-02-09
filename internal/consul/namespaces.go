@@ -4,6 +4,11 @@
 package consul
 
 import (
+	"bytes"
+	"html/template"
+	"strings"
+
+	"github.com/hashicorp/consul/api"
 	capi "github.com/hashicorp/consul/api"
 )
 
@@ -12,10 +17,15 @@ const (
 	DefaultNamespace  = "default"
 )
 
+type PartitionInfo struct {
+	EnablePartitions bool
+	PartitionName    string
+}
+
 // EnsureNamespaceExists ensures a Consul namespace with name ns exists. If it doesn't,
 // it will create it and set crossNSACLPolicy as a policy default.
 // Boolean return value indicates if the namespace was created by this call.
-func EnsureNamespaceExists(client Client, ns string) (bool, error) {
+func EnsureNamespaceExists(client Client, ns string, partitionInfo PartitionInfo) (bool, error) {
 	if ns == WildcardNamespace || ns == DefaultNamespace {
 		return false, nil
 	}
@@ -28,9 +38,21 @@ func EnsureNamespaceExists(client Client, ns string) (bool, error) {
 	if namespaceInfo != nil {
 		return false, nil
 	}
-
+	rules, err := crossNamespaceRules(partitionInfo)
+	if err != nil {
+		return false, err
+	}
+	policyTmpl := api.ACLPolicy{
+		Name:        "cross-namespace-policy",
+		Description: "Policy to allow permissions to cross Consul namespaces for k8s services",
+		Rules:       rules,
+	}
 	// If not, create it.
-	var aclConfig capi.NamespaceACLConfig
+	aclConfig := capi.NamespaceACLConfig{
+		PolicyDefaults: []api.ACLLink{
+			{Name: policyTmpl.Name},
+		},
+	}
 
 	consulNamespace := capi.Namespace{
 		Name:        ns,
@@ -44,4 +66,36 @@ func EnsureNamespaceExists(client Client, ns string) (bool, error) {
 		return false, err
 	}
 	return true, err
+}
+
+func crossNamespaceRules(partitionInfo PartitionInfo) (string, error) {
+	crossNamespaceRulesTpl := `{{- if .EnablePartitions }}
+partition "{{ .PartitionName }}" {
+{{- end }}
+  namespace_prefix "" {
+    service_prefix "" {
+      policy = "read"
+    }
+    node_prefix "" {
+      policy = "read"
+    }
+  }
+{{- if .EnablePartitions }}
+}
+{{- end }}`
+
+	compiled, err := template.New("root").Parse(strings.TrimSpace(crossNamespaceRulesTpl))
+	if err != nil {
+		return "", err
+	}
+
+	// Render the template
+	var buf bytes.Buffer
+	err = compiled.Execute(&buf, partitionInfo)
+	if err != nil {
+		// Discard possible partial results on error return
+		return "", err
+	}
+
+	return buf.String(), nil
 }

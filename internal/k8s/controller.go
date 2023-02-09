@@ -34,9 +34,7 @@ import (
 //+kubebuilder:rbac:groups=coordination.k8s.io,resources=leases,verbs=create;get;list;update
 //+kubebuilder:rbac:groups=api-gateway.consul.hashicorp.com,resources=meshservices,verbs=get;list;watch
 
-var (
-	scheme = runtime.NewScheme()
-)
+var scheme = runtime.NewScheme()
 
 const (
 	ControllerName             = "hashicorp.com/consul-api-gateway-controller"
@@ -53,6 +51,7 @@ type ConsulNamespaceConfig struct {
 	ConsulDestinationNamespace      string
 	MirrorKubernetesNamespaces      bool
 	MirrorKubernetesNamespacePrefix string
+	PartitionInfo                   consul.PartitionInfo
 }
 
 func (c ConsulNamespaceConfig) Namespace(namespace string) string {
@@ -128,7 +127,6 @@ func New(logger hclog.Logger, config *Config) (*Kubernetes, error) {
 		opts.LeaderElectionNamespace = config.Namespace
 	}
 	mgr, err := ctrl.NewManager(config.RestConfig, opts)
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to start k8s controller manager: %w", err)
 	}
