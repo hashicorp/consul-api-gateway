@@ -31,7 +31,9 @@ func BuildDockerImage(ctx context.Context, cfg *envconf.Config) (context.Context
 	log.Print("Building docker image")
 
 	tag := fmt.Sprintf("consul-api-gateway:%s", uuid.New().String())
-	dockerClient, err := client.NewClientWithOpts()
+	dockerClient, err := client.NewClientWithOpts(
+		client.FromEnv,
+	)
 	if err != nil {
 		return nil, err
 	}
