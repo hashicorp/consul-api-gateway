@@ -17,14 +17,6 @@ import (
 	"github.com/hashicorp/go-hclog"
 )
 
-// Calling discovery.NewWatcher registers a new gRPC load balancer
-// type tied to the consul:// scheme, which calls the global
-// google.golang.org/grpc/balancer.Register, which, as specified
-// in their docs is not threadsafe and should be called only in an
-// init function. This mutex makes it so we can boot up multiple watchers
-// particularly in our tests.
-var globalWatcherMutex sync.Mutex
-
 type PeeringClient interface {
 	Read(ctx context.Context, name string, q *api.QueryOptions) (*api.Peering, *api.QueryMeta, error)
 }
@@ -94,7 +86,6 @@ func (c *client) WatchServers(ctx context.Context) error {
 		var client *api.Client
 		var token string
 		if c.config.Credentials.Type == discovery.CredentialsTypeLogin {
-			c.config.Logger.Info("IN IF STATEMENT")
 			baseClient, err := api.NewClient(c.config.ApiClientConfig)
 			if err != nil {
 				c.initialized <- err
@@ -285,7 +276,6 @@ func login(ctx context.Context, client *api.Client, config ClientConfig) (*api.C
 		config.Credentials.Login.AuthMethod,
 		config.Credentials.Login.Namespace,
 	)
-	config.Logger.Named("authenticator").Info(fmt.Sprintf("Cred Namespace: %s, Config Namespace: %s", config.Credentials.Login.Namespace, config.Namespace))
 
 	token, err := authenticator.Authenticate(ctx, config.Name, config.Credentials.Login.BearerToken)
 	if err != nil {
@@ -294,8 +284,6 @@ func login(ctx context.Context, client *api.Client, config ClientConfig) (*api.C
 
 	// Now update the client so that it will read the ACL token we just fetched.
 	config.ApiClientConfig.Token = token
-	config.Logger.Named("authenticator").Info(fmt.Sprintf("ClientConfigToken in login: %s", config.ApiClientConfig.Token))
-	// config.ApiClientConfig.Namespace = config.Credentials.Login.Namespace
 	newClient, err := api.NewClient(config.ApiClientConfig)
 	if err != nil {
 		return nil, "", fmt.Errorf("error updating client connection with token: %w", err)
