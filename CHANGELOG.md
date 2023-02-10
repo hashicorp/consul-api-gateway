@@ -1,9 +1,5 @@
 ## UNRELEASED
 
-BUG FIXES:
-
-* Fix `cross-namespace-policy` not being applied to namespaces created by the controller. [[GH-505](https://github.com/hashicorp/consul-api-gateway/pull/505)]
-
 ## 0.5.0 (November 17, 2022)
 
 FEATURES:

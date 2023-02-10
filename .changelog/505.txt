@@ -1,0 +1,3 @@
+```release-note:bug
+Fix `cross-namespace-policy` not being applied to namespaces created by the controller.
+```
