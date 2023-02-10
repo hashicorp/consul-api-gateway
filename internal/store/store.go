@@ -9,9 +9,10 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/exp/maps"
+
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-multierror"
-	"golang.org/x/exp/maps"
 
 	"github.com/hashicorp/consul-api-gateway/internal/core"
 )

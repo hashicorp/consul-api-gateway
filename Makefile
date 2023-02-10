@@ -37,7 +37,7 @@ GOIMPORTS=$(shell which goimports)
 
 .PHONY: fmt
 fmt: goimports
-	@for d in $$(go list -f {{.Dir}} ./...); do ${GOIMPORTS} --local github.com/hashicorp --local github.com/hashicorp/consul-api-gateway -w -l $$d/*.go; done
+	@for d in $$(go list -f {{.Dir}} ./...); do if [[ $$d != *"mocks"* ]]; then ${GOIMPORTS} --local github.com/hashicorp/consul-api-gateway,github.com/hashicorp -w -l $$d/*.go; fi; done
 
 .PHONY: lint
 lint:

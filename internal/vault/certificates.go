@@ -16,10 +16,11 @@ import (
 	"github.com/armon/go-metrics"
 	core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	tls "github.com/envoyproxy/go-control-plane/envoy/extensions/transport_sockets/tls/v3"
+	"github.com/mitchellh/mapstructure"
+
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/vault/api"
 	"github.com/hashicorp/vault/sdk/helper/certutil"
-	"github.com/mitchellh/mapstructure"
 
 	"github.com/hashicorp/consul-api-gateway/internal/envoy"
 	gwmetrics "github.com/hashicorp/consul-api-gateway/internal/metrics"

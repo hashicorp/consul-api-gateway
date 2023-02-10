@@ -11,9 +11,10 @@ import (
 	"io"
 	"strings"
 
-	"github.com/hashicorp/go-hclog"
 	"github.com/kr/text"
 	"github.com/mitchellh/cli"
+
+	"github.com/hashicorp/go-hclog"
 )
 
 type CommonCLI struct {

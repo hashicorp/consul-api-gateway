@@ -8,12 +8,13 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/hashicorp/go-hclog"
 	apps "k8s.io/api/apps/v1"
 	core "k8s.io/api/core/v1"
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	gwv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
+
+	"github.com/hashicorp/go-hclog"
 
 	"github.com/hashicorp/consul-api-gateway/internal/consul"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/builder"

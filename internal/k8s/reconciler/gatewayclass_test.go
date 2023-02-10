@@ -9,10 +9,11 @@ import (
 	"testing"
 
 	"github.com/golang/mock/gomock"
-	"github.com/hashicorp/go-hclog"
 	"github.com/stretchr/testify/require"
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	gwv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
+
+	"github.com/hashicorp/go-hclog"
 
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient/mocks"
 	rstatus "github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/status"
