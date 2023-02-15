@@ -38,19 +38,16 @@ func EnsureNamespaceExists(client Client, ns string, partitionInfo PartitionInfo
 	if namespaceInfo != nil {
 		return false, nil
 	}
-	rules, err := crossNamespaceRules(partitionInfo)
+
+	// If the namespace does not, create it with default cross-namespace-policy.
+	crossNamespacePolicy, err := getOrCreateCrossNamespacePolicy(client, partitionInfo)
 	if err != nil {
 		return false, err
 	}
-	policyTmpl := api.ACLPolicy{
-		Name:        "cross-namespace-policy",
-		Description: "Policy to allow permissions to cross Consul namespaces for k8s services",
-		Rules:       rules,
-	}
-	// If not, create it.
+
 	aclConfig := capi.NamespaceACLConfig{
 		PolicyDefaults: []api.ACLLink{
-			{Name: policyTmpl.Name},
+			{Name: crossNamespacePolicy.Name},
 		},
 	}
 
@@ -66,6 +63,32 @@ func EnsureNamespaceExists(client Client, ns string, partitionInfo PartitionInfo
 		return false, err
 	}
 	return true, err
+}
+
+func getOrCreateCrossNamespacePolicy(client Client, partitionInfo PartitionInfo) (*api.ACLPolicy, error) {
+	acl := client.ACL()
+	policyName := "cross-namespace-policy"
+	policy, _, err := acl.PolicyReadByName(policyName, nil)
+	if err != nil {
+		return nil, err
+	}
+	if policy != nil {
+		return policy, nil
+	}
+	rules, err := crossNamespaceRules(partitionInfo)
+	if err != nil {
+		return &api.ACLPolicy{}, err
+	}
+	policy = &api.ACLPolicy{
+		Name:        policyName,
+		Description: "Policy to allow permissions to cross Consul namespaces for k8s services",
+		Rules:       rules,
+	}
+	createdPolicy, _, err := acl.PolicyCreate(policy, nil)
+	if err != nil {
+		return nil, err
+	}
+	return createdPolicy, nil
 }
 
 func crossNamespaceRules(partitionInfo PartitionInfo) (string, error) {
