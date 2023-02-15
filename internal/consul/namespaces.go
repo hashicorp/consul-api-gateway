@@ -5,6 +5,7 @@ package consul
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"html/template"
 	"strings"
@@ -92,6 +93,10 @@ func getOrCreateCrossNamespacePolicy(client Client, partitionInfo PartitionInfo)
 	createdPolicy, _, err = acl.PolicyReadByName(policy.Name, nil)
 	if err != nil {
 		return nil, err
+	}
+
+	if createdPolicy == nil {
+		return nil, errors.New("failed to read policy \"cross-namespace-policy\" from consul server")
 	}
 	return createdPolicy, nil
 }
