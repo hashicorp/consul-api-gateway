@@ -80,7 +80,7 @@ func getOrCreateCrossNamespacePolicy(client Client, partitionInfo PartitionInfo)
 		Rules:       rules,
 	}
 	createdPolicy, _, err := acl.PolicyCreate(policy, nil)
-	if !isPolicyExistsErr(err, policy.Name) {
+	if err != nil && !isPolicyExistsErr(err, policy.Name) {
 		return nil, err
 	}
 
@@ -136,7 +136,6 @@ partition "{{ .PartitionName }}" {
 // isPolicyExistsErr returns true if err is due to trying to call the
 // policy create API when the policy already exists.
 func isPolicyExistsErr(err error, policyName string) bool {
-	return err != nil &&
-		strings.Contains(err.Error(), "Unexpected response code: 500") &&
+	return strings.Contains(err.Error(), "Unexpected response code: 500") &&
 		strings.Contains(err.Error(), fmt.Sprintf("Invalid Policy: A Policy with Name %q already exists", policyName))
 }
