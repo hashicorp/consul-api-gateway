@@ -56,7 +56,7 @@ generate-golden-files:
 	GENERATE=true go test ./internal/k8s/builder
 
 .PHONY: gen
-gen: generate-golden-files ctrl-generate ctrl-manifests
+gen: generate-golden-files ctrl-generate ctrl-manifests fmt
 ifeq (, $(shell which mockgen))
 	@go install github.com/golang/mock/mockgen
 endif

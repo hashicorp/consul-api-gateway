@@ -66,7 +66,6 @@ jobs:
       run: |
         echo "Checking that code generation is up-to-date"
         make gen
-        make fmt
         git diff --quiet || (echo 'Working tree is dirty' && git --no-pager diff && exit 1)
 
     - name: Test
