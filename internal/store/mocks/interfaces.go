@@ -9,6 +9,7 @@ import (
 	reflect "reflect"
 
 	gomock "github.com/golang/mock/gomock"
+
 	core "github.com/hashicorp/consul-api-gateway/internal/core"
 	store "github.com/hashicorp/consul-api-gateway/internal/store"
 )
