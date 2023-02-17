@@ -50,6 +50,12 @@ endif
 test:
 	go test ./...
 
+# Run e2e tests, takes an optional variable `consul_image` which specifies the consul image to test against
+.PHONY: e2e
+e2e:
+	E2E_APIGW_CONSUL_IMAGE=$(consul_image) ./scripts/e2e_local.sh
+
+
 generate-golden-files:
 	GENERATE=true go test ./internal/adapters/consul
 	GENERATE=true go test ./internal/envoy
