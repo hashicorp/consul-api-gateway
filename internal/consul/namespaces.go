@@ -24,13 +24,10 @@ type PartitionInfo struct {
 	PartitionName    string
 }
 
-func NewPartitionInfo(enablePartitions bool, partitionName string) PartitionInfo {
+func NewPartitionInfo(partitionName string) PartitionInfo {
 	p := PartitionInfo{}
-	if !enablePartitions {
-		return p
-	}
 	if partitionName == "" {
-		partitionName = "default"
+		return p
 	}
 
 	p.EnablePartitions = true

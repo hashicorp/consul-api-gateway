@@ -169,7 +169,7 @@ func (c *Command) Run(args []string) int {
 		consulCfg.Address = c.flagConsulAddress
 	}
 
-	partitionInfo := consul.NewPartitionInfo(os.Getenv("CONSUL_ENABLE_PARTITIONS") == "true", os.Getenv("CONSUL_PARTITION_NAME"))
+	partitionInfo := consul.NewPartitionInfo(os.Getenv("CONSUL_PARTITION"))
 
 	cfg.ConsulNamespaceConfig = k8s.ConsulNamespaceConfig{
 		ConsulDestinationNamespace:      c.flagConsulDestinationNamespace,
