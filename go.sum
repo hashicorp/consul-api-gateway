@@ -456,8 +456,8 @@ github.com/gostaticanalysis/testutil v0.3.1-0.20210208050101-bfb5c8eec0e4/go.mod
 github.com/gostaticanalysis/testutil v0.4.0 h1:nhdCmubdmDF6VEatUNjgUZBJKWRqugoISdUv3PPQgHY=
 github.com/grpc-ecosystem/grpc-gateway v1.16.0/go.mod h1:BDjrQk3hbvj6Nolgz8mAMFbcEtjT1g+wF4CSlocrBnw=
 github.com/grpc-ecosystem/grpc-gateway/v2 v2.7.0/go.mod h1:hgWBS7lorOAVIJEQMi4ZsPv9hVvWI6+ch50m39Pf2Ks=
-github.com/hashicorp/consul-server-connection-manager v0.1.1 h1:uLL+56/qMTU2cYbTqJqqJ02L1TIgNdQZMo7f6MHExUI=
-github.com/hashicorp/consul-server-connection-manager v0.1.1/go.mod h1:0jIi+bPKHXBhJi3iF9vGihsxssXj+u1/8+hvql4iVkY=
+github.com/hashicorp/consul-server-connection-manager v0.1.2 h1:tNVQHUPuMbd+cMdD8kd+qkZUYpmLmrHMAV/49f4L53I=
+github.com/hashicorp/consul-server-connection-manager v0.1.2/go.mod h1:NzQoVi1KcxGI2SangsDue8+ZPuXZWs+6BKAKrDNyg+w=
 github.com/hashicorp/consul/api v1.18.0 h1:R7PPNzTCeN6VuQNDwwhZWJvzCtGSrNpJqfb22h3yH9g=
 github.com/hashicorp/consul/api v1.18.0/go.mod h1:owRRGJ9M5xReDC5nfT8FTJrNAPbT4NM6p/k+d03q2v4=
 github.com/hashicorp/consul/proto-public v0.2.1 h1:9dZGW68IEuajEkaAAdXCUovVuKyccBOS0jub4Gee5II=

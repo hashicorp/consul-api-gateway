@@ -13,7 +13,7 @@ require (
 	github.com/golang/mock v1.6.0
 	github.com/golangci/golangci-lint v1.51.1
 	github.com/google/uuid v1.3.0
-	github.com/hashicorp/consul-server-connection-manager v0.1.1
+	github.com/hashicorp/consul-server-connection-manager v0.1.2
 	github.com/hashicorp/consul/api v1.18.0
 	github.com/hashicorp/consul/proto-public v0.2.1
 	github.com/hashicorp/consul/sdk v0.13.0
