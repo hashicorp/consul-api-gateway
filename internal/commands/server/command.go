@@ -60,7 +60,6 @@ type Command struct {
 	flagConsulDestinationNamespace string
 	flagMirrorK8SNamespaces        bool
 	flagMirrorK8SNamespacePrefix   string
-	flagPartitionInfo              consul.PartitionInfo
 
 	// Logging
 	flagLogLevel string
@@ -94,8 +93,6 @@ func (c *Command) init() {
 		c.flagSet.StringVar(&c.flagConsulDestinationNamespace, "consul-destination-namespace", "", "Consul namespace to register gateway services.")
 		c.flagSet.BoolVar(&c.flagMirrorK8SNamespaces, "mirroring-k8s", false, "Register Consul gateway services based on Kubernetes namespace.")
 		c.flagSet.StringVar(&c.flagMirrorK8SNamespacePrefix, "mirroring-k8s-prefix", "", "Namespace prefix for Consul services when mirroring Kubernetes namespaces.")
-		c.flagSet.BoolVar(&c.flagPartitionInfo.EnablePartitions, "enable-partitions", false, "[Enterprise Only] Enables Admin Partitions")
-		c.flagSet.StringVar(&c.flagPartitionInfo.PartitionName, "partition", "", "[Enterprise Only] Name of the Admin Partition")
 	}
 
 	{
@@ -172,11 +169,13 @@ func (c *Command) Run(args []string) int {
 		consulCfg.Address = c.flagConsulAddress
 	}
 
+	partitionInfo := consul.NewPartitionInfo(os.Getenv("CONSUL_ENABLE_PARTITIONS") == "true", os.Getenv("CONSUL_PARTITION_NAME"))
+
 	cfg.ConsulNamespaceConfig = k8s.ConsulNamespaceConfig{
 		ConsulDestinationNamespace:      c.flagConsulDestinationNamespace,
 		MirrorKubernetesNamespaces:      c.flagMirrorK8SNamespaces,
 		MirrorKubernetesNamespacePrefix: c.flagMirrorK8SNamespacePrefix,
-		PartitionInfo:                   c.flagPartitionInfo,
+		PartitionInfo:                   partitionInfo,
 	}
 
 	consulScheme, consulHTTPAddressOrCommand, port, err := parseConsulHTTPAddress()

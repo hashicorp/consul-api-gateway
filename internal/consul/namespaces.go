@@ -24,6 +24,20 @@ type PartitionInfo struct {
 	PartitionName    string
 }
 
+func NewPartitionInfo(enablePartitions bool, partitionName string) PartitionInfo {
+	p := PartitionInfo{}
+	if !enablePartitions {
+		return p
+	}
+	if partitionName == "" {
+		partitionName = "default"
+	}
+
+	p.EnablePartitions = true
+	p.PartitionName = partitionName
+	return p
+}
+
 // EnsureNamespaceExists ensures a Consul namespace with name ns exists. If it doesn't,
 // it will create it and set crossNSACLPolicy as a policy default.
 // Boolean return value indicates if the namespace was created by this call.
@@ -135,6 +149,8 @@ partition "{{ .PartitionName }}" {
 
 // isPolicyExistsErr returns true if err is due to trying to call the
 // policy create API when the policy already exists.
+// this handles the case where ACL's aren't enabled, the only way to check this currently
+// is to make a request against Consul and check the error code/message
 func isPolicyExistsErr(err error, policyName string) bool {
 	return strings.Contains(err.Error(), "Unexpected response code: 500") &&
 		strings.Contains(err.Error(), fmt.Sprintf("Invalid Policy: A Policy with Name %q already exists", policyName))
