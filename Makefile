@@ -37,7 +37,7 @@ GOIMPORTS=$(shell which goimports)
 
 .PHONY: fmt
 fmt: goimports
-	@for d in $$(go list -f {{.Dir}} ./...); do ${GOIMPORTS} --local github.com/hashicorp --local github.com/hashicorp/consul-api-gateway -w -l $$d/*.go; done
+	@for d in $$(go list -f {{.Dir}} ./...); do ${GOIMPORTS} --local github.com/hashicorp/consul-api-gateway,github.com/hashicorp -w -l $$d/*.go; done
 
 .PHONY: lint
 lint:
@@ -62,7 +62,7 @@ generate-golden-files:
 	GENERATE=true go test ./internal/k8s/builder
 
 .PHONY: gen
-gen: generate-golden-files ctrl-generate ctrl-manifests
+gen: generate-golden-files ctrl-generate ctrl-manifests fmt
 ifeq (, $(shell which mockgen))
 	@go install github.com/golang/mock/mockgen
 endif

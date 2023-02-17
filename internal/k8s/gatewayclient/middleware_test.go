@@ -7,9 +7,10 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/hashicorp/go-hclog"
 	"github.com/stretchr/testify/require"
 	ctrl "sigs.k8s.io/controller-runtime"
+
+	"github.com/hashicorp/go-hclog"
 )
 
 func TestRescheduleK8sError(t *testing.T) {

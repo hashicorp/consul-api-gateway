@@ -8,12 +8,13 @@ import (
 	"testing"
 
 	"github.com/golang/mock/gomock"
-	"github.com/hashicorp/consul/api"
-	"github.com/hashicorp/go-hclog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
+
+	"github.com/hashicorp/consul/api"
+	"github.com/hashicorp/go-hclog"
 
 	testing2 "github.com/hashicorp/consul-api-gateway/internal/consul"
 	mocks2 "github.com/hashicorp/consul-api-gateway/internal/consul/mocks"

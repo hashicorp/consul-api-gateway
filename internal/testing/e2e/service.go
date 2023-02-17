@@ -10,12 +10,13 @@ import (
 	"html/template"
 
 	"github.com/cenkalti/backoff"
-	"github.com/hashicorp/consul/api"
 	apps "k8s.io/api/apps/v1"
 	core "k8s.io/api/core/v1"
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/e2e-framework/klient/k8s/resources"
 	"sigs.k8s.io/e2e-framework/pkg/envconf"
+
+	"github.com/hashicorp/consul/api"
 
 	"github.com/hashicorp/consul-api-gateway/internal/common"
 	serviceResolver "github.com/hashicorp/consul-api-gateway/internal/k8s/service"

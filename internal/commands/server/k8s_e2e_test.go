@@ -18,7 +18,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hashicorp/consul/api"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
@@ -31,6 +30,8 @@ import (
 	"sigs.k8s.io/e2e-framework/pkg/features"
 	gwv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 	gwv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
+
+	"github.com/hashicorp/consul/api"
 
 	"github.com/hashicorp/consul-api-gateway/internal/k8s"
 	rstatus "github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/status"
