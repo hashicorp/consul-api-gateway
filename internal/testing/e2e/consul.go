@@ -40,12 +40,18 @@ const (
 	envvarConsulEnterpriseLicense     = "CONSUL_LICENSE"
 	envvarConsulEnterpriseLicensePath = "CONSUL_LICENSE_PATH"
 	envvarGRPCName                    = "CONSUL_GRPC_VAR_NAME"
+	initialManagementToken            = "root"
 	configTemplateString              = `
 {
 	"log_level": "trace",
   "acl": {
     "enabled": true,
-    "default_policy": "deny"
+    "default_policy": "deny",
+    "enable_token_persistence": true,
+    "tokens": {
+        "initial_management": "{{ .InitialManagementToken }}",
+        "agent": "{{ .InitialManagementToken }}"
+    }
   },
   "server": true,
   "bootstrap": true,
@@ -313,13 +319,15 @@ func consulConfig(httpsPort, grpcPort int) (string, error) {
 	var template bytes.Buffer
 
 	if err := configTemplate.Execute(&template, &struct {
-		HTTPSPort   int
-		GRPCPort    int
-		GRPCVarName string
+		HTTPSPort              int
+		GRPCPort               int
+		GRPCVarName            string
+		InitialManagementToken string
 	}{
-		HTTPSPort:   httpsPort,
-		GRPCPort:    grpcPort,
-		GRPCVarName: getEnvDefault(envvarGRPCName, consulGRPCVarName()),
+		HTTPSPort:              httpsPort,
+		GRPCPort:               grpcPort,
+		GRPCVarName:            getEnvDefault(envvarGRPCName, consulGRPCVarName()),
+		InitialManagementToken: initialManagementToken,
 	}); err != nil {
 		return "", err
 	}
@@ -538,7 +546,22 @@ func CreateConsulACLPolicy(ctx context.Context, cfg *envconf.Config) (context.Co
 		return ctx, nil
 	}
 	env := consulEnvironment.(*consulTestEnvironment)
-	token, _, err := env.consulClient.ACL().Bootstrap()
+	tokens, _, err := env.consulClient.ACL().TokenList(&api.QueryOptions{Token: initialManagementToken})
+	if err != nil {
+		return nil, err
+	}
+	var tokenUUID string
+	for _, tok := range tokens {
+		if tok.SecretID == initialManagementToken {
+			tokenUUID = tok.AccessorID
+			break
+		}
+	}
+	if tokenUUID == "" {
+		return nil, errors.New("did not find initial management token")
+	}
+
+	token, _, err := env.consulClient.ACL().TokenRead(tokenUUID, &api.QueryOptions{Token: initialManagementToken})
 	if err != nil {
 		return nil, err
 	}
