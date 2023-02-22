@@ -32,6 +32,7 @@ type GatewayDeployer struct {
 	sdsPort                  int
 	consul                   consul.Client
 	consulNamespaceMirroring bool
+	partitionInfo            consul.PartitionInfo
 
 	logger hclog.Logger
 }
@@ -45,6 +46,7 @@ type DeployerConfig struct {
 	Client                   gatewayclient.Client
 	Consul                   consul.Client
 	ConsulNamespaceMirroring bool
+	ConsulPartitionInfo      consul.PartitionInfo
 }
 
 func NewDeployer(config DeployerConfig) *GatewayDeployer {
@@ -57,12 +59,13 @@ func NewDeployer(config DeployerConfig) *GatewayDeployer {
 		logger:                   config.Logger,
 		consul:                   config.Consul,
 		consulNamespaceMirroring: config.ConsulNamespaceMirroring,
+		partitionInfo:            config.ConsulPartitionInfo,
 	}
 }
 
 func (d *GatewayDeployer) Deploy(ctx context.Context, gateway *K8sGateway) error {
 	if d.consulNamespaceMirroring {
-		_, err := consul.EnsureNamespaceExists(d.consul, gateway.Namespace)
+		_, err := consul.EnsureNamespaceExists(d.consul, gateway.Namespace, d.partitionInfo)
 		if err != nil {
 			return err
 		}

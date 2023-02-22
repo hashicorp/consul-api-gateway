@@ -169,10 +169,13 @@ func (c *Command) Run(args []string) int {
 		consulCfg.Address = c.flagConsulAddress
 	}
 
+	partitionInfo := consul.NewPartitionInfo(os.Getenv("CONSUL_PARTITION"))
+
 	cfg.ConsulNamespaceConfig = k8s.ConsulNamespaceConfig{
 		ConsulDestinationNamespace:      c.flagConsulDestinationNamespace,
 		MirrorKubernetesNamespaces:      c.flagMirrorK8SNamespaces,
 		MirrorKubernetesNamespacePrefix: c.flagMirrorK8SNamespacePrefix,
+		PartitionInfo:                   partitionInfo,
 	}
 
 	consulScheme, consulHTTPAddressOrCommand, port, err := parseConsulHTTPAddress()

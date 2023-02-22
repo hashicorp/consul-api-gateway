@@ -33,6 +33,7 @@ import (
 
 	"github.com/hashicorp/consul/api"
 
+	"github.com/hashicorp/consul-api-gateway/internal/consul"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s"
 	rstatus "github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/status"
 	"github.com/hashicorp/consul-api-gateway/internal/testing/e2e"
@@ -268,8 +269,8 @@ func TestGatewayWithReplicasRespectMinMax(t *testing.T) {
 			var initialReplicas int32 = 3
 			var minReplicas int32 = 2
 			var maxReplicas int32 = 8
-			var exceedsMin = minReplicas - 1
-			var exceedsMax = maxReplicas + 1
+			exceedsMin := minReplicas - 1
+			exceedsMax := maxReplicas + 1
 			useHostPorts := false
 
 			// Create a GatewayClassConfig
@@ -1096,8 +1097,10 @@ func TestHTTPMeshService(t *testing.T) {
 			require.NoError(t, resources.Delete(ctx, service))
 
 			// Verify HTTPRoute has updated its status
-			check := createConditionsCheck([]meta.Condition{{
-				Type: rstatus.RouteConditionResolvedRefs, Status: "False", Reason: rstatus.RouteConditionReasonBackendNotFound},
+			check := createConditionsCheck([]meta.Condition{
+				{
+					Type: rstatus.RouteConditionResolvedRefs, Status: "False", Reason: rstatus.RouteConditionReasonBackendNotFound,
+				},
 			})
 			require.Eventually(t, httpRouteStatusCheck(ctx, resources, gatewayName, routeName, namespace, check), checkTimeout, checkInterval, "route status not set in allotted time")
 
@@ -1106,8 +1109,10 @@ func TestHTTPMeshService(t *testing.T) {
 			require.NoError(t, resources.Create(ctx, service))
 
 			// Verify HTTPRoute has updated its status
-			check = createConditionsCheck([]meta.Condition{{
-				Type: rstatus.RouteConditionResolvedRefs, Status: "True", Reason: rstatus.RouteConditionReasonResolvedRefs},
+			check = createConditionsCheck([]meta.Condition{
+				{
+					Type: rstatus.RouteConditionResolvedRefs, Status: "True", Reason: rstatus.RouteConditionReasonResolvedRefs,
+				},
 			})
 			require.Eventually(t, httpRouteStatusCheck(ctx, resources, gatewayName, routeName, namespace, check), checkTimeout, checkInterval, "route status not set in allotted time")
 
@@ -1130,9 +1135,9 @@ func TestGatewayWithConsulNamespaceDoesntExist(t *testing.T) {
 			namespace := e2e.Namespace(ctx)
 			client := e2e.ConsulClient(ctx)
 
-			//delete from consul is enterprise
+			// delete from consul is enterprise
 
-			//delete namespace from consul
+			// delete namespace from consul
 			fmt.Println("deleting from consul")
 			_, err := client.Namespaces().Delete(namespace, nil)
 			assert.NoError(t, err)
@@ -1150,6 +1155,7 @@ func TestGatewayWithConsulNamespaceDoesntExist(t *testing.T) {
 			gw := createGateway(ctx, t, resources, gatewayName, namespace, gc, []gwv1beta1.Listener{createHTTPListener(ctx, t, 80)})
 			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionReady), checkTimeout, checkInterval, "no gateway found in the allotted time")
 			checkGatewayConfigAnnotation(ctx, t, resources, gatewayName, namespace, gcc)
+			checkCrossNamespacePolicyAppliedToNewNamespace(ctx, t, client, namespace)
 
 			// Cleanup
 			assert.NoError(t, resources.Delete(ctx, gw))
@@ -2505,6 +2511,19 @@ func checkGatewayConfigAnnotation(ctx context.Context, t *testing.T, resources *
 	assert.Equal(t, string(expectedCfg), actualCfg)
 }
 
+func checkCrossNamespacePolicyAppliedToNewNamespace(ctx context.Context, t *testing.T, client consul.Client, namespace string) {
+	t.Helper()
+
+	ns, _, err := client.Namespaces().Read(namespace, nil)
+	assert.NoError(t, err)
+	assert.NotNil(t, ns)
+	policyNames := make([]string, 0, len(ns.ACLs.PolicyDefaults))
+	for _, acl := range ns.ACLs.PolicyDefaults {
+		policyNames = append(policyNames, acl.Name)
+	}
+	assert.Contains(t, policyNames, "cross-namespace-policy")
+}
+
 type httpResponse struct {
 	StatusCode int
 	Body       string
@@ -2618,7 +2637,6 @@ func checkTCPTLSRoute(t *testing.T, port int, config *tls.Config, expected strin
 		}
 		tlsConn := tls.Client(conn, config)
 		data, err := io.ReadAll(tlsConn)
-
 		if err != nil {
 			t.Log(err)
 			return strings.HasPrefix(err.Error(), expected)
