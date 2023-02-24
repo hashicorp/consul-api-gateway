@@ -147,7 +147,6 @@ func CreateServiceAccount(namespace, accountName, clusterRolePath string) env.Fu
 
 func K8sConsulServiceToken(ctx context.Context) string {
 	token := ctx.Value(k8sConsulTokenContextKey)
-	log.Printf("consul token: %s\n", token)
 	if token == nil {
 		panic("must run this with an integration test that has called CreateServiceAccount")
 	}
@@ -156,7 +155,6 @@ func K8sConsulServiceToken(ctx context.Context) string {
 
 func K8sConsulGatewayServiceToken(ctx context.Context) string {
 	token := ctx.Value(k8sConsulGatewayTokenContextKey)
-	log.Printf("consul gateway token: %s\n", token)
 	if token == nil {
 		panic("must run this with an integration test that has called CreateServiceAccount")
 	}

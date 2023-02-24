@@ -95,6 +95,7 @@ type consulTestEnvironment struct {
 	ca                               []byte
 	consulClient                     consul.Client
 	token                            string
+	adminToken                       string
 	policy                           *api.ACLPolicy
 	httpPort                         int
 	httpFlattenedPort                int
@@ -455,7 +456,6 @@ func ConsulClient(ctx context.Context) consul.Client {
 
 func ConsulCA(ctx context.Context) string {
 	return string(mustGetTestEnvironment(ctx).ca)
-
 }
 
 func ConsulInitialManagementToken(ctx context.Context) string {
@@ -568,8 +568,9 @@ func CreateConsulACLPolicy(ctx context.Context, cfg *envconf.Config) (context.Co
 	if err != nil {
 		return nil, err
 	}
-	log.Printf("token: %s\n", token.SecretID)
+
 	env.token = token.SecretID
+	env.adminToken = bootstrapToken.SecretID
 	env.policy = policy
 	return ctx, nil
 }
@@ -584,25 +585,25 @@ func CreateConsulAuthMethod() env.Func {
 		}
 		env := consulEnvironment.(*consulTestEnvironment)
 		_, _, err := env.consulClient.Internal().ACL().RoleCreate(gatewayConsulRole(env.policy.ID), &api.WriteOptions{
-			Token: env.token,
+			Token: env.adminToken,
 		})
 		if err != nil {
 			return nil, err
 		}
 		_, _, err = env.consulClient.Internal().ACL().AuthMethodCreate(gatewayConsulAuthMethod(ClusterName(ctx), K8sConsulGatewayServiceToken(ctx), cfg.Client().RESTConfig()), &api.WriteOptions{
-			Token: env.token,
+			Token: env.adminToken,
 		})
 		if err != nil {
 			return nil, err
 		}
 		_, _, err = env.consulClient.Internal().ACL().AuthMethodCreate(consulServerAuthMethod(ClusterName(ctx), K8sConsulServiceToken(ctx), cfg.Client().RESTConfig()), &api.WriteOptions{
-			Token: env.token,
+			Token: env.adminToken,
 		})
 		if err != nil {
 			return nil, err
 		}
-		_, err = env.consulClient.Agent().UpdateACLAgentToken(env.token, &api.WriteOptions{
-			Token: env.token,
+		_, err = env.consulClient.Agent().UpdateACLAgentToken(env.adminToken, &api.WriteOptions{
+			Token: env.adminToken,
 		})
 
 		if err != nil {
@@ -610,14 +611,14 @@ func CreateConsulAuthMethod() env.Func {
 		}
 
 		_, _, err = env.consulClient.Internal().ACL().BindingRuleCreate(consulBindingRule(), &api.WriteOptions{
-			Token: env.token,
+			Token: env.adminToken,
 		})
 		if err != nil {
 			return nil, err
 		}
 
 		_, _, err = env.consulClient.Internal().ACL().BindingRuleCreate(gatewayConsulBindingRule(), &api.WriteOptions{
-			Token: env.token,
+			Token: env.adminToken,
 		})
 		if err != nil {
 			return nil, err
@@ -652,7 +653,7 @@ func SetConsulNamespace(namespace *string) env.Func {
 				_, _, err := env.consulClient.Namespaces().Create(&api.Namespace{
 					Name: *namespace,
 				}, &api.WriteOptions{
-					Token: env.token,
+					Token: env.adminToken,
 				})
 				if err != nil {
 					return nil, err
@@ -727,15 +728,13 @@ func gatewayPolicy() *api.ACLPolicy {
 	namespace_prefix "" {
 		acl = "write"
 		policy = "write"
-		service_prefix "" { policy = "write" }
-		session_prefix "" { policy = "write" }
-		node_prefix "" { policy = "write" }
+		service_prefix "" {
+                    policy = "write"
+                    intentions = "write"
+                }
 	}
-	event_prefix "" { policy = "write" }
-	agent_prefix "" { policy = "write" }
-	query_prefix "" { policy = "write" }
+	node_prefix "" { policy = "write" }
 	operator = "write"
-	keyring = "write"
 	`,
 		}
 	}
@@ -743,14 +742,11 @@ func gatewayPolicy() *api.ACLPolicy {
 		Name: "consul-api-gateway",
 		Rules: `
 	node_prefix "" { policy = "write" }
-	service_prefix "" { policy = "write" }
-	agent_prefix "" { policy = "write" }
-	event_prefix "" { policy = "write" }
-	query_prefix "" { policy = "write" }
-	session_prefix "" { policy = "write" }
+	service_prefix "" {
+            policy = "write"
+            intentions = "write"
+        }
 	operator = "write"
-	acl = "write"
-	keyring = "write"
 `,
 	}
 }
