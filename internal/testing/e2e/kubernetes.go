@@ -31,9 +31,15 @@ import (
 	consulapigw "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 )
 
-type k8sTokenContext struct{}
+type (
+	k8sConsulTokenContext        struct{}
+	k8sConsulGatewayTokenContext struct{}
+)
 
-var k8sTokenContextKey = k8sTokenContext{}
+var (
+	k8sConsulTokenContextKey        = k8sConsulTokenContext{}
+	k8sConsulGatewayTokenContextKey = k8sConsulGatewayTokenContext{}
+)
 
 func InstallCRDs(ctx context.Context, cfg *envconf.Config) (context.Context, error) {
 	log.Print("Installing CRDs")
@@ -131,13 +137,26 @@ func CreateServiceAccount(namespace, accountName, clusterRolePath string) env.Fu
 		if err != nil {
 			return nil, err
 		}
-
-		return context.WithValue(ctx, k8sTokenContextKey, token), nil
+		if accountName == "consul-server" {
+			return context.WithValue(ctx, k8sConsulTokenContextKey, token), nil
+		} else {
+			return context.WithValue(ctx, k8sConsulGatewayTokenContextKey, token), nil
+		}
 	}
 }
 
-func K8sServiceToken(ctx context.Context) string {
-	token := ctx.Value(k8sTokenContextKey)
+func K8sConsulServiceToken(ctx context.Context) string {
+	token := ctx.Value(k8sConsulTokenContextKey)
+	log.Printf("consul token: %s\n", token)
+	if token == nil {
+		panic("must run this with an integration test that has called CreateServiceAccount")
+	}
+	return token.(string)
+}
+
+func K8sConsulGatewayServiceToken(ctx context.Context) string {
+	token := ctx.Value(k8sConsulGatewayTokenContextKey)
+	log.Printf("consul gateway token: %s\n", token)
 	if token == nil {
 		panic("must run this with an integration test that has called CreateServiceAccount")
 	}
@@ -274,7 +293,7 @@ func readCRDs(data []byte) ([]*api.CustomResourceDefinition, error) {
 
 func serviceAccountClient(ctx context.Context, client klient.Client, account, namespace string) (klient.Client, error) {
 	config := rest.CopyConfig(client.RESTConfig())
-	config.BearerToken = K8sServiceToken(ctx)
+	config.BearerToken = K8sConsulGatewayServiceToken(ctx)
 
 	// overwrite the TLS config so we're not using cert-based auth
 	tlsConfig := client.RESTConfig().TLSClientConfig

@@ -37,6 +37,7 @@ func SetUpStack(hostRoute string) env.Func {
 			LoadKindDockerImage(kindClusterName),
 			envfuncs.CreateNamespace(namespace),
 			InstallCRDs,
+			CreateServiceAccount(namespace, "consul-server", getBasePath()+"/config/rbac/role.yaml"),
 			CreateServiceAccount(namespace, "consul-api-gateway", getBasePath()+"/config/rbac/role.yaml"),
 			CreateTestConsulContainer(kindClusterName, namespace),
 			CreateConsulACLPolicy,
@@ -49,6 +50,7 @@ func SetUpStack(hostRoute string) env.Func {
 				return nil, err
 			}
 		}
+
 		return ctx, nil
 	}
 }
