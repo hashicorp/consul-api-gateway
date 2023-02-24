@@ -601,6 +601,13 @@ func CreateConsulAuthMethod() env.Func {
 		if err != nil {
 			return nil, err
 		}
+		_, err = env.consulClient.Agent().UpdateACLAgentToken(env.token, &api.WriteOptions{
+			Token: env.token,
+		})
+
+		if err != nil {
+			return nil, err
+		}
 
 		_, _, err = env.consulClient.Internal().ACL().BindingRuleCreate(consulBindingRule(), &api.WriteOptions{
 			Token: env.token,
