@@ -48,7 +48,6 @@ func (p *gatewayTestEnvironment) run(ctx context.Context, namespace string, cfg 
 	consulEnv := consulEnvironment.(*consulTestEnvironment)
 
 	token := consulEnv.token
-	log.Printf("token: %s\n", token)
 	consulClient.Internal().AddHeader("x-consul-token", token)
 
 	nullLogger := hclog.Default()

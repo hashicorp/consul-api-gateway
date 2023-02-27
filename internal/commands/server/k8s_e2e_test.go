@@ -2416,6 +2416,7 @@ func createGatewayClassWithParams(ctx context.Context, t *testing.T, resources *
 		Spec: apigwv1alpha1.GatewayClassConfigSpec{
 			ImageSpec: apigwv1alpha1.ImageSpec{
 				ConsulAPIGateway: e2e.DockerImage(ctx),
+				Envoy:            e2e.EnvoyImage,
 			},
 			ServiceType:  serviceType(core.ServiceTypeNodePort),
 			UseHostPorts: useHostPorts,
