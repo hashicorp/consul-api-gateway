@@ -602,7 +602,7 @@ func CreateConsulAuthMethod() env.Func {
 		if err != nil {
 			return nil, err
 		}
-		_, err = env.consulClient.Agent().UpdateACLAgentToken(env.adminToken, &api.WriteOptions{
+		_, err = env.consulClient.Agent().UpdateAgentACLToken(env.adminToken, &api.WriteOptions{
 			Token: env.adminToken,
 		})
 
