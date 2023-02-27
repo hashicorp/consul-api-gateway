@@ -727,13 +727,12 @@ func gatewayPolicy() *api.ACLPolicy {
 			Rules: `
 	namespace_prefix "" {
 		acl = "write"
-		policy = "write"
-		service_prefix "" {
+                service_prefix "" {
                     policy = "write"
                     intentions = "write"
                 }
+		node_prefix "" { policy = "read" }
 	}
-	node_prefix "" { policy = "write" }
 	operator = "write"
 	`,
 		}
