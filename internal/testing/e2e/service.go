@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	envoyImage                = "envoyproxy/envoy:v1.21-latest"
+	envoyImage                = "envoyproxy/envoy:v1.24-latest"
 	httpBootstrapJSONTemplate = `{
 		"admin": {
 			"access_log_path": "/dev/null",
