@@ -1,0 +1,3 @@
+```release-note:bug
+Bump the default envoy image from `1.21` to `1.24` to be compatible with consul 1.15
+```
