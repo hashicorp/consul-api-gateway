@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	envoyImage                = "envoyproxy/envoy:v1.21-latest"
+	EnvoyImage                = "envoyproxy/envoy:v1.24-latest"
 	httpBootstrapJSONTemplate = `{
 		"admin": {
 			"access_log_path": "/dev/null",
@@ -85,7 +85,7 @@ const (
 											}
 										}
 									}]
-								}]	
+								}]
 							}
 						}
 					}]
@@ -500,7 +500,7 @@ func meshDeployment(name, namespace string, port int) *apps.Deployment {
 					Containers: []core.Container{
 						{
 							Name:  "envoy",
-							Image: envoyImage,
+							Image: EnvoyImage,
 							Ports: []core.ContainerPort{{
 								Name:          "port",
 								Protocol:      "TCP",
