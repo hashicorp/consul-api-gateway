@@ -9,9 +9,8 @@ import (
 	reflect "reflect"
 
 	gomock "github.com/golang/mock/gomock"
-	v1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
-
 	service "github.com/hashicorp/consul-api-gateway/internal/k8s/service"
+	v1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 )
 
 // MockBackendResolver is a mock of BackendResolver interface.

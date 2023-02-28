@@ -9,14 +9,13 @@ import (
 	reflect "reflect"
 
 	gomock "github.com/golang/mock/gomock"
+	v1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 	v1 "k8s.io/api/apps/v1"
 	v10 "k8s.io/api/core/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	client "sigs.k8s.io/controller-runtime/pkg/client"
 	v1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 	v1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
-
-	v1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 )
 
 // MockClient is a mock of Client interface.
