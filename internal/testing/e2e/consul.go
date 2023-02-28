@@ -1,3 +1,6 @@
+// Copyright (c) HashiCorp, Inc.
+// SPDX-License-Identifier: MPL-2.0
+
 package e2e
 
 import (
@@ -92,6 +95,7 @@ type consulTestEnvironment struct {
 	ca                               []byte
 	consulClient                     consul.Client
 	token                            string
+	adminToken                       string
 	policy                           *api.ACLPolicy
 	httpPort                         int
 	httpFlattenedPort                int
@@ -368,7 +372,7 @@ func consulDeployment(namespace string, httpsPort, grpcPort int) *apps.Deploymen
 					Labels:    labels,
 				},
 				Spec: core.PodSpec{
-					ServiceAccountName: "consul-api-gateway",
+					ServiceAccountName: "consul-server",
 					Volumes: []core.Volume{{
 						Name: "data",
 						VolumeSource: core.VolumeSource{
@@ -452,7 +456,6 @@ func ConsulClient(ctx context.Context) consul.Client {
 
 func ConsulCA(ctx context.Context) string {
 	return string(mustGetTestEnvironment(ctx).ca)
-
 }
 
 func ConsulInitialManagementToken(ctx context.Context) string {
@@ -507,14 +510,15 @@ func ConsulHTTPPort(ctx context.Context) int {
 	return mustGetTestEnvironment(ctx).httpPort
 }
 
-func isConsulNamespaceMirroringOn() bool {
-	return IsEnterprise()
+func isConsulNamespaceMirroringOn(ctx context.Context) bool {
+	return IsEnterprise() && NamespaceMirroring(ctx)
 }
 func ConsulNamespace(ctx context.Context) string {
-	if isConsulNamespaceMirroringOn() {
-		//assume mirroring is on
+	if isConsulNamespaceMirroringOn(ctx) {
 		return Namespace(ctx)
 	}
+
+	// Return Consul namespace
 	return mustGetTestEnvironment(ctx).namespace
 }
 
@@ -534,18 +538,39 @@ func CreateConsulACLPolicy(ctx context.Context, cfg *envconf.Config) (context.Co
 		return ctx, nil
 	}
 	env := consulEnvironment.(*consulTestEnvironment)
-	token, _, err := env.consulClient.ACL().Bootstrap()
+	bootstrapToken, _, err := env.consulClient.ACL().Bootstrap()
 	if err != nil {
 		return nil, err
 	}
-	log.Printf("Consul initial management token: %s", token.SecretID)
-	policy, _, err := env.consulClient.Internal().ACL().PolicyCreate(adminPolicy(), &api.WriteOptions{
-		Token: token.SecretID,
+	log.Print("boostrapped token")
+
+	_, _, err = env.consulClient.Internal().ACL().PolicyCreate(adminPolicy(), &api.WriteOptions{
+		Token: bootstrapToken.SecretID,
 	})
 	if err != nil {
 		return nil, err
 	}
+
+	policy, _, err := env.consulClient.Internal().ACL().PolicyCreate(gatewayPolicy(), &api.WriteOptions{
+		Token: bootstrapToken.SecretID,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	token := &api.ACLToken{
+		Policies: []*api.ACLTokenPolicyLink{{Name: policy.Name, ID: policy.ID}},
+	}
+
+	token, _, err = env.consulClient.ACL().TokenCreate(token, &api.WriteOptions{
+		Token: bootstrapToken.SecretID,
+	})
+	if err != nil {
+		return nil, err
+	}
+
 	env.token = token.SecretID
+	env.adminToken = bootstrapToken.SecretID
 	env.policy = policy
 	return ctx, nil
 }
@@ -560,63 +585,117 @@ func CreateConsulAuthMethod() env.Func {
 		}
 		env := consulEnvironment.(*consulTestEnvironment)
 		_, _, err := env.consulClient.Internal().ACL().RoleCreate(gatewayConsulRole(env.policy.ID), &api.WriteOptions{
-			Token: env.token,
+			Token: env.adminToken,
 		})
 		if err != nil {
 			return nil, err
 		}
-		_, _, err = env.consulClient.Internal().ACL().AuthMethodCreate(gatewayConsulAuthMethod(ClusterName(ctx), K8sServiceToken(ctx), cfg.Client().RESTConfig()), &api.WriteOptions{
-			Token: env.token,
+		_, _, err = env.consulClient.Internal().ACL().AuthMethodCreate(gatewayConsulAuthMethod(ClusterName(ctx), K8sConsulGatewayServiceToken(ctx), cfg.Client().RESTConfig()), &api.WriteOptions{
+			Token: env.adminToken,
 		})
 		if err != nil {
 			return nil, err
 		}
+		_, _, err = env.consulClient.Internal().ACL().AuthMethodCreate(consulServerAuthMethod(ClusterName(ctx), K8sConsulServiceToken(ctx), cfg.Client().RESTConfig()), &api.WriteOptions{
+			Token: env.adminToken,
+		})
+		if err != nil {
+			return nil, err
+		}
+		_, err = env.consulClient.Agent().UpdateAgentACLToken(env.adminToken, &api.WriteOptions{
+			Token: env.adminToken,
+		})
+
+		if err != nil {
+			return nil, err
+		}
+
+		_, _, err = env.consulClient.Internal().ACL().BindingRuleCreate(consulBindingRule(), &api.WriteOptions{
+			Token: env.adminToken,
+		})
+		if err != nil {
+			return nil, err
+		}
+
 		_, _, err = env.consulClient.Internal().ACL().BindingRuleCreate(gatewayConsulBindingRule(), &api.WriteOptions{
-			Token: env.token,
+			Token: env.adminToken,
 		})
 		if err != nil {
 			return nil, err
 		}
+
 		return ctx, nil
 	}
 }
 
 func IsEnterprise() bool {
-	return strings.HasSuffix(consulImage, "ent")
+	return strings.Contains(consulImage, "-ent")
 }
 
-func CreateConsulNamespace(ctx context.Context, cfg *envconf.Config) (context.Context, error) {
-	if IsEnterprise() {
-		log.Print("Creating Consul Namespace")
-		namespace := envconf.RandomName("test", 16)
+func SetConsulNamespace(namespace *string) env.Func {
+	return func(ctx context.Context, _ *envconf.Config) (context.Context, error) {
+		if IsEnterprise() {
+			log.Print("Creating Consul Namespace")
+			if namespace == nil {
+				name := envconf.RandomName("consul", 16)
+				namespace = &name
+			}
 
-		consulEnvironment := ctx.Value(consulTestContextKey)
-		if consulEnvironment == nil {
-			return ctx, nil
+			consulEnvironment := ctx.Value(consulTestContextKey)
+			if consulEnvironment == nil {
+				return ctx, nil
+			}
+			env := consulEnvironment.(*consulTestEnvironment)
+
+			// Passing an empty string for namespace name returns a Consul API error,
+			// and the default namespace should always exist
+			if *namespace != "" {
+				_, _, err := env.consulClient.Namespaces().Create(&api.Namespace{
+					Name: *namespace,
+				}, &api.WriteOptions{
+					Token: env.adminToken,
+				})
+				if err != nil {
+					return nil, err
+				}
+			}
+
+			env.namespace = *namespace
 		}
-		env := consulEnvironment.(*consulTestEnvironment)
-		_, _, err := env.consulClient.Namespaces().Create(&api.Namespace{
-			Name: namespace,
-		}, &api.WriteOptions{
-			Token: env.token,
-		})
-		if err != nil {
-			return nil, err
-		}
-		env.namespace = namespace
+		return ctx, nil
 	}
-	return ctx, nil
 }
 
-func gatewayConsulAuthMethod(name, token string, k8sConfig *rest.Config) *api.ACLAuthMethod {
+func consulServerAuthMethod(clusterName, token string, k8sConfig *rest.Config) *api.ACLAuthMethod {
+	return &api.ACLAuthMethod{
+		Type: "kubernetes",
+		Name: "consul-server",
+		Config: map[string]interface{}{
+			"Host":              fmt.Sprintf("https://%s-control-plane:6443", clusterName),
+			"CACert":            string(k8sConfig.CAData),
+			"ServiceAccountJWT": token,
+		},
+	}
+}
+
+func gatewayConsulAuthMethod(clusterName, token string, k8sConfig *rest.Config) *api.ACLAuthMethod {
 	return &api.ACLAuthMethod{
 		Type: "kubernetes",
 		Name: "consul-api-gateway",
 		Config: map[string]interface{}{
-			"Host":              fmt.Sprintf("https://%s-control-plane:6443", name),
+			"Host":              fmt.Sprintf("https://%s-control-plane:6443", clusterName),
 			"CACert":            string(k8sConfig.CAData),
 			"ServiceAccountJWT": token,
 		},
+	}
+}
+
+func consulBindingRule() *api.ACLBindingRule {
+	return &api.ACLBindingRule{
+		AuthMethod: "consul-server",
+		BindType:   api.BindingRuleBindTypeRole,
+		BindName:   "consul-server",
+		Selector:   `serviceaccount.name=="consul-server"`,
 	}
 }
 
@@ -641,10 +720,40 @@ func gatewayConsulRole(policyID string) *api.ACLRole {
 	}
 }
 
-func adminPolicy() *api.ACLPolicy {
+func gatewayPolicy() *api.ACLPolicy {
 	if IsEnterprise() {
 		return &api.ACLPolicy{
 			Name: "consul-api-gateway",
+			Rules: `
+	namespace_prefix "" {
+		acl = "write"
+                service_prefix "" {
+                    policy = "write"
+                    intentions = "write"
+                }
+		node_prefix "" { policy = "read" }
+	}
+	operator = "write"
+	`,
+		}
+	}
+	return &api.ACLPolicy{
+		Name: "consul-api-gateway",
+		Rules: `
+	node_prefix "" { policy = "write" }
+	service_prefix "" {
+            policy = "write"
+            intentions = "write"
+        }
+	operator = "write"
+`,
+	}
+}
+
+func adminPolicy() *api.ACLPolicy {
+	if IsEnterprise() {
+		return &api.ACLPolicy{
+			Name: "consul-server",
 			Rules: `
 	namespace_prefix "" {
 		acl = "write"
@@ -662,7 +771,7 @@ func adminPolicy() *api.ACLPolicy {
 		}
 	}
 	return &api.ACLPolicy{
-		Name: "consul-api-gateway",
+		Name: "consul-server",
 		Rules: `
 	node_prefix "" { policy = "read" }
 	service_prefix "" { policy = "write" }

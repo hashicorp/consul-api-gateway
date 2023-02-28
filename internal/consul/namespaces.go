@@ -1,6 +1,16 @@
+// Copyright (c) HashiCorp, Inc.
+// SPDX-License-Identifier: MPL-2.0
+
 package consul
 
 import (
+	"bytes"
+	"errors"
+	"fmt"
+	"html/template"
+	"strings"
+
+	"github.com/hashicorp/consul/api"
 	capi "github.com/hashicorp/consul/api"
 )
 
@@ -9,10 +19,26 @@ const (
 	DefaultNamespace  = "default"
 )
 
+type PartitionInfo struct {
+	EnablePartitions bool
+	PartitionName    string
+}
+
+func NewPartitionInfo(partitionName string) PartitionInfo {
+	p := PartitionInfo{}
+	if partitionName == "" {
+		return p
+	}
+
+	p.EnablePartitions = true
+	p.PartitionName = partitionName
+	return p
+}
+
 // EnsureNamespaceExists ensures a Consul namespace with name ns exists. If it doesn't,
 // it will create it and set crossNSACLPolicy as a policy default.
 // Boolean return value indicates if the namespace was created by this call.
-func EnsureNamespaceExists(client Client, ns string) (bool, error) {
+func EnsureNamespaceExists(client Client, ns string, partitionInfo PartitionInfo) (bool, error) {
 	if ns == WildcardNamespace || ns == DefaultNamespace {
 		return false, nil
 	}
@@ -26,8 +52,17 @@ func EnsureNamespaceExists(client Client, ns string) (bool, error) {
 		return false, nil
 	}
 
-	// If not, create it.
-	var aclConfig capi.NamespaceACLConfig
+	// If the namespace does not, create it with default cross-namespace-policy.
+	crossNamespacePolicy, err := getOrCreateCrossNamespacePolicy(client, partitionInfo)
+	if err != nil {
+		return false, err
+	}
+
+	aclConfig := capi.NamespaceACLConfig{
+		PolicyDefaults: []api.ACLLink{
+			{Name: crossNamespacePolicy.Name},
+		},
+	}
 
 	consulNamespace := capi.Namespace{
 		Name:        ns,
@@ -41,4 +76,79 @@ func EnsureNamespaceExists(client Client, ns string) (bool, error) {
 		return false, err
 	}
 	return true, err
+}
+
+func getOrCreateCrossNamespacePolicy(client Client, partitionInfo PartitionInfo) (*api.ACLPolicy, error) {
+	acl := client.ACL()
+
+	rules, err := crossNamespaceRules(partitionInfo)
+	if err != nil {
+		return &api.ACLPolicy{}, err
+	}
+	policy := &api.ACLPolicy{
+		Name:        "cross-namespace-policy",
+		Description: "Policy to allow permissions to cross Consul namespaces for k8s services",
+		Rules:       rules,
+	}
+	createdPolicy, _, err := acl.PolicyCreate(policy, nil)
+	if err != nil && !isPolicyExistsErr(err, policy.Name) {
+		return nil, err
+	}
+
+	// this means the policy is newly created and we can just return it
+	if createdPolicy != nil {
+		return createdPolicy, nil
+	}
+
+	// here the policy already exists so we need to fetch it
+	createdPolicy, _, err = acl.PolicyReadByName(policy.Name, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if createdPolicy == nil {
+		return nil, errors.New("failed to read policy \"cross-namespace-policy\" from consul server")
+	}
+	return createdPolicy, nil
+}
+
+func crossNamespaceRules(partitionInfo PartitionInfo) (string, error) {
+	crossNamespaceRulesTpl := `{{- if .EnablePartitions }}
+partition "{{ .PartitionName }}" {
+{{- end }}
+  namespace_prefix "" {
+    service_prefix "" {
+      policy = "read"
+    }
+    node_prefix "" {
+      policy = "read"
+    }
+  }
+{{- if .EnablePartitions }}
+}
+{{- end }}`
+
+	compiled, err := template.New("root").Parse(strings.TrimSpace(crossNamespaceRulesTpl))
+	if err != nil {
+		return "", err
+	}
+
+	// Render the template
+	var buf bytes.Buffer
+	err = compiled.Execute(&buf, partitionInfo)
+	if err != nil {
+		// Discard possible partial results on error return
+		return "", err
+	}
+
+	return buf.String(), nil
+}
+
+// isPolicyExistsErr returns true if err is due to trying to call the
+// policy create API when the policy already exists.
+// this handles the case where ACL's aren't enabled, the only way to check this currently
+// is to make a request against Consul and check the error code/message
+func isPolicyExistsErr(err error, policyName string) bool {
+	return strings.Contains(err.Error(), "Unexpected response code: 500") &&
+		strings.Contains(err.Error(), fmt.Sprintf("Invalid Policy: A Policy with Name %q already exists", policyName))
 }

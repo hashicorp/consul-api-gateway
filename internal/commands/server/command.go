@@ -1,3 +1,6 @@
+// Copyright (c) HashiCorp, Inc.
+// SPDX-License-Identifier: MPL-2.0
+
 package server
 
 import (
@@ -11,14 +14,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hashicorp/consul-api-gateway/internal/consul"
-	"github.com/hashicorp/consul-server-connection-manager/discovery"
-
-	"github.com/hashicorp/consul/api"
-	"github.com/hashicorp/go-hclog"
 	"github.com/mitchellh/cli"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
+	"github.com/hashicorp/consul-server-connection-manager/discovery"
+	"github.com/hashicorp/consul/api"
+	"github.com/hashicorp/go-hclog"
+
+	"github.com/hashicorp/consul-api-gateway/internal/consul"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/utils"
 )
@@ -166,10 +169,13 @@ func (c *Command) Run(args []string) int {
 		consulCfg.Address = c.flagConsulAddress
 	}
 
+	partitionInfo := consul.NewPartitionInfo(os.Getenv("CONSUL_PARTITION"))
+
 	cfg.ConsulNamespaceConfig = k8s.ConsulNamespaceConfig{
 		ConsulDestinationNamespace:      c.flagConsulDestinationNamespace,
 		MirrorKubernetesNamespaces:      c.flagMirrorK8SNamespaces,
 		MirrorKubernetesNamespacePrefix: c.flagMirrorK8SNamespacePrefix,
+		PartitionInfo:                   partitionInfo,
 	}
 
 	consulScheme, consulHTTPAddressOrCommand, port, err := parseConsulHTTPAddress()

@@ -1,3 +1,6 @@
+// Copyright (c) HashiCorp, Inc.
+// SPDX-License-Identifier: MPL-2.0
+
 package reconciler
 
 import (
@@ -5,12 +8,13 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/hashicorp/go-hclog"
 	apps "k8s.io/api/apps/v1"
 	core "k8s.io/api/core/v1"
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	gwv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
+
+	"github.com/hashicorp/go-hclog"
 
 	"github.com/hashicorp/consul-api-gateway/internal/consul"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/builder"
@@ -28,6 +32,7 @@ type GatewayDeployer struct {
 	sdsPort                  int
 	consul                   consul.Client
 	consulNamespaceMirroring bool
+	partitionInfo            consul.PartitionInfo
 
 	logger hclog.Logger
 }
@@ -41,6 +46,7 @@ type DeployerConfig struct {
 	Client                   gatewayclient.Client
 	Consul                   consul.Client
 	ConsulNamespaceMirroring bool
+	ConsulPartitionInfo      consul.PartitionInfo
 }
 
 func NewDeployer(config DeployerConfig) *GatewayDeployer {
@@ -53,12 +59,13 @@ func NewDeployer(config DeployerConfig) *GatewayDeployer {
 		logger:                   config.Logger,
 		consul:                   config.Consul,
 		consulNamespaceMirroring: config.ConsulNamespaceMirroring,
+		partitionInfo:            config.ConsulPartitionInfo,
 	}
 }
 
 func (d *GatewayDeployer) Deploy(ctx context.Context, gateway *K8sGateway) error {
 	if d.consulNamespaceMirroring {
-		_, err := consul.EnsureNamespaceExists(d.consul, gateway.Namespace)
+		_, err := consul.EnsureNamespaceExists(d.consul, gateway.Namespace, d.partitionInfo)
 		if err != nil {
 			return err
 		}

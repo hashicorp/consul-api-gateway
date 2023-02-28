@@ -1,3 +1,6 @@
+// Copyright (c) HashiCorp, Inc.
+// SPDX-License-Identifier: MPL-2.0
+
 //go:build e2e
 
 package server
@@ -15,7 +18,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hashicorp/consul/api"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
@@ -29,6 +31,9 @@ import (
 	gwv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 	gwv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
+	"github.com/hashicorp/consul/api"
+
+	"github.com/hashicorp/consul-api-gateway/internal/consul"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s"
 	rstatus "github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/status"
 	"github.com/hashicorp/consul-api-gateway/internal/testing/e2e"
@@ -106,6 +111,69 @@ func TestGatewayWithClassConfigChange(t *testing.T) {
 
 			assert.NoError(t, resources.Delete(ctx, firstGateway))
 			assert.NoError(t, resources.Delete(ctx, secondGateway))
+
+			return ctx
+		})
+
+	testenv.Test(t, feature.Feature())
+}
+
+func TestGatewayWithoutNamespaceMirroring(t *testing.T) {
+	feature := features.New("gateway admission").
+		Assess("gateway sync without namespace mirroring", func(ctx context.Context, t *testing.T, cfg *envconf.Config) context.Context {
+			namespace := e2e.Namespace(ctx)
+			resources := cfg.Client().Resources(namespace)
+
+			// Disable namespace mirroring
+			ctx, err := e2e.SetNamespaceMirroring(false)(ctx, nil)
+			require.NoError(t, err)
+
+			useHostPorts := false
+			gcc, gc := createGatewayClassWithParams(ctx, t, resources, GatewayClassConfigParams{
+				UseHostPorts: &useHostPorts,
+			})
+			require.Eventually(t, gatewayClassStatusCheck(ctx, resources, gc.Name, namespace, conditionAccepted), checkTimeout, checkInterval, "gatewayclass not accepted in the allotted time")
+
+			// Create an HTTPS Gateway Listener to pass when creating gateways
+			httpsListener := createHTTPSListener(ctx, t, 443)
+
+			// Create a Gateway and wait for it to be ready
+			// This will attempt to sync to a randomly generated Consul desintation namespace
+			firstGatewayName := envconf.RandomName("gw", 16)
+			firstGateway := createGateway(ctx, t, resources, firstGatewayName, namespace, gc, []gwv1beta1.Listener{httpsListener})
+			require.Eventually(t, gatewayStatusCheck(ctx, resources, firstGatewayName, namespace, conditionReady), checkTimeout, checkInterval, "no gateway found in the allotted time")
+			checkGatewayConfigAnnotation(ctx, t, resources, firstGatewayName, namespace, gcc)
+
+			// Set a different Consul destination namespace
+			defaultNamespace := ""
+			ctx, err = e2e.SetConsulNamespace(&defaultNamespace)(ctx, nil)
+			require.NoError(t, err)
+
+			// Create a second Gateway and wait for it to be ready
+			secondGatewayName := envconf.RandomName("gw", 16)
+			secondGateway := createGateway(ctx, t, resources, secondGatewayName, namespace, gc, []gwv1beta1.Listener{httpsListener})
+			require.Eventually(t, gatewayStatusCheck(ctx, resources, secondGatewayName, namespace, conditionReady), checkTimeout, checkInterval, "no gateway found in the allotted time")
+			checkGatewayConfigAnnotation(ctx, t, resources, secondGatewayName, namespace, gcc)
+
+			// Set a different Consul destination namespace
+			defaultEnterpriseNamespace := "default"
+			ctx, err = e2e.SetConsulNamespace(&defaultEnterpriseNamespace)(ctx, nil)
+			require.NoError(t, err)
+
+			// Create a third Gateway and wait for it to be ready
+			thirdGatewayName := envconf.RandomName("gw", 16)
+			thirdGateway := createGateway(ctx, t, resources, thirdGatewayName, namespace, gc, []gwv1beta1.Listener{httpsListener})
+			require.Eventually(t, gatewayStatusCheck(ctx, resources, thirdGatewayName, namespace, conditionReady), checkTimeout, checkInterval, "no gateway found in the allotted time")
+			checkGatewayConfigAnnotation(ctx, t, resources, thirdGatewayName, namespace, gcc)
+
+			// Cleanup
+			assert.NoError(t, resources.Delete(ctx, firstGateway))
+			assert.NoError(t, resources.Delete(ctx, secondGateway))
+			assert.NoError(t, resources.Delete(ctx, thirdGateway))
+
+			// Re-enable namespace mirroring
+			ctx, err = e2e.SetNamespaceMirroring(true)(ctx, nil)
+			require.NoError(t, err)
 
 			return ctx
 		})
@@ -201,8 +269,8 @@ func TestGatewayWithReplicasRespectMinMax(t *testing.T) {
 			var initialReplicas int32 = 3
 			var minReplicas int32 = 2
 			var maxReplicas int32 = 8
-			var exceedsMin = minReplicas - 1
-			var exceedsMax = maxReplicas + 1
+			exceedsMin := minReplicas - 1
+			exceedsMax := maxReplicas + 1
 			useHostPorts := false
 
 			// Create a GatewayClassConfig
@@ -282,6 +350,10 @@ func TestGatewayBasic(t *testing.T) {
 
 			// check for the service being registered
 			client := e2e.ConsulClient(ctx)
+			t.Log("k8s namespace:", e2e.Namespace(ctx))
+			t.Log("consul namespace:", e2e.ConsulNamespace(ctx))
+			t.Log("mirroring:", e2e.NamespaceMirroring(ctx))
+
 			require.Eventually(t, func() bool {
 				services, _, err := client.Catalog().Service(gatewayName, "", &api.QueryOptions{
 					Namespace: e2e.ConsulNamespace(ctx),
@@ -562,13 +634,14 @@ func TestHTTPRouteFlattening(t *testing.T) {
 				Body:       serviceTwo.Name,
 			}, map[string]string{
 				"Host": "test.foo",
+				"x-v2": "v2",
 			}, "service two not routable in allotted time")
-			checkRoute(t, checkPort, "/", httpResponse{
+			checkRoute(t, checkPort, "/v2/test", httpResponse{
 				StatusCode: http.StatusOK,
-				Body:       serviceOne.Name,
+				Body:       serviceTwo.Name,
 			}, map[string]string{
 				"Host": "test.foo",
-			}, "service one not routable in allotted time")
+			}, "service two not routable in allotted time")
 			checkRoute(t, checkPort, "/", httpResponse{
 				StatusCode: http.StatusOK,
 				Body:       serviceTwo.Name,
@@ -576,6 +649,18 @@ func TestHTTPRouteFlattening(t *testing.T) {
 				"Host": "test.foo",
 				"x-v2": "v2",
 			}, "service two with headers is not routable in allotted time")
+			checkRoute(t, checkPort, "/", httpResponse{
+				StatusCode: http.StatusOK,
+				Body:       serviceOne.Name,
+			}, map[string]string{
+				"Host": "test.foo",
+			}, "service one not routable in allotted time")
+			checkRoute(t, checkPort, "/v2/test", httpResponse{
+				StatusCode: http.StatusOK,
+				Body:       serviceOne.Name,
+			}, map[string]string{
+				"Host": "test.example",
+			}, "service one not routable in allotted time")
 
 			err = resources.Delete(ctx, gw)
 			require.NoError(t, err)
@@ -1012,8 +1097,10 @@ func TestHTTPMeshService(t *testing.T) {
 			require.NoError(t, resources.Delete(ctx, service))
 
 			// Verify HTTPRoute has updated its status
-			check := createConditionsCheck([]meta.Condition{{
-				Type: rstatus.RouteConditionResolvedRefs, Status: "False", Reason: rstatus.RouteConditionReasonBackendNotFound},
+			check := createConditionsCheck([]meta.Condition{
+				{
+					Type: rstatus.RouteConditionResolvedRefs, Status: "False", Reason: rstatus.RouteConditionReasonBackendNotFound,
+				},
 			})
 			require.Eventually(t, httpRouteStatusCheck(ctx, resources, gatewayName, routeName, namespace, check), checkTimeout, checkInterval, "route status not set in allotted time")
 
@@ -1022,8 +1109,10 @@ func TestHTTPMeshService(t *testing.T) {
 			require.NoError(t, resources.Create(ctx, service))
 
 			// Verify HTTPRoute has updated its status
-			check = createConditionsCheck([]meta.Condition{{
-				Type: rstatus.RouteConditionResolvedRefs, Status: "True", Reason: rstatus.RouteConditionReasonResolvedRefs},
+			check = createConditionsCheck([]meta.Condition{
+				{
+					Type: rstatus.RouteConditionResolvedRefs, Status: "True", Reason: rstatus.RouteConditionReasonResolvedRefs,
+				},
 			})
 			require.Eventually(t, httpRouteStatusCheck(ctx, resources, gatewayName, routeName, namespace, check), checkTimeout, checkInterval, "route status not set in allotted time")
 
@@ -1046,9 +1135,9 @@ func TestGatewayWithConsulNamespaceDoesntExist(t *testing.T) {
 			namespace := e2e.Namespace(ctx)
 			client := e2e.ConsulClient(ctx)
 
-			//delete from consul is enterprise
+			// delete from consul is enterprise
 
-			//delete namespace from consul
+			// delete namespace from consul
 			fmt.Println("deleting from consul")
 			_, err := client.Namespaces().Delete(namespace, nil)
 			assert.NoError(t, err)
@@ -1066,6 +1155,7 @@ func TestGatewayWithConsulNamespaceDoesntExist(t *testing.T) {
 			gw := createGateway(ctx, t, resources, gatewayName, namespace, gc, []gwv1beta1.Listener{createHTTPListener(ctx, t, 80)})
 			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionReady), checkTimeout, checkInterval, "no gateway found in the allotted time")
 			checkGatewayConfigAnnotation(ctx, t, resources, gatewayName, namespace, gcc)
+			checkCrossNamespacePolicyAppliedToNewNamespace(ctx, t, client, namespace)
 
 			// Cleanup
 			assert.NoError(t, resources.Delete(ctx, gw))
@@ -2326,6 +2416,7 @@ func createGatewayClassWithParams(ctx context.Context, t *testing.T, resources *
 		Spec: apigwv1alpha1.GatewayClassConfigSpec{
 			ImageSpec: apigwv1alpha1.ImageSpec{
 				ConsulAPIGateway: e2e.DockerImage(ctx),
+				Envoy:            e2e.EnvoyImage,
 			},
 			ServiceType:  serviceType(core.ServiceTypeNodePort),
 			UseHostPorts: useHostPorts,
@@ -2419,6 +2510,19 @@ func checkGatewayConfigAnnotation(ctx context.Context, t *testing.T, resources *
 	actualCfg, ok := gw.Annotations[`api-gateway.consul.hashicorp.com/config`]
 	assert.True(t, ok)
 	assert.Equal(t, string(expectedCfg), actualCfg)
+}
+
+func checkCrossNamespacePolicyAppliedToNewNamespace(ctx context.Context, t *testing.T, client consul.Client, namespace string) {
+	t.Helper()
+
+	ns, _, err := client.Namespaces().Read(namespace, nil)
+	assert.NoError(t, err)
+	assert.NotNil(t, ns)
+	policyNames := make([]string, 0, len(ns.ACLs.PolicyDefaults))
+	for _, acl := range ns.ACLs.PolicyDefaults {
+		policyNames = append(policyNames, acl.Name)
+	}
+	assert.Contains(t, policyNames, "cross-namespace-policy")
 }
 
 type httpResponse struct {
@@ -2534,7 +2638,6 @@ func checkTCPTLSRoute(t *testing.T, port int, config *tls.Config, expected strin
 		}
 		tlsConn := tls.Client(conn, config)
 		data, err := io.ReadAll(tlsConn)
-
 		if err != nil {
 			t.Log(err)
 			return strings.HasPrefix(err.Error(), expected)

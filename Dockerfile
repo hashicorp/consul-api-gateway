@@ -1,4 +1,7 @@
-FROM golang:1.19.1-alpine as go-discover
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: MPL-2.0
+
+FROM golang:1.19.4-alpine as go-discover
 RUN CGO_ENABLED=0 go install github.com/hashicorp/go-discover/cmd/discover@49f60c093101c9c5f6b04d5b1c80164251a761a6
 
 # ===================================
@@ -7,10 +10,16 @@ RUN CGO_ENABLED=0 go install github.com/hashicorp/go-discover/cmd/discover@49f60
 #
 # ===================================
 
+# devdeps installs deps so we don't need to do it each time
+FROM golang:latest as devdeps
+ARG BIN_NAME
+WORKDIR /build
+COPY go.mod go.sum ./
+RUN go mod download
 
 # devbuild compiles the binary
 # -----------------------------------
-FROM golang:latest AS devbuild
+FROM devdeps AS devbuild
 ARG BIN_NAME
 # Escape the GOPATH
 WORKDIR /build

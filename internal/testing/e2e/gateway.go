@@ -1,3 +1,6 @@
+// Copyright (c) HashiCorp, Inc.
+// SPDX-License-Identifier: MPL-2.0
+
 package e2e
 
 import (
@@ -38,9 +41,14 @@ func (p *gatewayTestEnvironment) run(ctx context.Context, namespace string, cfg 
 	}
 
 	consulClient := ConsulClient(ctx)
+	consulEnvironment := ctx.Value(consulTestContextKey)
+	if consulEnvironment == nil {
+		return nil
+	}
+	consulEnv := consulEnvironment.(*consulTestEnvironment)
 
-	// this should go away once we implement auth in the server bootup
-	consulClient.Internal().AddHeader("x-consul-token", ConsulInitialManagementToken(ctx))
+	token := consulEnv.token
+	consulClient.Internal().AddHeader("x-consul-token", token)
 
 	nullLogger := hclog.Default()
 	nullLogger.SetLevel(hclog.Trace)
@@ -61,7 +69,7 @@ func (p *gatewayTestEnvironment) run(ctx context.Context, namespace string, cfg 
 		CACert:        ConsulCA(ctx),
 		ConsulNamespaceConfig: k8s.ConsulNamespaceConfig{
 			ConsulDestinationNamespace: ConsulNamespace(ctx),
-			MirrorKubernetesNamespaces: isConsulNamespaceMirroringOn(),
+			MirrorKubernetesNamespaces: isConsulNamespaceMirroringOn(ctx),
 		},
 	}
 
@@ -130,14 +138,14 @@ func CreateTestGatewayServer(namespace string) env.Func {
 		if err != nil {
 			return nil, err
 		}
-		env := &gatewayTestEnvironment{
+		gatewayEnv := &gatewayTestEnvironment{
 			serviceAccountName: "consul-api-gateway",
 			directory:          tmpdir,
 		}
-		if err := env.run(ctx, namespace, cfg); err != nil {
+		if err := gatewayEnv.run(ctx, namespace, cfg); err != nil {
 			return nil, err
 		}
-		return context.WithValue(ctx, gatewayTestContextKey, env), nil
+		return context.WithValue(ctx, gatewayTestContextKey, gatewayEnv), nil
 	}
 }
 

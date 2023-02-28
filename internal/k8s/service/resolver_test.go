@@ -1,12 +1,16 @@
+// Copyright (c) HashiCorp, Inc.
+// SPDX-License-Identifier: MPL-2.0
+
 package service
 
 import (
 	"context"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
+
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"

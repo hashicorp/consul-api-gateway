@@ -1,3 +1,6 @@
+// Copyright (c) HashiCorp, Inc.
+// SPDX-License-Identifier: MPL-2.0
+
 package e2e
 
 import (
@@ -20,22 +23,26 @@ func SetUpStack(hostRoute string) env.Func {
 		kindClusterName := envconf.RandomName("consul-api-gateway-test", 30)
 		namespace := envconf.RandomName("test", 16)
 
+		// TODO: should this instead create a new context?
+
 		ctx = SetHostRoute(ctx, hostRoute)
 
 		for _, f := range []env.Func{
 			SetClusterName(kindClusterName),
 			SetNamespace(namespace),
+			SetNamespaceMirroring(true),
 			CrossCompileProject,
 			BuildDockerImage,
 			CreateKindCluster(kindClusterName),
 			LoadKindDockerImage(kindClusterName),
 			envfuncs.CreateNamespace(namespace),
 			InstallCRDs,
+			CreateServiceAccount(namespace, "consul-server", getBasePath()+"/config/rbac/role.yaml"),
 			CreateServiceAccount(namespace, "consul-api-gateway", getBasePath()+"/config/rbac/role.yaml"),
 			CreateTestConsulContainer(kindClusterName, namespace),
 			CreateConsulACLPolicy,
 			CreateConsulAuthMethod(),
-			CreateConsulNamespace,
+			SetConsulNamespace(nil),
 			CreateTestGatewayServer(namespace),
 		} {
 			ctx, err = f(ctx, cfg)
@@ -43,6 +50,7 @@ func SetUpStack(hostRoute string) env.Func {
 				return nil, err
 			}
 		}
+
 		return ctx, nil
 	}
 }

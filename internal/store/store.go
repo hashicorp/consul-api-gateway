@@ -1,3 +1,6 @@
+// Copyright (c) HashiCorp, Inc.
+// SPDX-License-Identifier: MPL-2.0
+
 package store
 
 import (
@@ -6,9 +9,10 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/exp/maps"
+
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-multierror"
-	"golang.org/x/exp/maps"
 
 	"github.com/hashicorp/consul-api-gateway/internal/core"
 )

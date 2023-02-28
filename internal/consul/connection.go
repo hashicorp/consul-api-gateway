@@ -1,3 +1,6 @@
+// Copyright (c) HashiCorp, Inc.
+// SPDX-License-Identifier: MPL-2.0
+
 package consul
 
 import (
@@ -12,16 +15,6 @@ import (
 	"github.com/hashicorp/consul-server-connection-manager/discovery"
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
-)
-
-var (
-	// Calling discovery.NewWatcher registers a new gRPC load balancer
-	// type tied to the consul:// scheme, which calls the global
-	// google.golang.org/grpc/balancer.Register, which, as specified
-	// in their docs is not threadsafe and should be called only in an
-	// init function. This mutex makes it so we can boot up multiple watchers
-	// particularly in our tests.
-	globalWatcherMutex sync.Mutex
 )
 
 type PeeringClient interface {
@@ -61,7 +54,6 @@ type ClientConfig struct {
 }
 
 type client struct {
-	stop        func()
 	config      ClientConfig
 	client      *api.Client
 	token       string
@@ -82,29 +74,27 @@ func (c *client) Wait(until time.Duration) error {
 	case err := <-c.initialized:
 		return err
 	case <-time.After(until):
-		c.stop()
 		return errors.New("did not get state within time limit")
 	}
 }
 
 func (c *client) WatchServers(ctx context.Context) error {
 	if !c.config.UseDynamic {
-		cfg := c.config.ApiClientConfig
-		cfg.Address = fmt.Sprintf("%s:%d", c.config.Addresses, c.config.HTTPPort)
+		c.config.ApiClientConfig.Address = fmt.Sprintf("%s:%d", c.config.Addresses, c.config.HTTPPort)
 
 		var err error
 		var client *api.Client
 		var token string
 		if c.config.Credentials.Type == discovery.CredentialsTypeLogin {
-			baseClient, err := api.NewClient(cfg)
+			baseClient, err := api.NewClient(c.config.ApiClientConfig)
 			if err != nil {
 				c.initialized <- err
 				return err
 			}
 			if c.config.Namespace != "" {
-				cfg.Namespace = c.config.Namespace
+				c.config.ApiClientConfig.Namespace = c.config.Namespace
 			}
-			client, token, err = login(ctx, baseClient, cfg, c.config)
+			client, token, err = login(ctx, baseClient, c.config)
 			if err != nil {
 				c.initialized <- err
 				return err
@@ -113,11 +103,11 @@ func (c *client) WatchServers(ctx context.Context) error {
 
 		} else {
 			// this might be empty
-			cfg.Token = c.config.Credentials.Static.Token
+			c.config.ApiClientConfig.Token = c.config.Credentials.Static.Token
 			if c.config.Namespace != "" {
-				cfg.Namespace = c.config.Namespace
+				c.config.ApiClientConfig.Namespace = c.config.Namespace
 			}
-			client, err = api.NewClient(cfg)
+			client, err = api.NewClient(c.config.ApiClientConfig)
 			if err != nil {
 				c.initialized <- err
 				return err
@@ -126,7 +116,7 @@ func (c *client) WatchServers(ctx context.Context) error {
 
 		c.mutex.Lock()
 		c.client = client
-		c.token = cfg.Token
+		c.token = c.config.ApiClientConfig.Token
 		c.mutex.Unlock()
 
 		close(c.initialized)
@@ -134,9 +124,6 @@ func (c *client) WatchServers(ctx context.Context) error {
 		<-ctx.Done()
 		return nil
 	}
-
-	ctx, cancel := context.WithCancel(ctx)
-	c.stop = cancel
 
 	var static bool
 	serverName := c.config.Addresses
@@ -159,10 +146,7 @@ func (c *client) WatchServers(ctx context.Context) error {
 		config.TLS = c.config.TLS
 	}
 
-	globalWatcherMutex.Lock()
 	watcher, err := discovery.NewWatcher(ctx, config, c.config.Logger)
-	globalWatcherMutex.Unlock()
-
 	if err != nil {
 		c.initialized <- err
 		return err
@@ -285,7 +269,7 @@ func (c *client) Internal() *api.Client {
 	return c.client
 }
 
-func login(ctx context.Context, client *api.Client, cfg *api.Config, config ClientConfig) (*api.Client, string, error) {
+func login(ctx context.Context, client *api.Client, config ClientConfig) (*api.Client, string, error) {
 	authenticator := NewAuthenticator(
 		config.Logger.Named("authenticator"),
 		client,
@@ -299,8 +283,8 @@ func login(ctx context.Context, client *api.Client, cfg *api.Config, config Clie
 	}
 
 	// Now update the client so that it will read the ACL token we just fetched.
-	cfg.Token = token
-	newClient, err := api.NewClient(cfg)
+	config.ApiClientConfig.Token = token
+	newClient, err := api.NewClient(config.ApiClientConfig)
 	if err != nil {
 		return nil, "", fmt.Errorf("error updating client connection with token: %w", err)
 	}
