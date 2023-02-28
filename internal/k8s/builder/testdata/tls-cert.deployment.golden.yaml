@@ -82,7 +82,7 @@ spec:
           value: /:/sbin:/bin:/usr/bin:/usr/local/bin:/bootstrap
         - name: CONSUL_CACERT
           value: /consul/tls/ca.pem
-        image: envoyproxy/envoy:v1.21-latest
+        image: envoyproxy/envoy:v1.24-latest
         name: consul-api-gateway
         ports:
         - containerPort: 20000

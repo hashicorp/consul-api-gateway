@@ -1,3 +1,6 @@
+// Copyright (c) HashiCorp, Inc.
+// SPDX-License-Identifier: MPL-2.0
+
 package reconciler
 
 import (
@@ -65,7 +68,6 @@ func (s *StatusUpdater) UpdateGatewayStatusOnSync(ctx context.Context, gateway s
 
 func (s *StatusUpdater) UpdateRouteStatus(ctx context.Context, route store.Route) error {
 	r := route.(*K8sRoute)
-
 	if status, ok := r.RouteState.ParentStatuses.NeedsUpdate(r.routeStatus(), s.controllerName, r.GetGeneration()); ok {
 		r.setStatus(status)
 

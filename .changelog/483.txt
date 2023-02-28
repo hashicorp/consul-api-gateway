@@ -1,0 +1,3 @@
+```release-note:bug
+consul: fix Consul Enterprise gateway sync issue with Kubernetes namespace mirroring disabled and the Consul destination namespace set to "default"
+```

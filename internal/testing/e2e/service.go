@@ -1,3 +1,6 @@
+// Copyright (c) HashiCorp, Inc.
+// SPDX-License-Identifier: MPL-2.0
+
 package e2e
 
 import (
@@ -7,19 +10,20 @@ import (
 	"html/template"
 
 	"github.com/cenkalti/backoff"
-	"github.com/hashicorp/consul/api"
 	apps "k8s.io/api/apps/v1"
 	core "k8s.io/api/core/v1"
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/e2e-framework/klient/k8s/resources"
 	"sigs.k8s.io/e2e-framework/pkg/envconf"
 
+	"github.com/hashicorp/consul/api"
+
 	"github.com/hashicorp/consul-api-gateway/internal/common"
 	serviceResolver "github.com/hashicorp/consul-api-gateway/internal/k8s/service"
 )
 
 const (
-	envoyImage                = "envoyproxy/envoy:v1.21-latest"
+	EnvoyImage                = "envoyproxy/envoy:v1.24-latest"
 	httpBootstrapJSONTemplate = `{
 		"admin": {
 			"access_log_path": "/dev/null",
@@ -36,6 +40,14 @@ const (
 			"metadata": {
 				"namespace": "{{if ne .Namespace ""}}{{ .Namespace }}{{else}}default{{end}}"
 			}
+		},
+		"layered_runtime": {
+			"layers": [{
+				"name": "base",
+				"static_layer": {
+					"re2.max_program_size.error_level": 1048576
+				}
+			}]
 		},
 		"static_resources": {
 			"listeners": [{
@@ -73,7 +85,7 @@ const (
 											}
 										}
 									}]
-								}]	
+								}]
 							}
 						}
 					}]
@@ -488,7 +500,7 @@ func meshDeployment(name, namespace string, port int) *apps.Deployment {
 					Containers: []core.Container{
 						{
 							Name:  "envoy",
-							Image: envoyImage,
+							Image: EnvoyImage,
 							Ports: []core.ContainerPort{{
 								Name:          "port",
 								Protocol:      "TCP",

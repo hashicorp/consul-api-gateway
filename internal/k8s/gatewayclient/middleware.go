@@ -1,3 +1,6 @@
+// Copyright (c) HashiCorp, Inc.
+// SPDX-License-Identifier: MPL-2.0
+
 package gatewayclient
 
 import (
@@ -5,9 +8,10 @@ import (
 	"errors"
 	"time"
 
-	"github.com/hashicorp/go-hclog"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+
+	"github.com/hashicorp/go-hclog"
 )
 
 const (

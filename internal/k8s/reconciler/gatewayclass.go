@@ -1,3 +1,6 @@
+// Copyright (c) HashiCorp, Inc.
+// SPDX-License-Identifier: MPL-2.0
+
 package reconciler
 
 import (
@@ -5,9 +8,10 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/hashicorp/go-hclog"
 	"k8s.io/apimachinery/pkg/types"
 	gwv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
+
+	"github.com/hashicorp/go-hclog"
 
 	"github.com/hashicorp/consul-api-gateway/internal/k8s/gatewayclient"
 	rstatus "github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/status"

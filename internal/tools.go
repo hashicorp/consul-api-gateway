@@ -1,3 +1,6 @@
+// Copyright (c) HashiCorp, Inc.
+// SPDX-License-Identifier: MPL-2.0
+
 //go:build tools
 
 // following https://github.com/golang/go/wiki/Modules#how-can-i-track-tool-dependencies-for-a-module

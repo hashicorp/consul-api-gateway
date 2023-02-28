@@ -1,3 +1,6 @@
+// Copyright (c) HashiCorp, Inc.
+// SPDX-License-Identifier: MPL-2.0
+
 package k8s
 
 import (
@@ -21,6 +24,7 @@ func StoreConfig(adapter core.SyncAdapter, client gatewayclient.Client, consulCl
 		Client:                   client,
 		Consul:                   consulClient,
 		ConsulNamespaceMirroring: config.ConsulNamespaceConfig.MirrorKubernetesNamespaces,
+		ConsulPartitionInfo:      config.ConsulNamespaceConfig.PartitionInfo,
 	})
 	updater := reconciler.NewStatusUpdater(logger, client, deployer, ControllerName)
 	backend := store.NewMemoryBackend()

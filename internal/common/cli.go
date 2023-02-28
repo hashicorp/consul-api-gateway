@@ -1,3 +1,6 @@
+// Copyright (c) HashiCorp, Inc.
+// SPDX-License-Identifier: MPL-2.0
+
 package common
 
 import (
@@ -8,9 +11,10 @@ import (
 	"io"
 	"strings"
 
-	"github.com/hashicorp/go-hclog"
 	"github.com/kr/text"
 	"github.com/mitchellh/cli"
+
+	"github.com/hashicorp/go-hclog"
 )
 
 type CommonCLI struct {

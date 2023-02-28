@@ -37,7 +37,7 @@ GOIMPORTS=$(shell which goimports)
 
 .PHONY: fmt
 fmt: goimports
-	@for d in $$(go list -f {{.Dir}} ./...); do ${GOIMPORTS} --local github.com/hashicorp --local github.com/hashicorp/consul-api-gateway -w -l $$d/*.go; done
+	@for d in $$(go list -f {{.Dir}} ./...); do ${GOIMPORTS} --local github.com/hashicorp/consul-api-gateway,github.com/hashicorp -w -l $$d/*.go; done
 
 .PHONY: lint
 lint:
@@ -50,13 +50,19 @@ endif
 test:
 	go test ./...
 
+# Run e2e tests, takes an optional variable `consul_image` which specifies the consul image to test against
+.PHONY: e2e
+e2e:
+	E2E_APIGW_CONSUL_IMAGE=$(consul_image) ./scripts/e2e_local.sh
+
+
 generate-golden-files:
 	GENERATE=true go test ./internal/adapters/consul
 	GENERATE=true go test ./internal/envoy
 	GENERATE=true go test ./internal/k8s/builder
 
 .PHONY: gen
-gen: generate-golden-files ctrl-generate ctrl-manifests
+gen: generate-golden-files ctrl-generate ctrl-manifests fmt
 ifeq (, $(shell which mockgen))
 	@go install github.com/golang/mock/mockgen
 endif

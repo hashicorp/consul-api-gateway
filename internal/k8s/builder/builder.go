@@ -1,3 +1,6 @@
+// Copyright (c) HashiCorp, Inc.
+// SPDX-License-Identifier: MPL-2.0
+
 package builder
 
 import (
@@ -28,7 +31,7 @@ func init() {
 }
 
 const (
-	defaultEnvoyImage           = "envoyproxy/envoy:v1.21-latest"
+	defaultEnvoyImage           = "envoyproxy/envoy:v1.24-latest"
 	defaultLogLevel             = "info"
 	defaultConsulAddress        = "$(HOST_IP)"
 	defaultConsulHTTPPort       = "8500"
