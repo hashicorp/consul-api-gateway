@@ -1,5 +1,18 @@
 ## UNRELEASED
 
+## 0.5.2 (March 3, 2022)
+
+IMPROVEMENTS:
+
+* Add initial set of copyright headers to applicable files [[GH-470](https://github.com/hashicorp/consul-api-gateway/issues/470)]
+* Bump the default envoy image for consul 1.15 compatability when the image is not specified in a GatewayClassConfig [[GH-521](https://github.com/hashicorp/consul-api-gateway/issues/521)]
+* go: build with Go v1.19.4 [[GH-474](https://github.com/hashicorp/consul-api-gateway/issues/474)]
+
+BUG FIXES:
+
+* Fix `cross-namespace-policy` not being applied to namespaces created by the controller. [[GH-505](https://github.com/hashicorp/consul-api-gateway/issues/505)]
+* consul: fix Consul Enterprise gateway sync issue with Kubernetes namespace mirroring disabled and the Consul destination namespace set to "default" [[GH-483](https://github.com/hashicorp/consul-api-gateway/issues/483)]
+
 ## 0.5.1 (November 22, 2022)
 
 IMPROVEMENTS:
