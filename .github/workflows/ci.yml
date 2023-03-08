@@ -36,8 +36,6 @@ jobs:
     strategy:
       matrix:
         consul-version:
-        - 1.12.6
-        - 1.12.6+ent
         - 1.13.6
         - 1.13.6+ent
         - 1.14.5
@@ -93,8 +91,6 @@ jobs:
       fail-fast: false
       matrix:
         consul-image:
-        - 'hashicorp/consul:1.12.6'
-        - 'hashicorp/consul-enterprise:1.12.6-ent'
         - 'hashicorp/consul:1.13.6'
         - 'hashicorp/consul-enterprise:1.13.6-ent'
         - 'hashicorp/consul:1.14.5'
