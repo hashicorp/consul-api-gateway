@@ -100,7 +100,7 @@ jobs:
         - 'hashicorp/consul:1.14.0'
         - 'hashicorp/consul-enterprise:1.14.0-ent'
         - 'hashicorp/consul:1.15.0'
-        - 'hashicorp/consul-enterprise:1.15-ent'
+        - 'hashicorp/consul-enterprise:1.15.0-ent'
         - 'hashicorppreview/consul:1.16-dev'
         - 'hashicorppreview/consul-enterprise:1.16-dev'
     runs-on: ubuntu-latest
