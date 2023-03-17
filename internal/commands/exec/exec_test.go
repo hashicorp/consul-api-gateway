@@ -371,7 +371,7 @@ func runMockConsulServer(t *testing.T, opts mockConsulOptions) *mockConsulServer
 
 	loginPath := "/v1/acl/login"
 	logoutPath := "/v1/acl/logout"
-	registerPath := "/v1/agent/service/register"
+	registerPath := "/v1/catalog/register"
 	deregisterPath := "/v1/agent/service/deregister"
 	leafPath := "/v1/agent/connect/ca/leaf"
 	rootPath := "/v1/agent/connect/ca/roots"
