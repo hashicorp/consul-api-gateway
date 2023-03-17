@@ -1,0 +1,3 @@
+```release-note:bug
+Use Consul Catalog API instead of Agent API to register APIGateway to prevent GRPC rate limits
+```

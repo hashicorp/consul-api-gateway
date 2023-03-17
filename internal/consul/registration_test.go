@@ -7,7 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -73,11 +73,11 @@ func TestRegister(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, id, registry.ID())
 			require.Equal(t, id, server.lastRegistrationRequest.ID)
-			require.Equal(t, service, server.lastRegistrationRequest.Name)
-			require.Equal(t, namespace, server.lastRegistrationRequest.Namespace)
-			require.Equal(t, test.host, server.lastRegistrationRequest.Address)
+			require.Equal(t, service, server.lastRegistrationRequest.Service.Service)
+			require.Equal(t, namespace, server.lastRegistrationRequest.Service.Namespace)
+			require.Equal(t, test.host, server.lastRegistrationRequest.Service.Address)
 			require.Len(t, server.lastRegistrationRequest.Checks, 1)
-			require.Equal(t, fmt.Sprintf("%s:20000", test.host), server.lastRegistrationRequest.Checks[0].TCP)
+			require.Equal(t, fmt.Sprintf("%s:20000", test.host), server.lastRegistrationRequest.Checks[0].Definition.TCP)
 		})
 	}
 }
@@ -128,7 +128,7 @@ func TestDeregister(t *testing.T) {
 type registryServer struct {
 	consul *api.Client
 
-	lastRegistrationRequest api.AgentServiceRegistration
+	lastRegistrationRequest api.CatalogRegistration
 	deregistered            bool
 }
 
@@ -137,7 +137,7 @@ func runRegistryServer(t *testing.T, failures uint64, id string) *registryServer
 
 	server := &registryServer{}
 
-	registerPath := "/v1/agent/service/register"
+	registerPath := "/v1/catalog/register"
 	deregisterPath := fmt.Sprintf("/v1/agent/service/deregister/%s", id)
 
 	// Start the fake Consul server.
@@ -148,7 +148,7 @@ func runRegistryServer(t *testing.T, failures uint64, id string) *registryServer
 			return
 		}
 		if r != nil && r.URL.Path == registerPath && r.Method == "PUT" {
-			body, err := ioutil.ReadAll(r.Body)
+			body, err := io.ReadAll(r.Body)
 			if err != nil {
 				t.Errorf("error reading request body: %v", err)
 				w.WriteHeader(http.StatusInternalServerError)

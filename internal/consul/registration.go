@@ -76,21 +76,6 @@ func (s *ServiceRegistry) WithTries(tries uint64) *ServiceRegistry {
 
 // Register registers a Gateway service with Consul.
 func (s *ServiceRegistry) RegisterGateway(ctx context.Context, ttl bool) error {
-	//serviceCheck := api.AgentServiceCheck{
-	//	Name:                           fmt.Sprintf("%s - Ready", serviceCheckName),
-	//	TCP:                            fmt.Sprintf("%s:%d", s.host, 20000),
-	//	Interval:                       serviceCheckInterval,
-	//	DeregisterCriticalServiceAfter: serviceDeregistrationTime,
-	//}
-	//if ttl {
-	//	serviceCheck = api.AgentServiceCheck{
-	//		CheckID:                        s.id,
-	//		Name:                           fmt.Sprintf("%s - Health", s.name),
-	//		TTL:                            serviceCheckTTL,
-	//		DeregisterCriticalServiceAfter: serviceDeregistrationTime,
-	//	}
-	//}
-
 	serviceChecks := api.HealthChecks{{
 		Name: fmt.Sprintf("%s - Ready", serviceCheckName),
 		Definition: api.HealthCheckDefinition{
@@ -112,6 +97,7 @@ func (s *ServiceRegistry) RegisterGateway(ctx context.Context, ttl bool) error {
 	}
 
 	return s.register(ctx, &api.CatalogRegistration{
+		ID: s.id,
 		Service: &api.AgentService{
 			Kind:      api.ServiceKind(api.IngressGateway),
 			ID:        s.id,
@@ -230,7 +216,8 @@ func (s *ServiceRegistry) retryRegistration(ctx context.Context, registration *a
 }
 
 func (s *ServiceRegistry) registerService(ctx context.Context, registration *api.CatalogRegistration) error {
-	_, err := s.client.Catalog().Register(registration, nil)
+	writeOptions := &api.WriteOptions{}
+	_, err := s.client.Catalog().Register(registration, writeOptions.WithContext(ctx))
 	return err
 	//return s.client.Agent().ServiceRegisterOpts(registration, (&api.ServiceRegisterOpts{}).WithContext(ctx))
 }
