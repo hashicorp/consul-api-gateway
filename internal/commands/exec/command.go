@@ -217,6 +217,7 @@ func (c *Command) Run(args []string) (ret int) {
 			Host:      c.flagGatewayHost,
 			Name:      c.flagGatewayName,
 			Namespace: c.flagGatewayNamespace,
+			Partition: getPartition(),
 		},
 		EnvoyConfig: EnvoyConfig{
 			CACertificateFile: cfg.TLSConfig.CAFile,
@@ -285,4 +286,8 @@ func init() {
 			}
 		}
 	}
+}
+
+func getPartition() string {
+	return os.Getenv("CONSUL_PARTITION")
 }

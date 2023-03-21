@@ -28,6 +28,7 @@ var (
 type bootstrapArgs struct {
 	ID            string
 	Namespace     string
+	Partition     string
 	ConsulCA      string
 	ConsulAddress string
 	ConsulXDSPort int
@@ -48,6 +49,7 @@ func init() {
 type ManagerConfig struct {
 	ID                string
 	Namespace         string
+	Partition         string
 	ConsulCA          string
 	ConsulAddress     string
 	ConsulXDSPort     int
@@ -117,6 +119,7 @@ func (m *Manager) RenderBootstrap(sdsConfig string) error {
 		SDSCluster:    sdsConfig,
 		ID:            m.ID,
 		Namespace:     m.Namespace,
+		Partition:     m.Partition,
 		ConsulCA:      m.ConsulCA,
 		ConsulAddress: m.ConsulAddress,
 		ConsulXDSPort: m.ConsulXDSPort,
@@ -144,7 +147,8 @@ const bootstrapJSONTemplate = `{
     "cluster": "{{ .ID }}",
     "id": "{{ .ID }}",
     "metadata": {
-      "namespace": "{{if ne .Namespace ""}}{{ .Namespace }}{{else}}default{{end}}"
+      "namespace": "{{if ne .Namespace ""}}{{ .Namespace }}{{else}}default{{end}}",
+      "partition": "{{if ne .Partition ""}}{{ .Partition }}{{else}}default{{end}}"
     }
   },
   "static_resources": {

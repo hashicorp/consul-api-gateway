@@ -34,6 +34,7 @@ type ServiceRegistry struct {
 	id        string
 	name      string
 	namespace string
+	partition string
 	host      string
 	tags      []string
 
@@ -45,13 +46,14 @@ type ServiceRegistry struct {
 }
 
 // NewServiceRegistry creates a new service registry instance
-func NewServiceRegistry(logger hclog.Logger, client Client, service, namespace, host string) *ServiceRegistry {
+func NewServiceRegistry(logger hclog.Logger, client Client, service, namespace, partition, host string) *ServiceRegistry {
 	return &ServiceRegistry{
 		logger:                 logger,
 		client:                 client,
 		id:                     uuid.New().String(),
 		name:                   service,
 		namespace:              namespace,
+		partition:              partition,
 		host:                   host,
 		tries:                  defaultMaxAttempts,
 		backoffInterval:        defaultBackoffInterval,
@@ -94,6 +96,7 @@ func (s *ServiceRegistry) RegisterGateway(ctx context.Context, ttl bool) error {
 		ID:        s.id,
 		Name:      s.name,
 		Namespace: s.namespace,
+		Partition: s.partition,
 		Address:   s.host,
 		Tags:      s.tags,
 		Meta: map[string]string{
@@ -110,6 +113,7 @@ func (s *ServiceRegistry) Register(ctx context.Context) error {
 		ID:        s.id,
 		Name:      s.name,
 		Namespace: s.namespace,
+		Partition: s.partition,
 		Address:   s.host,
 		Tags:      s.tags,
 		Checks: api.AgentServiceChecks{{
@@ -230,4 +234,8 @@ func (s *ServiceRegistry) ID() string {
 
 func (s *ServiceRegistry) Namespace() string {
 	return s.namespace
+}
+
+func (s *ServiceRegistry) Partition() string {
+	return s.partition
 }
