@@ -1,0 +1,3 @@
+```release-note:bug
+Fix envoy deployments not properly identifying themselves when deployed to non-default partitions.
+```
