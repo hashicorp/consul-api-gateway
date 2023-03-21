@@ -58,7 +58,7 @@ func TestRegister(t *testing.T) {
 			}
 
 			server := runRegistryServer(t, test.failures, id)
-			registry := NewServiceRegistry(hclog.NewNullLogger(), NewTestClient(server.consul), service, namespace, test.host).WithTries(maxAttempts)
+			registry := NewServiceRegistry(hclog.NewNullLogger(), NewTestClient(server.consul), service, namespace, "", test.host).WithTries(maxAttempts)
 
 			registry.backoffInterval = 0
 			registry.id = id
@@ -111,7 +111,7 @@ func TestDeregister(t *testing.T) {
 			}
 
 			server := runRegistryServer(t, test.failures, id)
-			registry := NewServiceRegistry(hclog.NewNullLogger(), NewTestClient(server.consul), service, "", "").WithTries(maxAttempts)
+			registry := NewServiceRegistry(hclog.NewNullLogger(), NewTestClient(server.consul), service, "", "", "").WithTries(maxAttempts)
 			registry.backoffInterval = 0
 			registry.id = id
 			err := registry.Deregister(context.Background())
