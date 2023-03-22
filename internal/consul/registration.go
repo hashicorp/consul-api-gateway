@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/hashicorp/go-hclog"
 	"net/http"
 	"time"
 
@@ -14,7 +15,6 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/hashicorp/consul/api"
-	"github.com/hashicorp/go-hclog"
 )
 
 const (
@@ -47,8 +47,8 @@ type ServiceRegistry struct {
 }
 
 // NewServiceRegistry creates a new service registry instance
-func NewServiceRegistryWithAddress(logger hclog.Logger, client Client, service, namespace, host, address string) *ServiceRegistry {
-	return newServiceRegistry(logger, client, service, namespace, host, address)
+func NewServiceRegistryWithAddress(logger hclog.Logger, client Client, service, namespace, host, partition, address string) *ServiceRegistry {
+	return newServiceRegistry(logger, client, service, namespace, partition, host, address)
 }
 
 // NewServiceRegistry creates a new service registry instance
