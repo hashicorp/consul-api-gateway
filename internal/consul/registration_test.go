@@ -138,7 +138,7 @@ func runRegistryServer(t *testing.T, failures uint64, id string) *registryServer
 	server := &registryServer{}
 
 	registerPath := "/v1/catalog/register"
-	deregisterPath := fmt.Sprintf("/v1/agent/service/deregister/%s", id)
+	deregisterPath := "/v1/catalog/deregister"
 
 	// Start the fake Consul server.
 	consulServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
