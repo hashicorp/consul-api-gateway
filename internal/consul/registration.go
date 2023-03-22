@@ -43,10 +43,31 @@ type ServiceRegistry struct {
 	backoffInterval        time.Duration
 	reregistrationInterval time.Duration
 	updateTTLInterval      time.Duration
+	address                string
+}
+
+// NewServiceRegistry creates a new service registry instance
+func NewServiceRegistryWithAddress(logger hclog.Logger, client Client, service, namespace, host, address string) *ServiceRegistry {
+	return newServiceRegistry(logger, client, service, namespace, host, address)
 }
 
 // NewServiceRegistry creates a new service registry instance
 func NewServiceRegistry(logger hclog.Logger, client Client, service, namespace, partition, host string) *ServiceRegistry {
+	address := ""
+	//TODO this is probably wrong, should this be the consul-http-addr flag value
+	nodes, _, err := client.Catalog().Nodes(nil)
+	if err != nil {
+		address = ""
+	} else {
+		for _, n := range nodes {
+			address = n.Address
+		}
+	}
+	return newServiceRegistry(logger, client, service, namespace, partition, host, address)
+}
+
+// NewServiceRegistry creates a new service registry instance
+func newServiceRegistry(logger hclog.Logger, client Client, service, namespace, partition, host, address string) *ServiceRegistry {
 	return &ServiceRegistry{
 		logger:                 logger,
 		client:                 client,
@@ -59,6 +80,7 @@ func NewServiceRegistry(logger hclog.Logger, client Client, service, namespace, 
 		backoffInterval:        defaultBackoffInterval,
 		reregistrationInterval: 30 * time.Second,
 		updateTTLInterval:      10 * time.Second,
+		address:                address,
 	}
 }
 
@@ -96,8 +118,12 @@ func (s *ServiceRegistry) RegisterGateway(ctx context.Context, ttl bool) error {
 		}}
 	}
 
+	//node := api.Catalog
+
 	return s.register(ctx, &api.CatalogRegistration{
-		ID: s.id,
+		ID:      s.id,
+		Node:    s.name,
+		Address: s.host,
 		Service: &api.AgentService{
 			Kind:      api.ServiceKind(api.IngressGateway),
 			ID:        s.id,
@@ -117,6 +143,9 @@ func (s *ServiceRegistry) RegisterGateway(ctx context.Context, ttl bool) error {
 // Register registers a service with Consul.
 func (s *ServiceRegistry) Register(ctx context.Context) error {
 	return s.register(ctx, &api.CatalogRegistration{
+		ID:      s.id,
+		Node:    s.name,
+		Address: s.host,
 		Service: &api.AgentService{
 			Kind:      api.ServiceKindTypical,
 			ID:        s.id,
@@ -216,8 +245,10 @@ func (s *ServiceRegistry) retryRegistration(ctx context.Context, registration *a
 }
 
 func (s *ServiceRegistry) registerService(ctx context.Context, registration *api.CatalogRegistration) error {
+
 	writeOptions := &api.WriteOptions{}
 	_, err := s.client.Catalog().Register(registration, writeOptions.WithContext(ctx))
+
 	return err
 	//return s.client.Agent().ServiceRegisterOpts(registration, (&api.ServiceRegisterOpts{}).WithContext(ctx))
 }
@@ -239,9 +270,14 @@ func (s *ServiceRegistry) Deregister(ctx context.Context) error {
 }
 
 func (s *ServiceRegistry) deregister(ctx context.Context) error {
-	return s.client.Agent().ServiceDeregisterOpts(s.id, (&api.QueryOptions{
+	writeOptions := &api.WriteOptions{}
+	_, err := s.client.Catalog().Deregister(&api.CatalogDeregistration{
+		Node:      s.id,
+		Address:   s.address,
+		ServiceID: s.id,
 		Namespace: s.namespace,
-	}).WithContext(ctx))
+	}, writeOptions.WithContext(ctx))
+	return err
 }
 
 func (s *ServiceRegistry) ID() string {
