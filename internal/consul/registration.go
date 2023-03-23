@@ -277,6 +277,7 @@ func (s *ServiceRegistry) deregister(ctx context.Context) error {
 		Address:   s.address,
 		ServiceID: s.id,
 		Namespace: s.namespace,
+		Partition: s.partition,
 	}, writeOptions.WithContext(ctx))
 	return err
 }
