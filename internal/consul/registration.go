@@ -7,9 +7,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/hashicorp/go-hclog"
 	"net/http"
 	"time"
+
+	"github.com/hashicorp/go-hclog"
 
 	"github.com/cenkalti/backoff"
 	"github.com/google/uuid"
