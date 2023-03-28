@@ -11,7 +11,7 @@ require (
 	github.com/envoyproxy/go-control-plane v0.10.3
 	github.com/go-logr/logr v1.2.3
 	github.com/golang/mock v1.6.0
-	github.com/golangci/golangci-lint v1.52.1
+	github.com/golangci/golangci-lint v1.52.2
 	github.com/google/uuid v1.3.0
 	github.com/hashicorp/consul-server-connection-manager v0.1.2
 	github.com/hashicorp/consul/api v1.20.0
@@ -210,7 +210,7 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
-	github.com/moricho/tparallel v0.3.0 // indirect
+	github.com/moricho/tparallel v0.3.1 // indirect
 	github.com/morikuni/aec v1.0.0 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/nakabonne/nestif v0.3.1 // indirect
