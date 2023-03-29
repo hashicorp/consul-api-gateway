@@ -35,7 +35,7 @@ import (
 
 const (
 	grpcConsulIncompatibleNameVersion = "1.14"
-	defaultConsulImage                = "hashicorppreview/consul:1.14-dev"
+	defaultConsulImage                = "hashicorppreview/consul:1.16-dev"
 	envvarConsulImage                 = envvarPrefix + "CONSUL_IMAGE"
 	envvarConsulEnterpriseLicense     = "CONSUL_LICENSE"
 	envvarConsulEnterpriseLicensePath = "CONSUL_LICENSE_PATH"
@@ -513,6 +513,7 @@ func ConsulHTTPPort(ctx context.Context) int {
 func isConsulNamespaceMirroringOn(ctx context.Context) bool {
 	return IsEnterprise() && NamespaceMirroring(ctx)
 }
+
 func ConsulNamespace(ctx context.Context) string {
 	if isConsulNamespaceMirroringOn(ctx) {
 		return Namespace(ctx)

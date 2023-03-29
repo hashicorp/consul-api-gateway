@@ -30,6 +30,7 @@ type GatewayConfig struct {
 	Host      string
 	Name      string
 	Namespace string
+	Partition string
 }
 
 type EnvoyConfig struct {
@@ -101,6 +102,7 @@ func RunExec(config ExecConfig) (ret int) {
 		client,
 		config.GatewayConfig.Name,
 		config.GatewayConfig.Namespace,
+		config.GatewayConfig.Partition,
 		config.GatewayConfig.Host,
 	)
 	if config.isTest {
@@ -129,6 +131,7 @@ func RunExec(config ExecConfig) (ret int) {
 		envoy.ManagerConfig{
 			ID:                registry.ID(),
 			Namespace:         registry.Namespace(),
+			Partition:         registry.Partition(),
 			ConsulCA:          config.EnvoyConfig.CACertificateFile,
 			ConsulAddress:     config.EnvoyConfig.XDSAddress,
 			ConsulXDSPort:     config.EnvoyConfig.XDSPort,
