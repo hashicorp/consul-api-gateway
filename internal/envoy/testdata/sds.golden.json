@@ -12,7 +12,8 @@
     "cluster": "",
     "id": "",
     "metadata": {
-      "namespace": "default"
+      "namespace": "default",
+      "partition": "default"
     }
   },
   "static_resources": {

@@ -12,7 +12,8 @@
     "cluster": "6f164d52-7846-45d1-97b1-fc984795572b",
     "id": "6f164d52-7846-45d1-97b1-fc984795572b",
     "metadata": {
-      "namespace": "default"
+      "namespace": "default",
+      "partition": "default"
     }
   },
   "static_resources": {
