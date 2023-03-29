@@ -22,7 +22,7 @@ Consul API Gateway implements the Kubernetes [Gateway API Specification](https:/
 ## Prerequisites
 
 The Consul API Gateway must be installed on a Kubernetes cluster with the [Consul K8s](https://github.com/hashicorp/consul-k8s) service
-mesh deployed on it. The installed version of Consul must be `v1.12.0` or greater.
+mesh deployed on it. The installed version of Consul must be `v1.12` or greater.
 
 The Consul Helm chart must be used, with specific settings, to install Consul on the Kubernetes
 cluster. The Consul Helm chart must be version `0.49.1` or greater. See the Consul API Gateway documentation for the required settings.
