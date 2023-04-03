@@ -103,20 +103,45 @@ func verifySPIFFE(ctx context.Context, logger hclog.Logger, store store.ReadStor
 }
 
 func parseURI(path string) (core.GatewayID, error) {
+	// TODO: would it be cleaner to switch this to RegEx parsing?
 	path = strings.TrimPrefix(path, "/")
-	tokens := strings.SplitN(path, "/", 6)
-	if len(tokens) != 6 {
-		return core.GatewayID{}, errors.New("invalid spiffe path")
+	tokens := strings.SplitN(path, "/", 8)
+
+	spiffePathErr := errors.New("invalid spiffe path")
+	var namespace, service string
+
+	if len(tokens) == 8 {
+		// Consul Enterprise in non-default partition
+		if tokens[0] != "ap" || tokens[2] != "ns" || tokens[4] != "dc" || tokens[6] != "svc" {
+			return core.GatewayID{}, spiffePathErr
+		}
+
+		// Gateway is always registered to a controller in the local Kubernetes
+		// cluster, and clusters must exist within a single partition, so partition
+		// doesn't need to be passed explicitly, we just need to parse the namespace
+		// and service from the correct tokens
+
+		namespace = tokens[3]
+		service = tokens[7]
+	} else if len(tokens) == 6 {
+		// Consul OSS or Consul Enterprise in default partition
+		if tokens[0] != "ns" || tokens[2] != "dc" || tokens[4] != "svc" {
+			return core.GatewayID{}, spiffePathErr
+		}
+
+		namespace = tokens[1]
+		service = tokens[5]
+	} else {
+		return core.GatewayID{}, spiffePathErr
 	}
-	if tokens[0] != "ns" || tokens[2] != "dc" || tokens[4] != "svc" {
-		return core.GatewayID{}, errors.New("invalid spiffe path")
-	}
-	namespace := tokens[1]
+
+	// We handle the default namespace as the empty string everywhere for consistency
 	if namespace == "default" {
 		namespace = ""
 	}
+
 	return core.GatewayID{
 		ConsulNamespace: namespace,
-		Service:         tokens[5],
+		Service:         service,
 	}, nil
 }
