@@ -1,0 +1,3 @@
+```release-note:bug
+add support for parsing SPIFFE paths for non-default partitions in Consul Enterprise
+```
