@@ -1,8 +1,6 @@
 // Copyright (c) HashiCorp, Inc.
 // SPDX-License-Identifier: MPL-2.0
 
-//go:build e2e
-
 package server
 
 import (
@@ -36,6 +34,7 @@ import (
 	"github.com/hashicorp/consul-api-gateway/internal/consul"
 	"github.com/hashicorp/consul-api-gateway/internal/k8s"
 	rstatus "github.com/hashicorp/consul-api-gateway/internal/k8s/reconciler/status"
+	apitesting "github.com/hashicorp/consul-api-gateway/internal/testing"
 	"github.com/hashicorp/consul-api-gateway/internal/testing/e2e"
 	apigwv1alpha1 "github.com/hashicorp/consul-api-gateway/pkg/apis/v1alpha1"
 )
@@ -2171,6 +2170,127 @@ func TestRouteParentRefChange(t *testing.T) {
 
 			assert.NoError(t, resources.Delete(ctx, firstGateway))
 			assert.NoError(t, resources.Delete(ctx, secondGateway))
+
+			return ctx
+		})
+
+	testenv.Test(t, feature.Feature())
+}
+
+func TestCertRefChanges(t *testing.T) {
+	feature := features.New("gateway certificate ref change").
+		Assess("certificate ref changes", func(ctx context.Context, t *testing.T, cfg *envconf.Config) context.Context {
+			serviceOne, err := e2e.DeployHTTPMeshService(ctx, cfg)
+			require.NoError(t, err)
+
+			namespace := e2e.Namespace(ctx)
+			gatewayName := envconf.RandomName("gw", 16)
+			invalidCertName := envconf.RandomName("cert", 16)
+			certName := envconf.RandomName("cert", 16)
+			routeName := envconf.RandomName("route", 16)
+			listenerName := "http"
+			listenerPort := e2e.HTTPPort(ctx)
+
+			gatewayNamespace := gwv1beta1.Namespace(namespace)
+			resources := cfg.Client().Resources(namespace)
+
+			_, gc := createGatewayClass(ctx, t, resources)
+			require.Eventually(t, gatewayClassStatusCheck(ctx, resources, gc.Name, namespace, conditionAccepted), checkTimeout, checkInterval, "gatewayclass not accepted in the allotted time")
+
+			rootCA, err := apitesting.GenerateSignedCertificate(apitesting.GenerateCertificateOptions{
+				IsCA: true,
+				Bits: 2048,
+			})
+			require.NoError(t, err)
+			cert, err := apitesting.GenerateSignedCertificate(apitesting.GenerateCertificateOptions{
+				CA:        rootCA,
+				Bits:      2048,
+				ExtraSANs: []string{"foo.bar.baz"},
+			})
+			require.NoError(t, err)
+			require.NoError(t, resources.Create(ctx, &core.Secret{
+				ObjectMeta: meta.ObjectMeta{
+					Name:      invalidCertName,
+					Namespace: namespace,
+				},
+				Data: map[string][]byte{
+					core.TLSCertKey: cert.CertBytes,
+					// omit the private key
+				},
+				Type: core.SecretTypeTLS,
+			}))
+			require.NoError(t, resources.Create(ctx, &core.Secret{
+				ObjectMeta: meta.ObjectMeta{
+					Name:      certName,
+					Namespace: namespace,
+				},
+				Data: map[string][]byte{
+					core.TLSCertKey:       cert.CertBytes,
+					core.TLSPrivateKeyKey: cert.PrivateKeyBytes,
+				},
+				Type: core.SecretTypeTLS,
+			}))
+
+			gateway := &gwv1beta1.Gateway{
+				ObjectMeta: meta.ObjectMeta{
+					Name:      gatewayName,
+					Namespace: namespace,
+				},
+				Spec: gwv1beta1.GatewaySpec{
+					GatewayClassName: gwv1beta1.ObjectName(gc.Name),
+					Listeners: []gwv1beta1.Listener{
+						{
+							Name:     gwv1beta1.SectionName(listenerName),
+							Port:     gwv1beta1.PortNumber(listenerPort),
+							Protocol: gwv1beta1.HTTPProtocolType,
+							TLS: &gwv1beta1.GatewayTLSConfig{
+								CertificateRefs: []gwv1beta1.SecretObjectReference{{
+									Name:      gwv1beta1.ObjectName(invalidCertName),
+									Namespace: &gatewayNamespace,
+								}},
+							},
+						},
+					},
+				},
+			}
+			require.NoError(t, resources.Create(ctx, gateway))
+			require.Eventually(t, gatewayStatusCheck(ctx, resources, gatewayName, namespace, conditionReady), checkTimeout, checkInterval, "no gateway found in the allotted time")
+
+			port := gwv1alpha2.PortNumber(serviceOne.Spec.Ports[0].Port)
+			require.NoError(t, resources.Create(ctx, &gwv1alpha2.HTTPRoute{
+				ObjectMeta: meta.ObjectMeta{
+					Name:      routeName,
+					Namespace: namespace,
+				},
+				Spec: gwv1alpha2.HTTPRouteSpec{
+					CommonRouteSpec: gwv1alpha2.CommonRouteSpec{
+						ParentRefs: []gwv1alpha2.ParentReference{{
+							Name: gwv1alpha2.ObjectName(gatewayName),
+						}},
+					},
+					Rules: []gwv1alpha2.HTTPRouteRule{{
+						BackendRefs: []gwv1alpha2.HTTPBackendRef{{
+							BackendRef: gwv1alpha2.BackendRef{
+								BackendObjectReference: gwv1alpha2.BackendObjectReference{
+									Name: gwv1alpha2.ObjectName(serviceOne.Name),
+									Port: &port,
+								},
+							},
+						}},
+					}},
+				},
+			}))
+
+			checkRouteError(t, listenerPort, "/", nil, "service should not be routable because it has an invalid certificate")
+
+			gateway.Spec.Listeners[0].TLS.CertificateRefs[0].Name = gwv1beta1.ObjectName(certName)
+			require.NoError(t, resources.Update(ctx, gateway))
+
+			// we should now be able to route since we have a valid certificate
+			checkRoute(t, int(port), "/", httpResponse{
+				StatusCode: http.StatusOK,
+				Body:       serviceOne.Name,
+			}, nil, "service not routable from gateway in allotted time")
 
 			return ctx
 		})
