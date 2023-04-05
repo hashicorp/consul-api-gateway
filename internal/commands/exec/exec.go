@@ -106,7 +106,7 @@ func RunExec(config ExecConfig) (ret int) {
 		config.GatewayConfig.Host,
 	)
 	if config.isTest {
-		registry = registry.WithTries(1)
+		registry = registry.WithRetries(1)
 	}
 
 	config.Logger.Trace("registering service")
