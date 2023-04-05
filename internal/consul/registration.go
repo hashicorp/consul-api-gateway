@@ -48,7 +48,7 @@ type ServiceRegistry struct {
 }
 
 // NewServiceRegistry creates a new service registry instance
-func NewServiceRegistryWithAddress(logger hclog.Logger, client Client, service, namespace, host, partition, address string) *ServiceRegistry {
+func NewServiceRegistryWithAddress(logger hclog.Logger, client Client, service, namespace, partition, host, address string) *ServiceRegistry {
 	return newServiceRegistry(logger, client, service, namespace, partition, host, address)
 }
 
