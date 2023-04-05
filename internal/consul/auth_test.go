@@ -30,7 +30,7 @@ func TestAuthenticate(t *testing.T) {
 		service      string
 		expectedMeta string
 		failures     uint64
-		maxAttempts  uint64
+		maxRetries   uint64
 		fail         bool
 	}{{
 		name:         "success-no-namespace",
@@ -46,25 +46,25 @@ func TestAuthenticate(t *testing.T) {
 		service:      "consul-api-gateway-test",
 		expectedMeta: "consul-api-gateway-test",
 		failures:     3,
-		maxAttempts:  3,
+		maxRetries:   3,
 	}, {
-		name:        "retry-failure",
-		service:     "consul-api-gateway-test",
-		failures:    3,
-		maxAttempts: 2,
-		fail:        true,
+		name:       "retry-failure",
+		service:    "consul-api-gateway-test",
+		failures:   3,
+		maxRetries: 2,
+		fail:       true,
 	}} {
 		t.Run(test.name, func(t *testing.T) {
 			server := runACLServer(t, test.failures)
 			method := gwTesting.RandomString()
 			token := gwTesting.RandomString()
 
-			maxAttempts := defaultMaxAttempts
-			if test.maxAttempts > 0 {
-				maxAttempts = test.maxAttempts
+			maxRetries := defaultMaxRetries
+			if test.maxRetries > 0 {
+				maxRetries = test.maxRetries
 			}
 
-			auth := NewAuthenticator(hclog.NewNullLogger(), server.consul, method, test.namespace).WithTries(maxAttempts)
+			auth := NewAuthenticator(hclog.NewNullLogger(), server.consul, method, test.namespace).WithRetries(maxRetries)
 			auth.backoffInterval = 0
 			consulToken, err := auth.Authenticate(context.Background(), test.service, token)
 

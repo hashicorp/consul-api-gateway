@@ -40,7 +40,7 @@ type ServiceRegistry struct {
 	tags      []string
 
 	cancel                 context.CancelFunc
-	tries                  uint64
+	retries                uint64
 	backoffInterval        time.Duration
 	reregistrationInterval time.Duration
 	updateTTLInterval      time.Duration
@@ -54,16 +54,16 @@ func NewServiceRegistryWithAddress(logger hclog.Logger, client Client, service, 
 
 // NewServiceRegistry creates a new service registry instance
 func NewServiceRegistry(logger hclog.Logger, client Client, service, namespace, partition, host string) *ServiceRegistry {
+	// TODO: this is probably wrong, should this be the consul-http-addr flag value
 	address := ""
-	//TODO this is probably wrong, should this be the consul-http-addr flag value
-	nodes, _, err := client.Catalog().Nodes(nil)
-	if err != nil {
-		address = ""
-	} else {
-		for _, n := range nodes {
-			address = n.Address
-		}
-	}
+
+	// FIXME: this setup call is currently tracked against the max retries allowed
+	// by the mock Consul server
+	// nodes, _, err := client.Catalog().Nodes(nil)
+	// for _, n := range nodes {
+	//   address = n.Address
+	// }
+
 	return newServiceRegistry(logger, client, service, namespace, partition, host, address)
 }
 
@@ -77,7 +77,7 @@ func newServiceRegistry(logger hclog.Logger, client Client, service, namespace, 
 		namespace:              namespace,
 		partition:              partition,
 		host:                   host,
-		tries:                  defaultMaxAttempts,
+		retries:                defaultMaxRetries,
 		backoffInterval:        defaultBackoffInterval,
 		reregistrationInterval: 30 * time.Second,
 		updateTTLInterval:      10 * time.Second,
@@ -91,9 +91,9 @@ func (s *ServiceRegistry) WithTags(tags []string) *ServiceRegistry {
 	return s
 }
 
-// WithTries tells the service registry to retry on any remote operations.
-func (s *ServiceRegistry) WithTries(tries uint64) *ServiceRegistry {
-	s.tries = tries
+// WithRetries tells the service registry to retry on any remote operations.
+func (s *ServiceRegistry) WithRetries(retries uint64) *ServiceRegistry {
+	s.retries = retries
 	return s
 }
 
@@ -212,9 +212,12 @@ func (s *ServiceRegistry) register(ctx context.Context, registration *api.Catalo
 }
 
 func (s *ServiceRegistry) ensureRegistration(ctx context.Context, registration *api.CatalogRegistration) {
-	_, _, err := s.client.Agent().Service(s.id, &api.QueryOptions{
+	// TODO: will this actually return an error for the catalog API, or just an
+	// empty list?
+	_, _, err := s.client.Catalog().Service(s.id, "", &api.QueryOptions{
 		Namespace: s.namespace,
 	})
+
 	if err == nil {
 		return
 	}
@@ -242,16 +245,14 @@ func (s *ServiceRegistry) retryRegistration(ctx context.Context, registration *a
 			s.logger.Error("error registering service", "error", err)
 		}
 		return err
-	}, backoff.WithContext(backoff.WithMaxRetries(backoff.NewConstantBackOff(s.backoffInterval), s.tries), ctx))
+	}, backoff.WithContext(backoff.WithMaxRetries(backoff.NewConstantBackOff(s.backoffInterval), s.retries), ctx))
 }
 
 func (s *ServiceRegistry) registerService(ctx context.Context, registration *api.CatalogRegistration) error {
-
 	writeOptions := &api.WriteOptions{}
 	_, err := s.client.Catalog().Register(registration, writeOptions.WithContext(ctx))
 
 	return err
-	//return s.client.Agent().ServiceRegisterOpts(registration, (&api.ServiceRegisterOpts{}).WithContext(ctx))
 }
 
 // Deregister de-registers a service from Consul.
@@ -267,7 +268,7 @@ func (s *ServiceRegistry) Deregister(ctx context.Context) error {
 			s.logger.Error("error deregistering service", "error", err)
 		}
 		return err
-	}, backoff.WithContext(backoff.WithMaxRetries(backoff.NewConstantBackOff(s.backoffInterval), s.tries), ctx))
+	}, backoff.WithContext(backoff.WithMaxRetries(backoff.NewConstantBackOff(s.backoffInterval), s.retries), ctx))
 }
 
 func (s *ServiceRegistry) deregister(ctx context.Context) error {

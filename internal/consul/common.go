@@ -8,6 +8,6 @@ import (
 )
 
 const (
-	defaultMaxAttempts     = uint64(30)
+	defaultMaxRetries      = uint64(30)
 	defaultBackoffInterval = 1 * time.Second
 )

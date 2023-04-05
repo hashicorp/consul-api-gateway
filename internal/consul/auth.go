@@ -25,7 +25,7 @@ type Authenticator struct {
 
 	method          string
 	namespace       string
-	tries           uint64
+	retries         uint64
 	backoffInterval time.Duration
 }
 
@@ -36,13 +36,13 @@ func NewAuthenticator(logger hclog.Logger, consul *api.Client, method, namespace
 		logger:          logger,
 		method:          method,
 		namespace:       namespace,
-		tries:           defaultMaxAttempts,
+		retries:         defaultMaxRetries,
 		backoffInterval: defaultBackoffInterval,
 	}
 }
 
-func (a *Authenticator) WithTries(tries uint64) *Authenticator {
-	a.tries = tries
+func (a *Authenticator) WithRetries(retries uint64) *Authenticator {
+	a.retries = retries
 	return a
 }
 
@@ -58,7 +58,7 @@ func (a *Authenticator) Authenticate(ctx context.Context, service, bearerToken s
 			a.logger.Error("error authenticating", "error", err)
 		}
 		return err
-	}, backoff.WithContext(backoff.WithMaxRetries(backoff.NewConstantBackOff(a.backoffInterval), a.tries), ctx))
+	}, backoff.WithContext(backoff.WithMaxRetries(backoff.NewConstantBackOff(a.backoffInterval), a.retries), ctx))
 	return token, err
 }
 
