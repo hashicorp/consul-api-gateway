@@ -273,13 +273,14 @@ func (s *ServiceRegistry) Deregister(ctx context.Context) error {
 
 func (s *ServiceRegistry) deregister(ctx context.Context) error {
 	writeOptions := &api.WriteOptions{}
-	_, err := s.client.Catalog().Deregister(&api.CatalogDeregistration{
-		Node:    s.id,
-		Address: s.address,
-		//ServiceID: s.id,
+	dereg := api.CatalogDeregistration{
+		Node:      s.name,
+		ServiceID: s.id,
 		Namespace: s.namespace,
 		Partition: s.partition,
-	}, writeOptions.WithContext(ctx))
+	}
+	fmt.Printf("DEREGISTERING:\n%#v\n", dereg)
+	_, err := s.client.Catalog().Deregister(&dereg, writeOptions.WithContext(ctx))
 	return err
 }
 

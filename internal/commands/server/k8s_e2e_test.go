@@ -378,7 +378,12 @@ func TestGatewayBasic(t *testing.T) {
 					Namespace: e2e.ConsulNamespace(ctx),
 				})
 				if err != nil {
+					fmt.Printf("ERROR: %#v", err)
 					return false
+				}
+				fmt.Printf("SERVICES: %d\n", len(services))
+				for _, service := range services {
+					fmt.Printf("%#v\n", service)
 				}
 				return len(services) == 0
 			}, checkTimeout, checkInterval, "consul service not deregistered in the allotted time")
