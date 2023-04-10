@@ -106,8 +106,12 @@ type kindCluster struct {
 	extraTCPTLSPortTwo               int
 }
 
-func newKindCluster(name string) *kindCluster {
-	ports := freeport.MustTake(11)
+func newKindCluster(name string) (*kindCluster, error) {
+	ports, err := freeport.Take(11)
+	if err != nil {
+		return nil, err
+	}
+
 	return &kindCluster{
 		name:                             name,
 		e:                                gexe.New(),
@@ -122,7 +126,7 @@ func newKindCluster(name string) *kindCluster {
 		extraTCPPort:                     ports[8],
 		extraTCPTLSPort:                  ports[9],
 		extraTCPTLSPortTwo:               ports[10],
-	}
+	}, nil
 }
 
 func (k *kindCluster) Create() (string, error) {
@@ -229,7 +233,11 @@ func (k *kindCluster) Destroy() error {
 func CreateKindCluster(clusterName string) env.Func {
 	return func(ctx context.Context, cfg *envconf.Config) (context.Context, error) {
 		// use custom cluster creation func to reserve ports
-		k := newKindCluster(clusterName)
+		k, err := newKindCluster(clusterName)
+		if err != nil {
+			return ctx, err
+		}
+
 		kubecfg, err := k.Create()
 		if err != nil {
 			return ctx, err
