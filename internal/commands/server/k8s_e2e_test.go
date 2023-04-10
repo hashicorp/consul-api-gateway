@@ -432,7 +432,7 @@ func TestGatewayBasic(t *testing.T) {
 			require.Eventually(t, func() bool {
 				entries, _, err := client.ConfigEntries().List(api.IngressGateway, queryNamespace)
 				return err == nil && len(entries) == 1 && entries[0].GetName() == gatewayName
-			}, 5*time.Minute, checkInterval, "ingress-gateway config-entry not created in allotted time")
+			}, 90*time.Second, checkInterval, "ingress-gateway config-entry not created in allotted time")
 
 			// De-register Consul service
 			_, err := client.Catalog().Deregister(&api.CatalogDeregistration{
@@ -444,7 +444,7 @@ func TestGatewayBasic(t *testing.T) {
 			require.Eventually(t, func() bool {
 				services, _, err := client.Catalog().Service(gatewayName, "", queryNamespace)
 				return err == nil && len(services) == 0
-			}, 5*time.Minute, checkInterval, "service still returned after de-registering")
+			}, 90*time.Second, checkInterval, "service still returned after de-registering")
 
 			// Delete ingress-gateway config-entry
 			_, err = client.ConfigEntries().Delete(api.IngressGateway, gatewayName, &api.WriteOptions{Namespace: e2e.ConsulNamespace(ctx)})
@@ -452,17 +452,17 @@ func TestGatewayBasic(t *testing.T) {
 			require.Eventually(t, func() bool {
 				entries, _, err := client.ConfigEntries().List(api.IngressGateway, queryNamespace)
 				return err == nil && len(entries) == 0
-			}, 5*time.Minute, checkInterval, "ingress-gateway config entry still returned after deleting")
+			}, 90*time.Second, checkInterval, "ingress-gateway config entry still returned after deleting")
 
 			// Check to make sure the controller recreates the service and config-entry in the background.
 			assert.Eventually(t, func() bool {
 				services, _, err := client.Catalog().Service(gatewayName, "", queryNamespace)
 				return err == nil && len(services) == 1
-			}, 5*time.Minute, checkInterval, "service not recreated after delete in allotted time")
+			}, 90*time.Second, checkInterval, "service not recreated after delete in allotted time")
 			assert.Eventually(t, func() bool {
 				entry, _, err := client.ConfigEntries().Get(api.IngressGateway, gatewayName, queryNamespace)
 				return err == nil && entry != nil
-			}, 5*time.Minute, checkInterval, "ingress-gateway config-entry not recreated after delete in allotted time")
+			}, 90*time.Second, checkInterval, "ingress-gateway config-entry not recreated after delete in allotted time")
 
 			// Clean up
 			require.NoError(t, resources.Delete(ctx, gw))
