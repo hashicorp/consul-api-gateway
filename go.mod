@@ -21,7 +21,7 @@ require (
 	github.com/hashicorp/go-hclog v1.5.0
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/vault/api v1.9.0
-	github.com/hashicorp/vault/sdk v0.8.1
+	github.com/hashicorp/vault/sdk v0.9.0
 	github.com/kr/text v0.2.0
 	github.com/mitchellh/cli v1.1.5
 	github.com/mitchellh/mapstructure v1.5.0
@@ -281,7 +281,7 @@ require (
 	go.uber.org/atomic v1.9.0 // indirect
 	go.uber.org/multierr v1.6.0 // indirect
 	go.uber.org/zap v1.24.0 // indirect
-	golang.org/x/crypto v0.5.0 // indirect
+	golang.org/x/crypto v0.6.0 // indirect
 	golang.org/x/exp/typeparams v0.0.0-20230224173230-c95f2b4c22f2 // indirect
 	golang.org/x/mod v0.10.0 // indirect
 	golang.org/x/oauth2 v0.4.0 // indirect
