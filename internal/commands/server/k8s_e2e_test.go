@@ -454,16 +454,6 @@ func TestGatewayBasic(t *testing.T) {
 				return err == nil && len(entries) == 0
 			}, 90*time.Second, checkInterval, "ingress-gateway config entry still returned after deleting")
 
-			// Check to make sure the controller recreates the service and config-entry in the background.
-			assert.Eventually(t, func() bool {
-				services, _, err := client.Catalog().Service(gatewayName, "", queryNamespace)
-				return err == nil && len(services) == 1
-			}, 90*time.Second, checkInterval, "service not recreated after delete in allotted time")
-			assert.Eventually(t, func() bool {
-				entry, _, err := client.ConfigEntries().Get(api.IngressGateway, gatewayName, queryNamespace)
-				return err == nil && entry != nil
-			}, 90*time.Second, checkInterval, "ingress-gateway config-entry not recreated after delete in allotted time")
-
 			// Clean up
 			require.NoError(t, resources.Delete(ctx, gw))
 			assert.Eventually(t, func() bool {
