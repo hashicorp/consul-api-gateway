@@ -513,8 +513,8 @@ github.com/hashicorp/memberlist v0.5.0 h1:EtYPN8DpAURiapus508I4n9CzHs2W+8NZGbmmR
 github.com/hashicorp/memberlist v0.5.0/go.mod h1:yvyXLpo0QaGE59Y7hDTsTzDD25JYBZ4mHgHUZ8lrOI0=
 github.com/hashicorp/serf v0.10.1 h1:Z1H2J60yRKvfDYAOZLd2MU0ND4AH/WDz7xYHDWQsIPY=
 github.com/hashicorp/serf v0.10.1/go.mod h1:yL2t6BqATOLGc5HF7qbFkTfXoPIY0WZdWHfEvMqbG+4=
-github.com/hashicorp/vault/api v1.9.0 h1:ab7dI6W8DuCY7yCU8blo0UCYl2oHre/dloCmzMWg9w8=
-github.com/hashicorp/vault/api v1.9.0/go.mod h1:lloELQP4EyhjnCQhF8agKvWIVTmxbpEJj70b98959sM=
+github.com/hashicorp/vault/api v1.9.1 h1:LtY/I16+5jVGU8rufyyAkwopgq/HpUnxFBg+QLOAV38=
+github.com/hashicorp/vault/api v1.9.1/go.mod h1:78kktNcQYbBGSrOjQfHjXN32OhhxXnbYl3zxpd2uPUs=
 github.com/hashicorp/vault/sdk v0.9.0 h1:Cbu9ezaZafZTXnen98QKVmufEPquhZ+r1ORZ7csNLFU=
 github.com/hashicorp/vault/sdk v0.9.0/go.mod h1:VX9d+xF62YBNtiEc4l3Z2aea9HVtAS49EoniuXzHtC4=
 github.com/hexops/gotextdiff v1.0.3 h1:gitA9+qJrrTCsiCl7+kh75nPqQt1cx4ZkudSTLoUqJM=
