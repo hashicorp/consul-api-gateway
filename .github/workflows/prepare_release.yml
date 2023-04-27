@@ -26,7 +26,7 @@ jobs:
     steps:
 
       - name: Checkout consul-api-gateway
-        uses: actions/checkout@v2
+        uses: actions/checkout@8e5e7e5ab8b370d6c329ec480221332ada57f0ab # v3.5.2
         with:
           fetch-depth: "0"
 
@@ -38,42 +38,42 @@ jobs:
           echo "EOF" >> $GITHUB_ENV
 
       - name: Update deployment.yaml
-        uses: jacobtomlinson/gha-find-replace@f485fdc3f67a6d87ae6e3d11e41f648c26d7aee3
+        uses: jacobtomlinson/gha-find-replace@f485fdc3f67a6d87ae6e3d11e41f648c26d7aee3 # TSCCR: no entry for repository "jacobtomlinson/gha-find-replace"
         with:
           include: config/deployment/deployment.yaml
           find: 'image: hashicorp/consul-api-gateway:[0-9\.]+'
           replace: 'image: hashicorp/consul-api-gateway:${{ env.NEW_API_GATEWAY_VERSION }}'
 
       - name: Update example-setup.md
-        uses: jacobtomlinson/gha-find-replace@f485fdc3f67a6d87ae6e3d11e41f648c26d7aee3
+        uses: jacobtomlinson/gha-find-replace@f485fdc3f67a6d87ae6e3d11e41f648c26d7aee3 # TSCCR: no entry for repository "jacobtomlinson/gha-find-replace"
         with:
           include: 'dev/docs/example-setup.md'
           find: 'ref=v[0-9\.]+'
           replace: 'ref=v${{ env.NEW_API_GATEWAY_VERSION }}'
 
       - name: Update supported-features.md
-        uses: jacobtomlinson/gha-find-replace@f485fdc3f67a6d87ae6e3d11e41f648c26d7aee3
+        uses: jacobtomlinson/gha-find-replace@f485fdc3f67a6d87ae6e3d11e41f648c26d7aee3 # TSCCR: no entry for repository "jacobtomlinson/gha-find-replace"
         with:
           include: 'dev/docs/supported-features.md'
           find: 'Consul API Gateway version: \*\*v[0-9\.]+\*\*'
           replace: 'Consul API Gateway version: **v${{ env.NEW_API_GATEWAY_VERSION }}**'
 
       - name: Update README.md (Consul version)
-        uses: jacobtomlinson/gha-find-replace@f485fdc3f67a6d87ae6e3d11e41f648c26d7aee3
+        uses: jacobtomlinson/gha-find-replace@f485fdc3f67a6d87ae6e3d11e41f648c26d7aee3 # TSCCR: no entry for repository "jacobtomlinson/gha-find-replace"
         with:
           include: 'README.md'
           find: 'The installed version of Consul must be `v[0-9\.]+` or greater.'
           replace: 'The installed version of Consul must be `v${{ env.NEW_CONSUL_REQ }}` or greater.'
 
       - name: Update README.md (Consul K8s version)
-        uses: jacobtomlinson/gha-find-replace@f485fdc3f67a6d87ae6e3d11e41f648c26d7aee3
+        uses: jacobtomlinson/gha-find-replace@f485fdc3f67a6d87ae6e3d11e41f648c26d7aee3 # TSCCR: no entry for repository "jacobtomlinson/gha-find-replace"
         with:
           include: 'README.md'
           find: 'The Consul Helm chart must be version `[0-9\.]+` or greater.'
           replace: 'The Consul Helm chart must be version `${{ env.NEW_CONSUL_K8S_REQ }}` or greater.'
 
       - name: Setup Go
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@4d34df0c2316fe8122ab82dc22947d607c0c91f9 # v4.0.0
         with:
           go-version: 1.19
 
@@ -94,7 +94,7 @@ jobs:
           echo "EOF" >> $GITHUB_ENV
 
       - name: Update CHANGELOG.md
-        uses: jacobtomlinson/gha-find-replace@f485fdc3f67a6d87ae6e3d11e41f648c26d7aee3
+        uses: jacobtomlinson/gha-find-replace@f485fdc3f67a6d87ae6e3d11e41f648c26d7aee3 # TSCCR: no entry for repository "jacobtomlinson/gha-find-replace"
         with:
           include: 'CHANGELOG.md'
           find: |
@@ -109,7 +109,7 @@ jobs:
 
       - name: Create pull request
         id: create-pr
-        uses: peter-evans/create-pull-request@923ad837f191474af6b1721408744feb989a4c27
+        uses: peter-evans/create-pull-request@5b4a9f6a9e2af26e5f02351490b90d01eb8ec1e5 # v5.0.0
         with:
           body: |
             Consul API Gateway version being released: `${{ env.NEW_API_GATEWAY_VERSION }}`

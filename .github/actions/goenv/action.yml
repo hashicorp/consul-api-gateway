@@ -22,7 +22,7 @@ runs:
   using: composite
   steps:
   - name: Setup Go
-    uses: actions/setup-go@v2
+    uses: actions/setup-go@4d34df0c2316fe8122ab82dc22947d607c0c91f9 # v4.0.0
     with:
       go-version: ${{ inputs.go-version }}
 
@@ -42,13 +42,13 @@ runs:
       echo "::set-output name=go-mod-cache::$(go env GOMODCACHE)"
 
   - name: Go Build Cache
-    uses: actions/cache@v2
+    uses: actions/cache@88522ab9f39a2ea568f7027eddc7d8d8bc9d59c8 # v3.3.1
     with:
       path: ${{ steps.go-cache-paths.outputs.go-build-cache }}
       key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}
 
   - name: Go Mod Cache
-    uses: actions/cache@v2
+    uses: actions/cache@88522ab9f39a2ea568f7027eddc7d8d8bc9d59c8 # v3.3.1
     with:
       path: ${{ steps.go-cache-paths.outputs.go-mod-cache }}
       key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}

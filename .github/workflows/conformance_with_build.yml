@@ -71,19 +71,19 @@ jobs:
       #     consul-k8s/
       #     gateway-api/
       - name: Checkout consul-api-gateway
-        uses: actions/checkout@v2
+        uses: actions/checkout@8e5e7e5ab8b370d6c329ec480221332ada57f0ab # v3.5.2
         with:
           path: "consul-api-gateway"
 
       - name: Clone consul-k8s
-        uses: actions/checkout@v2
+        uses: actions/checkout@8e5e7e5ab8b370d6c329ec480221332ada57f0ab # v3.5.2
         with:
           repository: "hashicorp/consul-k8s"
           ref: ${{ matrix.config.consul-k8s-version }}
           path: "consul-k8s"
 
       - name: Clone gateway-api
-        uses: actions/checkout@v2
+        uses: actions/checkout@8e5e7e5ab8b370d6c329ec480221332ada57f0ab # v3.5.2
         with:
           repository: "hashicorp/gateway-api"
           ref: "conformance/v0.5.1-skipped-tests"
@@ -103,11 +103,11 @@ jobs:
         run: go build -o ./consul-api-gateway
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
+        uses: docker/setup-buildx-action@4b4e9c3e2d4531116a6f8ba8e71fc6e2cb6e6c8c # v2.5.0
 
       # docker build -f Dockerfile.local -t consul-api-gateway:local-build --platform linux/amd64 .
       - name: Build Docker image
-        uses: docker/build-push-action@v2
+        uses: docker/build-push-action@3b5e8027fcad23fda98b2e3ac259d8d67585f671 # v4.0.0
         with:
           context: "./consul-api-gateway"
           platforms: "linux/amd64"
@@ -144,6 +144,6 @@ jobs:
         run: go test -v -timeout 10m ./ --gateway-class=consul-api-gateway
 
       - name: Setup tmate session
-        uses: mxschmitt/action-tmate@v3
+        uses: mxschmitt/action-tmate@v3 # TSCCR: no entry for repository "mxschmitt/action-tmate"
         if: failure() && github.event_name == 'workflow_dispatch' && github.event.inputs.debug_enabled == 'true'
         timeout-minutes: ${{ fromJSON(github.event.inputs.debug_timeout_minutes) }}
