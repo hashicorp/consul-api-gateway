@@ -624,6 +624,18 @@ func TestHTTPRouteFlattening(t *testing.T) {
 			err = resources.Create(ctx, route)
 			require.NoError(t, err)
 
+			// Verify HTTPRoute has updated its status
+			check := createConditionsCheck([]meta.Condition{
+				{
+					Type: rstatus.RouteConditionAccepted, Status: "True", Reason: rstatus.RouteConditionReasonAccepted,
+				},
+				{
+					Type: rstatus.RouteConditionResolvedRefs, Status: "True", Reason: rstatus.RouteConditionReasonResolvedRefs,
+				},
+			})
+			require.Eventually(t, httpRouteStatusCheck(ctx, resources, gatewayName, routeOneName, namespace, check), checkTimeout, checkInterval, "route status not set in allotted time")
+			require.Eventually(t, httpRouteStatusCheck(ctx, resources, gatewayName, routeTwoName, namespace, check), checkTimeout, checkInterval, "route status not set in allotted time")
+
 			checkRoute(t, checkPort, "/v2/test", httpResponse{
 				StatusCode: http.StatusOK,
 				Body:       serviceTwo.Name,
