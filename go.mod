@@ -20,7 +20,7 @@ require (
 	github.com/hashicorp/go-changelog v0.0.0-20221013053416-ba40b3a8c7ff
 	github.com/hashicorp/go-hclog v1.5.0
 	github.com/hashicorp/go-multierror v1.1.1
-	github.com/hashicorp/vault/api v1.9.0
+	github.com/hashicorp/vault/api v1.9.1
 	github.com/hashicorp/vault/sdk v0.9.0
 	github.com/kr/text v0.2.0
 	github.com/mitchellh/cli v1.1.5
