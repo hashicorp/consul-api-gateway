@@ -30,8 +30,8 @@ require (
 	github.com/vladimirvivien/gexe v0.2.0
 	golang.org/x/exp v0.0.0-20220722155223-a9213eeb770e
 	golang.org/x/net v0.10.0
-	golang.org/x/sync v0.1.0
-	golang.org/x/tools v0.8.0
+	golang.org/x/sync v0.2.0
+	golang.org/x/tools v0.9.1
 	google.golang.org/grpc v1.54.0
 	k8s.io/api v0.26.3
 	k8s.io/apiextensions-apiserver v0.26.3
