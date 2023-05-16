@@ -72,8 +72,8 @@ We have provided a set of `kustomize` manifests for installing the Consul API Ga
 Apply them to your cluster using the following commands.
 
 ```bash
-kubectl apply -k "github.com/hashicorp/consul-api-gateway/config/crd?ref=v0.5.3"
-kubectl apply -k "github.com/hashicorp/consul-api-gateway/config?ref=v0.5.3"
+kubectl apply -k "github.com/hashicorp/consul-api-gateway/config/crd?ref=v0.5.4"
+kubectl apply -k "github.com/hashicorp/consul-api-gateway/config?ref=v0.5.4"
 ```
 
 ## Installing the demo Gateway and Mesh Service
@@ -116,7 +116,7 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 resources:
-- github.com/hashicorp/consul-api-gateway/config/example?ref=v0.5.3
+- github.com/hashicorp/consul-api-gateway/config/example?ref=v0.5.4
 
 patches:
 - target:
