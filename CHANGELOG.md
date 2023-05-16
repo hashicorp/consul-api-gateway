@@ -1,12 +1,20 @@
-## UNRELEASED
+## 0.5.4 (May 16, 2023)
 
-## 0.5.3 (March 29, 2022)
+IMPROVEMENTS:
+
+* go: build with Go v1.19.9 [[GH-570](https://github.com/hashicorp/consul-api-gateway/issues/570)]
+
+BUG FIXES:
+
+* add support for parsing SPIFFE paths for non-default partitions in Consul Enterprise [[GH-547](https://github.com/hashicorp/consul-api-gateway/issues/547)]
+
+## 0.5.3 (March 29, 2023)
 
 BUG FIXES:
 
 * Fix envoy deployments not properly identifying themselves when deployed to non-default partitions. [[GH-537](https://github.com/hashicorp/consul-api-gateway/issues/537)]
 
-## 0.5.2 (March 3, 2022)
+## 0.5.2 (March 3, 2023)
 
 IMPROVEMENTS:
 
