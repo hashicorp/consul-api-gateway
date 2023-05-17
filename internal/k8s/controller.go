@@ -90,6 +90,8 @@ type Config struct {
 	RestConfig          *rest.Config
 	Namespace           string
 
+	EnableTelemetryCollector bool
+
 	// ConsulNamespaceConfig
 	ConsulNamespaceConfig ConsulNamespaceConfig
 }
@@ -177,6 +179,7 @@ func (k *Kubernetes) Start(ctx context.Context) error {
 		Store:                    k.store,
 		ConsulNamespaceMapper:    k.config.ConsulNamespaceConfig.Namespace,
 		ConsulNamespaceMirroring: k.config.ConsulNamespaceConfig.MirrorKubernetesNamespaces,
+		EnableTelemetryCollector: k.config.EnableTelemetryCollector,
 	})
 
 	err := (&controllers.GatewayClassConfigReconciler{

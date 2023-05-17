@@ -59,9 +59,10 @@ type Command struct {
 	flagGatewayNamespace string // Gateway namespace.
 
 	// Envoy params
-	flagBootstrapPath    string // Path for config file for bootstrapping envoy
-	flagSDSServerAddress string // Address for the SDS server
-	flagSDSServerPort    int    // Port for the SDS server
+	flagBootstrapPath               string // Path for config file for bootstrapping envoy
+	flagSDSServerAddress            string // Address for the SDS server
+	flagSDSServerPort               int    // Port for the SDS server
+	flagEnvoyTelemetryBindSocketDir string // Enables telemetry forwarding to consul-telemetry-collector
 
 	// ACL Auth
 	flagACLAuthMethod       string // Auth Method to use for ACLs, if enabled.
@@ -101,6 +102,7 @@ func (c *Command) init() {
 		c.flagSet.StringVar(&c.flagBootstrapPath, "envoy-bootstrap-path", "", "Path to the config file for bootstrapping Envoy.")
 		c.flagSet.StringVar(&c.flagSDSServerAddress, "envoy-sds-address", "", "Address of the SDS server.")
 		c.flagSet.IntVar(&c.flagSDSServerPort, "envoy-sds-port", 9090, "Port of the SDS server.")
+		c.flagSet.StringVar(&c.flagEnvoyTelemetryBindSocketDir, "envoy-telemetry-bind-socket-dir", "", "Dir to bind socket for telemetry forwarding to consul-telemetry-collector")
 	}
 	{
 		// Gateway
@@ -201,6 +203,11 @@ func (c *Command) Run(args []string) (ret int) {
 		}
 	}
 
+	proxyConfig := map[string]interface{}{}
+	if c.flagEnvoyTelemetryBindSocketDir != "" {
+		proxyConfig["envoy_telemetry_bind_socket_dir"] = c.flagEnvoyTelemetryBindSocketDir
+	}
+
 	return RunExec(ExecConfig{
 		Context:           c.ctx,
 		Logger:            logger,
@@ -230,6 +237,7 @@ func (c *Command) Run(args []string) (ret int) {
 			Output:            c.output,
 		},
 		ConsulClientConfig: consulClientConfig,
+		ProxyConfig:        proxyConfig,
 		isTest:             c.isTest,
 	})
 }

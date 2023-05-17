@@ -31,12 +31,13 @@ type ServiceRegistry struct {
 	client Client
 	logger hclog.Logger
 
-	id        string
-	name      string
-	namespace string
-	partition string
-	host      string
-	tags      []string
+	id          string
+	name        string
+	namespace   string
+	partition   string
+	host        string
+	tags        []string
+	proxyConfig map[string]interface{}
 
 	cancel                 context.CancelFunc
 	tries                  uint64
@@ -74,6 +75,12 @@ func (s *ServiceRegistry) WithTries(tries uint64) *ServiceRegistry {
 	return s
 }
 
+// WithProxyConfig adds proxy config map to the gateway service registration
+func (s *ServiceRegistry) WithProxyConfig(cfg map[string]interface{}) *ServiceRegistry {
+	s.proxyConfig = cfg
+	return s
+}
+
 // Register registers a Gateway service with Consul.
 func (s *ServiceRegistry) RegisterGateway(ctx context.Context, ttl bool) error {
 	serviceChecks := api.AgentServiceChecks{{
@@ -103,6 +110,9 @@ func (s *ServiceRegistry) RegisterGateway(ctx context.Context, ttl bool) error {
 			"external-source": "consul-api-gateway",
 		},
 		Checks: serviceChecks,
+		Proxy: &api.AgentServiceConnectProxyConfig{
+			Config: s.proxyConfig,
+		},
 	}, ttl)
 }
 
