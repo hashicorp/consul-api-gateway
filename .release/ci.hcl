@@ -21,27 +21,16 @@ project "consul-api-gateway" {
   }
 }
 
-event "merge" {
-  // "entrypoint" to use if build is not run automatically i.e. send "merge" complete signal to orchestrator to trigger build
-}
 
-event "build" {
-  depends = ["merge"]
+event "build" {}
 
-  action "build" {
-    organization = "hashicorp"
-    repository   = "consul-api-gateway"
-    workflow     = "build"
-  }
-}
-
-event "upload-dev" {
+event "prepare" {
   depends = ["build"]
 
-  action "upload-dev" {
+  action "prepare" {
     organization = "hashicorp"
     repository   = "crt-workflows-common"
-    workflow     = "upload-dev"
+    workflow     = "prepare"
     depends      = ["build"]
   }
 
@@ -50,78 +39,10 @@ event "upload-dev" {
   }
 }
 
-event "security-scan-binaries" {
-  depends = ["upload-dev"]
 
-  action "security-scan-binaries" {
-    organization = "hashicorp"
-    repository   = "crt-workflows-common"
-    workflow     = "security-scan-binaries"
-    config       = "security-scan.hcl"
-  }
 
-  notification {
-    on = "fail"
-  }
-}
 
-event "security-scan-containers" {
-  depends = ["security-scan-binaries"]
 
-  action "security-scan-containers" {
-    organization = "hashicorp"
-    repository   = "crt-workflows-common"
-    workflow     = "security-scan-containers"
-    config       = "security-scan.hcl"
-  }
-
-  notification {
-    on = "fail"
-  }
-}
-
-event "sign" {
-  depends = ["security-scan-containers"]
-
-  action "sign" {
-    organization = "hashicorp"
-    repository   = "crt-workflows-common"
-    workflow     = "sign"
-  }
-
-  notification {
-    on = "fail"
-  }
-}
-
-event "verify" {
-  depends = ["sign"]
-
-  action "verify" {
-    organization = "hashicorp"
-    repository   = "crt-workflows-common"
-    workflow     = "verify"
-  }
-
-  notification {
-    on = "always"
-  }
-}
-
-event "promote-dev-docker" {
-  depends = ["verify"]
-
-  action "promote-dev-docker" {
-    organization = "hashicorp"
-    repository   = "crt-workflows-common"
-    workflow     = "promote-dev-docker"
-    depends      = ["verify"]
-  }
-
-  notification {
-    on = "fail"
-  }
-}
 
 ## These are promotion and post-publish events
 ## they should be added to the end of the file after the verify event stanza.
