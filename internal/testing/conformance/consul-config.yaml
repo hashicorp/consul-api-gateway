@@ -9,6 +9,10 @@ server:
 connectInject:
   enabled: true
   default: true
+  # For consul-k8s >= 1.2.0, allow consul-api-gateway tests to install their own
+  # CRDs just like they did before api-gateway was integrated into consul-k8s
+  apiGateway:
+    manageExternalCRDs: false
 controller:
   enabled: true
 apiGateway:
