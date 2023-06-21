@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"testing"
 	"time"
 
 	"github.com/vladimirvivien/gexe"
@@ -106,8 +107,8 @@ type kindCluster struct {
 	extraTCPTLSPortTwo               int
 }
 
-func newKindCluster(name string) *kindCluster {
-	ports := freeport.MustTake(11)
+func newKindCluster(t *testing.T, name string) *kindCluster {
+	ports := freeport.GetN(t, 11)
 	return &kindCluster{
 		name:                             name,
 		e:                                gexe.New(),
@@ -163,7 +164,7 @@ func (k *kindCluster) Create() (string, error) {
 		return "", nil
 	}
 
-	config, err := ioutil.TempFile("", "kind-cluster-config")
+	config, err := os.CreateTemp("", "kind-cluster-config")
 	if err != nil {
 		return "", nil
 	}
@@ -226,10 +227,10 @@ func (k *kindCluster) Destroy() error {
 }
 
 // https://github.com/kubernetes-sigs/e2e-framework/blob/2aa1046b47656cde5c9ed2d6a0c58a86e70b43eb/pkg/envfuncs/kind_funcs.go#L43
-func CreateKindCluster(clusterName string) env.Func {
+func CreateKindCluster(t *testing.T, clusterName string) env.Func {
 	return func(ctx context.Context, cfg *envconf.Config) (context.Context, error) {
 		// use custom cluster creation func to reserve ports
-		k := newKindCluster(clusterName)
+		k := newKindCluster(t, clusterName)
 		kubecfg, err := k.Create()
 		if err != nil {
 			return ctx, err

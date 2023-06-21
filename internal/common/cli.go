@@ -129,20 +129,6 @@ func printFlag(w io.Writer, f *flag.Flag) {
 	fmt.Fprintf(w, "%s\n\n", indented)
 }
 
-// contains returns true if the given flag is contained in the given flag
-// set or false otherwise.
-func contains(fs *flag.FlagSet, f *flag.Flag) bool {
-	if fs == nil {
-		return false
-	}
-
-	var in bool
-	fs.VisitAll(func(hf *flag.Flag) {
-		in = in || f.Name == hf.Name
-	})
-	return in
-}
-
 // maxLineLength is the maximum width of any line.
 const maxLineLength int = 72
 
