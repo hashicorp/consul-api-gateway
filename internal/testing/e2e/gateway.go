@@ -35,7 +35,7 @@ type gatewayTestEnvironment struct {
 }
 
 func (p *gatewayTestEnvironment) run(ctx context.Context, namespace string, cfg *envconf.Config) error {
-	serviceAccountClient, err := serviceAccountClient(ctx, cfg.Client(), p.serviceAccountName, namespace)
+	serviceAccountClient, err := serviceAccountClient(ctx, cfg.Client())
 	if err != nil {
 		return err
 	}
