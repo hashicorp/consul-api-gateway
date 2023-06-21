@@ -58,7 +58,7 @@ func TestMain(m *testing.M) {
 	testenv = env.New()
 
 	testenv.Setup(
-		e2e.SetUpStack(m, hostRoute),
+		e2e.SetUpStack(nil, hostRoute),
 	)
 
 	testenv.Finish(

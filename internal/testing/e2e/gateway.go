@@ -34,7 +34,7 @@ type gatewayTestEnvironment struct {
 	serviceAccountName string
 }
 
-func (p *gatewayTestEnvironment) run(ctx context.Context, namespace string, cfg *envconf.Config) error {
+func (p *gatewayTestEnvironment) run(ctx context.Context, cfg *envconf.Config) error {
 	serviceAccountClient, err := serviceAccountClient(ctx, cfg.Client())
 	if err != nil {
 		return err
@@ -142,7 +142,7 @@ func CreateTestGatewayServer(namespace string) env.Func {
 			serviceAccountName: "consul-api-gateway",
 			directory:          tmpdir,
 		}
-		if err := gatewayEnv.run(ctx, namespace, cfg); err != nil {
+		if err := gatewayEnv.run(ctx, cfg); err != nil {
 			return nil, err
 		}
 		return context.WithValue(ctx, gatewayTestContextKey, gatewayEnv), nil
