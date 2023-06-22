@@ -20,7 +20,7 @@ var (
 
 	scheme = runtime.NewScheme()
 
-	serializerOptions = jsonruntime.SerializerOptions{
+	serializerOptions = jsonruntime.SerializerOptions{ //nolint:unused
 		Yaml:   false,
 		Pretty: false,
 		Strict: false,

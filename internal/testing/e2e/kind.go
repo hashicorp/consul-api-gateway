@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"html/template"
 	"io"
+	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
@@ -106,10 +107,7 @@ type kindCluster struct {
 }
 
 func newKindCluster(name string) *kindCluster {
-	ports, err := freeport.Take(11)
-	if err != nil {
-		log.Fatal(err)
-	}
+	ports := freeport.MustTake(11)
 	return &kindCluster{
 		name:                             name,
 		e:                                gexe.New(),
@@ -165,7 +163,7 @@ func (k *kindCluster) Create() (string, error) {
 		return "", nil
 	}
 
-	config, err := os.CreateTemp("", "kind-cluster-config")
+	config, err := ioutil.TempFile("", "kind-cluster-config")
 	if err != nil {
 		return "", nil
 	}
@@ -191,7 +189,7 @@ func (k *kindCluster) Create() (string, error) {
 		return "", fmt.Errorf("kind get kubeconfig: %s: %w", p.Result(), p.Err())
 	}
 
-	file, err := os.CreateTemp("", fmt.Sprintf("kind-cluser-%s", kubecfg))
+	file, err := ioutil.TempFile("", fmt.Sprintf("kind-cluser-%s", kubecfg))
 	if err != nil {
 		return "", fmt.Errorf("kind kubeconfig file: %w", err)
 	}
