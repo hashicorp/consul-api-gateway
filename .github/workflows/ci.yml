@@ -5,7 +5,7 @@ on:
   pull_request:
     branches: ["main", "release/**"]
 env:
-  GO_VERSION: '1.20'
+  GO_VERSION: '1.19'
   CONSUL_LICENSE: ${{ secrets.CONSUL_LICENSE }}
 jobs:
   lint:
