@@ -8,15 +8,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/Azure/go-autorest/logger"
 	"html/template"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
 	"strings"
-	"testing"
 	"time"
 
 	"github.com/vladimirvivien/gexe"
@@ -108,7 +105,7 @@ type kindCluster struct {
 	extraTCPTLSPortTwo               int
 }
 
-func newKindCluster(name string) (*kindCluster) {
+func newKindCluster(name string) *kindCluster {
 	ports, err := freeport.Take(11)
 	if err != nil {
 		log.Fatal(err)
@@ -194,7 +191,7 @@ func (k *kindCluster) Create() (string, error) {
 		return "", fmt.Errorf("kind get kubeconfig: %s: %w", p.Result(), p.Err())
 	}
 
-	file, err := os.CreateTemp(("", fmt.Sprintf("kind-cluser-%s", kubecfg))
+	file, err := os.CreateTemp("", fmt.Sprintf("kind-cluser-%s", kubecfg))
 	if err != nil {
 		return "", fmt.Errorf("kind kubeconfig file: %w", err)
 	}
