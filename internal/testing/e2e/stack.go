@@ -8,8 +8,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"testing"
-
 	"sigs.k8s.io/e2e-framework/pkg/env"
 	"sigs.k8s.io/e2e-framework/pkg/envconf"
 	"sigs.k8s.io/e2e-framework/pkg/envfuncs"
@@ -19,7 +17,7 @@ const (
 	envvarPrefix = "E2E_APIGW_"
 )
 
-func SetUpStack(t *testing.T, hostRoute string) env.Func {
+func SetUpStack(hostRoute string) env.Func {
 	return func(ctx context.Context, cfg *envconf.Config) (context.Context, error) {
 		var err error
 		kindClusterName := envconf.RandomName("consul-api-gateway-test", 30)
@@ -35,7 +33,7 @@ func SetUpStack(t *testing.T, hostRoute string) env.Func {
 			SetNamespaceMirroring(true),
 			CrossCompileProject,
 			BuildDockerImage,
-			CreateKindCluster(t, kindClusterName),
+			CreateKindCluster(kindClusterName),
 			LoadKindDockerImage(kindClusterName),
 			envfuncs.CreateNamespace(namespace),
 			InstallCRDs,

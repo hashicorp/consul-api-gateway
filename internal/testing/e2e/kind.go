@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/Azure/go-autorest/logger"
 	"html/template"
 	"io"
 	"io/ioutil"
@@ -107,8 +108,11 @@ type kindCluster struct {
 	extraTCPTLSPortTwo               int
 }
 
-func newKindCluster(t *testing.T, name string) *kindCluster {
-	ports := freeport.GetN(t, 11)
+func newKindCluster(name string) (*kindCluster) {
+	ports, err := freeport.Take(11)
+	if err != nil {
+		log.Fatal(err)
+	}
 	return &kindCluster{
 		name:                             name,
 		e:                                gexe.New(),
@@ -190,7 +194,7 @@ func (k *kindCluster) Create() (string, error) {
 		return "", fmt.Errorf("kind get kubeconfig: %s: %w", p.Result(), p.Err())
 	}
 
-	file, err := ioutil.TempFile("", fmt.Sprintf("kind-cluser-%s", kubecfg))
+	file, err := os.CreateTemp(("", fmt.Sprintf("kind-cluser-%s", kubecfg))
 	if err != nil {
 		return "", fmt.Errorf("kind kubeconfig file: %w", err)
 	}
@@ -227,10 +231,10 @@ func (k *kindCluster) Destroy() error {
 }
 
 // https://github.com/kubernetes-sigs/e2e-framework/blob/2aa1046b47656cde5c9ed2d6a0c58a86e70b43eb/pkg/envfuncs/kind_funcs.go#L43
-func CreateKindCluster(t *testing.T, clusterName string) env.Func {
+func CreateKindCluster(clusterName string) env.Func {
 	return func(ctx context.Context, cfg *envconf.Config) (context.Context, error) {
 		// use custom cluster creation func to reserve ports
-		k := newKindCluster(t, clusterName)
+		k := newKindCluster(clusterName)
 		kubecfg, err := k.Create()
 		if err != nil {
 			return ctx, err
