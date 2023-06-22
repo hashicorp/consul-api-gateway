@@ -29,7 +29,7 @@ runs:
       uses: hashicorp/setup-terraform@v2
 
     - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@05b148adc31e091bafbaf404f745055d4d3bc9d2
+      uses: aws-actions/configure-aws-credentials@e1e17a757e536f70e52b5a12b2e8d1d1c60e04ef # v2.0.0
       with:
         aws-region: ${{ inputs.region }}
         role-to-assume: "arn:aws:iam::${{ inputs.account_id }}:role/cicd-consul-apigateway-acceptance-tests"

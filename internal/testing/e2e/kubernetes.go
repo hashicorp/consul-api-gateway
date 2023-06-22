@@ -289,7 +289,7 @@ func readCRDs(data []byte) ([]*api.CustomResourceDefinition, error) {
 	return crds, nil
 }
 
-func serviceAccountClient(ctx context.Context, client klient.Client, account, namespace string) (klient.Client, error) {
+func serviceAccountClient(ctx context.Context, client klient.Client) (klient.Client, error) {
 	config := rest.CopyConfig(client.RESTConfig())
 	config.BearerToken = K8sConsulGatewayServiceToken(ctx)
 

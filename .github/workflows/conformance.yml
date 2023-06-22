@@ -70,19 +70,19 @@ jobs:
       #     consul-k8s/
       #     gateway-api/
       - name: Checkout consul-api-gateway
-        uses: actions/checkout@v2
+        uses: actions/checkout@8e5e7e5ab8b370d6c329ec480221332ada57f0ab # v3.5.2
         with:
           path: "consul-api-gateway"
 
       - name: Clone consul-k8s
-        uses: actions/checkout@v2
+        uses: actions/checkout@8e5e7e5ab8b370d6c329ec480221332ada57f0ab # v3.5.2
         with:
           repository: "hashicorp/consul-k8s"
           ref: ${{ matrix.config.consul-k8s-version }}
           path: "consul-k8s"
 
       - name: Clone gateway-api
-        uses: actions/checkout@v2
+        uses: actions/checkout@8e5e7e5ab8b370d6c329ec480221332ada57f0ab # v3.5.2
         with:
           repository: "hashicorp/gateway-api"
           ref: "conformance/v0.5.1-skipped-tests"
@@ -136,13 +136,13 @@ jobs:
         run: go test -v -timeout 10m ./ --gateway-class=consul-api-gateway
 
       - name: Setup tmate session
-        uses: mxschmitt/action-tmate@v3
+        uses: mxschmitt/action-tmate@v3 # TSCCR: no entry for repository "mxschmitt/action-tmate"
         if: failure() && github.event_name == 'workflow_dispatch' && github.event.inputs.debug_enabled == 'true'
         timeout-minutes: ${{ fromJSON(github.event.inputs.debug_timeout_minutes) }}
 
       - name: Report Status
         if: always() && github.ref == 'refs/heads/main'
-        uses: ravsamhq/notify-slack-action@v1
+        uses: ravsamhq/notify-slack-action@v1 # TSCCR: no entry for repository "ravsamhq/notify-slack-action"
         with:
           status: ${{ job.status }}
           message_format: '{emoji} *{workflow}/${{ matrix.cluster-type }} - ${{ matrix.config.name }}* {status_message} in <{repo_url}|{repo}> on <{commit_url}|{commit_sha}>'
