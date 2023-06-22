@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 
 	"k8s.io/apimachinery/pkg/runtime"
+	jsonruntime "k8s.io/apimachinery/pkg/runtime/serializer/json"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	gwv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
@@ -18,6 +19,12 @@ var (
 	_ store.Marshaler = (*Marshaler)(nil)
 
 	scheme = runtime.NewScheme()
+
+	serializerOptions = jsonruntime.SerializerOptions{
+		Yaml:   false,
+		Pretty: false,
+		Strict: false,
+	}
 )
 
 func init() {
