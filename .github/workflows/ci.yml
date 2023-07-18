@@ -36,10 +36,10 @@ jobs:
     strategy:
       matrix:
         consul-version:
-        - 1.14.7
-        - 1.14.7+ent
-        - 1.15.3
-        - 1.15.3+ent
+        - 1.14.8
+        - 1.14.8+ent
+        - 1.15.4
+        - 1.15.4+ent
         - 1.16.0
         - 1.16.0+ent
     runs-on: ubuntu-latest
@@ -91,12 +91,10 @@ jobs:
       fail-fast: false
       matrix:
         consul-image:
-        - 'hashicorp/consul:1.13.7'
-        - 'hashicorp/consul-enterprise:1.13.7-ent'
-        - 'hashicorp/consul:1.14.7'
-        - 'hashicorp/consul-enterprise:1.14.7-ent'
-        - 'hashicorp/consul:1.15.3'
-        - 'hashicorp/consul-enterprise:1.15.3-ent'
+        - 'hashicorp/consul:1.14.8'
+        - 'hashicorp/consul-enterprise:1.14.8-ent'
+        - 'hashicorp/consul:1.15.4'
+        - 'hashicorp/consul-enterprise:1.15.4-ent'
         - 'hashicorp/consul:1.16.0'
         - 'hashicorp/consul-enterprise:1.16.0-ent'
     runs-on: ubuntu-latest
