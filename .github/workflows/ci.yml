@@ -42,8 +42,8 @@ jobs:
         - 1.14.7+ent
         - 1.15.3
         - 1.15.3+ent
-        - 1.16.0-rc1
-        - 1.16.0-rc1+ent
+        - 1.16.0
+        - 1.16.0+ent
     runs-on: ubuntu-latest
     env:
       TEST_RESULTS_DIR: /tmp/test-results/consul@${{ matrix.consul-version }}
@@ -99,8 +99,8 @@ jobs:
         - 'hashicorp/consul-enterprise:1.14.7-ent'
         - 'hashicorp/consul:1.15.3'
         - 'hashicorp/consul-enterprise:1.15.3-ent'
-        - 'hashicorppreview/consul:1.16-dev'
-        - 'hashicorppreview/consul-enterprise:1.16-dev'
+        - 'hashicorp/consul:1.16.0'
+        - 'hashicorp/consul-enterprise:1.16.0-ent'
     runs-on: ubuntu-latest
     env:
       TEST_RESULTS_DIR: /tmp/test-results/e2e@${{ matrix.consul-image }}
