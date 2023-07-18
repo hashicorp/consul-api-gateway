@@ -36,8 +36,6 @@ jobs:
     strategy:
       matrix:
         consul-version:
-        - 1.13.7
-        - 1.13.7+ent
         - 1.14.7
         - 1.14.7+ent
         - 1.15.3
