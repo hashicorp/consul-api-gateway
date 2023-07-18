@@ -35,7 +35,7 @@ import (
 
 const (
 	grpcConsulIncompatibleNameVersion = "1.14"
-	defaultConsulImage                = "hashicorppreview/consul:1.16-dev"
+	defaultConsulImage                = "hashicorppreview/consul:1.17-dev"
 	envvarConsulImage                 = envvarPrefix + "CONSUL_IMAGE"
 	envvarConsulEnterpriseLicense     = "CONSUL_LICENSE"
 	envvarConsulEnterpriseLicensePath = "CONSUL_LICENSE_PATH"
