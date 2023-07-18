@@ -20,7 +20,3 @@ need for these patches.
 
 The conformance tests are run nightly in GitHub Actions using the workflow [here](/.github/workflows/conformance.yml).
 You may also run the workflow on demand from this repo's Actions tab, by following the `conformance/*` branch naming convention, or by adding the `pr/run-conformance` label to your pull request.
-
-## Tips
-
-- If you need shell access to debug any steps in the workflow, [mxschmitt/action-tmate](https://github.com/mxschmitt/action-tmate) can be added before/after any step.
