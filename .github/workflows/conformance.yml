@@ -112,16 +112,19 @@ jobs:
         working-directory: "gateway-api/conformance"
         run: go test -v -timeout 10m ./ --gateway-class=consul-api-gateway
 
-      - name: Report Status
+      - name: Report status
         if: always() && github.ref == 'refs/heads/main'
-        uses: ravsamhq/notify-slack-action@v1 # TSCCR: no entry for repository "ravsamhq/notify-slack-action"
-        with:
-          status: ${{ job.status }}
-          message_format: '{emoji} *{workflow}/${{ matrix.cluster-type }} - ${{ matrix.config.name }}* {status_message} in <{repo_url}|{repo}> on <{commit_url}|{commit_sha}>'
-          mention_groups: '!here'
-          mention_groups_when: 'failure,warnings'
+        uses: slackapi/slack-github-action@e28cf165c92ffef168d23c5c9000cffc8a25e117 # v1.24.0
         env:
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
           SLACK_WEBHOOK_URL: ${{ secrets.ACTION_MONITORING_SLACK }}
+        with:
+          payload: |
+            {
+              "Message": "conformance/${{ matrix.cluster-type }} - ${{ matrix.config.name }} ${{ job.status }}",
+              "Repository": "<https://hashicorp/consul-api-gateway|hashicorp/consul-api-gateway>",
+              "Commit": "${{ github.sha }}",
+            }
 
       - name: Tear down EKS cluster
         if: always() && matrix.cluster-type == 'eks'
