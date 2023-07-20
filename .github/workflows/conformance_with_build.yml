@@ -7,18 +7,7 @@ on:
   push:
     branches: ["conformance/*"]
 
-  workflow_dispatch:
-    inputs:
-      debug_enabled:
-        description: 'Start tmate session if any step fails'
-        required: false
-        type: boolean
-        default: false  # GitHub parses this value to string, see https://github.com/actions/runner/issues/1483
-      debug_timeout_minutes:
-        description: 'How many minutes should the tmate session close itself after?'
-        required: false
-        type: string  # No support for numeric value
-        default: '10'
+  workflow_dispatch: {}
 
 env:
   GO_VERSION: "1.19"
@@ -130,8 +119,3 @@ jobs:
       - name: Run tests
         working-directory: "gateway-api/conformance"
         run: go test -v -timeout 10m ./ --gateway-class=consul-api-gateway
-
-      - name: Setup tmate session
-        uses: mxschmitt/action-tmate@v3 # TSCCR: no entry for repository "mxschmitt/action-tmate"
-        if: failure() && github.event_name == 'workflow_dispatch' && github.event.inputs.debug_enabled == 'true'
-        timeout-minutes: ${{ fromJSON(github.event.inputs.debug_timeout_minutes) }}
