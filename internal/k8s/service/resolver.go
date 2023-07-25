@@ -327,7 +327,9 @@ func (r *backendResolver) findGlobalCatalogService(service *corev1.Service) (*Re
 	}
 
 	filter := fmt.Sprintf(`Meta[%q] == %q and Meta[%q] == %q and Kind != "connect-proxy"`, MetaKeyKubeServiceName, service.Name, MetaKeyKubeNS, service.Namespace)
+	fmt.Printf("NODES(%d): %#v\n", len(nodes), nodes)
 	for _, node := range nodes {
+		fmt.Printf("NODE: %#v\n", node)
 		for _, namespace := range namespaces {
 			nodeWithServices, _, err := r.consul.Catalog().Node(node.Node, &api.QueryOptions{
 				Filter:    filter,
@@ -336,6 +338,9 @@ func (r *backendResolver) findGlobalCatalogService(service *corev1.Service) (*Re
 			if err != nil {
 				r.logger.Trace("error retrieving node services", "error", err, "node", node.Node)
 				return nil, err
+			}
+			for _, service := range nodeWithServices.Services {
+				fmt.Printf("SERVICES: %#v\n", service)
 			}
 			if len(nodeWithServices.Services) == 0 {
 				continue
@@ -346,6 +351,7 @@ func (r *backendResolver) findGlobalCatalogService(service *corev1.Service) (*Re
 				return nil, err
 			}
 			if resolved != nil {
+				fmt.Printf("RESOLVED: %#v\n", resolved)
 				return resolved, nil
 			}
 		}

@@ -17,6 +17,7 @@ check_env_vars() {
     fi
 
     # if running on linux the DOCKER_HOST_ROUTE should be set to the docker IP address
+    DOCKER_HOST_ROUTE=""
     if [[ "$(uname -s)" == "Linux" ]]; then
         DOCKER_HOST_ROUTE="172.17.0.1"
     fi

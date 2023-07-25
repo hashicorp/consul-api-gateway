@@ -7,7 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -27,38 +27,38 @@ func TestRegister(t *testing.T) {
 	ctx := context.Background()
 
 	for _, test := range []struct {
-		name        string
-		host        string
-		failures    uint64
-		maxAttempts uint64
-		fail        bool
+		name       string
+		host       string
+		failures   uint64
+		maxRetries uint64
+		fail       bool
 	}{{
 		name: "basic-test",
 		host: "localhost",
 	}, {
-		name:        "test-retries",
-		host:        "localhost",
-		failures:    3,
-		maxAttempts: 3,
+		name:       "retry-success",
+		host:       "localhost",
+		failures:   3,
+		maxRetries: 3,
 	}, {
-		name:        "test-retries-fail",
-		host:        "localhost",
-		failures:    3,
-		maxAttempts: 2,
-		fail:        true,
+		name:       "retry-failure",
+		host:       "localhost",
+		failures:   3,
+		maxRetries: 2,
+		fail:       true,
 	}} {
 		t.Run(test.name, func(t *testing.T) {
 			id := uuid.New().String()
 			service := gwTesting.RandomString()
 			namespace := gwTesting.RandomString()
 
-			maxAttempts := defaultMaxAttempts
-			if test.maxAttempts > 0 {
-				maxAttempts = test.maxAttempts
+			maxRetries := defaultMaxRetries
+			if test.maxRetries > 0 {
+				maxRetries = test.maxRetries
 			}
 
 			server := runRegistryServer(t, test.failures, id)
-			registry := NewServiceRegistry(hclog.NewNullLogger(), NewTestClient(server.consul), service, namespace, "", test.host).WithTries(maxAttempts)
+			registry := NewServiceRegistry(hclog.NewNullLogger(), NewTestClient(server.consul), service, namespace, "", test.host).WithRetries(maxRetries)
 
 			registry.backoffInterval = 0
 			registry.id = id
@@ -73,11 +73,11 @@ func TestRegister(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, id, registry.ID())
 			require.Equal(t, id, server.lastRegistrationRequest.ID)
-			require.Equal(t, service, server.lastRegistrationRequest.Name)
-			require.Equal(t, namespace, server.lastRegistrationRequest.Namespace)
-			require.Equal(t, test.host, server.lastRegistrationRequest.Address)
+			require.Equal(t, service, server.lastRegistrationRequest.Service.Service)
+			require.Equal(t, namespace, server.lastRegistrationRequest.Service.Namespace)
+			require.Equal(t, test.host, server.lastRegistrationRequest.Service.Address)
 			require.Len(t, server.lastRegistrationRequest.Checks, 1)
-			require.Equal(t, fmt.Sprintf("%s:20000", test.host), server.lastRegistrationRequest.Checks[0].TCP)
+			require.Equal(t, fmt.Sprintf("%s:20000", test.host), server.lastRegistrationRequest.Checks[0].Definition.TCP)
 		})
 	}
 }
@@ -85,33 +85,33 @@ func TestRegister(t *testing.T) {
 func TestDeregister(t *testing.T) {
 	t.Parallel()
 	for _, test := range []struct {
-		name        string
-		failures    uint64
-		maxAttempts uint64
-		fail        bool
+		name       string
+		failures   uint64
+		maxRetries uint64
+		fail       bool
 	}{{
 		name: "basic-test",
 	}, {
-		name:        "test-retries",
-		failures:    3,
-		maxAttempts: 3,
+		name:       "retry-success",
+		failures:   3,
+		maxRetries: 3,
 	}, {
-		name:        "test-retries-fail",
-		failures:    3,
-		maxAttempts: 2,
-		fail:        true,
+		name:       "retry-fail",
+		failures:   3,
+		maxRetries: 2,
+		fail:       true,
 	}} {
 		t.Run(test.name, func(t *testing.T) {
 			id := uuid.New().String()
 			service := gwTesting.RandomString()
 
-			maxAttempts := defaultMaxAttempts
-			if test.maxAttempts > 0 {
-				maxAttempts = test.maxAttempts
+			maxRetries := defaultMaxRetries
+			if test.maxRetries > 0 {
+				maxRetries = test.maxRetries
 			}
 
 			server := runRegistryServer(t, test.failures, id)
-			registry := NewServiceRegistry(hclog.NewNullLogger(), NewTestClient(server.consul), service, "", "", "").WithTries(maxAttempts)
+			registry := NewServiceRegistry(hclog.NewNullLogger(), NewTestClient(server.consul), service, "", "", "").WithRetries(maxRetries)
 			registry.backoffInterval = 0
 			registry.id = id
 			err := registry.Deregister(context.Background())
@@ -128,7 +128,7 @@ func TestDeregister(t *testing.T) {
 type registryServer struct {
 	consul *api.Client
 
-	lastRegistrationRequest api.AgentServiceRegistration
+	lastRegistrationRequest api.CatalogRegistration
 	deregistered            bool
 }
 
@@ -137,8 +137,8 @@ func runRegistryServer(t *testing.T, failures uint64, id string) *registryServer
 
 	server := &registryServer{}
 
-	registerPath := "/v1/agent/service/register"
-	deregisterPath := fmt.Sprintf("/v1/agent/service/deregister/%s", id)
+	registerPath := "/v1/catalog/register"
+	deregisterPath := "/v1/catalog/deregister"
 
 	// Start the fake Consul server.
 	consulServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -148,7 +148,7 @@ func runRegistryServer(t *testing.T, failures uint64, id string) *registryServer
 			return
 		}
 		if r != nil && r.URL.Path == registerPath && r.Method == "PUT" {
-			body, err := ioutil.ReadAll(r.Body)
+			body, err := io.ReadAll(r.Body)
 			if err != nil {
 				t.Errorf("error reading request body: %v", err)
 				w.WriteHeader(http.StatusInternalServerError)

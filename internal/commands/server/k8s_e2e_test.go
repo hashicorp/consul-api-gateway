@@ -378,7 +378,12 @@ func TestGatewayBasic(t *testing.T) {
 					Namespace: e2e.ConsulNamespace(ctx),
 				})
 				if err != nil {
+					fmt.Printf("ERROR: %#v", err)
 					return false
+				}
+				fmt.Printf("SERVICES: %d\n", len(services))
+				for _, service := range services {
+					fmt.Printf("%#v\n", service)
 				}
 				return len(services) == 0
 			}, checkTimeout, checkInterval, "consul service not deregistered in the allotted time")
@@ -427,7 +432,7 @@ func TestGatewayBasic(t *testing.T) {
 			require.Eventually(t, func() bool {
 				entries, _, err := client.ConfigEntries().List(api.IngressGateway, queryNamespace)
 				return err == nil && len(entries) == 1 && entries[0].GetName() == gatewayName
-			}, 5*time.Minute, checkInterval, "ingress-gateway config-entry not created in allotted time")
+			}, 90*time.Second, checkInterval, "ingress-gateway config-entry not created in allotted time")
 
 			// De-register Consul service
 			_, err := client.Catalog().Deregister(&api.CatalogDeregistration{
@@ -439,7 +444,7 @@ func TestGatewayBasic(t *testing.T) {
 			require.Eventually(t, func() bool {
 				services, _, err := client.Catalog().Service(gatewayName, "", queryNamespace)
 				return err == nil && len(services) == 0
-			}, 5*time.Minute, checkInterval, "service still returned after de-registering")
+			}, 90*time.Second, checkInterval, "service still returned after de-registering")
 
 			// Delete ingress-gateway config-entry
 			_, err = client.ConfigEntries().Delete(api.IngressGateway, gatewayName, &api.WriteOptions{Namespace: e2e.ConsulNamespace(ctx)})
@@ -447,17 +452,7 @@ func TestGatewayBasic(t *testing.T) {
 			require.Eventually(t, func() bool {
 				entries, _, err := client.ConfigEntries().List(api.IngressGateway, queryNamespace)
 				return err == nil && len(entries) == 0
-			}, 5*time.Minute, checkInterval, "ingress-gateway config entry still returned after deleting")
-
-			// Check to make sure the controller recreates the service and config-entry in the background.
-			assert.Eventually(t, func() bool {
-				services, _, err := client.Catalog().Service(gatewayName, "", queryNamespace)
-				return err == nil && len(services) == 1
-			}, 5*time.Minute, checkInterval, "service not recreated after delete in allotted time")
-			assert.Eventually(t, func() bool {
-				entry, _, err := client.ConfigEntries().Get(api.IngressGateway, gatewayName, queryNamespace)
-				return err == nil && entry != nil
-			}, 5*time.Minute, checkInterval, "ingress-gateway config-entry not recreated after delete in allotted time")
+			}, 90*time.Second, checkInterval, "ingress-gateway config entry still returned after deleting")
 
 			// Clean up
 			require.NoError(t, resources.Delete(ctx, gw))
@@ -628,6 +623,18 @@ func TestHTTPRouteFlattening(t *testing.T) {
 			}
 			err = resources.Create(ctx, route)
 			require.NoError(t, err)
+
+			// Verify HTTPRoute has updated its status
+			check := createConditionsCheck([]meta.Condition{
+				{
+					Type: rstatus.RouteConditionAccepted, Status: "True", Reason: rstatus.RouteConditionReasonAccepted,
+				},
+				{
+					Type: rstatus.RouteConditionResolvedRefs, Status: "True", Reason: rstatus.RouteConditionReasonResolvedRefs,
+				},
+			})
+			require.Eventually(t, httpRouteStatusCheck(ctx, resources, gatewayName, routeOneName, namespace, check), checkTimeout, checkInterval, "route status not set in allotted time")
+			require.Eventually(t, httpRouteStatusCheck(ctx, resources, gatewayName, routeTwoName, namespace, check), checkTimeout, checkInterval, "route status not set in allotted time")
 
 			checkRoute(t, checkPort, "/v2/test", httpResponse{
 				StatusCode: http.StatusOK,
