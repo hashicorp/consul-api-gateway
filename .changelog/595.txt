@@ -1,0 +1,3 @@
+```release-note:bug
+Adds nil check to prevent panic on the call to Consul to get the list of services on a node
+```
