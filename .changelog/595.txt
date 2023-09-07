@@ -1,0 +1,3 @@
+```release-note:bug
+Fix a nil pointer panic when Consul returns a literal "null" when checking catalog nodes.
+```
