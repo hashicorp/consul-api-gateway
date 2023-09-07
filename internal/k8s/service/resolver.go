@@ -337,6 +337,9 @@ func (r *backendResolver) findGlobalCatalogService(service *corev1.Service) (*Re
 				r.logger.Trace("error retrieving node services", "error", err, "node", node.Node)
 				return nil, err
 			}
+			if nodeWithServices == nil {
+				continue
+			}
 			if len(nodeWithServices.Services) == 0 {
 				continue
 			}
