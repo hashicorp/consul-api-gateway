@@ -23,7 +23,7 @@ spec:
     spec:
       serviceAccountName: consul-api-gateway-controller
       containers:
-      - image: hashicorp/consul-api-gateway:0.5.4
+      - image: hashicorp/consul-api-gateway:0.5.5
         command: ["consul-api-gateway", "server", "-consul-address", "$(HOST_IP):8501", "-ca-file", "/ca/tls.crt", "-sds-server-host", "$(IP)", "-k8s-namespace", "$(CONSUL_K8S_NAMESPACE)", "-log-level", "$(LOG_LEVEL)"]
         name: consul-api-gateway-controller
         ports:
