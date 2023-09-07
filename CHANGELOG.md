@@ -1,3 +1,9 @@
+## 0.5.5 (September 7, 2023)
+
+BUG FIXES:
+
+* Fix a nil pointer panic when Consul returns a literal "null" when checking catalog nodes. [[GH-595](https://github.com/hashicorp/consul-api-gateway/issues/595)]
+
 ## 0.5.4 (May 16, 2023)
 
 IMPROVEMENTS:
