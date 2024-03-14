@@ -1,14 +1,13 @@
+⚠️ **NOTE:** This repository is archived because Consul API Gateway is now developed inside the main [hashicorp/consul](https://github.com/hashicorp/consul) repository (as of Consul 1.16.x). See [API Gateway Docs](https://developer.hashicorp.com/consul/docs/connect/gateways/api-gateway) for more information on how to deploy Consul API Gateway. ⚠️
+<br /><br /><br /><br /><br /><br />
+
+
+
+
 <h1>
   <img src="./assets/logo.svg" align="left" height="46px" alt="Consul logo"/>
   <span>Consul API Gateway</span>
 </h1>
-
-[![CI Status](https://github.com/hashicorp/consul-api-gateway/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/hashicorp/consul-api-gateway/actions/workflows/ci.yml?query=branch%3Amain) [![Discuss](https://img.shields.io/badge/discuss-consul--api--gateway-dc477d?logo=consul)](https://discuss.hashicorp.com/c/consul)
-
-> **NOTE:**
-> As of Consul 1.16.x, Consul API Gateway is now natively deployed by either Consul on VMs or Consul K8s: https://developer.hashicorp.com/consul/docs/release-notes/consul/v1_16_x. Please file issues on either [consul-k8s](https://github.com/hashicorp/consul-k8s) or [consul](https://github.com/hashicorp/consul) moving forward for Consul API Gateway related issues. 
-
-**We're looking for feedback on how our users interact with Consul API Gateway. Please fill out our brief [survey](https://hashicorp.sjc1.qualtrics.com/jfe/form/SV_cMSefVc8TkVD0eW)!**
 
 # Overview
 
