@@ -1,4 +1,4 @@
-⚠️ **NOTE:** This repository is archived because Consul API Gateway is now developed inside the main [hashicorp/consul](https://github.com/hashicorp/consul) repository (as of Consul 1.16.x). See [API Gateway Docs](https://developer.hashicorp.com/consul/docs/connect/gateways/api-gateway) for more information on how to deploy Consul API Gateway. ⚠️
+⚠️ **NOTE:** This repository is archived because Consul API Gateway is now developed inside the main [hashicorp/consul](https://github.com/hashicorp/consul) repository (as of Consul 1.16.x). Refer to [API Gateway Docs](https://developer.hashicorp.com/consul/docs/connect/gateways/api-gateway) for more information on how to deploy Consul API Gateway. ⚠️
 <br /><br /><br /><br /><br /><br />
 
 
