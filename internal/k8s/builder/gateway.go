@@ -80,13 +80,14 @@ func filterAnnotations(annotations map[string]string, allowed []string) map[stri
 }
 
 type GatewayDeploymentBuilder struct {
-	gateway                 *gwv1beta1.Gateway
-	gwConfig                *v1alpha1.GatewayClassConfig
-	sdsHost                 string
-	sdsPort                 int
-	consulCAData            string
-	consulGatewayNamespace  string
-	consulPrimaryDatacenter string
+	gateway                  *gwv1beta1.Gateway
+	gwConfig                 *v1alpha1.GatewayClassConfig
+	sdsHost                  string
+	sdsPort                  int
+	consulCAData             string
+	consulGatewayNamespace   string
+	consulPrimaryDatacenter  string
+	enableTelemetryCollector bool
 }
 
 func NewGatewayDeployment(gw *gwv1beta1.Gateway) *GatewayDeploymentBuilder {
@@ -116,6 +117,11 @@ func (b *GatewayDeploymentBuilder) WithConsulGatewayNamespace(namespace string) 
 
 func (b *GatewayDeploymentBuilder) WithPrimaryConsulDatacenter(datacenter string) *GatewayDeploymentBuilder {
 	b.consulPrimaryDatacenter = datacenter
+	return b
+}
+
+func (b *GatewayDeploymentBuilder) WithEnableTelemetryCollector(enabled bool) *GatewayDeploymentBuilder {
+	b.enableTelemetryCollector = enabled
 	return b
 }
 
@@ -263,6 +269,9 @@ func (b *GatewayDeploymentBuilder) execArgs() []string {
 	if method := b.gwConfig.Spec.ConsulSpec.AuthSpec.Method; method != "" {
 		data.ACLAuthMethod = method
 	}
+	if b.enableTelemetryCollector {
+		data.EnvoyTelemetryBindSocketDir = envoyTelemetryBindSocketDir
+	}
 	var buf bytes.Buffer
 	err := template.Must(template.New("root").
 		Parse(strings.TrimSpace(gwContainerArgsTpl))).
@@ -369,6 +378,19 @@ func (b *GatewayDeploymentBuilder) volumes() ([]corev1.Volume, []corev1.VolumeMo
 			MountPath: consulCALocalPath,
 		})
 	}
+
+	if b.enableTelemetryCollector {
+		volumes = append(volumes, corev1.Volume{
+			Name: "envoy_telemetry",
+			VolumeSource: corev1.VolumeSource{
+				EmptyDir: &corev1.EmptyDirVolumeSource{},
+			},
+		})
+		mounts = append(mounts, corev1.VolumeMount{
+			Name:      "envoy_telemetry",
+			MountPath: envoyTelemetryBindSocketDir,
+		})
+	}
 	return volumes, mounts
 }
 
@@ -397,19 +419,20 @@ func (b *GatewayDeploymentBuilder) requiresCA() bool {
 }
 
 type gwContainerCommandData struct {
-	ConsulCAFile      string
-	ConsulCAData      string
-	ConsulHTTPAddr    string
-	ConsulHTTPPort    string
-	ConsulGRPCPort    string
-	ACLAuthMethod     string
-	LogLevel          string
-	GatewayHost       string
-	GatewayName       string
-	GatewayNamespace  string
-	PrimaryDatacenter string
-	SDSHost           string
-	SDSPort           int
+	ConsulCAFile                string
+	ConsulCAData                string
+	ConsulHTTPAddr              string
+	ConsulHTTPPort              string
+	ConsulGRPCPort              string
+	ACLAuthMethod               string
+	LogLevel                    string
+	GatewayHost                 string
+	GatewayName                 string
+	GatewayNamespace            string
+	PrimaryDatacenter           string
+	SDSHost                     string
+	SDSPort                     int
+	EnvoyTelemetryBindSocketDir string
 }
 
 // gwContainerArgsTpl is the template for the command arguments executed in the Envoy container.
@@ -447,4 +470,8 @@ const gwContainerArgsTpl = `
 {{ .SDSHost }}
 -envoy-sds-port
 {{ .SDSPort }}
+{{- if .EnvoyTelemetryBindSocketDir }}
+-envoy-telemetry-bind-socket-dir
+{{ .EnvoyTelemetryBindSocketDir }}
+{{- end }}
 `

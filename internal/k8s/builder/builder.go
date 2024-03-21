@@ -41,6 +41,8 @@ const (
 	consulCALocalPath = "/consul/tls"
 	consulCAFilename  = "ca.pem"
 
+	envoyTelemetryBindSocketDir = "/consul/envoy-telemetry"
+
 	k8sHostnameTopologyKey = "kubernetes.io/hostname"
 )
 

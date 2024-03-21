@@ -43,6 +43,8 @@ type ServerConfig struct {
 	MetricsPort        int
 	PrimaryDatacenter  string
 
+	EnableTelemetryCollector bool
+
 	// for testing only
 	isTest bool
 }

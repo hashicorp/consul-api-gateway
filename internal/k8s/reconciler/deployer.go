@@ -33,6 +33,7 @@ type GatewayDeployer struct {
 	consul                   consul.Client
 	consulNamespaceMirroring bool
 	partitionInfo            consul.PartitionInfo
+	enableTelemetryCollector bool
 
 	logger hclog.Logger
 }
@@ -47,6 +48,7 @@ type DeployerConfig struct {
 	Consul                   consul.Client
 	ConsulNamespaceMirroring bool
 	ConsulPartitionInfo      consul.PartitionInfo
+	EnableTelemetryCollector bool
 }
 
 func NewDeployer(config DeployerConfig) *GatewayDeployer {
@@ -60,6 +62,7 @@ func NewDeployer(config DeployerConfig) *GatewayDeployer {
 		consul:                   config.Consul,
 		consulNamespaceMirroring: config.ConsulNamespaceMirroring,
 		partitionInfo:            config.ConsulPartitionInfo,
+		enableTelemetryCollector: config.EnableTelemetryCollector,
 	}
 }
 
@@ -215,6 +218,7 @@ func (d *GatewayDeployer) Deployment(namespace string, config apigwv1alpha1.Gate
 		WithConsulCA(d.consulCA).
 		WithConsulGatewayNamespace(namespace).
 		WithPrimaryConsulDatacenter(d.primaryDatacenter).
+		WithEnableTelemetryCollector(d.enableTelemetryCollector).
 		Build(currentReplicas)
 }
 

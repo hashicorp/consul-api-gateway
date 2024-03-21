@@ -56,6 +56,8 @@ type Command struct {
 	flagK8sContext    string // context to use
 	flagK8sNamespace  string // namespace we're run in
 
+	flagEnableTelemetryCollector bool // toggles adding proxy config to enable telemetry collection by consul-telemetry-collector
+
 	// Consul namespaces
 	flagConsulDestinationNamespace string
 	flagMirrorK8SNamespaces        bool
@@ -87,6 +89,7 @@ func (c *Command) init() {
 	c.flagSet.IntVar(&c.flagSDSServerPort, "sds-server-port", defaultSDSServerPort, "SDS Server Port.")
 	c.flagSet.IntVar(&c.flagMetricsPort, "metrics-port", 0, "Metrics port, if not set, metrics are not enabled.")
 	c.flagSet.IntVar(&c.flagPprofPort, "pprof-port", 0, "Go pprof port, if not set, profiling is not enabled.")
+	c.flagSet.BoolVar(&c.flagEnableTelemetryCollector, "enable-telemetry-collector", false, "Enables telemetry forwarding to consul-telemetry-collector")
 
 	{
 		// Consul namespaces
@@ -229,15 +232,16 @@ func (c *Command) Run(args []string) int {
 	}
 
 	return RunServer(ServerConfig{
-		Context:            context.Background(),
-		Logger:             logger,
-		ConsulConfig:       consulCfg,
-		K8sConfig:          cfg,
-		ProfilingPort:      c.flagPprofPort,
-		MetricsPort:        c.flagMetricsPort,
-		PrimaryDatacenter:  c.flagPrimaryDatacenter,
-		isTest:             c.isTest,
-		ConsulClientConfig: consulClientConfig,
+		Context:                  context.Background(),
+		Logger:                   logger,
+		ConsulConfig:             consulCfg,
+		K8sConfig:                cfg,
+		ProfilingPort:            c.flagPprofPort,
+		MetricsPort:              c.flagMetricsPort,
+		PrimaryDatacenter:        c.flagPrimaryDatacenter,
+		isTest:                   c.isTest,
+		ConsulClientConfig:       consulClientConfig,
+		EnableTelemetryCollector: c.flagEnableTelemetryCollector,
 	})
 }
 

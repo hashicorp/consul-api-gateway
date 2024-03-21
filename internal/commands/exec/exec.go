@@ -57,6 +57,7 @@ type ExecConfig struct {
 	EnvoyConfig        EnvoyConfig
 	ConsulClientConfig consul.ClientConfig
 	PrimaryDatacenter  string
+	ProxyConfig        map[string]interface{}
 
 	// for testing only
 	isTest bool
@@ -104,7 +105,7 @@ func RunExec(config ExecConfig) (ret int) {
 		config.GatewayConfig.Namespace,
 		config.GatewayConfig.Partition,
 		config.GatewayConfig.Host,
-	)
+	).WithProxyConfig(config.ProxyConfig)
 	if config.isTest {
 		registry = registry.WithTries(1)
 	}

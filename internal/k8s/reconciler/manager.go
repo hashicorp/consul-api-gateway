@@ -79,6 +79,7 @@ type ManagerConfig struct {
 	Logger                   hclog.Logger
 	ConsulNamespaceMapper    common.ConsulNamespaceMapper
 	ConsulNamespaceMirroring bool
+	EnableTelemetryCollector bool
 }
 
 func NewReconcileManager(config ManagerConfig) *GatewayReconcileManager {
@@ -92,6 +93,7 @@ func NewReconcileManager(config ManagerConfig) *GatewayReconcileManager {
 		Client:                   config.Client,
 		Consul:                   config.Consul,
 		ConsulNamespaceMirroring: config.ConsulNamespaceMirroring,
+		EnableTelemetryCollector: config.EnableTelemetryCollector,
 	})
 
 	return &GatewayReconcileManager{
